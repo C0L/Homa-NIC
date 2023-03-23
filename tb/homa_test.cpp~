@@ -1,0 +1,30 @@
+#include <iostream>
+#include "ap_axi_sdata.h"
+#include "hls_stream.h"
+using namespace std;
+
+typedef hls::axis<ap_uint<12000>, 0, 0, 0> pkt;
+
+void homa(hls::stream<pkt > & ingress, hls::stream<pkt> & egress);
+
+int main() {
+  int i=100;
+  hls::stream<pkt> A, B;
+  pkt tmp1, tmp2;
+  tmp1.data = i;
+  
+  A.write(tmp1);
+  example(A,B);
+
+  B.read(tmp2);
+  if (tmp2.data != 105)
+  {
+    cout << "ERROR: results mismatch" << endl;
+    return 1;
+  }
+  else
+  {
+    cout << "Success: results match" << endl;
+    return 0;
+  }
+}
