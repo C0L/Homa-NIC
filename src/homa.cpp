@@ -1,88 +1,131 @@
 #include <ap_int.h>
 #include <hls_stream.h>
 #include "ap_axi_sdata.h"
+#include <iostream>
 
-// Ethernet header
-//struct eth_header_t {
-//  ap_uint<48>     mac_dest;
-//  ap_uint<48>     mac_src;
-//  ap_uint<32>     tag;
-//  ap_uint<16>     ethertype;
-//}
-//
-//// Ethernet frame, (CRC included in 
-//struct eth_frame_t {
-//  eth_header_t  header;
-//  ap_uint<12032> paylod;
-//  ap_uint<1>     tlast;  // Dont use tlast in Vitis???
-//};
-
+using namespace std;
 
 // https://discuss.pynq.io/t/tutorial-pynq-dma-part-1-hardware-design/3133
-
-// template<int D,int U,int TI,int TD> for ethernet packet? input the payload size?
-//struct ap_axiu{
-//
-//ap_uint<D> data;
-//
-//ap_uint<(D\+7)/8> keep;
-//
-//ap_uint<(D\+7)/8> strb;
-//
-//ap_uint<U> user;
-//
-//ap_uint<1> last;
-//
-//ap_uint<TI> id;
-//
-//ap_uint<TD> dest;
-//
-//};
 
 // AXI4-Stream is a protocol designed for transporting arbitrary unidirectional data. In an AXI4-Stream, TDATA width of bits is transferred per clock cycle. The transfer is started once the producer sends the TVALID signal and the consumer responds by sending the TREADY signal (once it has consumed the initial TDATA). At this point, the producer will start sending TDATA and TLAST (TUSER if needed to carry additional user-defined sideband data). TLAST signals the last byte of the stream. So the consumer keeps consuming the incoming TDATA until TLAST is asserted.
 
 // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/AXI4-Stream-Interfaces-without-Side-Channels
 
-// tlast corresponds to the TLAST signal of the AXI Stream prtocol. This indicates when the message is complete (the DMA transaction complete, the ethernet frame complete, etc). If all transfers were constant length we would not need this. They are not of course
+// https://support.xilinx.com/s/question/0D52E00006iHuY7SAK/axi-stream-interface-help?language=en_US
+// https://docs.xilinx.com/r/en-US/pg085-axi4stream-infrastructure/TUSER-Width-bits
 
-// TODO why tlast
-// TODO can we early exit if the packet is short?
+// https://github.com/Xilinx/HLS_packet_processing/blob/master/apps/arp/app.cpp
+// https://docs.xilinx.com/r/2022.1-English/ug1393-vitis-application-acceleration/Free-Running-Kernel
 
+/* Top-Level Homa Processing Function 
+ *     TODO: this is a free running core
+ *     You can read this as if it were sequential C code, but the #pragmas translate it when wsynthesized
+ */
+void homa(hls::stream<raw_frame>   & link_ingress,
+	  hls::stream<raw_frame>   & link_egress,
+	  hls::stream<request_in>  & dma_ingress,
+	  hls::stream<request_out> & dma_egress ) {
+// This makes it a free running kernel!
+#pragma HLS interface ap_ctrl_none port = return
+#pragma HLS INTERFACE axis port=link_ingress
+#pragma HLS INTERFACE axis port=link_egress
+#pragma HLS INTERFACE axis port=dma_ingress
+#pragma HLS INTERFACE axis port=dma_egress
 
-//void example(hls::stream<ap_axis<32,2,5,6>> &A,
-//hls::stream< ap_axis<32,2,5,6> > &B)
+  /*
+   * Storage for all active outgoing RPCs, which there are a maximum of MAX_RPCS of
+   *   The static qualifier makes this persist across kernel/function invocations (think every cycle)
+   *   An RPC contains.... TODO
+   */
+  static outgoing_rpc[MAX_RPCS];
 
-// TODO need to make sure using PPB
-// A Ping Pong Buffer is a double buffer that is used to speed up a process that can overlap the I/O operation with the data processing operation. One buffer is used to hold a block of data so that a consumer process will see a complete (but old) version of the data, while in the other buffer a producer process is creating a new (partial) version of data. When the new block of data is complete and valid, the consumer and the producer processes will alternate access to the two buffers. As a result, the usage of a ping-pong buffer increases the overall throughput of a device and helps to prevent eventual bottlenecks. The key advantage of PIPOs is that the tool automatically matches the rate of production vs the rate of consumption and creates a channel of communication that is both high performance and is deadlock free.
+  /*
+   * Storage for all active incoming RPCs, which there are a maximum of MAX_RPCS of
+   *   The static qualifier makes this persist across kernel/function invocations (think every cycle)
+   *   An RPC contains.... TODO
+   */
+  static incoming_rpc[MAX_RPCS];
 
+  /*
+   * The following functions can be performed largely in parallel as indicated by DATAFLOW directive
+   * thought its evaluation always always behave identically as if it were sequential
+   *   proc_link_egress() : process incoming frames from the link
+   *   proc_dma()         : process host machine requests (send, rec, reply) and return info back
+   *   proc_link_ingress(): pop the RPC from the SRPT queue and send
+   *   update_outgoing()  : determine what the next message to be broadcast will be
+   *   TODO - update_outgoing will either just update outgoing_rpc, or update that and the srpt queue
+   */
+#pragma HLS DATAFLOW
+  proc_link_egress(link_egress,);
+  proc_dma(dma_ingress, dma_egress);
+  proc_link_ingress(link_ingress);
+//  update_outgoing();
+}
 
-typedef hls::axis<ap_uint<12000>, 0, 0, 0> pkt;
+proc_dma(hls::stream<request_in> & dma_ingress, hls::stream<request_out & dma_egress) {
 
-// Ethernet frame in -> Ethernet frame out
-//void homa(hls::stream<pkt> & ingress, hls::stream<eth_frame_t> & egress, hls::stream<message> & messages ) {
+}
 
-void homa(hls::stream<pkt> & ingress, hls::stream<pkt> & egress) {
-#pragma HLS INTERFACE axis port=ingress
-#pragma HLS INTERFACE axis port=egress
-#pragma HLS INTERFACE axis port=messages
+// Process the arrival of a raw ethernet frame of max size 12176 bits
+void proc_link_ingress(hls::stream<raw_frame> & link_ingress, rpc_store & rpc_store) {
+// Complete the frame processing, P4 style
+#pragma HLS pipeline
+  raw_frame frame;
+  // Has a full ethernet frame been buffered? If so, grab it.
+  if (link_ingress.full()) {
+    link_ingress.read(frame);
+  }
 
-  // persistant state here
-  //ap_uint<256>[max_headers]
+  // TODO ?
+  // Don't change control flow for a bad packet
+  bool discard = parse_homa(frame, );
+  
+  // This seems like the most obvious way to accomplish p4 behavior 
+  ingress_op1();
+  ingress_op2();
+  ingress_op3();
+}
 
-  //while( 1 ) {
-    // Will block until tlast
-  pkt tmp;
-  ingress.read( tmp );
-  tmp.data++;
-  egress.write( tmp );
-	//#pragam HLS DATAFLOW?
+// Process the arrival of a raw ethernet frame of max size 12176 bits
+void proc_link_egress(hls::stream<raw_frame> & link_ingress, rpc_store & rpc_store) {
+  // Complete the frame processing, P4 style
+  #pragma HLS pipeline
+  raw_frame frame;
+  // Has a full ethernet frame been buffered? If so, grab it.
+  if (link_ingress.full()) {
+    link_ingress.read(frame);
+  }
 
-	//process_ingress();
-	//process_egress();
-	//process_messages();
-      //}
-    // use blocking read to get full packet
+  // Don't change control flow for a bad packet
+  bool discard = parse_homa(frame, );
+  
+  // This seems like the most obvious way to accomplish p4 behavior 
+  ingress_op1();
+  ingress_op2();
+  ingress_op3();
+}
 
-  // TODO can we cast the ethernet frame based on the size of payload?
-  //ap_int<payload_size>
+/*
+ * Parse the ethernet, ipv4, homa, header of the incoming frame
+ * Check conditions (mac destination, ethertype, etc)
+ */
+void parse_homa(raw_frame & frame) {
+  // Cast onto ethernet header
+  // Check mac destination address
+  // Check ethertype
+  // Cast onto ipv4 header
+  // Check version, destination, protocol
+  // Cast onto Homa header
+}
+
+void proc_egress(hls::stream<raw_frame> & link_egress, rpc_store & rpc_store) {
+  #pragma HLS pipeline
+
+  ingress_op1();
+  ingress_op2();
+  ingress_op3();
+ 
+  if (link.egress.empty()) {
+    link_egress.write();
+  }
 }

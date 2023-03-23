@@ -4,20 +4,26 @@
 using namespace std;
 
 typedef hls::axis<ap_uint<12000>, 0, 0, 0> pkt;
+//typedef hls::axis<ap_uint<100>, 0, 0, 0> small_pkt;
 
-void homa(hls::stream<pkt > & ingress, hls::stream<pkt> & egress);
+void homa(hls::stream<pkt> & ingress, hls::stream<pkt> & egress);
+
 // How to stream multipl packets?
 int main() {
   hls::stream<pkt> input, output;
   pkt tmp1, tmp2;
 
-  tmp1.data = 100;
-  
+  auto big = 0x1000000000000;
+  tmp1.data = big;
   input.write(tmp1);
+
   homa(input,output);
+
   output.read(tmp2);
 
-  if (tmp2.data != 100) {
+  cout << "Size: " << tmp2.data << endl;
+
+  if (tmp2.data != big) {
     cout << "ERROR: results mismatch" << endl;
     return 1;
   } else {
