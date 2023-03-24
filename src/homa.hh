@@ -1,8 +1,7 @@
-#define HOMA_IPV6_HEADER_LENGTH 40
-#define HOMA_IPV4_HEADER_LENGTH 40
+//#define HOMA_IPV6_HEADER_LENGTH 40
+//#define HOMA_IPV4_HEADER_LENGTH 40
 
-#define ETH_HEADER_SIZE
-#define IPV4_HEADER_SIZE
+#define HOMA_MAX_MESSAGE_LENGTH 1000000
 
 enum homa_packet_type {
 	DATA               = 0x10,
@@ -16,84 +15,83 @@ enum homa_packet_type {
 	ACK                = 0x18,
 };
 
-struct common_header {
-	__be16 sport;
-	__be16 dport;
-	__be32 unused1;
-	__be32 unused2;
-	__u8 doff;
-	__u8 type;
-	__u16 unused3;
-	__be16 checksum;
-	__u16 unused4;
-	__be64 sender_id;
-};
+//struct common_header {
+//	__be16 sport;
+//	__be16 dport;
+//	__be32 unused1;
+//	__be32 unused2;
+//	__u8 doff;
+//	__u8 type;
+//	__u16 unused3;
+//	__be16 checksum;
+//	__u16 unused4;
+//	__be64 sender_id;
+//};
+//
+//
+//struct homa_ack {
+//	__be64 client_id;
+//	__be16 client_port;
+//	__be16 server_port;
+//};
+//
+//struct data_segment {
+//	__be32 offset;
+//	__be32 segment_length;
+//	struct homa_ack ack;
+//	/** @data: the payload of this segment. */
+//	char data[0];
+//};
+//
+//struct data_header {
+//	struct common_header common;
+//	__be32 message_length;
+//	__be32 incoming;
+//	__be16 cutoff_version;
+//	__u8 retransmit;
+//	__u8 pad;
+//	struct data_segment seg;
+//}
+//
+//struct grant_header {
+//	struct common_header common;
+//	__be32 offset;
+//	__u8 priority;
+//}
+//
+//struct resend_header {
+//	struct common_header common;
+//	__be32 offset;
+//	__be32 length;
+//	__u8 priority;
+//};
+//
+//struct unknown_header {
+//	struct common_header common;
+//};
+//
+//struct busy_header {
+//	struct common_header common;
+//};
+//
+//struct cutoffs_header {
+//	struct common_header common;
+//	__be32 unsched_cutoffs[HOMA_MAX_PRIORITIES];
+//	__be16 cutoff_version;
+//};
+//
+//struct need_ack_header {
+//	/** @common: Fields common to all packet types. */
+//	struct common_header common;
+//};
+//
+//struct ack_header {
+//	struct common_header common;
+//	__be16 num_acks;
+//	struct homa_ack acks[NUM_PEER_UNACKED_IDS];
+//};
 
-
-struct homa_ack {
-	__be64 client_id;
-	__be16 client_port;
-	__be16 server_port;
-};
-
-struct data_segment {
-	__be32 offset;
-	__be32 segment_length;
-	struct homa_ack ack;
-	/** @data: the payload of this segment. */
-	char data[0];
-};
-
-struct data_header {
-	struct common_header common;
-	__be32 message_length;
-	__be32 incoming;
-	__be16 cutoff_version;
-	__u8 retransmit;
-	__u8 pad;
-	struct data_segment seg;
-}
-
-struct grant_header {
-	struct common_header common;
-	__be32 offset;
-	__u8 priority;
-}
-
-struct resend_header {
-	struct common_header common;
-	__be32 offset;
-	__be32 length;
-	__u8 priority;
-};
-
-struct unknown_header {
-	struct common_header common;
-};
-
-struct busy_header {
-	struct common_header common;
-};
-
-struct cutoffs_header {
-	struct common_header common;
-	__be32 unsched_cutoffs[HOMA_MAX_PRIORITIES];
-	__be16 cutoff_version;
-};
-
-struct need_ack_header {
-	/** @common: Fields common to all packet types. */
-	struct common_header common;
-};
-
-struct ack_header {
-	struct common_header common;
-	__be16 num_acks;
-	struct homa_ack acks[NUM_PEER_UNACKED_IDS];
-};
 struct homa_rpc {
-	enum {
-		RPC_OUTGOING            = 5,
 		RPC_INCOMING            = 6,
 		RPC_IN_SERVICE          = 8,
 		RPC_DEAD                = 9
