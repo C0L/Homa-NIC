@@ -5,6 +5,7 @@
  */
 void proc_egress(hls::stream<raw_frame> & link_egress,
 		 homa_rpc (&rpcs)[MAX_RPCS]) {
+  // TODO get message from SRPT buffer
   #pragma HLS pipeline
 
   ingress_op1();

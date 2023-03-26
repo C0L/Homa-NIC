@@ -3,8 +3,7 @@
 #include "hls_stream.h"
 using namespace std;
 
-typedef hls::axis<ap_uint<12000>, 0, 0, 0> pkt;
-//typedef hls::axis<ap_uint<100>, 0, 0, 0> small_pkt;
+//typedef hls::axis<ap_uint<12000>, 0, 0, 0> pkt;
 
 void homa(hls::stream<pkt> & ingress, hls::stream<pkt> & egress);
 
@@ -31,3 +30,7 @@ int main() {
     return 0;
   }
 }
+
+
+// TODO write homa_send()
+// TODO write homa_rec()
