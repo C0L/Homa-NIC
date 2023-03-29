@@ -1,7 +1,7 @@
 open_project -reset homa
 set_top homa
-add_files ./src/homa.cpp
-add_files -tb ./tb/homa_test.cpp
+add_files ./src/homa.cc
+add_files -tb ./tb/homa_test.cc
 open_solution "solution" -flow_target vitis
 set_part {xcvu9p-flgb2104-2-i}
 create_clock -period 5 -name default

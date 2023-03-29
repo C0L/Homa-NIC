@@ -15,12 +15,12 @@ void proc_link_ingress(hls::stream<raw_frame> & link_ingress,
   }
 
   // Don't change control flow for a bad packet
-  bool discard = parse_homa(frame, );
+  //bool discard = parse_homa(frame, );
   
   // This seems like the most obvious way to accomplish p4 behavior 
-  ingress_op1();
-  ingress_op2();
-  ingress_op3();
+  //ingress_op1();
+  //ingress_op2();
+  //ingress_op3();
 }
 
 /*
@@ -35,4 +35,28 @@ void parse_homa(raw_frame & frame) {
   // Check version, destination, protocol
   // Cast onto Homa header
 }
+
+
+#include "homa.hh"
+
+/* 
+ *
+ */
+void proc_link_egress(hls::stream<raw_frame> & link_egress,
+		      homa_rpc (&rpcs)[MAX_RPCS],
+		      srpt_queue_t & srpt_queue) {
+  static int remaining = 0;
+  #pragma HLS pipeline
+
+  // TODO are we actively sending something??
+
+  //ingress_op1();
+  //ingress_op2();
+  //ingress_op3();
+ 
+  if (link.egress.empty()) {
+    link_egress.write();
+  }
+}
+
 

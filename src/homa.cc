@@ -5,8 +5,9 @@
 
 #include "homa.hh"
 #include "dma.hh"
-#include "ingress.hh"
-#include "egress.hh"
+#include "link.hh"
+
+using namespace std;
 
 /**
  * FAQ:
@@ -32,33 +33,34 @@
  *     More information can be found on the directive here: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/pragma-HLS-dataflow
  *
  *   6) What is #pragma HLS PIPELINE?
+ *
+ *   7) What is #pragma HLS INTERFACE m_axi ...?
  */
-
-using namespace std;
 
 /** Top-Level Homa Processing Function 
- *     TODO: this is a free running core
  *     You can read this as if it were sequential C code, but the #pragmas provide suggestions to for parallization opportunities
  */
-void homa(hls::stream<raw_frame>   & link_ingress,
-	  hls::stream<raw_frame>   & link_egress,
-	  hls::stream<message_in>  & dma_ingress,
-	  hls::stream<message_out> & dma_egress ) {
-// This makes it a free running kernel!
+void homa(hls::stream<raw_frame> & link_ingress,
+	  hls::stream<raw_frame> & link_egress,
+	  hls::stream<user_in> & dma_ingress,
+	  void * ddr_ram,
+	  void * dma_egress) {
+// This makes it a free running kernel
 #pragma HLS INTERFACE ap_ctrl_none port=return
 #pragma HLS INTERFACE axis port=link_ingress
 #pragma HLS INTERFACE axis port=link_egress
 #pragma HLS INTERFACE axis port=dma_ingress
-#pragma HLS INTERFACE axis port=dma_egress
+// TODO configure number of unreturned requests possible?
+#pragma HLS INTERFACE m_axi depth=1 port=ddr_ram
+#pragma HLS INTERFACE m_axi depth=1 port=dma_egress
 
   /**
    * Storage for all active outgoing RPCs, which there are a maximum of MAX_RPCS of
    *   The static qualifier makes this persist across kernel/function invocations (think every cycle)
-   *   TODO partition array if needed
    */
-  static homa_rpc[MAX_RPCS];
-  static queue<MAX_RPCS,MAX_RPCS_LOG2> avail_rpcs;
-  static queue<MAX_RPCS,MAX_RPCS_LOG2> send_ready;
+  static homa_rpc rpcs[MAX_RPCS];
+  static rpc_queue_t rpc_queue();
+  static srpt_queue_t srpt_queue();
 
   /**
    * The following functions can be performed largely in parallel as indicated by DATAFLOW directive
@@ -66,14 +68,11 @@ void homa(hls::stream<raw_frame>   & link_ingress,
    * dependencies across these functions then the tool will be unable to hit the 5ns period.
    *   proc_link_egress() : process incoming frames from the link
    *   proc_link_ingress(): pop the RPC from the SRPT queue and send
-   *   proc_dma()         : process host machine requests (send, rec, reply) and return info back
-   *   update_state()     : determine next message to send/clean dead RPCs
-   *   TODO - update_outgoing will either just update outgoing_rpc, or update that and the srpt queue
+   *   proc_dma_ingress() : process host machine requests (send, rec, reply) and return info back
    */
-#pragma HLS dataflow  // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/pragma-HLS-dataflow
-  proc_link_egress(link_egress,);
-  proc_link_ingress(link_ingress);
-  proc_dma(dma_ingress, dma_egress); // TODO Separate into two functions
-//  update(); 
+#pragma HLS dataflow
+  proc_link_egress(link_egress, rpcs, srpt_queue);
+  proc_link_ingress(link_ingress, rpcs, ddr_ram, rpc_queue, dma_egress);
+  proc_dma_ingress(dma_ingres, rpcs, ddr_ram, rpc_queue, srpt_queue);
 }
 
