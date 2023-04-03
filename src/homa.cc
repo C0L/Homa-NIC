@@ -37,12 +37,14 @@ using namespace std;
  *   7) What is #pragma HLS INTERFACE m_axi ...?
  */
 
+//https://docs.xilinx.com/v/u/en-US/wp454-ultrascale-memory
+
 /** Top-Level Homa Processing Function 
  *     You can read this as if it were sequential C code, but the #pragmas provide suggestions to for parallization opportunities
  */
-void homa(hls::stream<raw_frame> & link_ingress,
-	  hls::stream<raw_frame> & link_egress,
-	  hls::stream<user_in> & dma_ingress,
+void homa(hls::stream<raw_frame_t> & link_ingress,
+	  hls::stream<raw_frame_t> & link_egress,
+	  hls::stream<user_input> & dma_ingress,
 	  void * ddr_ram,
 	  void * dma_egress) {
 // This makes it a free running kernel
