@@ -22,7 +22,7 @@ using namespace std;
  *     Refer to: https://docs.xilinx.com/r/2022.1-English/ug1393-vitis-application-acceleration/Free-Running-Kernel
  *
  *   3) What is #pragma HLS INTERFACE ap_ctrl_none port=return?
- *     It is not always desirable to run kernels in free running mode, and sometimes other cntrl ports are desired. We are not interested in this for a continuous packet processor. 
+ *     It is not always desirable to run kernels in free running mode, and sometimes other ctrl ports are desired. We are not interested in this for a continuous packet processor. 
  *
  *   4) What is #pragma HLS INTERFACE axis port=XXXXX?
  *     This decares the port as an AXI Stream interface. 
@@ -37,6 +37,8 @@ using namespace std;
  *   7) What is #pragma HLS INTERFACE m_axi ...?
  */
 
+// TODO add debug mode with print output 
+
 //https://docs.xilinx.com/v/u/en-US/wp454-ultrascale-memory
 
 /** Top-Level Homa Processing Function 
@@ -44,15 +46,15 @@ using namespace std;
  */
 void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
-	  hls::stream<user_input> & dma_ingress,
-	  void * ddr_ram,
-	  void * dma_egress) {
+	  hls::stream<user_input_t> & dma_ingress,
+	  char * ddr_ram,
+	  user_output_t * dma_egress) {
 // This makes it a free running kernel
 #pragma HLS INTERFACE ap_ctrl_none port=return
 #pragma HLS INTERFACE axis port=link_ingress
 #pragma HLS INTERFACE axis port=link_egress
 #pragma HLS INTERFACE axis port=dma_ingress
-// TODO configure number of unreturned requests possible?
+// TODO configure number of unreturned requests?
 #pragma HLS INTERFACE m_axi depth=1 port=ddr_ram
 #pragma HLS INTERFACE m_axi depth=1 port=dma_egress
 
@@ -60,9 +62,9 @@ void homa(hls::stream<raw_frame_t> & link_ingress,
    * Storage for all active outgoing RPCs, which there are a maximum of MAX_RPCS of
    *   The static qualifier makes this persist across kernel/function invocations (think every cycle)
    */
-  static homa_rpc rpcs[MAX_RPCS];
-  static rpc_queue_t rpc_queue();
-  static srpt_queue_t srpt_queue();
+  static homa_rpc_t rpcs[MAX_RPCS];
+  static rpc_stack_t rpc_stack;
+  static srpt_queue_t srpt_queue;
 
   /**
    * The following functions can be performed largely in parallel as indicated by DATAFLOW directive
@@ -73,8 +75,8 @@ void homa(hls::stream<raw_frame_t> & link_ingress,
    *   proc_dma_ingress() : process host machine requests (send, rec, reply) and return info back
    */
 #pragma HLS dataflow
-  proc_link_egress(link_egress, rpcs, srpt_queue);
-  proc_link_ingress(link_ingress, rpcs, ddr_ram, rpc_queue, dma_egress);
-  proc_dma_ingress(dma_ingres, rpcs, ddr_ram, rpc_queue, srpt_queue);
+  proc_link_egress(link_egress, rpcs, rpc_stack, srpt_queue);
+  proc_link_ingress(link_ingress, rpcs, ddr_ram, rpc_stack, dma_egress);
+  proc_dma_ingress(dma_ingress, rpcs, ddr_ram, dma_egress, rpc_stack, srpt_queue);
 }
 

@@ -1,6 +1,14 @@
-// The number of RPCs supported on the device (power of 2)
-#define MAX_RPCS 1024
+#ifndef HOMA_H
+#define HOMA_H
 
+#define DEBUG
+
+#include <ap_int.h>
+#include <hls_stream.h>
+#include <ap_axi_sdata.h>
+
+// The number of RPCs supported on the device
+#define MAX_RPCS 1024
 // Number of bits needed to index MAX_RPCS (log2 MAX_RPCS)
 #define MAX_RPCS_LOG2 10
 
@@ -124,31 +132,39 @@ struct srpt_queue_t {
   }
 };
 
-struct homa_message_out {
+struct user_input_t {
+  ap_uint<16> dport;
+  int output_slot;
+  int length;
+  char message[HOMA_MAX_MESSAGE_LENGTH];
+};
+
+struct user_output_t {
+  int rpc_id;
+  unsigned char message[HOMA_MAX_MESSAGE_LENGTH];
+};
+
+struct homa_message_out_t {
   int length;
   unsigned char message[HOMA_MESSAGE_CACHE];
 };
 
-struct homa_message_in {
+struct homa_message_in_t {
   int length;
-  void * address;
+  user_output_t * dma_out;
 };
 
-struct homa_rpc {
+struct homa_rpc_t {
   ap_uint<16> dport;
   //ap_uint<64> id;
 
-  struct homa_message_in msgin;
-  struct homa_message_out msgout;
+  homa_message_in_t homa_message_in;
+  homa_message_out_t homa_message_out;
 };
 
-struct user_input {
-  int output_slot;
-  int length;
-  unsigned char message[HOMA_MAX_MESSAGE_LENGTH];
-};
-
-struct user_output {
-  int rpc_id;
-  unsigned char message[HOMA_MAX_MESSAGE_LENGTH];
-};
+void homa(hls::stream<raw_frame_t> & link_ingress,
+	  hls::stream<raw_frame_t> & link_egress,
+	  hls::stream<user_input_t> & dma_ingress,
+	  char * ddr_ram,
+	  user_output_t * dma_egress);
+#endif

@@ -1,6 +1,9 @@
+synth:
+	vitis_hls tcl/synth.tcl
 
 test:
-	vitis -f tcl/test.tcl
+	vitis_hls tcl/test.tcl
 
 clean:
 	rm vitis_hls.log
+	rm -r homa

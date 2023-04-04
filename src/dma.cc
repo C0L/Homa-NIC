@@ -5,29 +5,55 @@
 /*
  *
  */
-void proc_dma_ingress(hls::stream<user_in> & dma_ingress,
-		      homa_rpc (&rpcs)[MAX_RPC],
-		      void * ddr_ram,
-		      rpc_queue_t & rpc_queue,
+void proc_dma_ingress(hls::stream<user_input_t> & dma_ingress,
+		      homa_rpc_t * rpcs,
+		      char * ddr_ram,
+		      user_output_t * dma_egress,
+		      rpc_stack_t & rpc_stack,
 		      srpt_queue_t & srpt_queue) {
 
-  static user_in msg_buffer;
+  static user_input_t dma_in;
 
 #pragma HLS pipeline
-  if (dma_ingress.full()) {
+  if (!dma_ingress.empty() && rpc_stack.size != 0) {
+    #ifdef DEBUG
+    // Ignored during synthesis
+    std::cerr << "DEBUG: Processing Incoming DMA Request:" << std::endl;
+    std::cerr << "DEBUG:     -> Message Length = " << dma_in.length << std::endl;
+    std::cerr << "DEBUG:     -> Destination Port = " << dma_in.dport << std::endl;
+    std::cerr << "DEBUG:     -> Output Slot = " << dma_in.output_slot << std::endl;
+    #endif
+    
+    dma_ingress.read(dma_in);
 
-    dma_ingress.read(msg_buffer);
+    #ifdef DEBUG
+    std::cerr << "DEBUG: Getting Availible RPC:" << std::endl;
+    std::cerr << "DEBUG:     -> Availible RPCs = " << rpc_stack.size << std::endl;
+    #endif
+    rpc_id_t rpc_id = rpc_stack.pop();
+    #ifdef DEBUG
+    std::cerr << "DEBUG:     -> Popped RPC = " << rpc_id << std::endl;
+    #endif
 
-    rpc_id_t rpc_id = avail_rpcs.pop();
+    homa_rpc_t homa_rpc = rpcs[rpc_id];
 
-    //rpcs[rpc_id].dport          = msg_buffer.dport;
-    //rpcs[rpc_id].msgout.length  = msg_buffer.length;
-    //memcpy(&(rpcs.[rpc_id].msg_out.message), &(msg_buffer.message[0]), HOMA_MESSAGE_CACHE);
+    homa_rpc.dport                   = dma_in.dport;
+    homa_rpc.homa_message_out.length = dma_in.length;
 
-    // AXI Burst transaction
-    //memcpy(ddr_ram + (HOMA_MAX_MESSAGE_LENGTH * rpc_id), &(msg_buffer.message[HOMA_MESSAGE_CACHE]), msg_buffer.length - HOMA_MESSAGE_CACHE);
+    // AXI Burst 
+    if (homa_rpc.homa_message_out.length < HOMA_MESSAGE_CACHE) {
+      memcpy(&(homa_rpc.homa_message_out.message), dma_in.message, homa_rpc.homa_message_out.length);
+    } else {
+      memcpy(&(homa_rpc.homa_message_out.message), dma_in.message, HOMA_MESSAGE_CACHE);
+      memcpy(ddr_ram + (HOMA_MAX_MESSAGE_LENGTH * rpc_id), dma_in.message + HOMA_MESSAGE_CACHE, dma_in.length - HOMA_MESSAGE_CACHE);
+    }
+
+    // Write the RPC corresponding to this message to the user's output DMA buffer
+    homa_rpc.homa_message_in.dma_out = (dma_egress + (dma_in.output_slot * sizeof(user_output_t)));
+    homa_rpc.homa_message_in.dma_out->rpc_id = rpc_id;
 
     // Add to SRPT queue
+    srpt_queue.push(rpc_id, homa_rpc.homa_message_out.length);
   }
 }
 
