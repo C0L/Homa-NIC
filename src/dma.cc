@@ -2,8 +2,16 @@
 #include "dma.hh"
 #include <string.h>
 
-/*
- *
+/**
+ * proc_dma_ingress() - Ethernet frames arrive from the link, the RPC state is updated,
+ * data is placed in the destination user's DMA buffer, 
+ * @dma_ingress: Incoming DMA transfers
+ * @rpcs:        RPC store
+ * @ddr_ram:     On PCB RAM pointer
+ * @dma_egress:  DMA memory space pointer
+ * @rpc_stack:   RPCs that are not in use
+ * @srpt_queue:  Sorted queue of RPCs ready to broadcast based on smallest 
+ *               number of packets remaining
  */
 void proc_dma_ingress(hls::stream<user_input_t> & dma_ingress,
 		      homa_rpc_t * rpcs,
@@ -20,7 +28,6 @@ void proc_dma_ingress(hls::stream<user_input_t> & dma_ingress,
     dma_ingress.read(dma_in);
 
     #ifdef DEBUG
-    // Ignored during synthesis
     std::cerr << "DEBUG: Processing Incoming DMA Request:" << std::endl;
     std::cerr << "DEBUG:     -> Message Length = " << dma_in.length << std::endl;
     std::cerr << "DEBUG:     -> Destination Port = " << dma_in.dport << std::endl;
@@ -62,4 +69,3 @@ void proc_dma_ingress(hls::stream<user_input_t> & dma_ingress,
     srpt_queue.push(rpc_id, homa_rpc->homa_message_out.length);
   }
 }
-

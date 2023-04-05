@@ -181,7 +181,6 @@ void test_unit_srpt_queue() {
   }
 }
 
-
 void test_unit_proc_dma_ingress() {
   /**
    * Single Cacheable DMA Ingress
@@ -240,6 +239,18 @@ void test_unit_proc_dma_ingress() {
   }
 
   // TODO add tests when ingress is not full or there are no availible rpcs
+
+  // TODO add multiple message tests
+}
+
+
+void test_unit_proc_link_egress() {
+  /**
+   * 
+   */
+  {
+
+  }
 }
 
 // TODO not fully implemented

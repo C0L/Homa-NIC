@@ -41,8 +41,12 @@ using namespace std;
 
 //https://docs.xilinx.com/v/u/en-US/wp454-ultrascale-memory
 
-/** Top-Level Homa Processing Function 
- *     You can read this as if it were sequential C code, but the #pragmas provide suggestions to for parallization opportunities
+/**
+ * homa() - Top level homa packet processor 
+ * @link_ingress: The incoming AXI Stream of ethernet frames from the link
+ * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
+ * @ddr_ram:      On PCB RAM pointer
+ * @dma_egress:   DMA memory space pointer
  */
 void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
