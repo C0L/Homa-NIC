@@ -141,12 +141,12 @@ struct user_input_t {
 
 struct user_output_t {
   int rpc_id;
-  unsigned char message[HOMA_MAX_MESSAGE_LENGTH];
+  char message[HOMA_MAX_MESSAGE_LENGTH];
 };
 
 struct homa_message_out_t {
   int length;
-  unsigned char message[HOMA_MESSAGE_CACHE];
+  char message[HOMA_MESSAGE_CACHE];
 };
 
 struct homa_message_in_t {
@@ -156,7 +156,6 @@ struct homa_message_in_t {
 
 struct homa_rpc_t {
   ap_uint<16> dport;
-  //ap_uint<64> id;
 
   homa_message_in_t homa_message_in;
   homa_message_out_t homa_message_out;

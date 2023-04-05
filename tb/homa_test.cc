@@ -196,11 +196,13 @@ void test_unit_proc_dma_ingress() {
     homa_rpc_t * rpcs = new homa_rpc_t[MAX_RPCS];
     char * ddr_ram = new char[HOMA_MAX_MESSAGE_LENGTH * MAX_RPCS];
     user_output_t * dma_egress = new user_output_t[MAX_RPCS];
-    
+
     rpc_stack_t rpc_stack;
     srpt_queue_t srpt_queue;
 
+    // TODO create reusable function for parametizable artifical message generation
     user_input_t user_input;
+    user_input.dport = 99;
     user_input.output_slot = 0;
     user_input.length = ETHERNET_MAX_PAYLOAD - HOMA_MAX_HEADER;
     for (int i = 0; i < ETHERNET_MAX_PAYLOAD - HOMA_MAX_HEADER; i+=4) *((int*) &user_input.message[i]) = 0xDEADBEEF;
@@ -209,9 +211,22 @@ void test_unit_proc_dma_ingress() {
 
     proc_dma_ingress(dma_ingress, rpcs, ddr_ram, dma_egress, rpc_stack, srpt_queue);
 
-    std::cerr << srpt_queue.pop() << std::endl;
+    // TODO comment what we are checking
+    if (rpc_stack.size != MAX_RPCS - 1) passed = false;
+    if (srpt_queue.size != 1) passed = false;
+    if (srpt_queue.pop() != 0) passed = false;
+    if (rpcs[0].dport != 99) passed = false;
+    if (rpcs[0].homa_message_out.length != (ETHERNET_MAX_PAYLOAD - HOMA_MAX_HEADER)) passed = false;
+    
+    for (int i = 0; i < ETHERNET_MAX_PAYLOAD - HOMA_MAX_HEADER-2; i+=4) {
+      if (*((int*) &rpcs[0].homa_message_out.message[i]) != 0xDEADBEEF) {
+	std::cerr << i << endl;
+	passed = false;
+      } 
+    }
 
-    // TODO check dma_egress, check srpt_queue(), check rpc_stack.
+    if (rpcs[0].homa_message_in.dma_out != dma_egress) passed = false;
+    if (rpcs[0].homa_message_in.dma_out->rpc_id != 0) passed = false;
 
     delete[] rpcs;
     delete[] ddr_ram;
