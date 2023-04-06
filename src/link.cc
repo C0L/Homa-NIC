@@ -9,13 +9,10 @@
  * @srpt_queue:  Sorted queue of RPCs ready to broadcast based on smallest 
  *               number of packets remaining
  */
-void proc_link_egress(hls::stream<raw_frame_t> & link_egress,
-		      homa_rpc_t * rpcs,
-		      rpc_stack_t & rpc_stack,
-		      srpt_queue_t & srpt_queue) {
+void proc_link_egress(hls::stream<raw_frame_t> & link_egress) {
 
   static bool broadcast_active = false;
-  static rpc_id_t broadcast_homa_rpc_id;
+  //static homa_rpc_id_t broadcast_homa_rpc_id;
 
   // TODO grant process currently unimplemented
   
@@ -24,33 +21,33 @@ void proc_link_egress(hls::stream<raw_frame_t> & link_egress,
   #ifdef DEBUG
   std::cerr << "DEBUG: Selecting Message for Egress:" << std::endl;
   std::cerr << "DEBUG:     -> Broadcast Active = " << broadcast_active << std::endl;
-  std::cerr << "DEBUG:     -> SRPT Queue Size = " << srpt_queue.size << std::endl;
+  //std::cerr << "DEBUG:     -> SRPT Queue Size = " << srpt_queue.size << std::endl;
   #endif
 
-  if (!broadcast_active && srpt_queue.size != 0) {
-    broadcast_active = true;
-    broadcast_homa_rpc_id = srpt_queue.pop();
-    #ifdef DEBUG
-    std::cerr << "DEBUG: Popped New Message for Broadcase:" << std::endl;
-    std::cerr << "DEBUG:     -> Active RPC ID = " << broadcast_homa_rpc_id << std::endl;
-    #endif
-  }
-  
-  if (broadcast_active) {
-    homa_rpc_t homa_rpc = rpcs[broadcast_homa_rpc]; 
-
-
-    // P4 style pipeline
-    //ingress_op1();
-    //ingress_op2();
-    //ingress_op3();
-
-    //link_egress.write();
-
-    if (homa_rpc.homa_message_out.length != 0) {
-      // Recycle RPC ID?
-    }
-  }
+  //  if (!broadcast_active && srpt_queue.size != 0) {
+  //    broadcast_active = true;
+  //    broadcast_homa_rpc_id = srpt_queue.pop();
+  //
+  //    #ifdef DEBUG
+  //    std::cerr << "DEBUG: Popped New Message for Broadcast:" << std::endl;
+  //    std::cerr << "DEBUG:     -> Active RPC ID = " << broadcast_homa_rpc_id << std::endl;
+  //    #endif
+  //  }
+  //  
+  //  if (broadcast_active) {
+  //    homa_rpc_t homa_rpc = rpcs[broadcast_homa_rpc]; 
+  //
+  //    // P4 style pipeline
+  //    //ingress_op1();
+  //    //ingress_op2();
+  //    //ingress_op3();
+  //
+  //    //link_egress.write();
+  //
+  //    if (homa_rpc.homa_message_out.length != 0) {
+  //      // Recycle RPC ID?
+  //    }
+  //  }
 }
 
 ///**
@@ -78,9 +75,7 @@ void proc_link_egress(hls::stream<raw_frame_t> & link_egress,
  * @dma_egress:   DMA memory space pointer
  */
 void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
-		       homa_rpc_t * rpcs,
 		       char * ddr_ram,
-		       rpc_stack_t & rpc_stack,
 		       user_output_t * dma_egress) {
   // Complete the frame processing, P4 style
   #pragma HLS pipeline

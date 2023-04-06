@@ -1,6 +1,8 @@
 open_project -reset homa
 set_top homa
 add_files -tb ./tb/homa_test.cc
+add_files -tb ./src/rpcmgmt.hh
+add_files -tb ./src/rpcmgmt.cc
 add_files -tb ./src/homa.hh
 add_files -tb ./src/homa.cc
 add_files -tb ./src/dma.cc
