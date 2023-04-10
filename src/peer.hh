@@ -1,51 +1,14 @@
-/**
- * define HOMA_MAX_PRIORITIES - The maximum number of priority levels that
- * Homa can use (the actual number can be restricted to less than this at
- * runtime). Changing this value will affect packet formats.
- */
-#define HOMA_MAX_PRIORITIES 8
+#ifndef PEER_H
+#define PEER_H
+
+#include "homa.hh"
+#include "net.hh"
 
 /**
  * define NUM_PEER_UNACKED_IDS - The number of ids for unacked RPCs that
  * can be stored in a struct homa_peer.
  */
 #define NUM_PEER_UNACKED_IDS 5
-
-/**
- * define HOMA_PEERTAB_BUCKETS - Number of bits in the bucket index for a
- * homa_peertab.  Should be large enough to hold an entry for every server
- * in a datacenter without long hash chains.
- */
-#define HOMA_PEERTAB_BUCKET_BITS 15
-
-/** define HOME_PEERTAB_BUCKETS - Number of buckets in a homa_peertab. */
-#define HOMA_PEERTAB_BUCKETS (1 << HOMA_PEERTAB_BUCKET_BITS)
-
-typedef ap_uint<HOMA_PEERTAB_BUCKET_BITS> homa_peer_id_t;
-
-/**
- * struct homa_ack - Identifies an RPC that can be safely deleted by its
- * server. After sending the response for an RPC, the server must retain its
- * state for the RPC until it knows that the client has successfully
- * received the entire response. An ack indicates this. Clients will
- * piggyback acks on future data packets, but if a client doesn't send
- * any data to the server, the server will eventually request an ack
- * explicitly with a NEED_ACK packet, in which case the client will
- * return an explicit ACK.
- */
-struct homa_ack_t {
-	/**
-	 * @id: The client's identifier for the RPC. 0 means this ack
-	 * is invalid.
-	 */
-	ap_uint<64> client_id;
-
-	/** @client_port: The client-side port for the RPC. */
-	ap_uint<16> client_port;
-
-	/** @server_port: The server-side port for the RPC. */
-	ap_uint<16> server_port;
-}; 
 
 /**
  * struct homa_peer - One of these objects exists for each machine that we
@@ -56,7 +19,8 @@ struct homa_peer_t {
    * @addr: IPv6 address for the machine (IPv4 addresses are stored
    * as IPv4-mapped IPv6 addresses).
    */
-  ap_uint<64> addr;
+  //ap_uint<64> addr;
+  in6_addr addr;
 
   /**
    * @unsched_cutoffs: priorities to use for unscheduled packets
@@ -156,5 +120,6 @@ struct homa_peer_t {
   homa_ack_t acks[NUM_PEER_UNACKED_IDS];
 };
 	
-// TODO 
-homa_peer_id_t homa_peer_find(...);
+homa_peer_id_t homa_peer_find(in6_addr & addr);
+
+#endif

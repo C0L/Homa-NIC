@@ -7,22 +7,50 @@
 #include <hls_stream.h>
 #include <ap_axi_sdata.h>
 
+struct dma_in_t;
+struct user_output_t;
+
+// Maximum Homa message size
+#define HOMA_MAX_MESSAGE_LENGTH 1000000
+
 // The number of RPCs supported on the device
 #define MAX_RPCS 1024
 
 // Number of bits needed to index MAX_RPCS+1 (log2 MAX_RPCS + 1)
 #define MAX_RPCS_LOG2 11
 
-// Maximum Homa message size
-#define HOMA_MAX_MESSAGE_LENGTH 1000000
-
-// Roughly 10 ethernet packets worth of message space (scale this based on DDR latency)
-#define HOMA_MESSAGE_CACHE 15000
-
 #define HOMA_MAX_HEADER 90
 
 #define ETHERNET_MAX_PAYLOAD 1500
-		 
+
+#define IPV6_HEADER_LENGTH 40
+
+/**
+ * define HOMA_MAX_PRIORITIES - The maximum number of priority levels that
+ * Homa can use (the actual number can be restricted to less than this at
+ * runtime). Changing this value will affect packet formats.
+ */
+#define HOMA_MAX_PRIORITIES 8
+
+/**
+ * define HOMA_PEERTAB_BUCKETS - Number of bits in the bucket index for a
+ * homa_peertab.  Should be large enough to hold an entry for every server
+ * in a datacenter without long hash chains.
+ */
+#define HOMA_PEERTAB_BUCKET_BITS 15
+
+/** define HOME_PEERTAB_BUCKETS - Number of buckets in a homa_peertab. */
+#define HOMA_PEERTAB_BUCKETS (1 << HOMA_PEERTAB_BUCKET_BITS)
+
+
+// To index all the RPCs, we need LOG2 of the max number of RPCs
+typedef ap_uint<MAX_RPCS_LOG2> homa_rpc_id_t;
+
+typedef ap_uint<HOMA_PEERTAB_BUCKET_BITS> homa_peer_id_t;
+
+//TODO rename?
+//typedef raw_frame unsigned char[1522];
+
 /** Data "bucket" for incoming or outgoing ethernet frames
  * 
  *  Maximum size of ethernet, assuming non-jumbo frames:
@@ -32,292 +60,175 @@
  *
  *  Refer to: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/How-AXI4-Stream-is-Implemented
  */
-typedef hls::axis<ap_uint<12176>, 0, 0, 0> raw_frame_t;
+typedef hls::axis<unsigned char [1522], 0, 0, 0> raw_frame_t;
+//typedef hls::axis<ap_uint<12176>, 0, 0, 0> raw_frame_t;
 
-// To index all the RPCs, we need LOG2 of the max number of RPCs
-typedef ap_uint<MAX_RPCS_LOG2> homa_rpc_id_t;
-
-
-#include "net.hh"
-#include "hash.hh"
-#include "peertab.hh"
-
+// TODO move to timer.hh
+extern ap_uint<64> timer;
 
 /**
- * user_input_t - Data required to initiate a Homa request or response transaction.
- * This is copied on-chip via an AXI Stream interface from DMA.
+ * struct homa - Overall information about the Homa protocol implementation.
  *
- * This fills the role of msghdr in homa_send, but contains no pointer data.
+ * There will typically only exist one of these at a time, except during
+ * unit tests.
  */
-struct user_input_t {
-  /**
-   * @output_slot: Which user_output_t to write the result of Homa operation to in DMA buffer
-   */
-  int output_slot;
-  
-  /**
-   * @dest_addr: Address of destination
-   */
-  sockaddr_in_union dest_addr;
- 
-  /**
-   * @message: Number of elements in message 
-   */
-  int length;
+struct homa_t {
+  int mtu;
 
   /**
-   * @id: 0 for request message, otherwise, ID of the RPC
+   * @rtt_bytes: An estimate of the amount of data that can be transmitted
+   * over the wire in the time it takes to send a full-size data packet
+   * and receive back a grant. Used to ensure full utilization of
+   * uplink bandwidth. Set externally via sysctl.
    */
-  ap_uint<64> id;
+  int rtt_bytes;
 
   /**
-   * @completion_cookie - For requests only; value to return
-   * along with response.
+   * @link_bandwidth: The raw bandwidth of the network uplink, in
+   * units of 1e06 bits per second.  Set externally via sysctl.
    */
-  ap_uint<64> completion_cookie;
+  int link_mbps;
 
   /**
-   * @message: Actual message content
+   * @num_priorities: The total number of priority levels available for
+   * Homa's use. Internally, Homa will use priorities from 0 to
+   * num_priorities-1, inclusive. Set externally via sysctl.
    */
-  char message[HOMA_MAX_MESSAGE_LENGTH];
-};
-
-struct user_output_t {
-  int rpc_id;
-  char message[HOMA_MAX_MESSAGE_LENGTH];
-};
-
-/**
- * struct homa_message_out - Describes a message (either request or response)
- * for which this machine is the sender.
- */
-struct homa_message_out_t {
-  /**
-   * @length: Total bytes in message (excluding headers).  A value
-   * less than 0 means this structure is uninitialized and therefore
-   * not in use (all other fields will be zero in this case).
-   */
-  int length;
+  int num_priorities;
 
   /**
-   * @message: On-chip cache of message ready to broadcast
+   * @priority_map: entry i gives the value to store in the high-order
+   * 3 bits of the DSCP field of IP headers to implement priority level
+   * i. Set externally via sysctl.
    */
-  char message[HOMA_MESSAGE_CACHE];
+  int priority_map[HOMA_MAX_PRIORITIES];
 
   /**
-   * @next_xmit_offset: All bytes in the message, up to but not
-   * including this one, have been transmitted.
+   * @max_sched_prio: The highest priority level currently available for
+   * scheduled packets. Levels above this are reserved for unscheduled
+   * packets.  Set externally via sysctl.
    */
-  int next_xmit_offset;
+  int max_sched_prio;
 
   /**
-   * @unscheduled: Initial bytes of message that we'll send
-   * without waiting for grants.
+   * @unsched_cutoffs: the current priority assignments for incoming
+   * unscheduled packets. The value of entry i is the largest
+   * message size that uses priority i (larger i is higher priority).
+   * If entry i has a value of HOMA_MAX_MESSAGE_SIZE or greater, then
+   * priority levels less than i will not be used for unscheduled
+   * packets. At least one entry in the array must have a value of
+   * HOMA_MAX_MESSAGE_SIZE or greater (entry 0 is usually INT_MAX).
+   * Set externally via sysctl.
    */
-  int unscheduled;
+  int unsched_cutoffs[HOMA_MAX_PRIORITIES];
 
   /**
-   * @granted: Total number of bytes we are currently permitted to
-   * send, including unscheduled bytes; must wait for grants before
-   * sending bytes at or beyond this position. Never larger than
-   * @length.
+   * @cutoff_version: increments every time unsched_cutoffs is
+   * modified. Used to determine when we need to send updates to
+   * peers.  Note: 16 bits should be fine for this: the worst
+   * that happens is a peer has a super-stale value that equals
+   * our current value, so the peer uses suboptimal cutoffs until the
+   * next version change.  Can be set externally via sysctl.
    */
-  int granted;
-
-  /** @priority: Priority level to use for future scheduled packets. */
-  ap_uint<8> sched_priority;
-
-  /**
-   * @init_cycles: Time in get_cycles units when this structure was
-   * initialized.  Used to find the oldest outgoing message.
-   */
-  ap_uint<64> init_cycles;
-};
-
-/**
- * struct homa_message_in - Holds the state of a message received by
- * this machine; used for both requests and responses.
- */
-struct homa_message_in_t {
-  /**
-   * @total_length: Size of the entire message, in bytes. A value
-   * less than 0 means this structure is uninitialized and therefore
-   * not in use.
-   */
-  int total_length;
-  
-  /**
-   * @dma_out: Userspace DMA buffer for placing received message
-   */
-  user_output_t * dma_out;
-  
-  /**
-   * @bytes_remaining: Amount of data for this message that has
-   * not yet been received; will determine the message's priority.
-   */
-  int bytes_remaining;
-  
-  /**
-   * @incoming: Total # of bytes of the message that the sender will
-   * transmit without additional grants. Initialized to the number of
-   * unscheduled bytes; after that, updated only when grants are sent.
-   * Never larger than @total_length. 
-   */
-  int incoming;
-  
-  /** @priority: Priority level to include in future GRANTS. */
-  int priority;
-  
-  /**
-   * @scheduled: True means some of the bytes of this message
-   * must be scheduled with grants.
-   */
-  bool scheduled;
-  
-  /**
-   * @birth: get_cycles time when this RPC was added to the grantable
-   * list. Invalid if RPC isn't in the grantable list.
-   */
-  ap_uint<64> birth;
-  
-  /**
-   * @copied_out: All of the bytes of the message with offset less
-   * than this value have been copied to user-space buffers.
-   */
-  int copied_out;
-};
-
-/**
- * struct homa_rpc - One of these structures exists for each active
- * RPC. The same structure is used to manage both outgoing RPCs on
- * clients and incoming RPCs on servers.
- */
-struct homa_rpc_t {
-  /** @output_offset:  Offset in DMA to write result. */
-  int output_offset;
+  int cutoff_version;
 
   /**
-   * @state: The current state of this RPC:
-   *
-   * @RPC_OUTGOING:     The RPC is waiting for @msgout to be transmitted
-   *                    to the peer.
-   * @RPC_INCOMING:     The RPC is waiting for data @msgin to be received
-   *                    from the peer; at least one packet has already
-   *                    been received.
-   * @RPC_IN_SERVICE:   Used only for server RPCs: the request message
-   *                    has been read from the socket, but the response
-   *                    message has not yet been presented to the kernel.
-   * @RPC_DEAD:         RPC has been deleted and is waiting to be
-   *                    reaped. In some cases, information in the RPC
-   *                    structure may be accessed in this state.
-   *
-   * Client RPCs pass through states in the following order:
-   * RPC_OUTGOING, RPC_INCOMING, RPC_DEAD.
-   *
-   * Server RPCs pass through states in the following order:
-   * RPC_INCOMING, RPC_IN_SERVICE, RPC_OUTGOING, RPC_DEAD.
+   * @duty_cycle: Sets a limit on the fraction of network bandwidth that
+   * may be consumed by a single RPC in units of one-thousandth (1000
+   * means a single RPC can consume all of the incoming network
+   * bandwidth, 500 means half, and so on). This also determines the
+   * fraction of a core that can be consumed by NAPI when a large
+   * message is being received. Its main purpose is to keep NAPI from
+   * monopolizing a core so much that user threads starve. Set externally
+   * via sysctl.
    */
-  enum {
-    RPC_OUTGOING            = 5,
-    RPC_INCOMING            = 6,
-    RPC_IN_SERVICE          = 8,
-    RPC_DEAD                = 9
-  } state;
-
-  /* Valid bits for @flags:
-   * RPC_PKTS_READY -        The RPC has input packets ready to be
-   *                         copied to user space.
-   * RPC_COPYING_FROM_USER - Data is being copied from user space into
-   *                         the RPC; the RPC must not be reaped.
-   * RPC_COPYING_TO_USER -   Data is being copied from this RPC to
-   *                         user space; the RPC must not be reaped.
-   * RPC_HANDING_OFF -       This RPC is in the process of being
-   *                         handed off to a waiting thread; it must
-   *                         not be reaped.
-   */
-#define RPC_PKTS_READY        1
-#define RPC_COPYING_FROM_USER 2
-#define RPC_COPYING_TO_USER   4
-#define RPC_HANDING_OFF       8
-#define RPC_CANT_REAP (RPC_COPYING_FROM_USER | RPC_COPYING_TO_USER | RPC_HANDING_OFF)
+  int duty_cycle;
 
   /**
-   * @flags: Additional state information: an OR'ed combination of
-   * various single-bit flags. See below for definitions. Must be
-   * manipulated with atomic operations because some of the manipulations
-   * occur without holding the RPC lock.
+   * @grant_threshold: A grant will not be sent for an RPC until
+   * the number of incoming bytes drops below this threshold. Computed
+   * from @rtt_bytes and @duty_cycle.
+   */
+  int grant_threshold;
+
+  /**
+   * @max_overcommit: The maximum number of messages to which Homa will
+   * send grants at any given point in time.  Set externally via sysctl.
+   */
+  int max_overcommit;
+
+  /**
+   * @max_incoming: This value is computed from max_overcommit, and
+   * is the limit on how many bytes are currently permitted to be
+   * granted but not yet received, cumulative across all messages.
+   */
+  int max_incoming;
+
+  /**
+   * @resend_ticks: When an RPC's @silent_ticks reaches this value,
+   * start sending RESEND requests.
+   */
+  int resend_ticks;
+
+  /**
+   * @resend_interval: minimum number of homa timer ticks between
+   * RESENDs to the same peer.
+   */
+  int resend_interval;
+
+  /**
+   * @timeout_resends: Assume that a server is dead if it has not
+   * responded after this many RESENDs have been sent to it.
+   */
+  int timeout_resends;
+
+  /**
+   * @request_ack_ticks: How many timer ticks we'll wait for the
+   * client to ack an RPC before explicitly requesting an ack.
+   * Set externally via sysctl.
+   */
+  int request_ack_ticks;
+
+  /**
+   * @reap_limit: Maximum number of packet buffers to free in a
+   * single call to home_rpc_reap.
+   */
+  int reap_limit;
+
+  /**
+   * @dead_buffs_limit: If the number of packet buffers in dead but
+   * not yet reaped RPCs is less than this number, then Homa reaps
+   * RPCs in a way that minimizes impact on performance but may permit
+   * dead RPCs to accumulate. If the number of dead packet buffers
+   * exceeds this value, then Homa switches to a more aggressive approach
+   * to reaping RPCs. Set externally via sysctl.
+   */
+  int dead_buffs_limit;
+
+  /**
+   * @max_dead_buffs: The largest aggregate number of packet buffers
+   * in dead (but not yet reaped) RPCs that has existed so far in a
+   * single socket.  Readable via sysctl, and may be reset via sysctl
+   * to begin recalculating.
+   */
+  int max_dead_buffs;
+
+  /**
+   * @timer_ticks: number of times that homa_timer has been invoked
+   * (may wraparound, which is safe).
+   */
+  ap_uint<32> timer_ticks;
+
+  /**
+   * @flags: a collection of bits that can be set using sysctl
+   * to trigger various behaviors.
    */
   int flags;
-
-  /**
-   * @grants_in_progress: Count of active grant sends for this RPC;
-   * it's not safe to reap the RPC unless this value is zero.
-   * This variable is needed so that grantable_lock can be released
-   * while sending grants, to reduce contention.
-   */
-  int grants_in_progress;
-
-  /**
-   * @peer: Information about the other machine (the server, if
-   * this is a client RPC, or the client, if this is a server RPC).
-   */
-  homa_peer_id_t peer;
-  
-  /** @dport: Port number on @peer that will handle packets. */
-  ap_uint<16> dport;
-  
-  /**
-   * @id: Unique identifier for the RPC among all those issued
-   * from its port.
-   */
-  homa_rpc_id_t id;
-  
-  /**
-   * @completion_cookie: Only used on clients. Contains identifying
-   * information about the RPC provided by the application; returned to
-   * the application with the RPC's result.
-   */
-  ap_uint<64> completiton_cookie;
-
-  /**
-   * @msgin: Information about the message we receive for this RPC
-   * (for server RPCs this is the request, for client RPCs this is the
-   * response).
-   */
-  homa_message_in_t homa_message_in;
-	
-  /**
-   * @msgout: Information about the message we send for this RPC
-   * (for client RPCs this is the request, for server RPCs this is the
-   * response).
-   */
-  homa_message_out_t homa_message_out;
-
-  /**
-   * @silent_ticks: Number of times homa_timer has been invoked
-   * since the last time a packet indicating progress was received
-   * for this RPC, so we don't need to send a resend for a while.
-   */
-  int silent_ticks;
-
-  /**
-   * @resend_timer_ticks: Value of homa->timer_ticks the last time
-   * we sent a RESEND for this RPC.
-   */
-  ap_uint<32> resend_timer_ticks;
-
-  /**
-   * @done_timer_ticks: The value of homa->timer_ticks the first
-   * time we noticed that this (server) RPC is done (all response
-   * packets have been transmitted), so we're ready for an ack.
-   * Zero means we haven't reached that point yet.
-   */
-  ap_uint<32> done_timer_ticks;
 };
 
 void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
-	  hls::stream<user_input_t> & dma_ingress,
-	  char * ddr_ram,
-	  user_output_t * dma_egress);
+	  hls::stream<dma_in_t> & user_req,
+	  char * ddr,
+	  char * dma);
 #endif

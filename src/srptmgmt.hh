@@ -1,9 +1,16 @@
+#ifndef SRPTMGMT_H
+#define SRPTMGMT_H
+
+struct srpt_queue_t;
+
+#include "homa.hh"
+
 /**
  * Shortest remaining processing time queue
  */
 struct srpt_queue_t {
   struct ordered_rpc_t {
-    rpc_id_t rpc_id; 
+    homa_rpc_id_t rpc_id; 
     unsigned int remaining;
   } buffer[MAX_RPCS+2];
 
@@ -18,7 +25,7 @@ struct srpt_queue_t {
     size = 0;
   }
 
-  void push(rpc_id_t rpc_id, unsigned int remaining) {
+  void push(homa_rpc_id_t rpc_id, unsigned int remaining) {
     size++;
     buffer[0].rpc_id = rpc_id;
     buffer[0].remaining = remaining;
@@ -33,7 +40,7 @@ struct srpt_queue_t {
     }
   }
 
-  rpc_id_t pop() {
+  homa_rpc_id_t pop() {
     size--;
 
     for (int id = 0; id <= MAX_RPCS; id+=2) {
@@ -52,3 +59,7 @@ struct srpt_queue_t {
     return size;
   }
 };
+
+extern srpt_queue_t srpt_queue;
+
+#endif

@@ -18,12 +18,6 @@ void proc_link_egress(hls::stream<raw_frame_t> & link_egress) {
   
 #pragma HLS pipeline
 
-  #ifdef DEBUG
-  std::cerr << "DEBUG: Selecting Message for Egress:" << std::endl;
-  std::cerr << "DEBUG:     -> Broadcast Active = " << broadcast_active << std::endl;
-  //std::cerr << "DEBUG:     -> SRPT Queue Size = " << srpt_queue.size << std::endl;
-  #endif
-
   //  if (!broadcast_active && srpt_queue.size != 0) {
   //    broadcast_active = true;
   //    broadcast_homa_rpc_id = srpt_queue.pop();
