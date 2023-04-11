@@ -18,10 +18,7 @@
  */
 void proc_dma_ingress(homa_t * homa,
 		      hls::stream<dma_in_t> & user_req,
-		      char * dma,
-		      char * ddr) {
-#pragma HLS pipeline II=1 style=flp
-
+		      ap_uint<512> * dma) {
   dma_in_t dma_in;
   
   // Try to read data from the AXI Stream buffer
@@ -46,27 +43,10 @@ void proc_dma_ingress(homa_t * homa,
   
     /** Outgoing message initialization  */
     homa_rpc.msgout.length = dma_in.length;
-  
-    //memcpy(homa_rpc.msgout.message, dma + dma_in.message_offset, dma_in.length);
 
-    // AXI Burst 
-    //if (homa_rpc.msgout.length < HOMA_MESSAGE_CACHE) {
-      /**
-       * The tool is unable to determine number of iterations of a loop (memcpy) needed to complete this operation
-       * when the loop iteration is set outside of the C function. This results in poor timing information, but we
-       * can provide this information to the compiler by specifying the tipcount directive. This has no effect on
-       * synthesis, just reporting
-       */
-      //#pragma HLS loop_tripcount min=1 max=> avg=<int>
-      //memcpy(homa_rpc.msgout.message, dma + dma_in.message_offset, dma_in.length);
-    //} else {
-    //memcpy(homa_rpc.msgout.message, dma + dma_in.message_offset, HOMA_MESSAGE_CACHE);
-    //memcpy(ddr + (HOMA_MAX_MESSAGE_LENGTH * dma_in.id), dma + dma_in.message_offset + HOMA_MESSAGE_CACHE, dma_in.length - HOMA_MESSAGE_CACHE);
-    //}
-
-    memcpy(homa_rpc.msgout.message, dma + dma_in.message_offset, HOMA_MESSAGE_CACHE);
-    memcpy(ddr + (HOMA_MAX_MESSAGE_LENGTH * dma_in.id), dma + dma_in.message_offset + HOMA_MESSAGE_CACHE, HOMA_MAX_MESSAGE_LENGTH);
- 
+    // AXI Burst
+    // TODO copy dma_in.length bytes in if less than MESSAGE cache
+    memcpy(homa_rpc.msgout.message, dma + dma_in.input_offset, HOMA_MESSAGE_CACHE);
   
     homa_rpc.msgout.next_xmit_offset = 0;
     homa_rpc.msgout.sched_priority = 0;

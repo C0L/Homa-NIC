@@ -23,30 +23,22 @@ void homa(homa_t * homa,
 	  hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
 	  hls::stream<dma_in_t> & user_req,
-	  char * ddr,
-	  char * dma) {
+	  ap_uint<512> * dma) {
 // This makes it a free running kernel
 #pragma HLS INTERFACE ap_ctrl_none port=return
 #pragma HLS INTERFACE s_axilite port=homa
 #pragma HLS INTERFACE axis port=link_ingress
 #pragma HLS INTERFACE axis port=link_egress
 #pragma HLS INTERFACE axis port=user_req
-#pragma HLS interface mode=m_axi port=ddr
-#pragma HLS interface mode=m_axi port=dma
 
-  //#pragma HLS interface mode=m_axi port=ddr depth=1024*1024*16/(512/8) latency=100 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
-  //#pragma HLS interface mode=m_axi port=dma depth=1024*1024*16/(512/8) latency=100 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
+  // Ensure transactions are bursted: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/AXI-Burst-Transfers
+
+#pragma HLS interface mode=m_axi port=dma latency=100 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16 max_widen_bitwidth=1024
+  //#pragma HLS interface mode=m_axi port=dma num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
+
+  // TODO readd latency dir?
 
   // TODO need to partititon arrays? look at access patterns
-
-  //#pragma HLS array_partition variable=rpcs
-
-  /**
-   * Storage for all active outgoing RPCs, which there are a maximum of MAX_RPCS of
-   *   The static qualifier makes this persist across kernel/function invocations (think every cycle)
-   */
-
-  //static srpt_queue_t srpt_queue;
 
   /**
    * The following functions can be performed largely in parallel as indicated by DATAFLOW directive
@@ -60,7 +52,7 @@ void homa(homa_t * homa,
 
 //proc_link_egress(link_egress);
 //proc_link_ingress(link_ingress, ddr_ram, dma_egress);
-  proc_dma_ingress(homa, user_req, dma, ddr);
+  proc_dma_ingress(homa, user_req, dma);
 
   // This should be incremented once each time a packet completes processing?
   timer++;

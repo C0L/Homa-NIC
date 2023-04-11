@@ -15,10 +15,13 @@ struct homa_t;
  * This fills the role of msghdr in homa_send, but contains no pointer data.
  */
 struct dma_in_t {
+  // TODO this interface may change slightly
   /**
    * @output_offset: 
    */
   int output_offset;
+
+  int input_offset;
   
   /**
    * @dest_addr: Address of destination
@@ -51,7 +54,7 @@ struct dma_in_t {
    * @message: Actual message content
    */
   //char * message;
-  int message_offset;
+  //int message_offset;
   //char message[HOMA_MAX_MESSAGE_LENGTH];
 };
 
@@ -62,7 +65,6 @@ struct user_output_t {
 
 void proc_dma_ingress(homa_t * homa,
 		      hls::stream<dma_in_t> & user_req,
-		      char * dma,
-		      char * ddr_ram);
+		      ap_uint<512> * dma);
 
 #endif

@@ -229,6 +229,5 @@ struct homa_t {
 void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
 	  hls::stream<dma_in_t> & user_req,
-	  char * ddr,
-	  char * dma);
+	  ap_uint<512> * dma);
 #endif

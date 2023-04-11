@@ -16,7 +16,7 @@ add_files ./src/hash.hh
 add_files ./src/peer.hh
 add_files ./src/peer.cc
 set_param general.maxThreads 16
-open_solution -reset "solution" -flow_target vivado 
+open_solution -reset "solution1" -flow_target vivado
 set_part {xcvu9p-flgb2104-2-i}
 create_clock -period 5 -name default
 csynth_design

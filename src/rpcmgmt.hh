@@ -22,7 +22,8 @@ struct homa_message_out_t {
   /**
    * @message: On-chip cache of message ready to broadcast
    */
-  char message[HOMA_MESSAGE_CACHE];
+  //char message[HOMA_MESSAGE_CACHE];
+  ap_uint<512> message[235];
 
   /**
    * @next_xmit_offset: All bytes in the message, up to but not
@@ -245,6 +246,7 @@ struct homa_rpc_stack_t {
   int size;
 
   homa_rpc_stack_t() {
+#pragma HLS ARRAY_PARTITION variable=buffer type=complete
     // Each RPC id begins as available 
     for (int id = 0; id < MAX_RPCS; ++id) {
       buffer[id] = id+1;
@@ -253,8 +255,12 @@ struct homa_rpc_stack_t {
   }
 
   void push(homa_rpc_id_t rpc_id) {
+#pragma HLS ARRAY_PARTITION variable=buffer type=complete
+    /** This must be pipelined for a caller function to be pipelined */
+#pragma HLS PIPELINE
     // A shift register is inferred
     for (int id = MAX_RPCS-1; id > 0; --id) {
+    #pragma HLS unroll
       buffer[id] = buffer[id-1];
     }
 
@@ -263,9 +269,13 @@ struct homa_rpc_stack_t {
   }
 
   homa_rpc_id_t pop() {
+#pragma HLS ARRAY_PARTITION variable=buffer type=complete
+    /** This must be pipelined for a caller function to be pipelined */
+#pragma HLS PIPELINE
     homa_rpc_id_t head = buffer[0];
     // A shift register is inferred
     for (int id = 0; id < MAX_RPCS; ++id) {
+    #pragma HLS unroll
       buffer[id] = buffer[id+1];
     }
 
