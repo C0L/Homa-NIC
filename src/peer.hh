@@ -19,8 +19,7 @@ struct homa_peer_t {
    * @addr: IPv6 address for the machine (IPv4 addresses are stored
    * as IPv4-mapped IPv6 addresses).
    */
-  //ap_uint<64> addr;
-  in6_addr addr;
+  in6_addr_t addr;
 
   /**
    * @unsched_cutoffs: priorities to use for unscheduled packets
@@ -120,6 +119,8 @@ struct homa_peer_t {
   homa_ack_t acks[NUM_PEER_UNACKED_IDS];
 };
 	
-homa_peer_id_t homa_peer_find(in6_addr & addr);
+homa_peer_id_t homa_peer_find(in6_addr_t & addr);
+
+extern homa_peer_t peers[HOMA_PEERTAB_BUCKETS];
 
 #endif

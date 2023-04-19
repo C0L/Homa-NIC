@@ -63,6 +63,6 @@ struct srpt_queue_t {
   }
 };
 
-extern srpt_queue_t srpt_queue;
+//extern srpt_queue_t srpt_queue;
 
 #endif

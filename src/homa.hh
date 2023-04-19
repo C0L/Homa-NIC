@@ -3,11 +3,12 @@
 
 #define DEBUG
 
-#include <ap_int.h>
-#include <hls_stream.h>
-#include <ap_axi_sdata.h>
+#include "ap_int.h"
+#include "hls_stream.h"
+#include "hls_burst_maxi.h"
+#include "ap_axi_sdata.h"
 
-struct dma_in_t;
+struct args_t;
 struct user_output_t;
 
 // Maximum Homa message size
@@ -228,6 +229,8 @@ struct homa_t {
 
 void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
-	  hls::stream<dma_in_t> & user_req,
-	  ap_uint<512> * dma);
+	  hls::stream<args_t> & user_req,
+	  hls::burst_maxi<ap_uint<512>> mdma);
+	  //char * mdma);
+	  //ap_uint<512> * dma);
 #endif

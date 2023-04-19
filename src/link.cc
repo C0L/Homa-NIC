@@ -1,48 +1,46 @@
+#include <string.h>
+
 #include "link.hh"
 
+#include "srptmgmt.hh"
+#include "rpcmgmt.hh"
+
 /**
- * proc_link_egress() - Pop an RPC from the SRPT queue, package its message
- * contents into packets, and place them onto the link.
- * @link_egress: The outgoing AXI Stream that will send packets onto the net
- * @rpcs:        RPC store
- * @rpc_stack:   RPCs that are not in use 
- * @srpt_queue:  Sorted queue of RPCs ready to broadcast based on smallest 
- *               number of packets remaining
+ * proc_link_egress() - 
  */
-void proc_link_egress(hls::stream<raw_frame_t> & link_egress) {
-
-  static bool broadcast_active = false;
-  //static homa_rpc_id_t broadcast_homa_rpc_id;
-
-  // TODO grant process currently unimplemented
-  
-#pragma HLS pipeline
-
-  //  if (!broadcast_active && srpt_queue.size != 0) {
-  //    broadcast_active = true;
-  //    broadcast_homa_rpc_id = srpt_queue.pop();
-  //
-  //    #ifdef DEBUG
-  //    std::cerr << "DEBUG: Popped New Message for Broadcast:" << std::endl;
-  //    std::cerr << "DEBUG:     -> Active RPC ID = " << broadcast_homa_rpc_id << std::endl;
-  //    #endif
-  //  }
-  //  
-  //  if (broadcast_active) {
-  //    homa_rpc_t homa_rpc = rpcs[broadcast_homa_rpc]; 
-  //
-  //    // P4 style pipeline
-  //    //ingress_op1();
-  //    //ingress_op2();
-  //    //ingress_op3();
-  //
-  //    //link_egress.write();
-  //
-  //    if (homa_rpc.homa_message_out.length != 0) {
-  //      // Recycle RPC ID?
-  //    }
-  //  }
-}
+//void proc_link_egress(hls::stream<raw_frame_t> & link_egress) {
+//
+//#pragma HLS pipeline II=1
+//
+//  if (srpt_queue.size != 0) {
+//  
+//    homa_rpc_t & homa_rpc = rpcs[homa_rpc_id];
+//
+//    raw_frame_t outframe;
+//
+//    // TODO temporary
+//    for (int i = 0; i < 1522; ++i) {
+//#pragma HLS unroll
+//      outframe.data[i] = homa_rpc.msgout.message[i];
+//    }
+//
+//    // TODO Cannot use memcpy not from external interface?
+//    //memcpy(&outframe, &homa_rpc.msgout.message, sizeof(raw_frame_t));
+//
+//    link_egress.write(outframe);
+//  
+//    // P4 style pipeline
+//    //ingress_op1();
+//    //ingress_op2();
+//    //ingress_op3();
+//  
+//    //link_egress.write();
+//  
+//    //if (homa_rpc.homa_message_out.length != 0) {
+//      // Recycle RPC ID?
+//    //}
+//  }
+//}
 
 ///**
 // * Parse the ethernet, ipv4, homa, header of the incoming frame
@@ -59,14 +57,8 @@ void proc_link_egress(hls::stream<raw_frame_t> & link_egress) {
 
 
 /**
- * proc_link_ingress() - Processes incoming ethernet frames, writes the result to user
- * memory, and updates RPC state.
+ * proc_link_ingress() - 
  * 
- * @link_ingress: The incoming AXI Stream of ethernet frames from the link
- * @rpcs:         RPC store
- * @ddr_ram:      On PCB RAM pointer
- * @rpc_stack:    RPCs that are not in use 
- * @dma_egress:   DMA memory space pointer
  */
 void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 		       char * ddr_ram,

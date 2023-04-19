@@ -17,8 +17,11 @@ add_files ./src/peer.hh
 add_files ./src/peer.cc
 set_param general.maxThreads 16
 open_solution -reset "solution1" -flow_target vivado
+#config_interface -m_axi_max_widen_bitwidth 256
+#config_interface -m_axi_alignment_byte_size 64
 set_part {xcvu9p-flgb2104-2-i}
 create_clock -period 5 -name default
+#config_interface -m_axi_alignment_byte_size 8 -m_axi_latency 100 -m_axi_max_widen_bitwidth 512
 csynth_design
 #cosim_design
 #export_design -format ip_catalog

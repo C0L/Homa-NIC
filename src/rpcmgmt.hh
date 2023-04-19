@@ -7,6 +7,9 @@
 // Roughly 10 ethernet packets worth of message space (scale this based on DDR latency)
 #define HOMA_MESSAGE_CACHE 15000
 
+#define RPC_SUB_TABLE_SIZE 10 
+#define RPC_SUB_TABLE_INDEX 10
+
 /**
  * struct homa_message_out - Describes a message (either request or response)
  * for which this machine is the sender.
@@ -22,7 +25,10 @@ struct homa_message_out_t {
   /**
    * @message: On-chip cache of message ready to broadcast
    */
+  // TODO may need to change this back if AXI burst not inferred
   //char message[HOMA_MESSAGE_CACHE];
+
+  // TODO AXI burst seems to need this as the type?
   ap_uint<512> message[235];
 
   /**
@@ -117,7 +123,8 @@ struct homa_message_in_t {
  */
 struct homa_rpc_t {
   /** @output_offset:  Offset in DMA to write result. */
-  int output_offset;
+  ap_uint<32> buffout;
+  ap_uint<32> buffin;
 
   /**
    * @state: The current state of this RPC:
@@ -185,9 +192,15 @@ struct homa_rpc_t {
    * this is a client RPC, or the client, if this is a server RPC).
    */
   homa_peer_id_t peer;
+
+  /**
+   * @addr: IPv6 address for the machine (IPv4 addresses are stored
+   * as IPv4-mapped IPv6 addresses).
+   */
+  in6_addr_t addr;
   
   /** @dport: Port number on @peer that will handle packets. */
-  //ap_uint<16> dport;
+  ap_uint<16> dport;
   
   /**
    * @id: Unique identifier for the RPC among all those issued
@@ -288,10 +301,29 @@ struct homa_rpc_stack_t {
   }
 };
 
-homa_rpc_t & homa_rpc_new_client(homa_t * homa, int & output_offset, in6_addr & dest_addr);
+struct hashpack_t {
+  ap_uint<128> s6_addr;
+  uint64_t id;
+  uint32_t port;
+};
+
+
+struct homa_rpc_entry_t {
+  hashpack_t hashpack;
+  homa_rpc_id_t homa_rpc;
+};
+
+homa_rpc_t & homa_rpc_new_client(homa_t * homa, ap_uint<32> & buffout, ap_uint<32> & buffin, in6_addr_t & dest_addr);
 homa_rpc_t & homa_rpc_find(ap_uint<64> id);
 
+void homa_insert_server_rpc(sockaddr_in6_t & addr, uint64_t & id, homa_rpc_id_t & homa_rpc_id);
+homa_rpc_id_t homa_find_server_rpc(sockaddr_in6_t & addr, uint64_t & id);
+void rpc_server_insert(hashpack_t & hashpack, homa_rpc_id_t & homa_rpc_id);
+homa_rpc_id_t rpc_server_search(hashpack_t & pack);
+uint32_t murmur3_32(const uint32_t * key, int len, uint32_t seed);
+uint32_t murmur_32_scramble(uint32_t k);
+
 extern homa_rpc_t rpcs[MAX_RPCS];
-extern homa_rpc_stack_t rpc_stack;
+//extern homa_rpc_stack_t rpc_stack;
 
 #endif
