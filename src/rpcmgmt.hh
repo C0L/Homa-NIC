@@ -3,61 +3,27 @@
 
 #include "homa.hh"
 #include "net.hh"
+#include "xmitbuff.hh"
 
-// Roughly 10 ethernet packets worth of message space (scale this based on DDR latency)
-#define HOMA_MESSAGE_CACHE 15000
+#define RPC_SUB_TABLE_SIZE 16384
+#define RPC_SUB_TABLE_INDEX 14
 
-#define RPC_SUB_TABLE_SIZE 10 
-#define RPC_SUB_TABLE_INDEX 10
+#define SEED0 0x7BF6BF21
+#define SEED1 0x9FA91FE9
+#define SEED2 0xD0C8FBDF
+#define SEED3 0xE6D0851C
 
 /**
  * struct homa_message_out - Describes a message (either request or response)
  * for which this machine is the sender.
  */
 struct homa_message_out_t {
-  /**
-   * @length: Total bytes in message (excluding headers).  A value
-   * less than 0 means this structure is uninitialized and therefore
-   * not in use (all other fields will be zero in this case).
-   */
   int length;
-
-  /**
-   * @message: On-chip cache of message ready to broadcast
-   */
-  // TODO may need to change this back if AXI burst not inferred
-  //char message[HOMA_MESSAGE_CACHE];
-
-  // TODO AXI burst seems to need this as the type?
-  ap_uint<512> message[235];
-
-  /**
-   * @next_xmit_offset: All bytes in the message, up to but not
-   * including this one, have been transmitted.
-   */
+  xmit_id_t xmit_id;
   int next_xmit_offset;
-
-  /**
-   * @unscheduled: Initial bytes of message that we'll send
-   * without waiting for grants.
-   */
   int unscheduled;
-
-  /**
-   * @granted: Total number of bytes we are currently permitted to
-   * send, including unscheduled bytes; must wait for grants before
-   * sending bytes at or beyond this position. Never larger than
-   * @length.
-   */
   int granted;
-
-  /** @priority: Priority level to use for future scheduled packets. */
   ap_uint<8> sched_priority;
-
-  /**
-   * @init_cycles: Time in get_cycles units when this structure was
-   * initialized.  Used to find the oldest outgoing message.
-   */
   ap_uint<64> init_cycles;
 };
 
@@ -66,53 +32,12 @@ struct homa_message_out_t {
  * this machine; used for both requests and responses.
  */
 struct homa_message_in_t {
-  /**
-   * @total_length: Size of the entire message, in bytes. A value
-   * less than 0 means this structure is uninitialized and therefore
-   * not in use.
-   */
   int total_length;
-  
-  /**
-   * @dma_out: Userspace DMA buffer for placing received message
-   */
-  //user_output_t * dma_out;
-  // TODO Switch to DMA offset?
-  // TODO This is already in homa_rpc_t??
-  
-  /**
-   * @bytes_remaining: Amount of data for this message that has
-   * not yet been received; will determine the message's priority.
-   */
   int bytes_remaining;
-  
-  /**
-   * @incoming: Total # of bytes of the message that the sender will
-   * transmit without additional grants. Initialized to the number of
-   * unscheduled bytes; after that, updated only when grants are sent.
-   * Never larger than @total_length. 
-   */
   int incoming;
-  
-  /** @priority: Priority level to include in future GRANTS. */
   int priority;
-  
-  /**
-   * @scheduled: True means some of the bytes of this message
-   * must be scheduled with grants.
-   */
   bool scheduled;
-  
-  /**
-   * @birth: get_cycles time when this RPC was added to the grantable
-   * list. Invalid if RPC isn't in the grantable list.
-   */
   ap_uint<64> birth;
-  
-  /**
-   * @copied_out: All of the bytes of the message with offset less
-   * than this value have been copied to user-space buffers.
-   */
   int copied_out;
 };
 
@@ -122,31 +47,8 @@ struct homa_message_in_t {
  * clients and incoming RPCs on servers.
  */
 struct homa_rpc_t {
-  /** @output_offset:  Offset in DMA to write result. */
   ap_uint<32> buffout;
   ap_uint<32> buffin;
-
-  /**
-   * @state: The current state of this RPC:
-   *
-   * @RPC_OUTGOING:     The RPC is waiting for @msgout to be transmitted
-   *                    to the peer.
-   * @RPC_INCOMING:     The RPC is waiting for data @msgin to be received
-   *                    from the peer; at least one packet has already
-   *                    been received.
-   * @RPC_IN_SERVICE:   Used only for server RPCs: the request message
-   *                    has been read from the socket, but the response
-   *                    message has not yet been presented to the kernel.
-   * @RPC_DEAD:         RPC has been deleted and is waiting to be
-   *                    reaped. In some cases, information in the RPC
-   *                    structure may be accessed in this state.
-   *
-   * Client RPCs pass through states in the following order:
-   * RPC_OUTGOING, RPC_INCOMING, RPC_DEAD.
-   *
-   * Server RPCs pass through states in the following order:
-   * RPC_INCOMING, RPC_IN_SERVICE, RPC_OUTGOING, RPC_DEAD.
-   */
   enum {
     RPC_OUTGOING            = 5,
     RPC_INCOMING            = 6,
@@ -154,100 +56,23 @@ struct homa_rpc_t {
     RPC_DEAD                = 9
   } state;
 
-  /* Valid bits for @flags:
-   * RPC_PKTS_READY -        The RPC has input packets ready to be
-   *                         copied to user space.
-   * RPC_COPYING_FROM_USER - Data is being copied from user space into
-   *                         the RPC; the RPC must not be reaped.
-   * RPC_COPYING_TO_USER -   Data is being copied from this RPC to
-   *                         user space; the RPC must not be reaped.
-   * RPC_HANDING_OFF -       This RPC is in the process of being
-   *                         handed off to a waiting thread; it must
-   *                         not be reaped.
-   */
 #define RPC_PKTS_READY        1
 #define RPC_COPYING_FROM_USER 2
 #define RPC_COPYING_TO_USER   4
 #define RPC_HANDING_OFF       8
 #define RPC_CANT_REAP (RPC_COPYING_FROM_USER | RPC_COPYING_TO_USER | RPC_HANDING_OFF)
 
-  /**
-   * @flags: Additional state information: an OR'ed combination of
-   * various single-bit flags. See below for definitions. Must be
-   * manipulated with atomic operations because some of the manipulations
-   * occur without holding the RPC lock.
-   */
   int flags;
-
-  /**
-   * @grants_in_progress: Count of active grant sends for this RPC;
-   * it's not safe to reap the RPC unless this value is zero.
-   * This variable is needed so that grantable_lock can be released
-   * while sending grants, to reduce contention.
-   */
   int grants_in_progress;
-
-  /**
-   * @peer: Information about the other machine (the server, if
-   * this is a client RPC, or the client, if this is a server RPC).
-   */
   homa_peer_id_t peer;
-
-  /**
-   * @addr: IPv6 address for the machine (IPv4 addresses are stored
-   * as IPv4-mapped IPv6 addresses).
-   */
   in6_addr_t addr;
-  
-  /** @dport: Port number on @peer that will handle packets. */
   ap_uint<16> dport;
-  
-  /**
-   * @id: Unique identifier for the RPC among all those issued
-   * from its port.
-   */
-  homa_rpc_id_t id;
-  
-  /**
-   * @completion_cookie: Only used on clients. Contains identifying
-   * information about the RPC provided by the application; returned to
-   * the application with the RPC's result.
-   */
+  homa_rpc_id_t id; // TODO? When we get an incoming packet we always go through RPC table to get local ID anyway? No need to associate non local ID with the homa_rpc
   ap_uint<64> completion_cookie;
-
-  /**
-   * @msgin: Information about the message we receive for this RPC
-   * (for server RPCs this is the request, for client RPCs this is the
-   * response).
-   */
   homa_message_in_t msgin;
-	
-  /**
-   * @msgout: Information about the message we send for this RPC
-   * (for client RPCs this is the request, for server RPCs this is the
-   * response).
-   */
   homa_message_out_t msgout;
-
-  /**
-   * @silent_ticks: Number of times homa_timer has been invoked
-   * since the last time a packet indicating progress was received
-   * for this RPC, so we don't need to send a resend for a while.
-   */
   int silent_ticks;
-
-  /**
-   * @resend_timer_ticks: Value of homa->timer_ticks the last time
-   * we sent a RESEND for this RPC.
-   */
   ap_uint<32> resend_timer_ticks;
-
-  /**
-   * @done_timer_ticks: The value of homa->timer_ticks the first
-   * time we noticed that this (server) RPC is done (all response
-   * packets have been transmitted), so we're ready for an ack.
-   * Zero means we haven't reached that point yet.
-   */
   ap_uint<32> done_timer_ticks;
 };
 
@@ -299,31 +124,39 @@ struct homa_rpc_stack_t {
   int get_size() {
     return size;
   }
+
+  bool empty() {
+    return (size == 0);
+  }
 };
 
 struct hashpack_t {
   ap_uint<128> s6_addr;
   uint64_t id;
-  uint32_t port;
+  uint16_t port;
+  uint16_t empty;
 };
 
-
 struct homa_rpc_entry_t {
-  hashpack_t hashpack;
+  hashpack_t hashpack; 
   homa_rpc_id_t homa_rpc;
 };
 
-homa_rpc_t & homa_rpc_new_client(homa_t * homa, ap_uint<32> & buffout, ap_uint<32> & buffin, in6_addr_t & dest_addr);
-homa_rpc_t & homa_rpc_find(ap_uint<64> id);
+struct rpc_table_op_t {
+  ap_uint<2> table_id;
+  homa_rpc_entry_t entry;
+};
 
-void homa_insert_server_rpc(sockaddr_in6_t & addr, uint64_t & id, homa_rpc_id_t & homa_rpc_id);
-homa_rpc_id_t homa_find_server_rpc(sockaddr_in6_t & addr, uint64_t & id);
-void rpc_server_insert(hashpack_t & hashpack, homa_rpc_id_t & homa_rpc_id);
-homa_rpc_id_t rpc_server_search(hashpack_t & pack);
+void update_rpc_stack(hls::stream<homa_rpc_id_t> freed_rpcs, hls::stream<homa_rpc_id_t> new_rpcs);
+
+// homa_rpc_t & homa_rpc_new_client(homa_t * homa, ap_uint<32> & buffout, ap_uint<32> & buffin, in6_addr_t & dest_addr);
+// homa_rpc_t & homa_rpc_find(ap_uint<64> id);
+// void homa_insert_server_rpc(sockaddr_in6_t & addr, uint64_t & id, homa_rpc_id_t & homa_rpc_id);
+// homa_rpc_id_t homa_find_server_rpc(sockaddr_in6_t & addr, uint64_t & id);
+// void rpc_server_insert(hashpack_t & hashpack, homa_rpc_id_t & homa_rpc_id);
+// homa_rpc_id_t rpc_server_search(hashpack_t & pack);
+
 uint32_t murmur3_32(const uint32_t * key, int len, uint32_t seed);
 uint32_t murmur_32_scramble(uint32_t k);
-
-extern homa_rpc_t rpcs[MAX_RPCS];
-//extern homa_rpc_stack_t rpc_stack;
 
 #endif
