@@ -100,4 +100,12 @@ void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
 	  hls::stream<args_t> & user_req,
 	  hls::burst_maxi<ap_uint<512>> mdma);
+
+//void temp(hls::stream<xmit_req_t> & xmit_buffer_request,
+//	  hls::stream<xmit_mblock_t> & xmit_buffer_response,
+//	  hls::stream<xmit_id_t> & xmit_stack_free,
+//	  hls::stream<homa_rpc_id_t> & rpc_stack_free,
+//	  hls::stream<homa_rpc_t> & rpc_table_insert,
+//	  hls::stream<srpt_entry_t> & srpt_queue_next);
+
 #endif

@@ -1,9 +1,9 @@
 #ifndef SRPTMGMT_H
 #define SRPTMGMT_H
 
-struct srpt_queue_t;
-
 #include "homa.hh"
+
+struct srpt_queue_t;
 
 struct srpt_entry_t {
   homa_rpc_id_t rpc_id; 
@@ -19,7 +19,6 @@ struct srpt_queue_t {
   int size;
 
   srpt_queue_t() {
-
     for (int id = 0; id <= MAX_RPCS+1; ++id) {
       buffer[id] = {-1, -1};
     }
@@ -27,11 +26,10 @@ struct srpt_queue_t {
     size = 0;
   }
 
-  void push(homa_rpc_id_t rpc_id, unsigned int remaining) {
+  void push(srpt_entry_t new_entry) {
 #pragma HLS ARRAY_PARTITION variable=buffer type=complete
     size++;
-    buffer[0].rpc_id = rpc_id;
-    buffer[0].remaining = remaining;
+    buffer[0] = new_entry;
 
     for (int id = MAX_RPCS; id > 0; id-=2) {
 #pragma HLS unroll
@@ -44,7 +42,7 @@ struct srpt_queue_t {
     }
   }
 
-  homa_rpc_id_t pop() {
+  srpt_entry_t pop() {
 #pragma HLS ARRAY_PARTITION variable=buffer type=complete
     size--;
     for (int id = 0; id <= MAX_RPCS; id+=2) {
@@ -57,7 +55,7 @@ struct srpt_queue_t {
       }
     }
 
-    return buffer[0].rpc_id;
+    return buffer[0];
   }
 
   int get_size() {
@@ -69,5 +67,8 @@ struct srpt_queue_t {
   }
 
 };
+
+void update_srpt_queue(hls::stream<srpt_entry_t> & srpt_queue_insert,
+		       hls::stream<srpt_entry_t> & srpt_queue_next);
 
 #endif

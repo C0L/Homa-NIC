@@ -1,6 +1,9 @@
 #ifndef XMITBUFF_H
 #define XMITBUFF_H
 
+//#include "ap_int.h"
+#include "homa.hh"
+
 // Number of buffers to allocate and bits to index it
 #define NUM_XMIT_BUFFER 1024
 #define NUM_XMIT_BUFFER_INDEX 10
@@ -8,25 +11,31 @@
 // Index into xmit buffers
 typedef ap_uint<NUM_XMIT_BUFFER_INDEX> xmit_id_t;
 
-// Size of transaction unit (bytes) (one message worth of data)
+// Size of transaction unit (bits) (one message worth of data)
 // TODO check this?
-#define XMIT_UNIT_SIZE 1500 
+//#define XMIT_UNIT_SIZE 1500
+#define XMIT_UNIT_SIZE 2048 
 
-struct xmit_unit_t {
-  char xmit_unit[XMIT_UNIT_SIZE];
-};
+// typedef char xmit_unit_t[XMIT_UNIT_SIZE];
+// TODO try to increase up to 1 packet size?
+typedef ap_uint<XMIT_UNIT_SIZE> xmit_mblock_t;
+
+//struct xmit_message_block_t {
+//  char xmit_units[XMIT_UNIT_SIZE];
+//};
 
 // One xmit unit of data
 //typedef ap_uint<XMIT_UNIT_SIZE> xmit_unit_t;
 
 // Number of xmit_unit_t per buffer and bits needed to index that
-#define XMIT_BUFFER_SIZE 16
+#define XMIT_BUFFER_SIZE 32
 #define XMIT_BUFFER_SIZE_INDEX 4
 
 // One full message buffer, which we have NUM_XMIT_BUFFER of and index into
-//typedef xmit_unit_t[XMIT_BUFFER_SIZE] xmit_buffer_t;
+//typedef xmit_unit_t xmit_buffer_t[XMIT_BUFFER_SIZE];
+
 struct xmit_buffer_t {
-  xmit_unit_t xmit_buffer[XMIT_BUFFER_SIZE]; 
+  xmit_mblock_t buff[XMIT_BUFFER_SIZE]; 
 };
 
 typedef ap_uint<XMIT_BUFFER_SIZE_INDEX> xmit_offset_t;
@@ -36,27 +45,34 @@ struct xmit_req_t {
   xmit_offset_t xmit_offset;
 };
 
+// TODO This may change if the output size should be larger?
+// TODO we need to be able to read an entire packet worth of data in a cycle
 struct xmit_in_t {
-  xmit_unit_t xmit_unit;
+  xmit_mblock_t xmit_block;
   xmit_id_t xmit_id;
   xmit_offset_t xmit_offset;
 };
 
-struct xmit_out_t {
-  xmit_unit_t xmit_unit;
-};
+//struct xmit_out_t {
+//unsigned char buff[1500];
+  //xmit_mblock_t buff[4];
+  //xmit_mblock_t buff_0;
+  //xmit_mblock_t buff_1;
+  //xmit_mblock_t buff_2;
+  //xmit_mblock_t buff_3;
+//};
 
 struct xmit_stack_t {
-  xmit_id_t buffer[MAX_RPCS];
+  xmit_id_t buffer[NUM_XMIT_BUFFER];
   int size;
 
   xmit_stack_t() {
 #pragma HLS ARRAY_PARTITION variable=buffer type=complete
     // Each RPC id begins as available 
-    for (int id = 0; id < MAX_RPCS; ++id) {
+    for (int id = 0; id < NUM_XMIT_BUFFER; ++id) {
       buffer[id] = id;
     }
-    size = MAX_RPCS;
+    size = NUM_XMIT_BUFFER;
   }
 
   void push(xmit_id_t xmit_id) {
@@ -64,7 +80,7 @@ struct xmit_stack_t {
     /** This must be pipelined for a caller function to be pipelined */
 #pragma HLS PIPELINE
     // A shift register is inferred
-    for (int id = MAX_RPCS-1; id > 0; --id) {
+    for (int id = NUM_XMIT_BUFFER-1; id > 0; --id) {
     #pragma HLS unroll
       buffer[id] = buffer[id-1];
     }
@@ -79,7 +95,7 @@ struct xmit_stack_t {
 #pragma HLS PIPELINE
     xmit_id_t head = buffer[0];
     // A shift register is inferred
-    for (int id = 0; id < MAX_RPCS; ++id) {
+    for (int id = 0; id < NUM_XMIT_BUFFER; ++id) {
     #pragma HLS unroll
       buffer[id] = buffer[id+1];
     }
@@ -92,6 +108,14 @@ struct xmit_stack_t {
     return (size == 0);
   }
 };
+
+void update_xmit_buffer(hls::stream<xmit_in_t> & xmit_buffer_insert,
+			hls::stream<xmit_req_t> & xmit_buffer_request,
+			hls::stream<xmit_mblock_t> & xmit_buffer_response);
+
+
+void update_xmit_stack(hls::stream<xmit_id_t> & xmit_stack_next,
+		       hls::stream<xmit_id_t> & xmit_stack_free);
 
 
 #endif

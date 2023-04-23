@@ -1,13 +1,12 @@
 #include "rpcmgmt.hh"
-#include "peer.hh"
 
-void update_rpc_stack(hls::stream<homa_rpc_id_t> rpc_stack_next,
-		      hls::stream<homa_rpc_id_t> rpc_stack_free) {
+void update_rpc_stack(hls::stream<homa_rpc_id_t> & rpc_stack_next,
+		      hls::stream<homa_rpc_id_t> & rpc_stack_free) {
   static homa_rpc_stack_t rpc_stack;
 
   homa_rpc_id_t freed_rpc;
   if (rpc_stack_free.read_nb(freed_rpc)) {
-    rpc_stack_free.push(freed_rpc);
+    rpc_stack.push(freed_rpc);
   }
 
   homa_rpc_id_t new_rpc;
@@ -18,9 +17,9 @@ void update_rpc_stack(hls::stream<homa_rpc_id_t> rpc_stack_next,
 }
 
 // TODO add support for deletion
-void update_rpc_table(hls::stream<hashpack_t> rpc_table_request,
-		      hls::stream<homa_rpc_id_t> rpc_table_response,
-		      hls::stream<homa_rpc_t> rpc_table_insert) {
+void update_rpc_table(hls::stream<hashpack_t> & rpc_table_request,
+		      hls::stream<homa_rpc_id_t> & rpc_table_response,
+		      hls::stream<homa_rpc_t> & rpc_table_insert) {
   // TODO pipeline?
   static homa_rpc_entry_t table_0[RPC_SUB_TABLE_SIZE];
   static homa_rpc_entry_t table_1[RPC_SUB_TABLE_SIZE];
@@ -34,12 +33,13 @@ void update_rpc_table(hls::stream<hashpack_t> rpc_table_request,
   
   homa_rpc_t insertion;
   // Are there RPCs that we need to insert into the table?
+  // TODO is this the correct info to add with?
   if (rpc_table_insert.read_nb(insertion)) {
-    hashpack_t hashpack = {insertion.dest_addr.sin6_addr.s6_addr, insertion.id, insertion.dport, 0};
+    hashpack_t hashpack = {insertion.addr.s6_addr, insertion.id, insertion.dport, 0};
     uint32_t hash = murmur3_32((uint32_t *) &hashpack, 7, SEED0);
 
     homa_rpc_entry_t out_entry = table_0[hash];
-    table_0[hash] = insertion;
+    table_0[hash] = {hashpack, insertion.id};
 
     // Was there an element at this slot?
     if (out_entry.homa_rpc != 0) {
@@ -67,7 +67,7 @@ void update_rpc_table(hls::stream<hashpack_t> rpc_table_request,
 
     // TODO this will ignore infinite loops
     if (out_entry.homa_rpc != 0) {
-      insert_stack[stack_head] = {op.entry.hashpack++, out_entry};
+      insert_stack[stack_head] = {op.table_id++, out_entry};
       stack_head++;
     }
   }
@@ -76,7 +76,7 @@ void update_rpc_table(hls::stream<hashpack_t> rpc_table_request,
   // Are there RPC searches that we need to perform?
   if (rpc_table_request.read_nb(query)) {
     for (int i = 0; i < MAX_OPERATIONS; ++i) {
-#pragma unroll
+#pragma HLS unroll
       if (insert_stack[i].entry.hashpack == query) {
 	rpc_table_response.write(insert_stack[i].entry.homa_rpc);
 	return;
@@ -104,21 +104,25 @@ void update_rpc_table(hls::stream<hashpack_t> rpc_table_request,
   }
 }
 
-void update_rpc_buffer(hls::stream<homa_rpc_id_t> rpc_buffer_request,
-		       hls::stream<homa_rpc_t> rpc_buffer_response,
-		       hls::stream<homa_rpc_t> rpc_buffer_insert) {
+void update_rpc_buffer(hls::stream<homa_rpc_id_t> & rpc_buffer_request_primary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
+		       hls::stream<homa_rpc_id_t> & rpc_buffer_request_secondary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_insert) {
   // Actual RPC data
   static homa_rpc_t rpcs[MAX_RPCS];
 
   homa_rpc_id_t query;
 
-  if (rpc_buffer_request.read_nb(query)) {
-    rpc_buffer_response.write(rpcs[query]);
+  if (rpc_buffer_request_primary.read_nb(query)) {
+    rpc_buffer_response_primary.write(rpcs[query]);
+  } else if (rpc_buffer_request_secondary.read_nb(query)) {
+    rpc_buffer_response_secondary.write(rpcs[query]);
   }
 
   homa_rpc_t update;
   if (rpc_buffer_insert.read_nb(update)) {
-    rpcs[update.local_id] = update;
+    rpcs[update.id] = update;
   } 
 }
 

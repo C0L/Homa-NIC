@@ -15,6 +15,8 @@ add_files ./src/net.hh
 add_files ./src/hash.hh
 add_files ./src/peer.hh
 add_files ./src/peer.cc
+add_files ./src/xmitbuff.hh
+add_files ./src/xmitbuff.cc
 set_param general.maxThreads 16
 open_solution -reset "solution1" -flow_target vivado
 #config_interface -m_axi_max_widen_bitwidth 256

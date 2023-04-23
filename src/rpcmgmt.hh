@@ -8,6 +8,8 @@
 #define RPC_SUB_TABLE_SIZE 16384
 #define RPC_SUB_TABLE_INDEX 14
 
+#define MAX_OPERATIONS 128 
+
 #define SEED0 0x7BF6BF21
 #define SEED1 0x9FA91FE9
 #define SEED2 0xD0C8FBDF
@@ -66,7 +68,8 @@ struct homa_rpc_t {
   int grants_in_progress;
   homa_peer_id_t peer;
   in6_addr_t addr;
-  ap_uint<16> dport;
+  //ap_uint<16> dport;
+  uint16_t dport;
   homa_rpc_id_t id; // TODO? When we get an incoming packet we always go through RPC table to get local ID anyway? No need to associate non local ID with the homa_rpc
   ap_uint<64> completion_cookie;
   homa_message_in_t msgin;
@@ -135,6 +138,10 @@ struct hashpack_t {
   uint64_t id;
   uint16_t port;
   uint16_t empty;
+
+  bool operator==(const hashpack_t & other) const {
+    return (s6_addr == other.s6_addr && id == other.id && port == other.port);
+  }
 };
 
 struct homa_rpc_entry_t {
@@ -147,14 +154,16 @@ struct rpc_table_op_t {
   homa_rpc_entry_t entry;
 };
 
-void update_rpc_stack(hls::stream<homa_rpc_id_t> freed_rpcs, hls::stream<homa_rpc_id_t> new_rpcs);
+void update_rpc_stack(hls::stream<homa_rpc_id_t> & rpc_stack_next,
+		      hls::stream<homa_rpc_id_t> & rpc_stack_free);
 
-// homa_rpc_t & homa_rpc_new_client(homa_t * homa, ap_uint<32> & buffout, ap_uint<32> & buffin, in6_addr_t & dest_addr);
-// homa_rpc_t & homa_rpc_find(ap_uint<64> id);
-// void homa_insert_server_rpc(sockaddr_in6_t & addr, uint64_t & id, homa_rpc_id_t & homa_rpc_id);
-// homa_rpc_id_t homa_find_server_rpc(sockaddr_in6_t & addr, uint64_t & id);
-// void rpc_server_insert(hashpack_t & hashpack, homa_rpc_id_t & homa_rpc_id);
-// homa_rpc_id_t rpc_server_search(hashpack_t & pack);
+void update_rpc_table(hls::stream<hashpack_t> & rpc_table_request,
+		      hls::stream<homa_rpc_id_t> & rpc_table_response,
+		      hls::stream<homa_rpc_t> & rpc_table_insert);
+
+void update_rpc_buffer(hls::stream<homa_rpc_id_t> & rpc_buffer_request,
+		       hls::stream<homa_rpc_t> & rpc_buffer_response,
+		       hls::stream<homa_rpc_t> & rpc_buffer_insert);
 
 uint32_t murmur3_32(const uint32_t * key, int len, uint32_t seed);
 uint32_t murmur_32_scramble(uint32_t k);

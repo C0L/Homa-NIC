@@ -8,6 +8,32 @@
 /**
  * proc_link_egress() - 
  */
+
+void link_egress(hls::stream<srpt_entry_t> & srpt_queue_next,
+		 hls::stream<xmit_req_t> & xmit_buffer_request,
+		 hls::stream<xmit_mblock_t> & xmit_buffer_response,
+		 hls::stream<homa_rpc_id_t> rpc_buffer_request;
+		 hls::stream<homa_rpc_t> rpc_buffer_response;
+		 hls::stream<raw_frame_t> & link_egress) {
+  //  srpt_entry_t srpt_entry;
+  //  if (srpt_queue_next.read(srpt_entry)) {
+  //    homa_rpc_t homa_rpc;
+  //    rpc_buffer_request.write(srpt_entry.rpc_id);
+  //    rpc_buffer_response.write(homa_rpc);
+  //
+  //    // Message buffer ID should be in homa_rpc
+  //    // current block should also be stored
+  //    // 
+  //    
+  //    while (unscheduled bytes != 0)...
+  //#pragma HLS unroll
+  //      xmit_mblock_t mblock;
+  //    xmit_buffer_request({current block})
+  //      raw_frame_t raw_frame;
+  //      TODO begin populating
+  //  }
+}
+
 //void proc_link_egress(hls::stream<raw_frame_t> & link_egress) {
 //
 //#pragma HLS pipeline II=1

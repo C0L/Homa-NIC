@@ -1,7 +1,7 @@
 #include "srptmgmt.hh"
 
-void update_srpt_queue(hls::stream<srpt_entry_t> srpt_queue_insert,
-		       hls::stream<srpt_entry_t> srpt_queue_next) {
+void update_srpt_queue(hls::stream<srpt_entry_t> & srpt_queue_insert,
+		       hls::stream<srpt_entry_t> & srpt_queue_next) {
   static srpt_queue_t srpt_queue;
 
   srpt_entry_t new_entry;
