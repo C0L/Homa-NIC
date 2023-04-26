@@ -8,9 +8,9 @@
 void update_xmit_buffer(hls::stream<xmit_in_t> & xmit_buffer_insert,
 			hls::stream<xmit_req_t> & xmit_buffer_request,
 			hls::stream<xmit_mblock_t> & xmit_buffer_response) {
-#pragma HLS disaggregate variable=xmit_buffer_response
   static xmit_buffer_t xmit_buffer[NUM_XMIT_BUFFER];
-  #pragma HLS array_partition variable=xmit_buffer type=cyclic factor=32
+#pragma HLS array_partition variable=xmit_buffer type=cyclic factor=32
+#pragma HLS pipeline II=1
 
   // TODO invocations need to be pipelined across invocations
   xmit_in_t tmp_buffer;
@@ -30,19 +30,20 @@ void update_xmit_buffer(hls::stream<xmit_in_t> & xmit_buffer_insert,
   }
 }
 
-
 void update_xmit_stack(hls::stream<xmit_id_t> & xmit_stack_next,
 		       hls::stream<xmit_id_t> & xmit_stack_free) {
   static xmit_stack_t xmit_stack;
-
-  xmit_id_t freed_buff;
-  if (xmit_stack_free.read_nb(freed_buff)) {
-    xmit_stack.push(freed_buff);
-  }
+#pragma HLS pipeline II=1
 
   xmit_id_t new_rpc;
+  xmit_id_t freed_buff;
+
+  // TODO should expand xmit_stack_next stream size!!! 
   if (!xmit_stack_next.full() && !xmit_stack.empty()) {
     new_rpc = xmit_stack.pop();
     xmit_stack_next.write(new_rpc);
+  } else if (xmit_stack_free.read_nb(freed_buff)) {
+    xmit_stack.push(freed_buff);
   }
+
 }

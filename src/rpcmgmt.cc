@@ -1,57 +1,92 @@
 #include "rpcmgmt.hh"
+#include "cam.hh"
 
-void update_rpc_stack(hls::stream<homa_rpc_id_t> & rpc_stack_next,
-		      hls::stream<homa_rpc_id_t> & rpc_stack_free) {
-  static homa_rpc_stack_t rpc_stack;
+void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
+		      hls::stream<rpc_id_t> & rpc_stack_free) {
 
-  homa_rpc_id_t freed_rpc;
-  if (rpc_stack_free.read_nb(freed_rpc)) {
-    rpc_stack.push(freed_rpc);
+  static stack_t<rpc_id_t, MAX_RPCS> rpc_stack;
+
+#pragma HLS pipeline II=1
+  //#pragma HLS dependence variable=rpc_stack_next inter RAW false
+  //#pragma HLS dependence variable=rpc_stack_next inter WAR false
+
+  //static rpc_id_t next_rpc = 0;
+  rpc_id_t freed_rpc;
+
+  if (!rpc_stack.empty()) {
+    rpc_id_t next_rpc = rpc_stack.pop();
+    rpc_stack_next.write(next_rpc);
   }
 
-  homa_rpc_id_t new_rpc;
-  if (!rpc_stack_next.full() && !rpc_stack.empty()) {
-    new_rpc = rpc_stack.pop();
-    rpc_stack_next.write(new_rpc);
+  // TODO expand the rpc_next stream
+  if (rpc_stack_free.read_nb(freed_rpc)) {
+    rpc_stack.push(freed_rpc);
   }
 }
 
 // TODO add support for deletion
-void update_rpc_table(hls::stream<hashpack_t> & rpc_table_request,
-		      hls::stream<homa_rpc_id_t> & rpc_table_response,
+void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request,
+		      hls::stream<rpc_id_t> & rpc_table_response,
 		      hls::stream<homa_rpc_t> & rpc_table_insert) {
-  // TODO pipeline?
-  static homa_rpc_entry_t table_0[RPC_SUB_TABLE_SIZE];
-  static homa_rpc_entry_t table_1[RPC_SUB_TABLE_SIZE];
-  static homa_rpc_entry_t table_2[RPC_SUB_TABLE_SIZE];
-  static homa_rpc_entry_t table_3[RPC_SUB_TABLE_SIZE];
+  static entry_t<rpc_hashpack_t,rpc_id_t> table_0[RPC_SUB_TABLE_SIZE];
+  static entry_t<rpc_hashpack_t,rpc_id_t> table_1[RPC_SUB_TABLE_SIZE];
+  static entry_t<rpc_hashpack_t,rpc_id_t> table_2[RPC_SUB_TABLE_SIZE];
+  static entry_t<rpc_hashpack_t,rpc_id_t> table_3[RPC_SUB_TABLE_SIZE];
 
-  static rpc_table_op_t insert_stack[MAX_OPERATIONS];
-  static int stack_head = 0;
+  static cam_t<rpc_hashpack_t,table_op_t<rpc_hashpack_t,rpc_id_t>, MAX_OPS> ops;
 
-  // TODO theoretically we can process an insertion and lookup every cycle??? If not then prioritize search
+#pragma HLS dependence variable=ops inter RAW false
+#pragma HLS dependence variable=ops inter WAR false
+
+#pragma HLS dependence variable=table_0 inter RAW false
+#pragma HLS dependence variable=table_1 inter RAW false
+#pragma HLS dependence variable=table_2 inter RAW false
+#pragma HLS dependence variable=table_3 inter RAW false
   
-  homa_rpc_t insertion;
-  // Are there RPCs that we need to insert into the table?
-  // TODO is this the correct info to add with?
-  if (rpc_table_insert.read_nb(insertion)) {
-    hashpack_t hashpack = {insertion.addr.s6_addr, insertion.id, insertion.dport, 0};
-    uint32_t hash = murmur3_32((uint32_t *) &hashpack, 7, SEED0);
+#pragma HLS dependence variable=table_0 inter WAR false
+#pragma HLS dependence variable=table_1 inter WAR false
+#pragma HLS dependence variable=table_2 inter WAR false
+#pragma HLS dependence variable=table_3 inter WAR false
 
-    homa_rpc_entry_t out_entry = table_0[hash];
-    table_0[hash] = {hashpack, insertion.id};
+#pragma HLS pipeline II=1
 
-    // Was there an element at this slot?
-    if (out_entry.homa_rpc != 0) {
-      insert_stack[stack_head] = {1, out_entry};
-      stack_head++;
-    }
-  } else if (stack_head != 0) {
-    stack_head--;
-    rpc_table_op_t op = insert_stack[stack_head];
-    homa_rpc_entry_t out_entry;
+  if (!rpc_table_request.empty()) {
+    rpc_hashpack_t query;
+    rpc_table_request.read(query);
 
-    if (op.table_id == 1) {
+    rpc_id_t rpc_id;
+    table_op_t<rpc_hashpack_t,rpc_id_t> cam_id;
+
+    entry_t<rpc_hashpack_t,rpc_id_t> search_0 = table_0[murmur3_32((uint32_t *) &query, 7, SEED0)];
+    entry_t<rpc_hashpack_t,rpc_id_t> search_1 = table_1[murmur3_32((uint32_t *) &query, 7, SEED1)];
+    entry_t<rpc_hashpack_t,rpc_id_t> search_2 = table_2[murmur3_32((uint32_t *) &query, 7, SEED2)];
+    entry_t<rpc_hashpack_t,rpc_id_t> search_3 = table_3[murmur3_32((uint32_t *) &query, 7, SEED3)];
+
+    if (search_0.hashpack == query) rpc_id = search_0.id;
+    if (search_1.hashpack == query) rpc_id = search_1.id;
+    if (search_2.hashpack == query) rpc_id = search_2.id;
+    if (search_3.hashpack == query) rpc_id = search_3.id;
+    if (ops.search(query, cam_id)) rpc_id = cam_id.entry.id;
+
+    rpc_table_response.write(rpc_id);
+  } else if (!rpc_table_insert.empty()) {
+    homa_rpc_t insertion;
+    rpc_table_insert.read(insertion);
+
+    rpc_hashpack_t hashpack = {insertion.addr.s6_addr, insertion.id, insertion.dport, 0};
+
+    ops.push({0, {hashpack, insertion.id}});
+  } else if (!ops.empty()) {
+    //homa_rpc_entry_t out_entry;
+    entry_t<rpc_hashpack_t,rpc_id_t> out_entry;
+
+    table_op_t<rpc_hashpack_t,rpc_id_t> op = ops.pop();
+
+    if (op.table_id == 0) {
+      uint32_t hash = murmur3_32((uint32_t *) &op.entry.hashpack, 7, SEED0);
+      out_entry = table_0[hash];
+      table_0[hash] = op.entry;
+    } else if (op.table_id == 1) {
       uint32_t hash = murmur3_32((uint32_t *) &op.entry.hashpack, 7, SEED1);
       out_entry = table_1[hash];
       table_1[hash] = op.entry;
@@ -64,55 +99,22 @@ void update_rpc_table(hls::stream<hashpack_t> & rpc_table_request,
       out_entry = table_3[hash];
       table_3[hash] = op.entry;
     }
-
-    // TODO this will ignore infinite loops
-    if (out_entry.homa_rpc != 0) {
-      insert_stack[stack_head] = {op.table_id++, out_entry};
-      stack_head++;
-    }
-  }
-
-  hashpack_t query;
-  // Are there RPC searches that we need to perform?
-  if (rpc_table_request.read_nb(query)) {
-    for (int i = 0; i < MAX_OPERATIONS; ++i) {
-#pragma HLS unroll
-      if (insert_stack[i].entry.hashpack == query) {
-	rpc_table_response.write(insert_stack[i].entry.homa_rpc);
-	return;
-      }
-    }
-
-    uint32_t hash_0 = murmur3_32((uint32_t *) &query, 7, SEED0);
-    uint32_t hash_1 = murmur3_32((uint32_t *) &query, 7, SEED1);
-    uint32_t hash_2 = murmur3_32((uint32_t *) &query, 7, SEED2);
-    uint32_t hash_3 = murmur3_32((uint32_t *) &query, 7, SEED3);
-
-    homa_rpc_entry_t search_0 = table_0[hash_0];
-    homa_rpc_entry_t search_1 = table_1[hash_1];
-    homa_rpc_entry_t search_2 = table_2[hash_2];
-    homa_rpc_entry_t search_3 = table_3[hash_3];
-
-    homa_rpc_id_t result;
     
-    if (search_0.hashpack == query) result = search_0.homa_rpc;
-    if (search_1.hashpack == query) result = search_1.homa_rpc;
-    if (search_2.hashpack == query) result = search_2.homa_rpc;
-    if (search_3.hashpack == query) result = search_3.homa_rpc;
-
-    rpc_table_response.write(result);
+    if (!out_entry.id)
+      ops.push({op.table_id++, op.entry});
   }
 }
 
-void update_rpc_buffer(hls::stream<homa_rpc_id_t> & rpc_buffer_request_primary,
+void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
-		       hls::stream<homa_rpc_id_t> & rpc_buffer_request_secondary,
+		       hls::stream<rpc_id_t> & rpc_buffer_request_secondary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert) {
   // Actual RPC data
   static homa_rpc_t rpcs[MAX_RPCS];
+#pragma HLS pipeline II=1
 
-  homa_rpc_id_t query;
+  rpc_id_t query;
 
   if (rpc_buffer_request_primary.read_nb(query)) {
     rpc_buffer_response_primary.write(rpcs[query]);
@@ -126,7 +128,129 @@ void update_rpc_buffer(hls::stream<homa_rpc_id_t> & rpc_buffer_request_primary,
   } 
 }
 
+void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next,
+		       hls::stream<peer_id_t> & peer_stack_free) {
+  static stack_t<peer_id_t, MAX_RPCS> peer_stack;
+
+  peer_id_t freed_peer;
+  if (peer_stack_free.read_nb(freed_peer)) {
+    peer_stack.push(freed_peer);
+  }
+
+  peer_id_t new_peer;
+  if (!peer_stack_next.full() && !peer_stack.empty()) {
+    new_peer = peer_stack.pop();
+    peer_stack_next.write(new_peer);
+  }
+}
+
+
+// TODO add support for deletion
+//void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request,
+//		      hls::stream<peer_id_t> & peer_table_response,
+//		      hls::stream<homa_peer_t> & peer_table_insert) {
+//  static entry_t<peer_hashpack_t,peer_id_t> table_0[RPC_SUB_TABLE_SIZE];
+//  static entry_t<rpc_hashpack_t,rpc_id_t> table_1[RPC_SUB_TABLE_SIZE];
+//  static entry_t<rpc_hashpack_t,rpc_id_t> table_2[RPC_SUB_TABLE_SIZE];
+//  static entry_t<rpc_hashpack_t,rpc_id_t> table_3[RPC_SUB_TABLE_SIZE];
+//
+//  static cam_t<rpc_hashpack_t,table_op_t<rpc_hashpack_t,rpc_id_t>, MAX_OPS> ops;
+//
+//#pragma HLS dependence variable=ops inter RAW false
+//#pragma HLS dependence variable=ops inter WAR false
+//
+//#pragma HLS dependence variable=table_0 inter RAW false
+//#pragma HLS dependence variable=table_1 inter RAW false
+//#pragma HLS dependence variable=table_2 inter RAW false
+//#pragma HLS dependence variable=table_3 inter RAW false
+//  
+//#pragma HLS dependence variable=table_0 inter WAR false
+//#pragma HLS dependence variable=table_1 inter WAR false
+//#pragma HLS dependence variable=table_2 inter WAR false
+//#pragma HLS dependence variable=table_3 inter WAR false
+//
+//#pragma HLS pipeline II=1
+//
+//  if (!rpc_table_request.empty()) {
+//    rpc_hashpack_t query;
+//    rpc_table_request.read(query);
+//
+//    rpc_id_t rpc_id;
+//    entry_t<rpc_hashpack_t,rpc_id_t> cam_id;
+//
+//    entry_t<rpc_hashpack_t,rpc_id_t> search_0 = table_0[murmur3_32((uint32_t *) &query, 7, SEED0)];
+//    entry_t<rpc_hashpack_t,rpc_id_t> search_1 = table_1[murmur3_32((uint32_t *) &query, 7, SEED1)];
+//    entry_t<rpc_hashpack_t,rpc_id_t> search_2 = table_2[murmur3_32((uint32_t *) &query, 7, SEED2)];
+//    entry_t<rpc_hashpack_t,rpc_id_t> search_3 = table_3[murmur3_32((uint32_t *) &query, 7, SEED3)];
+//
+//    if (search_0.hashpack == query) rpc_id = search_0.id;
+//    if (search_1.hashpack == query) rpc_id = search_1.id;
+//    if (search_2.hashpack == query) rpc_id = search_2.id;
+//    if (search_3.hashpack == query) rpc_id = search_3.id;
+//    if (ops.search(query, cam_id)) rpc_id = cam_id.id;
+//
+//    rpc_table_response.write(rpc_id);
+//  } else if (!rpc_table_insert.empty()) {
+//    homa_rpc_t insertion;
+//    rpc_table_insert.read(insertion);
+//
+//    rpc_hashpack_t hashpack = {insertion.addr.s6_addr, insertion.id, insertion.dport, 0};
+//
+//    ops.push({0, {hashpack, insertion.id}});
+//  } else if (!ops.empty()) {
+//    //homa_rpc_entry_t out_entry;
+//    entry_t<rpc_hashpack_t,rpc_id_t> out_entry;
+//
+//    table_op_t<rpc_hashpack_t,rpc_id_t> op = ops.pop();
+//
+//    if (op.table_id == 0) {
+//      uint32_t hash = murmur3_32((uint32_t *) &op.entry.hashpack, 7, SEED0);
+//      out_entry = table_0[hash];
+//      table_0[hash] = op.entry;
+//    } else if (op.table_id == 1) {
+//      uint32_t hash = murmur3_32((uint32_t *) &op.entry.hashpack, 7, SEED1);
+//      out_entry = table_1[hash];
+//      table_1[hash] = op.entry;
+//    } else if (op.table_id == 2) {
+//      uint32_t hash = murmur3_32((uint32_t *) &op.entry.hashpack, 7, SEED2);
+//      out_entry = table_2[hash];
+//      table_2[hash] = op.entry;
+//    } else if (op.table_id == 3) {
+//      uint32_t hash = murmur3_32((uint32_t *) &op.entry.hashpack, 7, SEED3);
+//      out_entry = table_3[hash];
+//      table_3[hash] = op.entry;
+//    }
+//    
+//    if (!out_entry.id)
+//      ops.push({op.table_id++, op.entry});
+//  }
+//}
+//
+//void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request_primary,
+//			hls::stream<homa_peer_t> & peer_buffer_response_primary,
+//			hls::stream<peer_id_t> & peer_buffer_request_secondary,
+//			hls::stream<homa_peer_t> & peer_buffer_response_secondary,
+//			hls::stream<homa_peer_t> & peer_buffer_insert) {
+//  // Actual Peer data
+//  static homa_peer_t peers[MAX_PEERS];
+//#pragma HLS pipeline II=1
+//
+//  homa_peer_id_t query;
+//
+//  if (peer_buffer_request_primary.read_nb(query)) {
+//    peer_buffer_response_primary.write(peers[query]);
+//  } else if (peer_buffer_request_secondary.read_nb(query)) {
+//    peer_buffer_response_secondary.write(peers[query]);
+//  }
+//
+//  homa_peer_t update;
+//  if (peer_buffer_insert.read_nb(update)) {
+//    peers[update.id] = update;
+//  } 
+//}
+
 uint32_t murmur_32_scramble(uint32_t k) {
+#pragma HLS pipeline II=1
   k *= 0xcc9e2d51;
   k = (k << 15) | (k >> 17);
   k *= 0x1b873593;
@@ -134,6 +258,7 @@ uint32_t murmur_32_scramble(uint32_t k) {
 }
 
 uint32_t murmur3_32(const uint32_t * key, int len, uint32_t seed) {
+#pragma HLS pipeline II=1
   uint32_t h = seed;
   uint32_t k;
 
@@ -157,103 +282,3 @@ uint32_t murmur3_32(const uint32_t * key, int len, uint32_t seed) {
   h ^= h >> 16;
   return h;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//void rpc_server_insert(hashpack_t & hashpack, homa_rpc_id_t & homa_rpc_id) {
-//  homa_rpc_entry_t in_entry = {hashpack, homa_rpc_id};
-//  homa_rpc_entry_t out_entry;
-//  uint32_t hash;
-//
-//  for (int iters = 0; iters < 1; ++iters) {
-//    hash = murmur3_32((uint32_t *) &in_entry.hashpack, 7, SEED0);
-//    out_entry = table_0[hash];
-//    table_0[hash] = in_entry;
-//
-//    // Is there an element at this slot?
-//    if (out_entry.homa_rpc == 0) {
-//      return;
-//    }
-//
-//    in_entry = out_entry;
-//
-//    hash = murmur3_32((uint32_t *) &in_entry.hashpack, 7, SEED1);
-//    out_entry = table_1[hash];
-//    table_1[hash] = in_entry;
-//
-//    if (out_entry.homa_rpc == 0) {
-//      return;
-//    }
-//
-//    in_entry = out_entry;
-//
-//    hash = murmur3_32((uint32_t *) &in_entry.hashpack, 7, SEED2);
-//    out_entry = table_1[hash];
-//    table_2[hash] = in_entry;
-//
-//    if (out_entry.homa_rpc == 0) {
-//      return;
-//    }
-//
-//    in_entry = out_entry;
-//
-//    hash = murmur3_32((uint32_t *) &in_entry.hashpack, 7, SEED3);
-//    out_entry = table_3[hash];
-//    table_3[hash] = in_entry;
-//
-//    if (out_entry.homa_rpc == 0) {
-//      return;
-//    }
-//
-//    in_entry = out_entry;
-//  }
-//}
-//
-//homa_rpc_id_t rpc_server_search(hashpack_t & hashpack) {
-//  uint32_t hash_0 = murmur3_32((uint32_t *) &hashpack, 7, SEED0);
-//  uint32_t hash_1 = murmur3_32((uint32_t *) &hashpack, 7, SEED1);
-//  uint32_t hash_2 = murmur3_32((uint32_t *) &hashpack, 7, SEED2);
-//  uint32_t hash_3 = murmur3_32((uint32_t *) &hashpack, 7, SEED3);
-//
-//  homa_rpc_entry_t & search_0 = table_0[hash_0];
-//  homa_rpc_entry_t & search_1 = table_1[hash_1];
-//  homa_rpc_entry_t & search_2 = table_2[hash_2];
-//  homa_rpc_entry_t & search_3 = table_3[hash_3];
-//
-//  // TODO clean this up
-//  if (search_0.hashpack.s6_addr == hashpack.s6_addr &&
-//      search_0.hashpack.port == hashpack.port &&
-//      search_0.hashpack.id== hashpack.id) return search_0.homa_rpc;
-//  if (search_1.hashpack.s6_addr == hashpack.s6_addr &&
-//      search_1.hashpack.port == hashpack.port &&
-//      search_1.hashpack.id== hashpack.id) return search_1.homa_rpc;
-//  if (search_2.hashpack.s6_addr == hashpack.s6_addr &&
-//      search_2.hashpack.port == hashpack.port &&
-//      search_2.hashpack.id== hashpack.id) return search_2.homa_rpc;
-//  if (search_3.hashpack.s6_addr == hashpack.s6_addr &&
-//      search_3.hashpack.port == hashpack.port &&
-//      search_3.hashpack.id== hashpack.id) return search_3.homa_rpc;
-//  // TODO There is no error handling here!!!
-//  // This needs to be removed -- it is just for temporary compilation sake
-//  return search_0.homa_rpc;
-//}
-

@@ -6,7 +6,7 @@
 #include "hls_task.h"
 #include "homa.hh"
 #include "dma.hh"
-//#include "link.hh"
+#include "link.hh"
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 #include "xmitbuff.hh"
@@ -15,30 +15,18 @@ using namespace std;
 
 //ap_uint<64> timer;
 
-void temp(hls::stream<xmit_req_t> & xmit_buffer_request,
-	  hls::stream<xmit_mblock_t> & xmit_buffer_response,
-	  hls::stream<xmit_id_t> & xmit_stack_free,
-	  hls::stream<homa_rpc_id_t> & rpc_stack_free,
-	  hls::stream<homa_rpc_t> & rpc_table_insert,
-	  hls::stream<srpt_entry_t> & srpt_queue_next) {
+void temp(hls::stream<xmit_id_t> & xmit_stack_free,
+	  hls::stream<rpc_id_t> & rpc_stack_free,
+	  hls::stream<homa_rpc_t> & rpc_table_insert) {
   // Garbage to pass compilation
-  xmit_req_t xmit_req;
-  xmit_buffer_request.write(xmit_req);
-
-  xmit_mblock_t mblock;
-  xmit_buffer_response.read(mblock);
-
   xmit_id_t xmit_id;
   xmit_stack_free.write(xmit_id);
 
-  homa_rpc_id_t homa_rpc_id;
+  rpc_id_t homa_rpc_id;
   rpc_stack_free.write(homa_rpc_id);
 
   homa_rpc_t homa_rpc;
   rpc_table_insert.write(homa_rpc);
-
-  srpt_entry_t entry;
-  srpt_queue_next.read(entry);
 }
 
 
@@ -49,40 +37,40 @@ void temp(hls::stream<xmit_req_t> & xmit_buffer_request,
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  * @dma:   DMA memory space pointer
  */
+// TODO just make input and output axi seperate
+
 void homa(homa_t * homa,
 	  params_t * params,
 	  hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
-	  hls::burst_maxi<xmit_mblock_t> maxi) {
+	  hls::burst_maxi<xmit_mblock_t> maxi_in, // TODO use same interface for both axi then remove bundle
+	  xmit_mblock_t * maxi_out) {
 
-  // TODO need correct control params for axi lite?
-
-  // #pragma HLS INTERFACE ap_ctrl_none port=return TODO?
-#pragma HLS INTERFACE s_axilite port=homa
-#pragma HLS INTERFACE s_axilite port=params
-#pragma HLS INTERFACE axis port=link_ingress
-#pragma HLS INTERFACE axis port=link_egress
-  //#pragma HLS INTERFACE axis port=sdma
-#pragma HLS interface mode=m_axi port=maxi latency=100 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
+#pragma HLS interface s_axilite port=homa
+// TODO does this create the correct control signals to dma_ingress
+#pragma HLS interface s_axilite port=params
+#pragma HLS interface axis port=link_ingress
+#pragma HLS interface axis port=link_egress
+#pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
+#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
 
   // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Tasks-and-Channels critical
 
-  //#pragma HLS pipeline rewind TODO?
   // Dataflow required for m_axi https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Tasks-and-Dataflow
 
   /* update_rpc_stack */
-  hls_thread_local hls::stream<homa_rpc_id_t> rpc_stack_next;
-  hls_thread_local hls::stream<homa_rpc_id_t> rpc_stack_free;
+  hls_thread_local hls::stream<rpc_id_t> rpc_stack_next;
+  hls_thread_local hls::stream<rpc_id_t> rpc_stack_free;
   
   /* update_rpc_table */
-  hls_thread_local hls::stream<hashpack_t> rpc_table_request;
-  hls_thread_local hls::stream<homa_rpc_id_t> rpc_table_response;
+  hls_thread_local hls::stream<rpc_hashpack_t> rpc_table_request;
+  hls_thread_local hls::stream<rpc_id_t> rpc_table_response;
   hls_thread_local hls::stream<homa_rpc_t> rpc_table_insert;
   
   /* update_rpc_buffer */
-  hls_thread_local hls::stream<homa_rpc_id_t> rpc_buffer_request_primary;
+  hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_primary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_primary;
-  hls_thread_local hls::stream<homa_rpc_id_t> rpc_buffer_request_secondary;
+  hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_secondary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_secondary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_insert;
 
@@ -99,6 +87,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<srpt_entry_t> srpt_queue_insert;
   hls_thread_local hls::stream<srpt_entry_t> srpt_queue_next;
 
+  hls_thread_local hls::stream<dma_egress_req_t> dma_egress_reqs;
 
 #pragma HLS dataflow
   /* Control Driven Region */
@@ -106,7 +95,7 @@ void homa(homa_t * homa,
   /* Pull user requests from DMA and coordinate ingestion */
   dma_ingress(homa,
 	      params,
-	      maxi,
+	      maxi_in,
 	      xmit_buffer_insert,
 	      xmit_stack_next,
 	      rpc_stack_next,
@@ -160,15 +149,26 @@ void homa(homa_t * homa,
 				      srpt_queue_insert,
 				      srpt_queue_next);
 
-  // TODO add a very simple link path that takes a message buffer worth of data per the SRPT queue rpc to test single cycle behavior
-  // SET II=1 to make sure it can get a packet every cycle
+  /* Send packets */
+  hls_thread_local hls::task thread_7(proc_link_egress,
+				      srpt_queue_next,
+				      xmit_buffer_request,
+				      xmit_buffer_response,
+				      rpc_buffer_request_primary,
+				      rpc_buffer_response_primary,
+				      link_egress);
 
-     temp(xmit_buffer_request,
-	  xmit_buffer_response,
-	  xmit_stack_free,
-	  rpc_stack_free,
-	  rpc_table_insert,
-	  srpt_queue_next);
+  hls_thread_local hls::task thread_8(proc_link_ingress,
+				      link_ingress,
+				      dma_egress_reqs);
+
+  dma_egress(dma_egress_reqs,
+	     maxi_out);
+
+
+  temp(xmit_stack_free,
+       rpc_stack_free,
+       rpc_table_insert);
 
 
   // TODO? Depth of srpt out should be a few elements

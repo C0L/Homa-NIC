@@ -8,12 +8,53 @@
 #define RPC_SUB_TABLE_SIZE 16384
 #define RPC_SUB_TABLE_INDEX 14
 
-#define MAX_OPERATIONS 128 
+// TODO this is the max number of slots but the cuckoo will not behave correctly if >95% saturated
+// The number of RPCs supported on the device
+#define MAX_RPCS 16384
+//#define MAX_RPCS 65536
+
+// Number of bits needed to index MAX_RPCS+1 (log2 MAX_RPCS + 1)
+#define MAX_RPCS_LOG2 16
+
+// To index all the RPCs, we need LOG2 of the max number of RPCs
+typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
+
+#define MAX_OPS 64
 
 #define SEED0 0x7BF6BF21
 #define SEED1 0x9FA91FE9
 #define SEED2 0xD0C8FBDF
 #define SEED3 0xE6D0851C
+
+#define PEER_SUB_TABLE_SIZE 16384
+#define PEER_SUB_TABLE_INDEX 14
+
+// TODO temporary value 
+#define MAX_PEERS 16384
+
+#define MAX_PEERS_LOG2 14
+
+typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
+
+#define NUM_PEER_UNACKED_IDS 5
+
+struct homa_peer_t {
+  in6_addr_t addr;
+  int unsched_cutoffs[HOMA_MAX_PRIORITIES];
+  ap_uint<16> cutoff_version;
+  unsigned long last_update_jiffies;
+  //struct list_head grantable_rpcs;
+  //struct list_head grantable_links;
+  //struct hlist_node peertab_links;
+  int outstanding_resends;
+  int most_recent_resend;
+  rpc_id_t least_recent_rpc;
+  ap_uint<32> least_recent_ticks;
+  ap_uint<32> current_ticks;
+  rpc_id_t resend_rpc;
+  int num_acks;
+  homa_ack_t acks[NUM_PEER_UNACKED_IDS];
+};
 
 /**
  * struct homa_message_out - Describes a message (either request or response)
@@ -66,11 +107,11 @@ struct homa_rpc_t {
 
   int flags;
   int grants_in_progress;
-  homa_peer_id_t peer;
+  peer_id_t peer;
   in6_addr_t addr;
   //ap_uint<16> dport;
   uint16_t dport;
-  homa_rpc_id_t id; // TODO? When we get an incoming packet we always go through RPC table to get local ID anyway? No need to associate non local ID with the homa_rpc
+  rpc_id_t id; // TODO? When we get an incoming packet we always go through RPC table to get local ID anyway? No need to associate non local ID with the homa_rpc
   ap_uint<64> completion_cookie;
   homa_message_in_t msgin;
   homa_message_out_t msgout;
@@ -82,50 +123,32 @@ struct homa_rpc_t {
 /**
  * Stack for storing availible RPCs,
  */
-struct homa_rpc_stack_t {
-  homa_rpc_id_t buffer[MAX_RPCS];
+template<typename T, int MAX_SIZE>
+struct stack_t {
+  T buffer[MAX_SIZE];
   int size;
 
-  homa_rpc_stack_t() {
-#pragma HLS ARRAY_PARTITION variable=buffer type=complete
+  stack_t() {
     // Each RPC id begins as available 
-    for (int id = 0; id < MAX_RPCS; ++id) {
+    for (int id = 0; id < MAX_SIZE; ++id) {
       buffer[id] = id+1;
     }
-    size = MAX_RPCS;
+    size = MAX_SIZE-1;
   }
 
-  void push(homa_rpc_id_t rpc_id) {
-#pragma HLS ARRAY_PARTITION variable=buffer type=complete
-    /** This must be pipelined for a caller function to be pipelined */
-#pragma HLS PIPELINE
-    // A shift register is inferred
-    for (int id = MAX_RPCS-1; id > 0; --id) {
-    #pragma HLS unroll
-      buffer[id] = buffer[id-1];
-    }
-
-    buffer[0] = rpc_id;
+  void push(T value) {
+    /* This must be pipelined for a caller function to be pipelined */
+    #pragma HLS pipeline II=1
     size++;
+    buffer[size] = value;
   }
 
-  homa_rpc_id_t pop() {
-#pragma HLS ARRAY_PARTITION variable=buffer type=complete
+  T pop() {
     /** This must be pipelined for a caller function to be pipelined */
-#pragma HLS PIPELINE
-    homa_rpc_id_t head = buffer[0];
-    // A shift register is inferred
-    for (int id = 0; id < MAX_RPCS; ++id) {
-    #pragma HLS unroll
-      buffer[id] = buffer[id+1];
-    }
-
+    #pragma HLS pipeline II=1
+    T head = buffer[size];
     size--;
     return head;
-  }
-
-  int get_size() {
-    return size;
   }
 
   bool empty() {
@@ -133,37 +156,100 @@ struct homa_rpc_stack_t {
   }
 };
 
-struct hashpack_t {
+
+//template<typename T, int MAX_SIZE>
+//struct stack_t {
+//  T buffer[MAX_SIZE];
+//  int size;
+//
+//  stack_t() {
+//#pragma HLS array_partition variable=buffer type=complete
+//    // Each RPC id begins as available 
+//    for (int id = 0; id < MAX_SIZE; ++id) {
+//      buffer[id] = id+1;
+//    }
+//    size = MAX_SIZE;
+//  }
+//
+//  void push(T value) {
+//#pragma HLS array_partition variable=buffer type=complete
+//    /* This must be pipelined for a caller function to be pipelined */
+//#pragma HLS pipeline 
+//    // A shift register is inferred
+//    for (int id = MAX_SIZE-1; id > 0; --id) {
+//    #pragma HLS unroll
+//      buffer[id] = buffer[id-1];
+//    }
+//
+//    buffer[0] = value;
+//    size++;
+//  }
+//
+//  T pop() {
+//#pragma HLS array_partition variable=buffer type=complete
+//    /** This must be pipelined for a caller function to be pipelined */
+//#pragma HLS pipeline 
+//    T head = buffer[0];
+//    // A shift register is inferred
+//    for (int id = 0; id < MAX_SIZE; ++id) {
+//    #pragma HLS unroll
+//      buffer[id] = buffer[id+1];
+//    }
+//
+//    size--;
+//    return head;
+//  }
+//
+//  bool empty() {
+//    return (size == 0);
+//  }
+//};
+
+struct rpc_hashpack_t {
   ap_uint<128> s6_addr;
   uint64_t id;
   uint16_t port;
   uint16_t empty;
 
-  bool operator==(const hashpack_t & other) const {
+  bool operator==(const rpc_hashpack_t & other) const {
     return (s6_addr == other.s6_addr && id == other.id && port == other.port);
   }
 };
 
-struct homa_rpc_entry_t {
-  hashpack_t hashpack; 
-  homa_rpc_id_t homa_rpc;
+struct peer_hashpack_t {
+  ap_uint<128> s6_addr;
+
+  bool operator==(const peer_hashpack_t & other) const {
+    return (s6_addr == other.s6_addr); 
+  }
 };
 
-struct rpc_table_op_t {
+template<typename H, typename I>
+struct entry_t {
+  H hashpack;
+  I id;
+};
+
+template<typename H, typename I>
+struct table_op_t {
   ap_uint<2> table_id;
-  homa_rpc_entry_t entry;
+  entry_t<H,I> entry;
 };
 
-void update_rpc_stack(hls::stream<homa_rpc_id_t> & rpc_stack_next,
-		      hls::stream<homa_rpc_id_t> & rpc_stack_free);
+void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
+		      hls::stream<rpc_id_t> & rpc_stack_free);
 
-void update_rpc_table(hls::stream<hashpack_t> & rpc_table_request,
-		      hls::stream<homa_rpc_id_t> & rpc_table_response,
+void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request,
+		      hls::stream<rpc_id_t> & rpc_table_response,
 		      hls::stream<homa_rpc_t> & rpc_table_insert);
 
-void update_rpc_buffer(hls::stream<homa_rpc_id_t> & rpc_buffer_request,
-		       hls::stream<homa_rpc_t> & rpc_buffer_response,
+void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
+		       hls::stream<rpc_id_t> & rpc_buffer_request_secondary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert);
+ 
+peer_id_t homa_peer_find(in6_addr_t & addr);
 
 uint32_t murmur3_32(const uint32_t * key, int len, uint32_t seed);
 uint32_t murmur_32_scramble(uint32_t k);

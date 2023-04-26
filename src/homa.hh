@@ -14,12 +14,6 @@ struct user_output_t;
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
 
-// The number of RPCs supported on the device
-#define MAX_RPCS 1024
-
-// Number of bits needed to index MAX_RPCS+1 (log2 MAX_RPCS + 1)
-#define MAX_RPCS_LOG2 11
-
 #define HOMA_MAX_HEADER 90
 
 #define ETHERNET_MAX_PAYLOAD 1500
@@ -33,21 +27,6 @@ struct user_output_t;
  */
 #define HOMA_MAX_PRIORITIES 8
 
-/**
- * define HOMA_PEERTAB_BUCKETS - Number of bits in the bucket index for a
- * homa_peertab.  Should be large enough to hold an entry for every server
- * in a datacenter without long hash chains.
- */
-#define HOMA_PEERTAB_BUCKET_BITS 15
-
-/** define HOME_PEERTAB_BUCKETS - Number of buckets in a homa_peertab. */
-#define HOMA_PEERTAB_BUCKETS (1 << HOMA_PEERTAB_BUCKET_BITS)
-
-// To index all the RPCs, we need LOG2 of the max number of RPCs
-typedef ap_uint<MAX_RPCS_LOG2> homa_rpc_id_t;
-
-typedef ap_uint<HOMA_PEERTAB_BUCKET_BITS> homa_peer_id_t;
-
 /** Data "bucket" for incoming or outgoing ethernet frames
  * 
  *  Maximum size of ethernet, assuming non-jumbo frames:
@@ -57,7 +36,10 @@ typedef ap_uint<HOMA_PEERTAB_BUCKET_BITS> homa_peer_id_t;
  *
  *  Refer to: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/How-AXI4-Stream-is-Implemented
  */
-typedef hls::axis<unsigned char [1522], 0, 0, 0> raw_frame_t;
+// TODO ???.. add more specific type information based on smallest message block unit?
+typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
+//typedef hls::axis<xmit_mblock_t[6], 0, 0, 0> raw_frame_t;
+//typedef hls::axis<unsigned char [1522], 0, 0, 0> raw_frame_t;
 //typedef hls::axis<ap_uint<12176>, 0, 0, 0> raw_frame_t;
 
 // TODO move to timer.hh

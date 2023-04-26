@@ -2,11 +2,14 @@
 #define SRPTMGMT_H
 
 #include "homa.hh"
+#include "rpcmgmt.hh"
+
+#define MAX_SRPT 1024
 
 struct srpt_queue_t;
 
 struct srpt_entry_t {
-  homa_rpc_id_t rpc_id; 
+  rpc_id_t rpc_id; 
   int remaining;
 };
 
@@ -14,12 +17,12 @@ struct srpt_entry_t {
  * Shortest remaining processing time queue
  */
 struct srpt_queue_t {
-  srpt_entry_t buffer[MAX_RPCS+2];
+  srpt_entry_t buffer[MAX_SRPT+2];
 
   int size;
 
   srpt_queue_t() {
-    for (int id = 0; id <= MAX_RPCS+1; ++id) {
+    for (int id = 0; id <= MAX_SRPT+1; ++id) {
       buffer[id] = {-1, -1};
     }
 
@@ -31,7 +34,7 @@ struct srpt_queue_t {
     size++;
     buffer[0] = new_entry;
 
-    for (int id = MAX_RPCS; id > 0; id-=2) {
+    for (int id = MAX_SRPT; id > 0; id-=2) {
 #pragma HLS unroll
       if (buffer[id-1].remaining < buffer[id-2].remaining) {
 	buffer[id] = buffer[id-2];
@@ -45,7 +48,7 @@ struct srpt_queue_t {
   srpt_entry_t pop() {
 #pragma HLS ARRAY_PARTITION variable=buffer type=complete
     size--;
-    for (int id = 0; id <= MAX_RPCS; id+=2) {
+    for (int id = 0; id <= MAX_SRPT; id+=2) {
 #pragma HLS unroll
       if (buffer[id+1].remaining > buffer[id+2].remaining) {
 	buffer[id] = buffer[id+2];

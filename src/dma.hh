@@ -23,23 +23,26 @@ struct params_t {
   uint64_t completion_cookie;
 };
 
-//struct args_t {
-//  params_t params;
-//  xmit_buffer_t buffer;
-//};
+struct dma_egress_req_t {
+  int offset;
+  xmit_mblock_t mblock;
+};
 
 void dma_ingress(homa_t * homa,
 		 params_t * params,
 		 hls::burst_maxi<xmit_mblock_t> maxi,
 		 hls::stream<xmit_in_t> & xmit_buffer_insert,
 		 hls::stream<xmit_id_t> & xmit_stack_next,
-		 hls::stream<homa_rpc_id_t> & rpc_stack_next,
-		 hls::stream<hashpack_t> & rpc_table_request,
-		 hls::stream<homa_rpc_id_t> & rpc_table_response,
-		 hls::stream<homa_rpc_id_t> & rpc_buffer_request,
+		 hls::stream<rpc_id_t> & rpc_stack_next,
+		 hls::stream<rpc_hashpack_t> & rpc_table_request,
+		 hls::stream<rpc_id_t> & rpc_table_response,
+		 hls::stream<rpc_id_t> & rpc_buffer_request,
 		 hls::stream<homa_rpc_t> & rpc_buffer_response,
 		 hls::stream<homa_rpc_t> & rpc_buffer_insert,
 		 hls::stream<srpt_entry_t> & srpt_queue_insert);
 
+
+void dma_egress(hls::stream<dma_egress_req_t> & dma_egress_reqs,
+		xmit_mblock_t * maxi_out);
 
 #endif

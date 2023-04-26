@@ -1,37 +1,48 @@
 #include <string.h>
 
+#include "homa.hh"
 #include "link.hh"
-
-#include "srptmgmt.hh"
-#include "rpcmgmt.hh"
+#include "dma.hh"
 
 /**
  * proc_link_egress() - 
  */
+void proc_link_egress(hls::stream<srpt_entry_t> & srpt_queue_next,
+		      hls::stream<xmit_req_t> & xmit_buffer_request,
+		      hls::stream<xmit_mblock_t> & xmit_buffer_response,
+		      hls::stream<rpc_id_t> & rpc_buffer_request,
+		      hls::stream<homa_rpc_t> & rpc_buffer_response,
+		      hls::stream<raw_frame_t> & link_egress) {
+#pragma HLS PIPELINE II=1 
+  
+  srpt_entry_t srpt_entry;
+  srpt_queue_next.read(srpt_entry);
 
-void link_egress(hls::stream<srpt_entry_t> & srpt_queue_next,
-		 hls::stream<xmit_req_t> & xmit_buffer_request,
-		 hls::stream<xmit_mblock_t> & xmit_buffer_response,
-		 hls::stream<homa_rpc_id_t> rpc_buffer_request;
-		 hls::stream<homa_rpc_t> rpc_buffer_response;
-		 hls::stream<raw_frame_t> & link_egress) {
-  //  srpt_entry_t srpt_entry;
-  //  if (srpt_queue_next.read(srpt_entry)) {
-  //    homa_rpc_t homa_rpc;
-  //    rpc_buffer_request.write(srpt_entry.rpc_id);
-  //    rpc_buffer_response.write(homa_rpc);
-  //
-  //    // Message buffer ID should be in homa_rpc
-  //    // current block should also be stored
-  //    // 
-  //    
-  //    while (unscheduled bytes != 0)...
-  //#pragma HLS unroll
-  //      xmit_mblock_t mblock;
-  //    xmit_buffer_request({current block})
-  //      raw_frame_t raw_frame;
-  //      TODO begin populating
-  //  }
+  homa_rpc_t homa_rpc;
+  rpc_buffer_request.write(srpt_entry.rpc_id);
+  rpc_buffer_response.write(homa_rpc);
+
+  raw_frame_t raw_frame;
+  // TODO this is temporary and wrong just to test datapath
+  for (int i = 0; i < XMIT_BUFFER_SIZE; ++i) {
+    xmit_mblock_t mblock;
+    //xmit_req_t xmit_req = {homa_rpc.msgout.xmit_id, (xmit_offset_t) i};
+    xmit_buffer_request.write((xmit_req_t) {homa_rpc.msgout.xmit_id, (xmit_offset_t) i});
+    xmit_buffer_response.read(mblock);
+    raw_frame.data[i%6] = mblock;
+    if (i % 6 == 0) link_egress.write(raw_frame);
+  }
+  
+
+  // Message buffer ID should be in homa_rpc
+  // current block should also be stored
+  // 
+  //      while (unscheduled bytes != 0)...
+  //  #pragma HLS unroll
+  //        xmit_mblock_t mblock;
+  //      xmit_buffer_request({current block})
+  //        raw_frame_t raw_frame;
+  //        TODO begin populating
 }
 
 //void proc_link_egress(hls::stream<raw_frame_t> & link_egress) {
@@ -86,24 +97,20 @@ void link_egress(hls::stream<srpt_entry_t> & srpt_queue_next,
  * proc_link_ingress() - 
  * 
  */
+// TODO will need to access DMA
 void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
-		       char * ddr_ram,
-		       user_output_t * dma_egress) {
-  // Complete the frame processing, P4 style
-  #pragma HLS pipeline
+		       hls::stream<dma_egress_req_t> & dma_egress_reqs) {
+#pragma HLS PIPELINE II=1 
   raw_frame_t frame;
-
-  // Has a full ethernet frame been buffered? If so, grab it.
-  if (link_ingress.full()) {
-    link_ingress.read(frame);
-
-    // Don't change control flow for a bad packet
-    //bool discard = parse_homa(frame, );
+#pragma HLS array_partition variable=frame type=complete
   
-    // This seems like the most obvious way to accomplish p4 behavior 
-    //ingress_op1();
-    //ingress_op2();
-    //ingress_op3();
+  // Has a full ethernet frame been buffered? If so, grab it.
+  link_ingress.read(frame);
+
+  // TODO this needs to get the address of the output
+  for (int i = 0; 6; ++i) {
+    dma_egress_req_t req = {i, frame.data[i]};
+    dma_egress_reqs.write(req);
   }
 }
 

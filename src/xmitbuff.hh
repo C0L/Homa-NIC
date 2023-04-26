@@ -1,7 +1,6 @@
 #ifndef XMITBUFF_H
 #define XMITBUFF_H
 
-//#include "ap_int.h"
 #include "homa.hh"
 
 // Number of buffers to allocate and bits to index it
@@ -28,7 +27,7 @@ typedef ap_uint<XMIT_UNIT_SIZE> xmit_mblock_t;
 //typedef ap_uint<XMIT_UNIT_SIZE> xmit_unit_t;
 
 // Number of xmit_unit_t per buffer and bits needed to index that
-#define XMIT_BUFFER_SIZE 32
+#define XMIT_BUFFER_SIZE 36
 #define XMIT_BUFFER_SIZE_INDEX 4
 
 // One full message buffer, which we have NUM_XMIT_BUFFER of and index into
@@ -52,15 +51,6 @@ struct xmit_in_t {
   xmit_id_t xmit_id;
   xmit_offset_t xmit_offset;
 };
-
-//struct xmit_out_t {
-//unsigned char buff[1500];
-  //xmit_mblock_t buff[4];
-  //xmit_mblock_t buff_0;
-  //xmit_mblock_t buff_1;
-  //xmit_mblock_t buff_2;
-  //xmit_mblock_t buff_3;
-//};
 
 struct xmit_stack_t {
   xmit_id_t buffer[NUM_XMIT_BUFFER];
