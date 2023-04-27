@@ -10,15 +10,29 @@
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 #include "xmitbuff.hh"
+#include "timer.hh"
 
 using namespace std;
 
-//ap_uint<64> timer;
 
+// TODO outgoing packets are sorted in increasing order of the number of bytes not yet granted
+// TODO homa will not grant more than one message from a given peer at a time
+// TODO granting is done purely based on incoming packets
+
+// TODO we need a two tiered PQ structure:
+//   A list of peers with a non-empty list of messages
+//   A sorted list of messages associated with each peer
+//   (active messages are the first few messages assocated with each peer)
+
+// This is just used to tie off some streams for compilation sake
 void temp(hls::stream<xmit_id_t> & xmit_stack_free,
 	  hls::stream<rpc_id_t> & rpc_stack_free,
-	  hls::stream<homa_rpc_t> & rpc_table_insert) {
+	  hls::stream<homa_rpc_t> & rpc_table_insert,
+	  hls::stream<peer_id_t> & peer_stack_free,
+	  hls::stream<peer_id_t> & peer_buffer_request,
+	  hls::stream<homa_peer_t> & peer_buffer_response) {
   // Garbage to pass compilation
+  // This may interrupt normal behavior if it is hammering some path in the output stream
   xmit_id_t xmit_id;
   xmit_stack_free.write(xmit_id);
 
@@ -27,6 +41,15 @@ void temp(hls::stream<xmit_id_t> & xmit_stack_free,
 
   homa_rpc_t homa_rpc;
   rpc_table_insert.write(homa_rpc);
+
+  peer_id_t homa_peer_id;
+  peer_stack_free.write(homa_peer_id);
+
+  peer_id_t req_id;
+  peer_buffer_request.write(req_id);
+
+  homa_peer_t resp_peer;
+  peer_buffer_response.read(resp_peer);
 }
 
 
@@ -46,17 +69,24 @@ void homa(homa_t * homa,
 	  hls::burst_maxi<xmit_mblock_t> maxi_in, // TODO use same interface for both axi then remove bundle
 	  xmit_mblock_t * maxi_out) {
 
-#pragma HLS interface s_axilite port=homa
-// TODO does this create the correct control signals to dma_ingress
-#pragma HLS interface s_axilite port=params
+#pragma HLS interface s_axilite port=homa bundle=config
+#pragma HLS interface s_axilite port=params bundle=onboard
+
 #pragma HLS interface axis port=link_ingress
 #pragma HLS interface axis port=link_egress
+
 #pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
 #pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
 
   // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Tasks-and-Channels critical
-
   // Dataflow required for m_axi https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Tasks-and-Dataflow
+
+
+  /* Tasks are effectively free-running threads that are infinitely looping
+   * This more explicitly defines the parallelism of the processor
+   * However, the way in which tasks interact is restricted—they can only comunicate via streams
+   * As a result we are effectively turning every function call in the linux implementation into a stream interaction
+   */
 
   /* update_rpc_stack */
   hls_thread_local hls::stream<rpc_id_t> rpc_stack_next;
@@ -87,7 +117,26 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<srpt_entry_t> srpt_queue_insert;
   hls_thread_local hls::stream<srpt_entry_t> srpt_queue_next;
 
+  /* dma_egress */
   hls_thread_local hls::stream<dma_egress_req_t> dma_egress_reqs;
+
+  /* update_timer */
+  hls_thread_local hls::stream<ap_uint<1>> timer_request_0;
+  hls_thread_local hls::stream<ap_uint<64>> timer_response_0;
+
+  /* update_peer_stack */
+  hls_thread_local hls::stream<peer_id_t> peer_stack_next;
+  hls_thread_local hls::stream<peer_id_t> peer_stack_free;
+  
+  /* update_peer_table */
+  hls_thread_local hls::stream<peer_hashpack_t> peer_table_request;
+  hls_thread_local hls::stream<peer_id_t> peer_table_response;
+  hls_thread_local hls::stream<homa_peer_t> peer_table_insert;
+  
+  /* update_peer_buffer */
+  hls_thread_local hls::stream<peer_id_t> peer_buffer_request;
+  hls_thread_local hls::stream<homa_peer_t> peer_buffer_response;
+  hls_thread_local hls::stream<homa_peer_t> peer_buffer_insert;
 
 #pragma HLS dataflow
   /* Control Driven Region */
@@ -104,7 +153,14 @@ void homa(homa_t * homa,
 	      rpc_buffer_request_secondary,
 	      rpc_buffer_response_secondary,
 	      rpc_buffer_insert,
-	      srpt_queue_insert);
+	      srpt_queue_insert,
+	      peer_stack_next,
+	      peer_table_request,
+	      peer_table_response,
+	      peer_table_insert,
+	      peer_buffer_insert,
+	      timer_request_0,
+	      timer_response_0);
 
   /* Data Driven Region */
 
@@ -128,11 +184,6 @@ void homa(homa_t * homa,
 				      rpc_table_response,
 				      rpc_table_insert);
 
-  /* Insert new peers and perform lookup on the peer table */
-  //hls_thread_local hls::task update_peer_table(, );
-
-
-
   /* Perform any needed operations on the stored RPC data */
   hls_thread_local hls::task thread_5(update_rpc_buffer,
 				      rpc_buffer_request_primary,
@@ -140,9 +191,6 @@ void homa(homa_t * homa,
 				      rpc_buffer_request_secondary,
 				      rpc_buffer_response_secondary,
 				      rpc_buffer_insert);
-
-  /* Perform any needed operations on the stored RPC data */
-  //hls_thread_local hls::task update_peer_buffer(, .... );
 
   /* Update the SRPT queue */
   hls_thread_local hls::task thread_6(update_srpt_queue,
@@ -162,17 +210,34 @@ void homa(homa_t * homa,
 				      link_ingress,
 				      dma_egress_reqs);
 
+  hls_thread_local hls::task thread_9(update_timer,
+				      timer_request_0,
+				      timer_response_0);
+
+  hls_thread_local hls::task thread_10(update_peer_stack,
+				       peer_stack_next,
+				       peer_stack_free);
+
+  hls_thread_local hls::task thread_11(update_peer_table,
+				       peer_table_request,
+				       peer_table_response,
+				       peer_table_insert);
+
+  hls_thread_local hls::task thread_12(update_peer_buffer,
+				       peer_buffer_request,
+				       peer_buffer_response,
+				       peer_buffer_insert);
+  
   dma_egress(dma_egress_reqs,
 	     maxi_out);
 
 
   temp(xmit_stack_free,
        rpc_stack_free,
-       rpc_table_insert);
+       rpc_table_insert,
+       peer_stack_free,
+       peer_buffer_request,
+       peer_buffer_response);
 
-
-  // TODO? Depth of srpt out should be a few elements
-
-  //timer++;
 }
 

@@ -28,6 +28,8 @@ struct dma_egress_req_t {
   xmit_mblock_t mblock;
 };
 
+
+
 void dma_ingress(homa_t * homa,
 		 params_t * params,
 		 hls::burst_maxi<xmit_mblock_t> maxi,
@@ -39,8 +41,14 @@ void dma_ingress(homa_t * homa,
 		 hls::stream<rpc_id_t> & rpc_buffer_request,
 		 hls::stream<homa_rpc_t> & rpc_buffer_response,
 		 hls::stream<homa_rpc_t> & rpc_buffer_insert,
-		 hls::stream<srpt_entry_t> & srpt_queue_insert);
-
+		 hls::stream<srpt_entry_t> & srpt_queue_insert,
+		 hls::stream<peer_id_t> & peer_stack_next,
+		 hls::stream<peer_hashpack_t> & peer_table_request,
+		 hls::stream<peer_id_t> & peer_table_response,
+		 hls::stream<homa_peer_t> & peer_table_insert,
+		 hls::stream<homa_peer_t> & peer_buffer_insert,
+		 hls::stream<ap_uint<1>> & timer_request,
+		 hls::stream<ap_uint<64>> & timer_response);
 
 void dma_egress(hls::stream<dma_egress_req_t> & dma_egress_reqs,
 		xmit_mblock_t * maxi_out);

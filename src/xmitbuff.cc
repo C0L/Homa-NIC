@@ -1,4 +1,24 @@
 #include "xmitbuff.hh"
+#include "rpcmgmt.hh"
+
+void update_xmit_stack(hls::stream<xmit_id_t> & xmit_stack_next,
+		       hls::stream<xmit_id_t> & xmit_stack_free) {
+  static stack_t<xmit_id_t, NUM_XMIT_BUFFER> xmit_stack;
+#pragma HLS pipeline II=1
+#pragma HLS pipeline II=1
+
+  xmit_id_t freed_id;
+
+  if (!xmit_stack.empty()) {
+    xmit_id_t next_id = xmit_stack.pop();
+    xmit_stack_next.write(next_id);
+  }
+
+  // TODO expand the rpc_next stream
+  if (xmit_stack_free.read_nb(freed_id)) {
+    xmit_stack.push(freed_id);
+  }
+}
 
 /*
  * We should be able to process both an incoming xmit unit and outgoing in a single cycle
@@ -30,20 +50,3 @@ void update_xmit_buffer(hls::stream<xmit_in_t> & xmit_buffer_insert,
   }
 }
 
-void update_xmit_stack(hls::stream<xmit_id_t> & xmit_stack_next,
-		       hls::stream<xmit_id_t> & xmit_stack_free) {
-  static xmit_stack_t xmit_stack;
-#pragma HLS pipeline II=1
-
-  xmit_id_t new_rpc;
-  xmit_id_t freed_buff;
-
-  // TODO should expand xmit_stack_next stream size!!! 
-  if (!xmit_stack_next.full() && !xmit_stack.empty()) {
-    new_rpc = xmit_stack.pop();
-    xmit_stack_next.write(new_rpc);
-  } else if (xmit_stack_free.read_nb(freed_buff)) {
-    xmit_stack.push(freed_buff);
-  }
-
-}
