@@ -1,9 +1,10 @@
 #include <iostream>
 #include <ap_int.h>
-#include <hls_stream.h>
-#include <ap_axi_sdata.h>
 
+#include "ap_axi_sdata.h"
 #include "hls_task.h"
+#include "hls_stream.h"
+
 #include "homa.hh"
 #include "dma.hh"
 #include "link.hh"
@@ -13,16 +14,6 @@
 #include "timer.hh"
 
 using namespace std;
-
-
-// TODO outgoing packets are sorted in increasing order of the number of bytes not yet granted
-// TODO homa will not grant more than one message from a given peer at a time
-// TODO granting is done purely based on incoming packets
-
-// TODO we need a two tiered PQ structure:
-//   A list of peers with a non-empty list of messages
-//   A sorted list of messages associated with each peer
-//   (active messages are the first few messages assocated with each peer)
 
 // This is just used to tie off some streams for compilation sake
 void temp(hls::stream<xmit_id_t> & xmit_stack_free,
@@ -82,7 +73,8 @@ void homa(homa_t * homa,
   // Dataflow required for m_axi https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Tasks-and-Dataflow
 
 
-  /* Tasks are effectively free-running threads that are infinitely looping
+  /*
+   * Tasks are effectively free-running threads that are infinitely looping
    * This more explicitly defines the parallelism of the processor
    * However, the way in which tasks interact is restricted—they can only comunicate via streams
    * As a result we are effectively turning every function call in the linux implementation into a stream interaction
@@ -113,9 +105,13 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<xmit_id_t> xmit_stack_next;
   hls_thread_local hls::stream<xmit_id_t> xmit_stack_free;
   
-  /* update_srpt_queue */
-  hls_thread_local hls::stream<srpt_entry_t> srpt_queue_insert;
-  hls_thread_local hls::stream<srpt_entry_t> srpt_queue_next;
+  /* update_xmit_srpt_queue */
+  hls_thread_local hls::stream<srpt_xmit_entry_t> srpt_xmit_queue_insert;
+  hls_thread_local hls::stream<srpt_xmit_entry_t> srpt_xmit_queue_next;
+
+  /* update_grant_srpt_queue */
+  hls_thread_local hls::stream<srpt_grant_entry_t> srpt_grant_queue_insert;
+  hls_thread_local hls::stream<srpt_grant_entry_t> srpt_grant_queue_next;
 
   /* dma_egress */
   hls_thread_local hls::stream<dma_egress_req_t> dma_egress_reqs;
@@ -153,7 +149,7 @@ void homa(homa_t * homa,
 	      rpc_buffer_request_secondary,
 	      rpc_buffer_response_secondary,
 	      rpc_buffer_insert,
-	      srpt_queue_insert,
+	      srpt_xmit_queue_insert,
 	      peer_stack_next,
 	      peer_table_request,
 	      peer_table_response,
@@ -193,37 +189,45 @@ void homa(homa_t * homa,
 				      rpc_buffer_insert);
 
   /* Update the SRPT queue */
-  hls_thread_local hls::task thread_6(update_srpt_queue,
-				      srpt_queue_insert,
-				      srpt_queue_next);
+  hls_thread_local hls::task thread_6(update_xmit_srpt_queue,
+				      srpt_xmit_queue_insert,
+				      srpt_xmit_queue_next);
+
+
+  /* Update the SRPT queue */
+  hls_thread_local hls::task thread_7(update_grant_srpt_queue,
+				      srpt_grant_queue_insert,
+				      srpt_grant_queue_next);
 
   /* Send packets */
-  hls_thread_local hls::task thread_7(proc_link_egress,
-				      srpt_queue_next,
+  hls_thread_local hls::task thread_8(proc_link_egress,
+				      srpt_xmit_queue_next,
+				      srpt_grant_queue_next,
 				      xmit_buffer_request,
 				      xmit_buffer_response,
 				      rpc_buffer_request_primary,
 				      rpc_buffer_response_primary,
 				      link_egress);
 
-  hls_thread_local hls::task thread_8(proc_link_ingress,
+  hls_thread_local hls::task thread_9(proc_link_ingress,
 				      link_ingress,
+				      srpt_grant_queue_insert,
 				      dma_egress_reqs);
 
-  hls_thread_local hls::task thread_9(update_timer,
+  hls_thread_local hls::task thread_10(update_timer,
 				      timer_request_0,
 				      timer_response_0);
 
-  hls_thread_local hls::task thread_10(update_peer_stack,
+  hls_thread_local hls::task thread_11(update_peer_stack,
 				       peer_stack_next,
 				       peer_stack_free);
 
-  hls_thread_local hls::task thread_11(update_peer_table,
+  hls_thread_local hls::task thread_12(update_peer_table,
 				       peer_table_request,
 				       peer_table_response,
 				       peer_table_insert);
 
-  hls_thread_local hls::task thread_12(update_peer_buffer,
+  hls_thread_local hls::task thread_13(update_peer_buffer,
 				       peer_buffer_request,
 				       peer_buffer_response,
 				       peer_buffer_insert);

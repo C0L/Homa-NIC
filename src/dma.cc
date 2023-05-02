@@ -5,7 +5,7 @@
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 
-// TODO If the message is very short, we can just send directly?
+// TODO If the message is short < 1000 bytes, it should bypass DMA and bypass the SRPT system
 /**
  * dma_ingress()
  * Pull user request from DMA and the first message caches worth of bytes
@@ -21,7 +21,7 @@ void dma_ingress(homa_t * homa,
 		 hls::stream<rpc_id_t> & rpc_buffer_request,
 		 hls::stream<homa_rpc_t> & rpc_buffer_response,
 		 hls::stream<homa_rpc_t> & rpc_buffer_insert,
-		 hls::stream<srpt_entry_t> & srpt_queue_insert,
+		 hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
 		 hls::stream<peer_id_t> & peer_stack_next,
 		 hls::stream<peer_hashpack_t> & peer_table_request,
 		 hls::stream<peer_id_t> & peer_table_response,
@@ -154,7 +154,9 @@ void dma_ingress(homa_t * homa,
   rpc_buffer_insert.write(homa_rpc);
 
   // Adds this RPC to the queue for broadcast
-  srpt_entry_t srpt_entry = {homa_rpc.rpc_id, homa_rpc.msgout.length};
+  srpt_xmit_entry_t srpt_entry = {homa_rpc.rpc_id, (uint32_t) homa_rpc.msgout.length};
+
+  // This is sender side SRPT which is based on number of remaining bytes to transmit
   srpt_queue_insert.write(srpt_entry);
 }
 

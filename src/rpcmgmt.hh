@@ -45,24 +45,6 @@ struct homa_peer_t {
   int unsched_cutoffs[HOMA_MAX_PRIORITIES];
   ap_uint<16> cutoff_version;
   unsigned long last_update_jiffies;
-
-  // TODO not sure how to reintegrate this
-  ///**
-  // * grantable_rpcs: Contains all homa_rpcs (both requests and
-  // * responses) involving this peer whose msgins require (or required
-  // * them in the past) and have not been fully received. The list is
-  // * sorted in priority order (head has fewest bytes_remaining).
-  // * Locked with homa->grantable_lock.
-  // */
-  //struct list_head grantable_rpcs;
-
-  ///**
-  // * @grantable_links: Used to link this peer into homa->grantable_peers,
-  // * if there are entries in grantable_rpcs. If grantable_rpcs is empty,
-  // * this is an empty list pointing to itself.
-  // */
-  //struct list_head grantable_links;
-
   int outstanding_resends;
   int most_recent_resend;
   rpc_id_t least_recent_rpc;
@@ -145,12 +127,16 @@ struct stack_t {
   T buffer[MAX_SIZE];
   int size;
 
-  stack_t() {
-    // Each RPC id begins as available 
-    for (int id = 0; id < MAX_SIZE; ++id) {
-      buffer[id] = id+1;
+  stack_t(bool init) {
+    if (init) {
+      // Each RPC id begins as available 
+      for (int id = 0; id < MAX_SIZE; ++id) {
+	buffer[id] = id;
+      }
+      size = MAX_SIZE-1;
+    } else {
+      size = 0;
     }
-    size = MAX_SIZE-1;
   }
 
   void push(T value) {
@@ -161,7 +147,7 @@ struct stack_t {
   }
 
   T pop() {
-    /** This must be pipelined for a caller function to be pipelined */
+    /* This must be pipelined for a caller function to be pipelined */
     #pragma HLS pipeline II=1
     T head = buffer[size];
     size--;

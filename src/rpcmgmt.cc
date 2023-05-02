@@ -4,20 +4,21 @@
 void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
 		      hls::stream<rpc_id_t> & rpc_stack_free) {
 
-  static stack_t<rpc_id_t, MAX_RPCS> rpc_stack;
+  static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
 
 #pragma HLS pipeline II=1
 
   rpc_id_t freed_rpc;
 
+  // TODO can we do away with null RPC that???
   if (!rpc_stack.empty()) {
     rpc_id_t next_rpc = rpc_stack.pop();
-    rpc_stack_next.write(next_rpc);
+    rpc_stack_next.write(next_rpc+1);
   }
 
   // TODO expand the rpc_next stream
   if (rpc_stack_free.read_nb(freed_rpc)) {
-    rpc_stack.push(freed_rpc);
+    rpc_stack.push(freed_rpc-1);
   }
 }
 
@@ -126,18 +127,31 @@ void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 
 void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next,
 		       hls::stream<peer_id_t> & peer_stack_free) {
-  static stack_t<peer_id_t, MAX_RPCS> peer_stack;
+  static stack_t<peer_id_t, MAX_RPCS> peer_stack(true);
+
+#pragma HLS pipeline II=1
+  // TODO compare to srpt queue?
+  if (!peer_stack.empty()) {
+    peer_id_t next_peer = peer_stack.pop();
+    peer_stack_next.write(next_peer);
+  }
 
   peer_id_t freed_peer;
+
   if (peer_stack_free.read_nb(freed_peer)) {
     peer_stack.push(freed_peer);
   }
 
-  peer_id_t new_peer;
-  if (!peer_stack_next.full() && !peer_stack.empty()) {
-    new_peer = peer_stack.pop();
-    peer_stack_next.write(new_peer);
-  }
+  //peer_id_t freed_peer;
+  //if (peer_stack_free.read_nb(freed_peer)) {
+  //  peer_stack.push(freed_peer);
+  //}
+
+  //peer_id_t new_peer;
+  //if (!peer_stack_next.full() && !peer_stack.empty()) {
+  //  new_peer = peer_stack.pop();
+  //  peer_stack_next.write(new_peer);
+  //}
 }
 
 

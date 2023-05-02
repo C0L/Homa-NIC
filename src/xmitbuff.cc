@@ -3,7 +3,7 @@
 
 void update_xmit_stack(hls::stream<xmit_id_t> & xmit_stack_next,
 		       hls::stream<xmit_id_t> & xmit_stack_free) {
-  static stack_t<xmit_id_t, NUM_XMIT_BUFFER> xmit_stack;
+  static stack_t<xmit_id_t, NUM_XMIT_BUFFER> xmit_stack(true);
 #pragma HLS pipeline II=1
 #pragma HLS pipeline II=1
 
