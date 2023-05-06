@@ -1,4 +1,4 @@
-open_project -reset homa
+open_project -reset homa_unit_test
 set_top homa
 add_files -tb ./tb/unit_tests.cc
 add_files -tb ./src/cam.hh

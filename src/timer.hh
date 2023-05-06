@@ -1,16 +1,17 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-ap_uint<64> timer;
+#include "rpcmgmt.hh"
+
+struct timer_touch_t {
+  rpc_id_t rpc_id;
+  ap_uint<64> update_time;
+};
 
 void update_timer(hls::stream<ap_uint<1>> & timer_request_0,
-		  hls::stream<ap_uint<64>> & timer_response_0) {
-  timer++;
+		  hls::stream<ap_uint<64>> & timer_response_0);
 
-  ap_uint<1> request_0;
-  if (timer_request_0.read_nb(request_0)) {
-    timer_response_0.write_nb(timer);
-  }
-}
+//void rexmit_buffer(hls::stream<rpc_id_t> & touch,
+//		   hls::stream<rpc_id_t> & rexmit);
 
 #endif

@@ -107,6 +107,7 @@ void homa(homa_t * homa,
   
   /* update_xmit_srpt_queue */
   hls_thread_local hls::stream<srpt_xmit_entry_t> srpt_xmit_queue_insert;
+  hls_thread_local hls::stream<srpt_xmit_entry_t> srpt_xmit_queue_update;
   hls_thread_local hls::stream<srpt_xmit_entry_t> srpt_xmit_queue_next;
 
   /* update_grant_srpt_queue */
@@ -191,6 +192,7 @@ void homa(homa_t * homa,
   /* Update the SRPT queue */
   hls_thread_local hls::task thread_6(update_xmit_srpt_queue,
 				      srpt_xmit_queue_insert,
+				      srpt_xmit_queue_update,
 				      srpt_xmit_queue_next);
 
 
@@ -212,6 +214,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::task thread_9(proc_link_ingress,
 				      link_ingress,
 				      srpt_grant_queue_insert,
+				      srpt_xmit_queue_update,
 				      dma_egress_reqs);
 
   hls_thread_local hls::task thread_10(update_timer,

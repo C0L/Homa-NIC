@@ -139,6 +139,8 @@ void dma_ingress(homa_t * homa,
 
   // TODO don't compute this every time
   int max_pkt_data = homa->mtu - IPV6_HEADER_LENGTH - sizeof(data_header_t);
+
+  // TODO all of this information may just be stored in its SRPT entry?
   if (homa_rpc.msgout.length <= max_pkt_data) { // TODO potentially elim this? rtt_bytes > max_pkt_data
     homa_rpc.msgout.unscheduled = homa_rpc.msgout.length;
   } else {
@@ -154,15 +156,13 @@ void dma_ingress(homa_t * homa,
   rpc_buffer_insert.write(homa_rpc);
 
   // Adds this RPC to the queue for broadcast
-  srpt_xmit_entry_t srpt_entry = {homa_rpc.rpc_id, (uint32_t) homa_rpc.msgout.length};
+  srpt_xmit_entry_t srpt_entry = srpt_xmit_entry_t(homa_rpc.rpc_id, (uint32_t) homa_rpc.msgout.length, homa_rpc.msgout.unscheduled, ACTIVE);
+
+    //{homa_rpc.rpc_id, (uint32_t) homa_rpc.msgout.length};
 
   // This is sender side SRPT which is based on number of remaining bytes to transmit
   srpt_queue_insert.write(srpt_entry);
 }
-
-
-
-
 
 void dma_egress(hls::stream<dma_egress_req_t> & dma_egress_reqs,
 		xmit_mblock_t * maxi_out) {

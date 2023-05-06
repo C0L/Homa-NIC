@@ -3,9 +3,14 @@
 
 #include "homa.hh"
 
+#ifndef DEBUG
 // Number of buffers to allocate and bits to index it
 #define NUM_XMIT_BUFFER 1024
 #define NUM_XMIT_BUFFER_INDEX 10
+#else
+#define NUM_XMIT_BUFFER 16 
+#define NUM_XMIT_BUFFER_INDEX 4
+#endif
 
 // Index into xmit buffers
 typedef ap_uint<NUM_XMIT_BUFFER_INDEX> xmit_id_t;
@@ -13,18 +18,11 @@ typedef ap_uint<NUM_XMIT_BUFFER_INDEX> xmit_id_t;
 // Size of transaction unit (bits) (one message worth of data)
 // TODO check this?
 //#define XMIT_UNIT_SIZE 1500
-#define XMIT_UNIT_SIZE 2048 
+#define XMIT_UNIT_SIZE 2048
 
 // typedef char xmit_unit_t[XMIT_UNIT_SIZE];
 // TODO try to increase up to 1 packet size?
 typedef ap_uint<XMIT_UNIT_SIZE> xmit_mblock_t;
-
-//struct xmit_message_block_t {
-//  char xmit_units[XMIT_UNIT_SIZE];
-//};
-
-// One xmit unit of data
-//typedef ap_uint<XMIT_UNIT_SIZE> xmit_unit_t;
 
 // Number of xmit_unit_t per buffer and bits needed to index that
 #define XMIT_BUFFER_SIZE 36

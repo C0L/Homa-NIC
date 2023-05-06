@@ -5,37 +5,46 @@
 #include "net.hh"
 #include "xmitbuff.hh"
 
+#ifndef DEBUG 
+#define MAX_RPCS 16384
+#define MAX_RPCS_LOG2 14
+
 #define RPC_SUB_TABLE_SIZE 16384
 #define RPC_SUB_TABLE_INDEX 14
 
-// TODO this is the max number of slots but the cuckoo will not behave correctly if >95% saturated
-// The number of RPCs supported on the device
-#define MAX_RPCS 16384
-//#define MAX_RPCS 65536
+#define PEER_SUB_TABLE_SIZE 16384
+#define PEER_SUB_TABLE_INDEX 14
 
-// Number of bits needed to index MAX_RPCS+1 (log2 MAX_RPCS + 1)
-#define MAX_RPCS_LOG2 14
-//#define MAX_RPCS_LOG2 16
+#define MAX_PEERS 16384
+#define MAX_PEERS_LOG2 14
+
+#define MAX_OPS 64
+#else
+#define MAX_RPCS 128 
+#define MAX_RPCS_LOG2 7
+
+#define RPC_SUB_TABLE_SIZE 128 
+#define RPC_SUB_TABLE_INDEX 7
+
+#define PEER_SUB_TABLE_SIZE 128
+#define PEER_SUB_TABLE_INDEX 7
+
+#define MAX_PEERS 128
+#define MAX_PEERS_LOG2 7
+
+#define MAX_OPS 8
+#endif
 
 // To index all the RPCs, we need LOG2 of the max number of RPCs
 typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
+typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
-#define MAX_OPS 64
+
 
 #define SEED0 0x7BF6BF21
 #define SEED1 0x9FA91FE9
 #define SEED2 0xD0C8FBDF
 #define SEED3 0xE6D0851C
-
-#define PEER_SUB_TABLE_SIZE 16384
-#define PEER_SUB_TABLE_INDEX 14
-
-// TODO temporary value 
-#define MAX_PEERS 16384
-
-#define MAX_PEERS_LOG2 14
-
-typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
 #define NUM_PEER_UNACKED_IDS 5
 

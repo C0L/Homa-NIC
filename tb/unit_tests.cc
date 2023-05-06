@@ -17,14 +17,16 @@ using namespace std;
 //#include "rpcmgmt.hh"
 // #include "peer.hh"
 
-int test_unit_grant_srpt_queue() {
-    std::cerr << "Unit Test: ingress" << endl;
-    return 0;
-}
-
 int test_unit_xmit_srpt_queue() {
   std::cerr << "Unit Test: Xmit SRPT Queue" << endl;
-  srpt_xmit_queue_t srpt_queue;
+  // TODO just instantiate a new queue every test
+  srpt_queue_t<srpt_xmit_entry_t, MAX_SRPT> srpt_queue;
+  bool pass = true;
+
+  srpt_xmit_entry_t e0;
+  srpt_xmit_entry_t e1;
+  srpt_xmit_entry_t e2;
+  srpt_xmit_entry_t e3;
 
   std::cerr << "Checking Initial \"size\" == 0: ";
   if (srpt_queue.size == 0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
@@ -35,23 +37,179 @@ int test_unit_xmit_srpt_queue() {
   std::cerr << endl;
 
   std::cerr << "Testing Single Element Push/Pop: ";
-  srpt_xmit_entry_t e0 = {0, 99};
+  e0 = srpt_xmit_entry_t(0, 99);
   srpt_queue.push(e0);
-  if (srpt_queue.pop() == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  srpt_queue.pop(e1);
+  if (e1 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
   std::cerr << endl;
 
   std::cerr << "Testing Two Element Simple Ordering: ";
-  srpt_xmit_entry_t e1 = {1, 1};
+  e1 = srpt_xmit_entry_t(1, 1);
   srpt_queue.push(e0);
   srpt_queue.push(e1);
-  if (srpt_queue.pop() == e1 && srpt_queue.pop() == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  srpt_queue.pop(e2);
+  srpt_queue.pop(e3);
+  if (e2 == e1 && e3 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
   std::cerr << endl;
 
   std::cerr << "Testing Two Element OOO: ";
   srpt_queue.push(e1);
   srpt_queue.push(e0);
-  if (srpt_queue.pop() == e1 && srpt_queue.pop() == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  srpt_queue.pop(e2);
+  srpt_queue.pop(e3);
+  if (e2 == e1 && e3 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
   std::cerr << endl;
+
+  std::cerr << "Testing Misordered Flood: ";
+  for (uint32_t i = 0; i < MAX_SRPT; ++i) {
+    srpt_xmit_entry_t e = srpt_xmit_entry_t(i,i);
+    srpt_queue.push(e);
+  }
+
+  for (uint32_t i = 0; i < MAX_SRPT; ++i) {
+    srpt_xmit_entry_t e = srpt_xmit_entry_t(i,i);
+    srpt_xmit_entry_t c;
+    srpt_queue.pop(c);
+    if (!(c == e)) { pass = false; }
+  }
+
+  if (pass) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  std::cerr << "Testing Misordered Exceed Bound: ";
+  for (uint32_t i = 0; i < MAX_SRPT+1; ++i) {
+    srpt_xmit_entry_t e = srpt_xmit_entry_t(i,i);
+    srpt_queue.push(e);
+  }
+
+  for (uint32_t i = 0; i < (uint32_t) MAX_SRPT/2; ++i) {
+    srpt_xmit_entry_t e = srpt_xmit_entry_t(i,i);
+    srpt_xmit_entry_t c;
+    srpt_queue.pop(c);
+    if (!(c == e)) { pass = false; }
+  }
+
+  for (uint32_t i = (uint32_t) MAX_SRPT/2 + 1; i < MAX_SRPT; ++i) {
+    srpt_xmit_entry_t e = srpt_xmit_entry_t(i,i);
+    srpt_xmit_entry_t c;
+    srpt_queue.pop(c);
+    if (!(c == e)) { pass = false; }
+  }
+
+  if (pass) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  return 0;
+}
+
+int test_unit_grant_srpt_queue() {
+  std::cerr << "Unit Test: Grant SRPT Queue" << endl;
+  srpt_queue_t<srpt_grant_entry_t, MAX_SRPT> srpt_queue;
+  bool pass = true;
+
+  srpt_grant_entry_t e0;
+  srpt_grant_entry_t e1;
+  srpt_grant_entry_t e2;
+  srpt_grant_entry_t e3;
+
+  std::cerr << "Checking Initial \"size\" == 0: ";
+  if (srpt_queue.size == 0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+  
+  std::cerr << "Checking Initial .empty() == true: ";
+  if (srpt_queue.empty()) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  std::cerr << "Testing Single Element Push/Pop: ";
+  e0 = srpt_grant_entry_t(0, 0, 99, ACTIVE);
+  srpt_queue.push(e0);
+  srpt_queue.pop(e1);
+  if (e1 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  std::cerr << "Testing Two Element Simple Ordering: ";
+  e1 = srpt_grant_entry_t(1, 0, 1, ACTIVE);
+  srpt_queue.push(e0);
+  srpt_queue.push(e1);
+  srpt_queue.pop(e2);
+  srpt_queue.pop(e3);
+  if (e2 == e1 && e3 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  std::cerr << "Testing Two Element OOO: ";
+  srpt_queue.push(e1);
+  srpt_queue.push(e0);
+  srpt_queue.pop(e2);
+  srpt_queue.pop(e3);
+  if (e2 == e1 && e3 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  std::cerr << "Testing Misordered Flood: ";
+  for (uint32_t i = 0; i < MAX_SRPT; ++i) {
+    srpt_grant_entry_t e = srpt_grant_entry_t(i, 0, i, ACTIVE);
+    srpt_queue.push(e);
+  }
+
+  for (uint32_t i = 0; i < MAX_SRPT; ++i) {
+    srpt_grant_entry_t e = srpt_grant_entry_t(i, 0, i, ACTIVE);
+    srpt_grant_entry_t c;
+    srpt_queue.pop(c);
+    if (!(c == e)) { pass = false; }
+  }
+
+  if (pass) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  //std::cerr << srpt_queue.get_size() << std::endl;
+  std::cerr << "Testing Misordered Exceed Bound: ";
+  for (uint32_t i = 0; i < MAX_SRPT+1; ++i) {
+    srpt_grant_entry_t e = srpt_grant_entry_t(i, 0, i, ACTIVE);
+    srpt_queue.push(e);
+  }
+
+  for (uint32_t i = 0; i < (uint32_t) MAX_SRPT/2; ++i) {
+    srpt_grant_entry_t e = srpt_grant_entry_t(i, 0, i, ACTIVE);
+    srpt_grant_entry_t c;
+    srpt_queue.pop(c);
+    if (!(c == e)) { pass = false; }
+  }
+
+  for (uint32_t i = (uint32_t) MAX_SRPT/2+1; i < MAX_SRPT+1; ++i) {
+    srpt_grant_entry_t e = srpt_grant_entry_t(i, 0, i, ACTIVE);
+    srpt_grant_entry_t c;
+    srpt_queue.pop(c);
+    if (!(c == e)) { pass = false; }
+  }
+
+  if (pass) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  //std::cerr << srpt_queue.get_size() << std::endl;
+  std::cerr << "Testing Priority Ordering: ";
+  e0 = srpt_grant_entry_t(1, 0, 99, ACTIVE);
+  e1 = srpt_grant_entry_t(1, 0, 1, BLOCKED);
+  srpt_queue.push(e0);
+  srpt_queue.push(e1);
+  srpt_queue.pop(e2);
+  if (e2 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  // This pop should fail as it is blocked
+  std::cerr << "Testing Priority Blocking: ";
+  srpt_queue.pop(e2);
+  if (e2 == e0) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  std::cerr << "Testing Send Message: ";
+  e2 = srpt_grant_entry_t(1, 0, 0, MSG);
+  //std::cerr << srpt_queue.get_size() << std::endl;
+  srpt_queue.push(e2);
+  srpt_queue.pop(e3);
+  e1.priority = ACTIVE;
+  if (e3 == e1) { std::cerr << "PASS"; } else { std::cerr << "FAIL"; return 1; }
+  std::cerr << endl;
+
+  // TODO test multiple blocked values on the same Peer
 
   return 0;
 }
@@ -62,6 +220,7 @@ int main() {
   /* Unit Tests */
 
   if (test_unit_xmit_srpt_queue()) { return 1; }
+  if (test_unit_grant_srpt_queue()) { return 1; }
       //if (!(test_unit_grant_srpt_queue()) return 1;
 
   /* Functional Tests */

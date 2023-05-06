@@ -104,6 +104,7 @@ void proc_link_egress(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next,
 // TODO will need to access DMA
 void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 		       hls::stream<srpt_grant_entry_t> & srpt_grant_queue_insert,
+		       hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_update,
 		       hls::stream<dma_egress_req_t> & dma_egress_reqs) {
 #pragma HLS PIPELINE II=1 
   raw_frame_t frame;
@@ -111,7 +112,10 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 
   srpt_grant_entry_t entry;
   srpt_grant_queue_insert.write(entry);
-  
+
+  srpt_xmit_entry_t xentry;
+  srpt_xmit_queue_update.write(xentry);
+
   // Has a full ethernet frame been buffered? If so, grab it.
   link_ingress.read(frame);
 
