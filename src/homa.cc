@@ -135,6 +135,10 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<homa_peer_t> peer_buffer_response;
   hls_thread_local hls::stream<homa_peer_t> peer_buffer_insert;
 
+  /* rexmit_buffer */
+  hls_thread_local hls::stream<rpc_id_t> rexmit_touch;
+  hls_thread_local hls::stream<rpc_id_t> rexmit_rpcs;
+
 #pragma HLS dataflow
   /* Control Driven Region */
 
@@ -209,12 +213,14 @@ void homa(homa_t * homa,
 				      xmit_buffer_response,
 				      rpc_buffer_request_primary,
 				      rpc_buffer_response_primary,
+				      rexmit_rpcs,
 				      link_egress);
 
   hls_thread_local hls::task thread_9(proc_link_ingress,
 				      link_ingress,
 				      srpt_grant_queue_insert,
 				      srpt_xmit_queue_update,
+				      rexmit_touch,
 				      dma_egress_reqs);
 
   hls_thread_local hls::task thread_10(update_timer,
@@ -234,7 +240,11 @@ void homa(homa_t * homa,
 				       peer_buffer_request,
 				       peer_buffer_response,
 				       peer_buffer_insert);
-  
+
+  hls_thread_local hls::task thread_14(rexmit_buffer,
+				       rexmit_touch,
+				       rexmit_rpcs);
+ 
   dma_egress(dma_egress_reqs,
 	     maxi_out);
 

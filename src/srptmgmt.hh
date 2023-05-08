@@ -29,6 +29,7 @@ struct srpt_xmit_entry_t {
   rpc_id_t rpc_id; 
   uint32_t remaining;
   uint32_t granted;
+  uint32_t total;
   ap_uint<2> priority;
 
   srpt_xmit_entry_t() {
@@ -41,47 +42,22 @@ struct srpt_xmit_entry_t {
   srpt_xmit_entry_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, ap_uint<2> priority) {
     this->rpc_id = rpc_id;
     this->remaining = remaining;
-    //this->granted = granted;
+    this->granted = granted;
     this->priority = priority;
-  }
-
-  bool decr() {
-    remaining = (remaining - PACKET_SIZE < 0) ? 0 : remaining - PACKET_SIZE;
-    //granted = (granted- PACKET_SIZE < 0) ? 0 : granted - PACKET_SIZE;
-
-    return remaining == 0;
-    //    return (granted == 0 || remaining == 0);
   }
 
   bool operator==(const srpt_xmit_entry_t & other) const {
     return (rpc_id == other.rpc_id &&
 	    remaining == other.remaining &&
-	    //granted == other.granted &&
+	    granted == other.granted &&
 	    priority == other.priority);
-  }
-
-  bool operator==(const bool other) const {
-    return true;
   }
 
   // Ordering operator
   bool operator>(srpt_xmit_entry_t & other) {
-    // This is a message and the message is destined for this RPC
-    return (remaining > other.remaining);
-    //if (priority < other.priority) {
-    //  if (rpc_id == other.rpc_id) other.granted += granted;
-    //  return true;
-    //} else {
-    //  return (remaining > other.remaining);
-    //}
-  }
-
-  void print() {
-    std::cerr << rpc_id << " " << remaining << " " << std::endl;
-    //std::cerr << rpc_id << " " << remaining << " " << granted << std::endl;
+    return remaining > other.remaining;
   }
 };
-
 
 struct srpt_grant_entry_t {
   peer_id_t peer_id;
@@ -103,25 +79,11 @@ struct srpt_grant_entry_t {
     this->priority = priority;
   }
 
-
-  bool decr() {
-    return (priority == ACTIVE);
-    //if (priority == ACTIVE) {
-    //  priority = MSG;
-    //}
-
-    //return false; 
-  }
-
   bool operator==(const srpt_grant_entry_t & other) const {
     return (peer_id == other.peer_id &&
 	    rpc_id == other.rpc_id &&
 	    grantable == other.grantable &&
 	    priority == other.priority);
-  }
-
-  bool operator==(const bool other) const {
-    return (priority == ACTIVE);
   }
 
   // Ordering operator
@@ -144,16 +106,52 @@ struct srpt_grant_entry_t {
   }
 };
 
+
+template<typename T, int FIFO_SIZE>
+struct fifo_t {
+  T buffer[FIFO_SIZE];
+
+  int read_head;
+
+  fifo_t() {
+    read_head = FIFO_SIZE-1;
+  }
+
+  void insert(T value) {
+#pragma HLS array_partition variable=buffer type=complete
+    for (int i = 0; i < FIFO_SIZE; ++i) {
+#pragma HLS unroll
+      buffer[i] = buffer[i+1];
+    }
+
+    buffer[FIFO_SIZE-1] = value;
+    read_head--;
+  }
+
+  void remove(T & value) {
+#pragma HLS array_partition variable=buffer type=complete
+    value = buffer[read_head];
+    read_head++;
+  }
+
+  bool empty() {
+    return read_head == 0;
+  }
+};
+
+
 template<typename T, int MAX_SIZE>
 struct srpt_queue_t {
   T buffer[MAX_SIZE+1];
   int size;
+  int offset;
 
   srpt_queue_t() {
     for (int id = 0; id < MAX_SIZE+1; ++id) {
       buffer[id] = T();
     }
 
+    offset = 0;
     size = 0;
   }
 
@@ -176,36 +174,44 @@ struct srpt_queue_t {
   //bool pop(T & entry) {
   void pop() {
 #pragma HLS array_partition variable=buffer type=complete
-    //if (buffer[1].decr()) { 
-      for (int id = 0; id <= MAX_SIZE-2; id+=2) {
+    for (int id = 0; id <= MAX_SIZE-2; id+=2) {
 #pragma HLS unroll
-	if (buffer[id+1] > buffer[id+2]) {
-	  buffer[id] = buffer[id+2];
-	} else {
-	  buffer[id] = buffer[id+1];
-	  buffer[id+1] = buffer[id+2];
-	}
+      if (buffer[id+1] > buffer[id+2]) {
+	buffer[id] = buffer[id+2];
+      } else {
+	buffer[id] = buffer[id+1];
+	buffer[id+1] = buffer[id+2];
       }
-      
-      //entry = buffer[0];
-      size--;
+    }
 
-      //return true;
-      //} else {
-      //entry = buffer[1];
-      //return false;
-      //}
+    size--;
   }
 
-  // TODO this is flawed
-  void order() {
+  //  bool query(T & search, T & result) {
+  //    int hit = -1;
+  //    for (int i = 0; i < MAX_SRPT; i++) {
+  //#pragma HLS unroll
+  //      if (buffer[i].compare(search)) {
+  //	hit = i;
+  //      }
+  //    }
+  //
+  //    if (hit != -1) {
+  //      // This part should maybe be custom based on type of queue?
+  //      result = buffer[hit];
+  //      buffer[hit].priority = EMPTY;
+  //      return true;
+  //    } else {
+  //      return false;
+  //    }
+  //  }
+
+  void order(int offset) {
 #pragma HLS array_partition variable=buffer type=complete
-    //#pragma HLS pipeline
-    for (int id = MAX_SRPT; id > 0; id-=2) {
+    for (int id = MAX_SRPT - offset; id > 0 + offset; id-=2) {
 #pragma HLS unroll
       if (buffer[id-1] > buffer[id]) {
-	// Swap
-	srpt_grant_entry_t entry = buffer[id];
+	T entry = buffer[id];
 	buffer[id] = buffer[id-1];
 	buffer[id-1] = entry;
       } 

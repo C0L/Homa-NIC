@@ -20,17 +20,17 @@
 
 #define MAX_OPS 64
 #else
-#define MAX_RPCS 128 
-#define MAX_RPCS_LOG2 7
+#define MAX_RPCS 512
+#define MAX_RPCS_LOG2 9
 
-#define RPC_SUB_TABLE_SIZE 128 
-#define RPC_SUB_TABLE_INDEX 7
+#define RPC_SUB_TABLE_SIZE 512
+#define RPC_SUB_TABLE_INDEX 9
 
-#define PEER_SUB_TABLE_SIZE 128
-#define PEER_SUB_TABLE_INDEX 7
+#define MAX_PEERS 512
+#define MAX_PEERS_LOG2 9
 
-#define MAX_PEERS 128
-#define MAX_PEERS_LOG2 7
+#define PEER_SUB_TABLE_SIZE 512
+#define PEER_SUB_TABLE_INDEX 9
 
 #define MAX_OPS 8
 #endif
@@ -38,8 +38,6 @@
 // To index all the RPCs, we need LOG2 of the max number of RPCs
 typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
-
-
 
 #define SEED0 0x7BF6BF21
 #define SEED1 0x9FA91FE9

@@ -20,14 +20,14 @@ struct user_output_t;
 
 #define IPV6_HEADER_LENGTH 40
 
-/**
+/*
  * define HOMA_MAX_PRIORITIES - The maximum number of priority levels that
  * Homa can use (the actual number can be restricted to less than this at
  * runtime). Changing this value will affect packet formats.
  */
 #define HOMA_MAX_PRIORITIES 8
 
-/** Data "bucket" for incoming or outgoing ethernet frames
+/*  Data "bucket" for incoming or outgoing ethernet frames
  * 
  *  Maximum size of ethernet, assuming non-jumbo frames:
  *    6*8 + 6*8 + 4*8 + 2*8 + 1500*8 + 4*8 = 12176 bits
@@ -41,9 +41,6 @@ typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
 //typedef hls::axis<xmit_mblock_t[6], 0, 0, 0> raw_frame_t;
 //typedef hls::axis<unsigned char [1522], 0, 0, 0> raw_frame_t;
 //typedef hls::axis<ap_uint<12176>, 0, 0, 0> raw_frame_t;
-
-// TODO move to timer.hh
-//extern ap_uint<64> timer;
 
 /**
  * struct homa - Overall information about the Homa protocol implementation.
@@ -82,12 +79,5 @@ void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
 	  hls::stream<args_t> & user_req,
 	  hls::burst_maxi<ap_uint<512>> mdma);
-
-//void temp(hls::stream<xmit_req_t> & xmit_buffer_request,
-//	  hls::stream<xmit_mblock_t> & xmit_buffer_response,
-//	  hls::stream<xmit_id_t> & xmit_stack_free,
-//	  hls::stream<homa_rpc_id_t> & rpc_stack_free,
-//	  hls::stream<homa_rpc_t> & rpc_table_insert,
-//	  hls::stream<srpt_entry_t> & srpt_queue_next);
 
 #endif
