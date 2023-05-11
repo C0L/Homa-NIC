@@ -1,17 +1,6 @@
 #include "srptmgmt.hh"
 #include "rpcmgmt.hh"
 
-// dma_ingress
-//(remaining: 1000000 bytes, granted: 1000, total: 1000000)
-
-// link_egress
-// If link egress gets an xmit, where head.total - head.granted == head.remaining
-// This means that the message was incompletely granted, and the element is sent to
-// link ingress to pend based on further grants
-
-// Could aquire whatever the updated grant value is an go back into the srpt?
-// Could just keep cycling around
-
 /**
  * update_xmit_srpt_queue() - Determines what message to transmit next.
  * @srpt_queue_insert: Injest path for new messages to xmit (unscheduled bytes)
@@ -21,25 +10,24 @@
 void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
 			    hls::stream<srpt_xmit_entry_t> & srpt_queue_grants,
 			    hls::stream<srpt_xmit_entry_t> & srpt_queue_next) {
-  /*
-   * Ideally, this is the single source of truth for number of currently granted bytes
-   * and remaining number of bytes. Removing global state is really essential.
-   *
-   * I would like to avoid mutating the state in any way. Would be nice to just add new grants
-   * as if they were independent operations
-   *
-   * What if the link_egress step is responsible for re-adding entries that have become ungranted
-   *
-   * AVOID MULTIPLE SOURCES OF TRUTH AT ALL COST. THIS IS HOW YOU AVOID SYNCRONIZATION ISSUES.
-   *
-   * Desirable properties of this style:
-   *   1) Only source of truth is the entry which gets passed around
-   *   2) No need to synchronize update to some store
-   */
+  // TODO can use a smaller FIFO (of pipeline depth) for removing the sync error. After popping from the srpt add it to the blocked RPC BRAM.
+  // And add it to the 5 element FIFO. Once it reaches the end of the FIFO, check if the grant has changed, if so readd to SRPT. Otherwise,
+  // discard the entry. Need to ensure that a grant does not reactivate and FIFO reactivate.
 
   static srpt_queue_t<srpt_xmit_entry_t, MAX_SRPT> srpt_queue;
   static uint32_t grants[MAX_RPCS];
-  static fifo_t<srpt_xmit_entry_t, MAX_SRPT> exhausted; // this is really a shift register (allows random read anywhere)
+  static fifo_t<srpt_xmit_entry_t, MAX_SRPT> exhausted; 
+
+
+  /*
+    Check if the head of the SRPT is not complete but expended all grantable bytes
+    If so, then add the entry to the blocked set in BRAM, and add to FIFO
+    Once this entry comes to the head of the FIFO then check again if granted has been updated,
+    then also checked if the element is still blocked. If the element is no longer blocked, then that
+    means the normal process readded the element. If the element is still blocked, yet the granted value
+    is updated, that means the new grant and the removal from the SRPT occured at the same time
+    and we should readd to the SRPT
+  */
 
 #pragma HLS pipeline II=1
 
@@ -52,6 +40,7 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
 
     uint32_t grant = grants[head.rpc_id];
 
+    // TODO can probably do away with this subtraction step by inverting the value of the grant
     bool ungranted = (head.total - grant == head.remaining);
     bool complete  = (head.remaining == 0);
 
@@ -106,82 +95,129 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert
 			     //hls::stream<srpt_grant_entry_t> & srpt_queue_receipt,
 			     hls::stream<srpt_grant_entry_t> & srpt_queue_next) {
 
-  static srpt_queue_t<srpt_grant_entry_t, MAX_SRPT> srpt_queue;
+  // TODO This is still troubling. Could always do a tiered brute force search
+
   static srpt_grant_entry_t active_set[MAX_OVERCOMMIT];
   static stack_t<peer_id_t, MAX_OVERCOMMIT> active_set_stack(true);
 
-  /*
-if the active set has an open slot, we can always pop an element from the srpt queue
+  //static next_insert = 0;
+  //static fifo_t<srpt_grant_entry_t, 32> insert_fifos[32];
+  //static srpt_t<srpt_grant_entry_t, 32> grant_srpts[32]; 
 
-the store keeps track of the best results for each active peer id. if a better result arrives,
-then add that new result to the SRPT
+  // New grant insert path
 
-the srpt just contains the best from each peer
-
-One option, send a MSG up the SRPT queue to clear out the old peer
-Then add the new element
-Requires two push operations though
-
-how do you remove an element from SRPT?
-
-constantly filter out duplicates?
-
-   */
-
-  //#pragma HLS pipeline II=1
-
-  /* The restrictions are significantly lessened for the grant queue */
-  
   if (!srpt_queue_insert.empty()) {
     srpt_grant_entry_t new_entry;
     srpt_queue_insert.read(new_entry);
-  
-    int peer_match = -1;
-  
-    // Is this peer in use?
-    for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
-#pragma HLS unroll
-      if (active_set[i].peer_id == new_entry.peer_id) {
-	  peer_match = i;
-      }
-    }
-  
-    // If the peer is currently in use this rpc is blocked 
-    if (peer_match != -1) {
-      new_entry.priority = BLOCKED;
-    } else {
-      new_entry.priority = ACTIVE;
-    }
-  
-    //      if (active_set[peer_match].rpc_id == new_entry.rpc_id) {
-    //	active_set_stack.push(peer_match);
-    //
-    //	// This receipt indicates the message was fully granted
-    //	if (new_entry.granted == 0) {
-    //	  new_entry.priority = MSG;
-    //	} else {
-    //	  new_entry.priority = ACTIVE;
-    //	}
-    //
-    //	srpt_queue.push(new_entry);
-    //      } else {
-    //	// This is fine because the receipt will unblock this!
-    //	new_entry.priority = BLOCKED;
-    //	srpt_queue.push(new_entry);
-    //      }
-    //    } else {
-    //      new_entry.priority = ACTIVE;
-    //      srpt_queue.push(new_entry);
-    //    }
-  } else if (!srpt_queue_next.full() && !active_set_stack.empty()) {
-    srpt_grant_entry_t top;
-    //if (srpt_queue.pop(top)) {
-    //      active_set[active_set_stack.pop()] = top;
-    srpt_queue_next.write(top);
-    //      top.priority = MSG;
-    //      srpt_queue.push(top);
-    //}
-  } // TODO fix and reintroduce
+
+    //grant_srpts[next_insert].push(new_entry);
+    //next_insert++;
+    srpt_queue_next.write(new_entry);
+  }
+    //} else if () { // Outgoing path
+    //  srpt_xmit_entry_t min_grant;
+    //  min_grant.grantable = 0xFFFFFFFF;
+
+    //  // Iterate through every SRPT queue
+    //  for (int i = 0; i < 32; ++i) {
+    //    for (;;) {
+    //	srpt_xmit_entry_t & head = grant_srpts[i].head();
+
+    //	int match = -1;
+    //	for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
+//#pragma HLS unroll
+  //	  if (active_set[i].peer_id == head.peer_id) {
+  //	    peer_match = i;
+  //	  }
+  //	}
+
+  //	if (match != -1) {
+  //	  // TODO then we need to bump to the FIFO and try again
+  //	  insert_fifo[i].insert(head);
+  //	} else {
+  //	  min_grant = (min_grant.grantable > head.grantable) ? head : min_grant;
+  //	  break;
+  //	}
+
+  //	grant_srpts[i].pop();
+  //    }
+  //  }
+  //}
+
+  //  while () {
+  //    if (!srpt_queue_insert.empty()) {
+  //      srpt_grant_entry_t new_entry;
+  //      srpt_queue_insert.read(new_entry);
+  //  
+  //      int peer_match = -1;
+  //  
+  //      // Is this peer in use?
+  //      for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
+  //#pragma HLS unroll
+  //	if (active_set[i].peer_id == new_entry.peer_id) {
+  //	  peer_match = i;
+  //	}
+  //      }
+  //  
+  //      // If the peer is currently in use this rpc is blocked 
+  //      if (peer_match != -1) {
+  //	new_entry.priority = BLOCKED;
+  //      } else {
+  //	new_entry.priority = ACTIVE;
+  //      }
+  //    } 
+  //  }
+  //
+  //  if (!srpt_queue_insert.empty()) {
+  //    srpt_grant_entry_t new_entry;
+  //    srpt_queue_insert.read(new_entry);
+  //  
+  //    int peer_match = -1;
+  //  
+  //    // Is this peer in use?
+  //    for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
+  //#pragma HLS unroll
+  //      if (active_set[i].peer_id == new_entry.peer_id) {
+  //	  peer_match = i;
+  //      }
+  //    }
+  //  
+  //    // If the peer is currently in use this rpc is blocked 
+  //    if (peer_match != -1) {
+  //      new_entry.priority = BLOCKED;
+  //    } else {
+  //      new_entry.priority = ACTIVE;
+  //    }
+  //  
+  //    //      if (active_set[peer_match].rpc_id == new_entry.rpc_id) {
+  //    //	active_set_stack.push(peer_match);
+  //    //
+  //    //	// This receipt indicates the message was fully granted
+  //    //	if (new_entry.granted == 0) {
+  //    //	  new_entry.priority = MSG;
+  //    //	} else {
+  //    //	  new_entry.priority = ACTIVE;
+  //    //	}
+  //    //
+  //    //	srpt_queue.push(new_entry);
+  //    //      } else {
+  //    //	// This is fine because the receipt will unblock this!
+  //    //	new_entry.priority = BLOCKED;
+  //    //	srpt_queue.push(new_entry);
+  //    //      }
+  //    //    } else {
+  //    //      new_entry.priority = ACTIVE;
+  //    //      srpt_queue.push(new_entry);
+  //    //    }
+  //  } else if (!srpt_queue_next.full() && !active_set_stack.empty()) {
+  //    srpt_grant_entry_t top;
+  //    //if (srpt_queue.pop(top)) {
+  //    //      active_set[active_set_stack.pop()] = top;
+  //    srpt_queue_next.write(top);
+  //    //      top.priority = MSG;
+  //    //      srpt_queue.push(top);
+  //    //}
+  //  } // TODO fix and reintroduce
   
     //else {
   //srpt_queue.order();

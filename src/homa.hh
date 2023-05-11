@@ -38,8 +38,12 @@ struct user_output_t;
  */
 // TODO ???.. add more specific type information based on smallest message block unit?
 typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
+
+// Layer 2 ethernet frame
+//typedef hls::axis<ethernet_t, 0, 0, 0> raw_frame_t;
+
 //typedef hls::axis<xmit_mblock_t[6], 0, 0, 0> raw_frame_t;
-//typedef hls::axis<unsigned char [1522], 0, 0, 0> raw_frame_t;
+//typedef hls::axis<ap_uint<8>[1522], 0, 0, 0> raw_frame_t;
 //typedef hls::axis<ap_uint<12176>, 0, 0, 0> raw_frame_t;
 
 /**

@@ -88,17 +88,7 @@ struct srpt_grant_entry_t {
 
   // Ordering operator
   bool operator>(srpt_grant_entry_t & other) {
-    if (peer_id == other.peer_id && priority == MSG && other.priority == BLOCKED) {
-      other.priority = ACTIVE;
-      priority = EMPTY;
-      return true;
-    } else if (peer_id == other.peer_id && priority == MSG && other.priority == ACTIVE) {
-      other.priority = BLOCKED;
-      return true;
-    } else {
-      // Primary ordering based on priority, secondary on grantable bytes
-      return (priority != other.priority) ? priority < other.priority : grantable > other.grantable;
-    }
+    return grantable > other.grantable;
   }
 
   void print() {
@@ -111,31 +101,32 @@ template<typename T, int FIFO_SIZE>
 struct fifo_t {
   T buffer[FIFO_SIZE];
 
-  int read_head;
+  int insert_head;
 
   fifo_t() {
-    read_head = FIFO_SIZE-1;
+    insert_head = 0;
   }
 
   void insert(T value) {
 #pragma HLS array_partition variable=buffer type=complete
+    buffer[insert_head] = value;
+    insert_head++;
+  }
+
+  void remove(T & value) {
+#pragma HLS array_partition variable=buffer type=complete
+    value = buffer[0];
+
     for (int i = 0; i < FIFO_SIZE; ++i) {
 #pragma HLS unroll
       buffer[i] = buffer[i+1];
     }
 
-    buffer[FIFO_SIZE-1] = value;
-    read_head--;
-  }
-
-  void remove(T & value) {
-#pragma HLS array_partition variable=buffer type=complete
-    value = buffer[read_head];
-    read_head++;
+    insert_head--;
   }
 
   bool empty() {
-    return read_head == 0;
+    return insert_head == 0;
   }
 };
 
@@ -185,37 +176,6 @@ struct srpt_queue_t {
     }
 
     size--;
-  }
-
-  //  bool query(T & search, T & result) {
-  //    int hit = -1;
-  //    for (int i = 0; i < MAX_SRPT; i++) {
-  //#pragma HLS unroll
-  //      if (buffer[i].compare(search)) {
-  //	hit = i;
-  //      }
-  //    }
-  //
-  //    if (hit != -1) {
-  //      // This part should maybe be custom based on type of queue?
-  //      result = buffer[hit];
-  //      buffer[hit].priority = EMPTY;
-  //      return true;
-  //    } else {
-  //      return false;
-  //    }
-  //  }
-
-  void order(int offset) {
-#pragma HLS array_partition variable=buffer type=complete
-    for (int id = MAX_SRPT - offset; id > 0 + offset; id-=2) {
-#pragma HLS unroll
-      if (buffer[id-1] > buffer[id]) {
-	T entry = buffer[id];
-	buffer[id] = buffer[id-1];
-	buffer[id-1] = entry;
-      } 
-    }
   }
 
   T & head() {

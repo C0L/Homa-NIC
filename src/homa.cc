@@ -85,8 +85,12 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<rpc_id_t> rpc_stack_free;
   
   /* update_rpc_table */
-  hls_thread_local hls::stream<rpc_hashpack_t> rpc_table_request;
-  hls_thread_local hls::stream<rpc_id_t> rpc_table_response;
+  hls_thread_local hls::stream<rpc_hashpack_t> rpc_table_request_primary;
+  hls_thread_local hls::stream<rpc_id_t> rpc_table_response_primary;
+  hls_thread_local hls::stream<rpc_hashpack_t> rpc_table_request_secondary;
+  hls_thread_local hls::stream<rpc_id_t> rpc_table_response_secondary;
+  hls_thread_local hls::stream<rpc_hashpack_t> rpc_table_request_ternary;
+  hls_thread_local hls::stream<rpc_id_t> rpc_table_response_ternary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_table_insert;
   
   /* update_rpc_buffer */
@@ -94,6 +98,8 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_primary;
   hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_secondary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_secondary;
+  hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_ternary;
+  hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_ternary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_insert;
 
   /* update_xmit_buffer */
@@ -149,10 +155,10 @@ void homa(homa_t * homa,
 	      xmit_buffer_insert,
 	      xmit_stack_next,
 	      rpc_stack_next,
-	      rpc_table_request,
-	      rpc_table_response,
-	      rpc_buffer_request_secondary,
-	      rpc_buffer_response_secondary,
+	      rpc_table_request_secondary,
+	      rpc_table_response_secondary,
+	      rpc_buffer_request_ternary,
+	      rpc_buffer_response_ternary,
 	      rpc_buffer_insert,
 	      srpt_xmit_queue_insert,
 	      peer_stack_next,
@@ -181,8 +187,10 @@ void homa(homa_t * homa,
 
   /* Insert new RPCs and perform searches for RPCs */
   hls_thread_local hls::task thread_4(update_rpc_table,
-				      rpc_table_request,
-				      rpc_table_response,
+				      rpc_table_request_primary,
+				      rpc_table_response_primary,
+				      rpc_table_request_secondary,
+				      rpc_table_response_secondary,
 				      rpc_table_insert);
 
   /* Perform any needed operations on the stored RPC data */
@@ -191,6 +199,8 @@ void homa(homa_t * homa,
 				      rpc_buffer_response_primary,
 				      rpc_buffer_request_secondary,
 				      rpc_buffer_response_secondary,
+				      rpc_buffer_request_ternary,
+				      rpc_buffer_response_ternary,
 				      rpc_buffer_insert);
 
   /* Update the SRPT queue */
@@ -211,8 +221,8 @@ void homa(homa_t * homa,
 				      srpt_grant_queue_next,
 				      xmit_buffer_request,
 				      xmit_buffer_response,
-				      rpc_buffer_request_primary,
-				      rpc_buffer_response_primary,
+				      rpc_buffer_request_secondary,
+				      rpc_buffer_response_secondary,
 				      rexmit_rpcs,
 				      link_egress);
 
@@ -220,6 +230,10 @@ void homa(homa_t * homa,
 				      link_ingress,
 				      srpt_grant_queue_insert,
 				      srpt_xmit_queue_update,
+				      rpc_table_request_primary,
+				      rpc_table_response_primary,
+				      rpc_buffer_request_primary,
+				      rpc_buffer_response_primary,
 				      rexmit_touch,
 				      dma_egress_reqs);
 

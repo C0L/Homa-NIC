@@ -29,10 +29,6 @@ void rexmit_buffer(hls::stream<rpc_id_t> & touch,
 		   hls::stream<rpc_id_t> & rexmit) {
   static ap_uint<64> rexmit_store[MAX_RPCS];
   static fifo_t<rpc_id_t, 2> refresh; // this is really a shift register (allows random read anywhere)
-#pragma HLS pipeline II=1
-
-  //static rpc_id_t refresh;
-  //#pragma HLS array_partition variable=touches type=complete
 
   // No dependencies within loops or between iterations
   #pragma HLS dependence variable=rexmit_store inter WAR false
@@ -59,27 +55,6 @@ void rexmit_buffer(hls::stream<rpc_id_t> & touch,
 	refresh.insert(i);
       }
     }
-
-
-
-    // TODO Can't do this both in a single cycle?
-    //rpc_id_t rpc_id;
-    //if (touch.read_nb(rpc_id)) {
-    //  touches[rpc_id] = true;
-    //}
-
-    //// Has this RPC been touched
-    //if (touches[i] == true) {
-    //  rexmit_store[i] = time;
-    //}
-
-    //ap_uint<64> entry_time = rexmit_store[i];
-    //
-    //if (entry_time - time >= REXMIT_CUTOFF) {
-    //  if (rexmit.write_nb(i)) {
-    //	touches[i] = false;
-    //  }
-    //}
 
     time++;
   }

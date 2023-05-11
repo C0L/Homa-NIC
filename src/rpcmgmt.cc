@@ -1,6 +1,7 @@
 #include "rpcmgmt.hh"
 #include "cam.hh"
 
+// TODO maybe this can be combined with RPC table??
 void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
 		      hls::stream<rpc_id_t> & rpc_stack_free) {
 
@@ -23,9 +24,11 @@ void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
 }
 
 // TODO add support for deletion
-void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request,
-		      hls::stream<rpc_id_t> & rpc_table_response,
-		      hls::stream<homa_rpc_t> & rpc_table_insert) {
+void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
+		      hls::stream<rpc_id_t> & rpc_table_response_primary,
+		      hls::stream<rpc_hashpack_t> & rpc_table_request_secondary,
+		      hls::stream<rpc_id_t> & rpc_table_response_secondary,
+     		      hls::stream<homa_rpc_t> & rpc_table_insert) {
   static entry_t<rpc_hashpack_t,rpc_id_t> table_0[RPC_SUB_TABLE_SIZE];
   static entry_t<rpc_hashpack_t,rpc_id_t> table_1[RPC_SUB_TABLE_SIZE];
   static entry_t<rpc_hashpack_t,rpc_id_t> table_2[RPC_SUB_TABLE_SIZE];
@@ -48,9 +51,9 @@ void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request,
 
 #pragma HLS pipeline II=1
 
-  if (!rpc_table_request.empty()) {
+  if (!rpc_table_request_primary.empty()) {
     rpc_hashpack_t query;
-    rpc_table_request.read(query);
+    rpc_table_request_primary.read(query);
 
     rpc_id_t rpc_id;
     table_op_t<rpc_hashpack_t,rpc_id_t> cam_id;
@@ -66,7 +69,27 @@ void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request,
     if (search_3.hashpack == query) rpc_id = search_3.id;
     if (ops.search(query, cam_id)) rpc_id = cam_id.entry.id;
 
-    rpc_table_response.write(rpc_id);
+    rpc_table_response_primary.write(rpc_id);
+
+  } else if (!rpc_table_request_secondary.empty()) {
+    rpc_hashpack_t query;
+    rpc_table_request_secondary.read(query);
+
+    rpc_id_t rpc_id;
+    table_op_t<rpc_hashpack_t,rpc_id_t> cam_id;
+
+    entry_t<rpc_hashpack_t,rpc_id_t> search_0 = table_0[murmur3_32((uint32_t *) &query, 7, SEED0)];
+    entry_t<rpc_hashpack_t,rpc_id_t> search_1 = table_1[murmur3_32((uint32_t *) &query, 7, SEED1)];
+    entry_t<rpc_hashpack_t,rpc_id_t> search_2 = table_2[murmur3_32((uint32_t *) &query, 7, SEED2)];
+    entry_t<rpc_hashpack_t,rpc_id_t> search_3 = table_3[murmur3_32((uint32_t *) &query, 7, SEED3)];
+
+    if (search_0.hashpack == query) rpc_id = search_0.id;
+    if (search_1.hashpack == query) rpc_id = search_1.id;
+    if (search_2.hashpack == query) rpc_id = search_2.id;
+    if (search_3.hashpack == query) rpc_id = search_3.id;
+    if (ops.search(query, cam_id)) rpc_id = cam_id.entry.id;
+
+    rpc_table_response_secondary.write(rpc_id);
   } else if (!rpc_table_insert.empty()) {
     homa_rpc_t insertion;
     rpc_table_insert.read(insertion);
@@ -106,21 +129,23 @@ void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
 		       hls::stream<rpc_id_t> & rpc_buffer_request_secondary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
+		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert) {
   // Actual RPC data
   static homa_rpc_t rpcs[MAX_RPCS];
 #pragma HLS pipeline II=1
 
   rpc_id_t query;
+  homa_rpc_t update;
 
   if (rpc_buffer_request_primary.read_nb(query)) {
     rpc_buffer_response_primary.write(rpcs[query]);
   } else if (rpc_buffer_request_secondary.read_nb(query)) {
     rpc_buffer_response_secondary.write(rpcs[query]);
-  }
-
-  homa_rpc_t update;
-  if (rpc_buffer_insert.read_nb(update)) {
+  } else if (rpc_buffer_request_ternary.read_nb(query)) {
+    rpc_buffer_response_ternary.write(rpcs[query]);
+  } else if (rpc_buffer_insert.read_nb(update)) {
     rpcs[update.rpc_id] = update;
   } 
 }

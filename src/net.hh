@@ -4,10 +4,13 @@
 #include "ap_int.h"
 #include <stdint.h>
 
+#define ETHERTYPE_IPV6 0x86DD
+#define IPPROTO_HOMA 0xFD
+
 #define INADDR_ANY ((unsigned long int) 0x00000000)
 
-/**
- * Reimplementation of some missing network QOL
+/*
+ * Socket structures
  */
 typedef uint16_t sa_family_t;
 typedef uint16_t in_port_t;
@@ -50,33 +53,67 @@ typedef union sockaddr_in_union {
   sockaddr_in6_t in6;
 } sockaddr_in_union_t;
 
+
+/*
+ * Ethernet structures
+ */
+struct ipv6_header_t {
+  ap_uint<4> version;
+  ap_uint<8> traffic_class;
+  ap_uint<20> flow_label;
+  ap_uint<16> payload_length;
+  ap_uint<8> next_header;
+  ap_uint<8> hop_limit;
+  ap_uint<128> src_address;
+  ap_uint<128> dest_address;
+};
+
+struct ethernet_header_t {
+  ap_uint<48> dest_mac;
+  ap_uint<48> src_mac;
+  ap_uint<16> ethertype;
+};
+
+/*
+ * Homa structures
+ */
+enum homa_packet_type {
+  DATA               = 0x10,
+  GRANT              = 0x11,
+  RESEND             = 0x12,
+  UNKNOWN            = 0x13,
+  BUSY               = 0x14,
+  CUTOFFS            = 0x15,
+  FREEZE             = 0x16,
+  NEED_ACK           = 0x17,
+  ACK                = 0x18,
+};
+
+struct common_header_t {
+  uint16_t sport;
+  uint16_t dport;
+  uint32_t unused1;
+  uint32_t unused2;
+  uint8_t doff;
+  uint8_t type;
+  uint16_t unused3;
+  uint16_t checksum;
+  uint16_t unused4;
+  uint64_t sender_id;
+};
+
 struct homa_ack_t {
   ap_uint<64> client_id;
   ap_uint<16> client_port;
   ap_uint<16> server_port;
-};//__attribute__((packed));
-
-struct common_header_t {
-  ap_uint<16> sport;
-  ap_uint<16> dport;
-  ap_uint<32> unused1;
-  ap_uint<32> unused2;
-  ap_uint<8> doff;
-  ap_uint<8> type;
-  ap_uint<16> unused3;
-  ap_uint<16> checksum;
-  ap_uint<16> unused4;
-  ap_uint<64> sender_id;
-};//__attribute__((packed));
-
+};
 
 struct data_segment_t {
   ap_uint<32> offset;
   ap_uint<32> segment_length;
   homa_ack_t ack;
-  char data[0];
-};//__attribute__((packed));
-
+  char data[0]; // TODO ?
+};
 
 struct data_header_t {
   common_header_t common;
@@ -86,28 +123,6 @@ struct data_header_t {
   ap_uint<8> retransmit;
   ap_uint<8> pad;
   data_segment_t seg;
-};//__attribute__((packed));
+};
 
-/**
- * Given an IPv4 address, return an equivalent IPv6 address (an IPv4-mapped
- * one)
- * @ip4: IPv4 address, in network byte order.
- */
-//in6_addr_t ipv4_to_ipv6(uint32_t ip4) {
-//  in6_addr_t ret;
-//  //if (ip4 == INADDR_ANY) return in6addr_any;
-//  ret.in6_u.u6_addr32[2] = htonl(0xffff);
-//  ret.in6_u.u6_addr32[3] = ip4;
-//  return ret;
-//}
-//
-//in6_addr_t canonical_ipv6_addr(sockaddr_in_union & addr) {
-//  //if (addr) {
-//  return (addr.sa.sa_family == AF_INET6)
-//    ? addr.in6.sin6_addr
-//    : ipv4_to_ipv6(addr.in4.sin_addr.s_addr);
-//    //} else {
-//    //return in6addr_any;
-//  //}
-//}
 #endif

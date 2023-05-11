@@ -200,14 +200,18 @@ struct table_op_t {
 void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
 		      hls::stream<rpc_id_t> & rpc_stack_free);
 
-void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request,
-		      hls::stream<rpc_id_t> & rpc_table_response,
-		      hls::stream<homa_rpc_t> & rpc_table_insert);
+void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
+		      hls::stream<rpc_id_t> & rpc_table_response_primary,
+		      hls::stream<rpc_hashpack_t> & rpc_table_request_secondary,
+		      hls::stream<rpc_id_t> & rpc_table_response_secondary,
+     		      hls::stream<homa_rpc_t> & rpc_table_insert);
 
 void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
 		       hls::stream<rpc_id_t> & rpc_buffer_request_secondary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
+		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert);
 
 void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next,
