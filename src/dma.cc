@@ -156,7 +156,7 @@ void dma_ingress(homa_t * homa,
   rpc_buffer_insert.write(homa_rpc);
 
   // Adds this RPC to the queue for broadcast
-  srpt_xmit_entry_t srpt_entry = srpt_xmit_entry_t(homa_rpc.rpc_id, (uint32_t) homa_rpc.msgout.length, homa_rpc.msgout.unscheduled, ACTIVE);
+  srpt_xmit_entry_t srpt_entry = srpt_xmit_entry_t(homa_rpc.rpc_id, (uint32_t) homa_rpc.msgout.length, homa_rpc.msgout.unscheduled,  homa_rpc.msgout.length);
 
     //{homa_rpc.rpc_id, (uint32_t) homa_rpc.msgout.length};
 

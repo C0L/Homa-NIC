@@ -30,32 +30,39 @@ struct srpt_xmit_entry_t {
   uint32_t remaining;
   uint32_t granted;
   uint32_t total;
-  ap_uint<2> priority;
 
   srpt_xmit_entry_t() {
     rpc_id = 0;
     remaining = 0xFFFFFFFF;
     granted = 0;
-    priority = EMPTY;
+    total = 0;
   }
 
-  srpt_xmit_entry_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, ap_uint<2> priority) {
+  // TODO total probably does not need to be stored
+  srpt_xmit_entry_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, uint32_t total) { //, ap_uint<2> priority) {
     this->rpc_id = rpc_id;
     this->remaining = remaining;
     this->granted = granted;
-    this->priority = priority;
+    this->total = total;
+    //this->priority = priority;
   }
 
   bool operator==(const srpt_xmit_entry_t & other) const {
     return (rpc_id == other.rpc_id &&
 	    remaining == other.remaining &&
 	    granted == other.granted &&
-	    priority == other.priority);
+	    total == other.total);
+	    //priority == other.priority);
   }
 
   // Ordering operator
   bool operator>(srpt_xmit_entry_t & other) {
     return remaining > other.remaining;
+  }
+
+
+  void print() {
+    std::cerr << rpc_id << " " << remaining << std::endl;
   }
 };
 
@@ -88,6 +95,11 @@ struct srpt_grant_entry_t {
 
   // Ordering operator
   bool operator>(srpt_grant_entry_t & other) {
+    //if (priority < other.priority) {
+
+    //} else {
+    //  reut
+    //}
     return grantable > other.grantable;
   }
 
@@ -109,7 +121,8 @@ struct fifo_t {
 
   void insert(T value) {
 #pragma HLS array_partition variable=buffer type=complete
-    buffer[insert_head] = value;
+    //buffer[insert_head] = value;
+    buffer[FIFO_SIZE-1] = value;
     insert_head++;
   }
 
@@ -146,40 +159,125 @@ struct srpt_queue_t {
     size = 0;
   }
 
+  // Case 1
+  // id-2 > id-1 < id
+  // id-1 < id-2 < id
+  //        id-1 < id-2 < id
+  
+  // Case 2
+  // id-2 < id-1 > id
+  // id-2 < id   < id-1
+  //        id-2 < id < id-1
+  
+  // Case 3
+  // id-2 < id-1 < id
+  //        id-2 < id-1 < id
   void push(T new_entry) {
+#pragma HLS dependence variable=buffer intra RAW false
+#pragma HLS dependence variable=buffer intra WAR false
 #pragma HLS array_partition variable=buffer type=complete
-    //#pragma HLS pipeline 
-    size = (size >= MAX_SRPT) ? size : size+1;
-    buffer[0] = new_entry;
-    for (int id = MAX_SIZE; id > 0; id-=2) {
+    size = (size == MAX_SRPT) ? size : size+1;
+
+    for (int id = MAX_SRPT-1; id >= 2; --id) {
 #pragma HLS unroll
       if (buffer[id-2] > buffer[id-1]) {
 	buffer[id] = buffer[id-2];
+      } else if (buffer[id-1] > buffer[id]) {
+	buffer[id] = buffer[id];
       } else {
 	buffer[id] = buffer[id-1];
-	buffer[id-1] = buffer[id-2];
       }
+    }
+
+    if (new_entry > buffer[0]) {
+      buffer[1] = new_entry;
+    } else if (buffer[0] > buffer[1]) {
+      buffer[1] = buffer[1];
+    } else {
+      buffer[1] = buffer[0];
+    }
+
+    if (new_entry > buffer[0]) {
+      buffer[0] = buffer[0];
+    } else {
+      buffer[0] = new_entry;
     }
   }
 
-  //bool pop(T & entry) {
+  // Case 1
+  //        id   > id+1 < id+2
+  //        id+1 < id   < id+2
+  // id+1 < id  < id+2
+  
+  // Case 2
+  //        id   < id+1 > id+2
+  //        id   < id+2 < id+1
+  // id   < id+2 < id+1
+  
+  // Case 3
+  //        id   < id+1 < id+2
+  // id   < id+1 < id+2
+
   void pop() {
-#pragma HLS array_partition variable=buffer type=complete
-    for (int id = 0; id <= MAX_SIZE-2; id+=2) {
+#pragma HLS dependence variable=buffer intra RAW false
+#pragma HLS dependence variable=buffer intra WAR false
+
+    for (int id = 0; id < MAX_SRPT; ++id) {
 #pragma HLS unroll
-      if (buffer[id+1] > buffer[id+2]) {
+      if (buffer[id] > buffer[id+1]) {
+	buffer[id] = buffer[id];
+      } else if (buffer[id+1] > buffer[id+2]) {
 	buffer[id] = buffer[id+2];
       } else {
 	buffer[id] = buffer[id+1];
-	buffer[id+1] = buffer[id+2];
       }
     }
 
+    if (buffer[MAX_SRPT-1] > buffer[MAX_SRPT]) {
+      buffer[MAX_SRPT-1] = buffer[MAX_SRPT-1];
+    } else {
+      buffer[MAX_SRPT-1] = buffer[MAX_SRPT];
+    }
+ 
     size--;
   }
 
+
+    // Case 1
+    // id-1 > id   < id+1
+    // id   < id-1 < id+1
+    
+    // Case 2
+    // id-1 < id   > id+1
+    // id-1 < id+1 < id 
+
+  void order() {
+#pragma HLS dependence variable=buffer intra RAW false
+#pragma HLS dependence variable=buffer intra WAR false
+    
+#pragma HLS array_partition variable=buffer type=complete
+    for (int id = 1; id < MAX_SRPT; ++id) {
+#pragma HLS unroll
+      // If the two entries are out of order
+      if (buffer[id-1] > buffer[id]) {
+	buffer[id] = buffer[id-1];
+      } else if (buffer[id] > buffer[id+1]) {
+	buffer[id] = buffer[id+1];
+      }
+    }
+  }
+
+  void dump() {
+    std::cerr << std::endl;
+    for (int id = 0; id < MAX_SRPT; ++id) {
+      std::cerr << id << ":";
+      buffer[id].print();
+    }
+  }
+  
+
   T & head() {
-    return buffer[1];
+    return buffer[0];
   }
 
   int get_size() {
