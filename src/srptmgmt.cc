@@ -10,6 +10,9 @@
 void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
 			    hls::stream<srpt_xmit_entry_t> & srpt_queue_grants,
 			    hls::stream<srpt_xmit_entry_t> & srpt_queue_next) {
+
+  // TODO a single byte will grant an entire message
+
   // TODO can use a smaller FIFO (of pipeline depth) for removing the sync error. After popping from the srpt add it to the blocked RPC BRAM.
   // And add it to the 5 element FIFO. Once it reaches the end of the FIFO, check if the grant has changed, if so readd to SRPT. Otherwise,
   // discard the entry. Need to ensure that a grant does not reactivate and FIFO reactivate.
@@ -32,10 +35,12 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
 
   if (!srpt_queue_next.full() && !srpt_queue.empty()) {
     srpt_xmit_entry_t & head = srpt_queue.head();
-      
-    head.remaining = (head.remaining - PACKET_SIZE < 0) ? 0 : head.remaining - PACKET_SIZE;
     
     srpt_queue_next.write(head);
+
+    head.remaining = (head.remaining - PACKET_SIZE < 0) ? 0 : head.remaining - PACKET_SIZE;
+
+    std::cerr << head.remaining << std::endl;
 
     uint32_t grant = grants[head.rpc_id];
 
@@ -44,16 +49,19 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
     bool complete  = (head.remaining == 0);
 
     if (!complete && ungranted) {
+      std::cerr << "EXHUASTED\n";
       exhausted.insert(head);
     }
     
     // Are we done sending this message, or are we out of granted bytes?
     if (complete || ungranted) {
+      std::cerr << "COMPLETE\n";
       srpt_queue.pop();
     } 
   } else if (!srpt_queue_insert.empty()) {
     srpt_xmit_entry_t new_entry;
     srpt_queue_insert.read(new_entry);
+    grants[new_entry.rpc_id] = new_entry.granted;
     srpt_queue.push(new_entry);
   } else if (!srpt_queue_grants.empty()) {
     srpt_xmit_entry_t new_grant;
@@ -91,12 +99,15 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
  * @srpt_queue_next:   The next rpc that should be granted to. Goes to link_egress. 
  */
 void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert,
-			     //hls::stream<srpt_grant_entry_t> & srpt_queue_receipt,
+			     hls::stream<srpt_grant_entry_t> & srpt_queue_receipt,
 			     hls::stream<srpt_grant_entry_t> & srpt_queue_next) {
 
-  static srpt_grant_entry_t active_set[MAX_OVERCOMMIT];
-  static stack_t<peer_id_t, MAX_OVERCOMMIT> active_set_stack(true);
+  static peer_id_t active_set[MAX_OVERCOMMIT];
+  //static srpt_grant_entry_t active_set[MAX_OVERCOMMIT];
+  static stack_t<ap_uint<3>, MAX_OVERCOMMIT> active_set_stack(true);
   static srpt_queue_t<srpt_grant_entry_t, MAX_SRPT> srpt_queue;
+
+#pragma HLS pipeline II=1
 
   // TODO some of these may be receipts
   // TODO Receipt path to reset active set and send message
@@ -107,7 +118,7 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert
     int peer_match = -1;
     for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
 #pragma HLS unroll
-      if (active_set[i].peer_id == new_entry.peer_id) {
+      if (active_set[i] == new_entry.peer_id) {
 	peer_match = i;
       }
     }
@@ -119,34 +130,34 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert
     }
 
     srpt_queue_next.write(new_entry);
-  } else if (!srpt_queue_next.full() && !active_set_stack.empty()) {
+  } else if (!srpt_queue_next.full() && srpt_queue.head().priority != BLOCKED && !active_set_stack.empty()) {
     srpt_grant_entry_t & head = srpt_queue.head();
 
     int peer_match = -1;
     for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
 #pragma HLS unroll
-      if (active_set[i].peer_id == head.peer_id) {
+      if (active_set[i] == head.peer_id) {
 	peer_match = i;
       }
     }
 
     if (peer_match == -1) {
-      peer_id_t peer_id = active_set_stack.pop();
-      //active_set[peer_id] = peer_id;
-
-      // TODO send message up the queue
-      
       srpt_queue_next.write(head);
+
+      ap_uint<3> idx = active_set_stack.pop();
+      active_set[idx] = head.peer_id;
+
+      srpt_grant_entry_t msg = srpt_grant_entry_t(head.peer_id,0,0,MSG);
+
+      srpt_queue.pop();
+      srpt_queue.push(msg);
     }
-
-    srpt_queue.pop();
-  } else {
-
   }
- 
-    //else {
-  //srpt_queue.order();
-  //}
+
+  else {
+    //srpt_queue.order();
+    srpt_queue.order();
+  }
 }
 
 

@@ -12,7 +12,7 @@
 #ifndef DEBUG 
 #define MAX_SRPT 1024
 #else
-#define MAX_SRPT 16
+#define MAX_SRPT 32
 #endif
 
 #define MAX_OVERCOMMIT 8
@@ -39,12 +39,11 @@ struct srpt_xmit_entry_t {
   }
 
   // TODO total probably does not need to be stored
-  srpt_xmit_entry_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, uint32_t total) { //, ap_uint<2> priority) {
+  srpt_xmit_entry_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, uint32_t total) {
     this->rpc_id = rpc_id;
     this->remaining = remaining;
     this->granted = granted;
     this->total = total;
-    //this->priority = priority;
   }
 
   bool operator==(const srpt_xmit_entry_t & other) const {
@@ -52,7 +51,6 @@ struct srpt_xmit_entry_t {
 	    remaining == other.remaining &&
 	    granted == other.granted &&
 	    total == other.total);
-	    //priority == other.priority);
   }
 
   // Ordering operator
@@ -60,6 +58,7 @@ struct srpt_xmit_entry_t {
     return remaining > other.remaining;
   }
 
+  void update_priority(srpt_xmit_entry_t & other) {}
 
   void print() {
     std::cerr << rpc_id << " " << remaining << std::endl;
@@ -79,7 +78,7 @@ struct srpt_grant_entry_t {
     priority = EMPTY;
   }
 
-  srpt_grant_entry_t(peer_id_t peer_id, rpc_id_t rpc_id, uint32_t grantable, ap_uint<2> priority) {
+  srpt_grant_entry_t(peer_id_t peer_id, uint32_t grantable,  rpc_id_t rpc_id, ap_uint<2> priority) {
     this->peer_id = peer_id;
     this->rpc_id = rpc_id;
     this->grantable = grantable;
@@ -95,16 +94,21 @@ struct srpt_grant_entry_t {
 
   // Ordering operator
   bool operator>(srpt_grant_entry_t & other) {
-    //if (priority < other.priority) {
+    if (priority == MSG && peer_id == other.peer_id) {
+      return true;
+    } else {
+      return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
+    } 
+  }
 
-    //} else {
-    //  reut
-    //}
-    return grantable > other.grantable;
+  void update_priority(srpt_grant_entry_t & other) {
+    if (priority == MSG && other.peer_id == peer_id) {
+      other.priority = (other.priority == BLOCKED) ? ACTIVE : BLOCKED;
+    }
   }
 
   void print() {
-    std::cerr << peer_id << " " << grantable << " " << priority << std::endl;
+    std::cerr << peer_id << " " << grantable << " " << priority << " " << rpc_id << std::endl;
   }
 };
 
@@ -178,29 +182,25 @@ struct srpt_queue_t {
 #pragma HLS array_partition variable=buffer type=complete
     size = (size == MAX_SRPT) ? size : size+1;
 
-    for (int id = MAX_SRPT-1; id >= 2; --id) {
+    T tmp[MAX_SIZE+1];
+
+    for(int id = MAX_SRPT; id > 0; --id) {
 #pragma HLS unroll
-      if (buffer[id-2] > buffer[id-1]) {
-	buffer[id] = buffer[id-2];
-      } else if (buffer[id-1] > buffer[id]) {
-	buffer[id] = buffer[id];
-      } else {
-	buffer[id] = buffer[id-1];
-      }
+      buffer[id] = buffer[id-1];
+      tmp[id] = buffer[id-1];
     }
 
-    if (new_entry > buffer[0]) {
-      buffer[1] = new_entry;
-    } else if (buffer[0] > buffer[1]) {
-      buffer[1] = buffer[1];
-    } else {
-      buffer[1] = buffer[0];
-    }
+    tmp[0] = new_entry;
+    buffer[0] = new_entry;
 
-    if (new_entry > buffer[0]) {
-      buffer[0] = buffer[0];
-    } else {
-      buffer[0] = new_entry;
+    // TODO MAX_SRPT-1?
+    for (int id = 0; id < MAX_SRPT; ++id) {
+#pragma HLS unroll
+      if (tmp[id] > tmp[id+1]) {
+	buffer[id+1] = tmp[id];
+	buffer[id] = tmp[id+1];
+	buffer[id+1].update_priority(buffer[id]);
+      } 
     }
   }
 
@@ -222,26 +222,25 @@ struct srpt_queue_t {
 #pragma HLS dependence variable=buffer intra RAW false
 #pragma HLS dependence variable=buffer intra WAR false
 
+    T tmp[MAX_SIZE+1];
+
+    for(int id = 0; id < MAX_SRPT; ++id) {
+#pragma HLS unroll
+      buffer[id] = buffer[id+1];
+      tmp[id] = buffer[id+1];
+    }
+   
     for (int id = 0; id < MAX_SRPT; ++id) {
 #pragma HLS unroll
-      if (buffer[id] > buffer[id+1]) {
-	buffer[id] = buffer[id];
-      } else if (buffer[id+1] > buffer[id+2]) {
-	buffer[id] = buffer[id+2];
-      } else {
-	buffer[id] = buffer[id+1];
-      }
-    }
-
-    if (buffer[MAX_SRPT-1] > buffer[MAX_SRPT]) {
-      buffer[MAX_SRPT-1] = buffer[MAX_SRPT-1];
-    } else {
-      buffer[MAX_SRPT-1] = buffer[MAX_SRPT];
+      if (tmp[id] > tmp[id+1]) {
+	buffer[id+1] = tmp[id];
+	buffer[id] = tmp[id+1];
+	buffer[id+1].update_priority(buffer[id]);
+      } 
     }
  
     size--;
   }
-
 
     // Case 1
     // id-1 > id   < id+1
@@ -256,14 +255,22 @@ struct srpt_queue_t {
 #pragma HLS dependence variable=buffer intra WAR false
     
 #pragma HLS array_partition variable=buffer type=complete
-    for (int id = 1; id < MAX_SRPT; ++id) {
+
+    T tmp[MAX_SIZE+1];
+
+    for(int id = 0; id < MAX_SRPT+1; ++id) {
 #pragma HLS unroll
-      // If the two entries are out of order
-      if (buffer[id-1] > buffer[id]) {
-	buffer[id] = buffer[id-1];
-      } else if (buffer[id] > buffer[id+1]) {
-	buffer[id] = buffer[id+1];
-      }
+      buffer[id] = buffer[id];
+      tmp[id] = buffer[id];
+    }
+   
+    for (int id = 0; id < MAX_SRPT; ++id) {
+#pragma HLS unroll
+      if (tmp[id] > tmp[id+1]) {
+	buffer[id+1] = tmp[id];
+	buffer[id] = tmp[id+1];
+	buffer[id+1].update_priority(buffer[id]);
+      } 
     }
   }
 
@@ -294,6 +301,7 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
 			    hls::stream<srpt_xmit_entry_t> & srpt_queue_next);
 
 void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert,
+			     hls::stream<srpt_grant_entry_t> & srpt_queue_receipt,
 			     hls::stream<srpt_grant_entry_t> & srpt_queue_next);
 
 

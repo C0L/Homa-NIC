@@ -1,6 +1,6 @@
-open_project -reset homa_srpt_test
+open_project -reset homa_unit_test
 set_top homa
-add_files -tb ./tb/srpt_xmit_test.cc
+add_files -tb ./tb/srptmgmt_test.cc
 add_files ./src/rpcmgmt.cc
 add_files ./src/rpcmgmt.hh
 add_files ./src/srptmgmt.cc

@@ -118,6 +118,7 @@ void homa(homa_t * homa,
 
   /* update_grant_srpt_queue */
   hls_thread_local hls::stream<srpt_grant_entry_t> srpt_grant_queue_insert;
+  hls_thread_local hls::stream<srpt_grant_entry_t> srpt_grant_queue_receipt;
   hls_thread_local hls::stream<srpt_grant_entry_t> srpt_grant_queue_next;
 
   /* dma_egress */
@@ -213,6 +214,7 @@ void homa(homa_t * homa,
   /* Update the SRPT queue */
   hls_thread_local hls::task thread_7(update_grant_srpt_queue,
 				      srpt_grant_queue_insert,
+				      srpt_grant_queue_receipt,
 				      srpt_grant_queue_next);
 
   /* Send packets */
