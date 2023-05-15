@@ -42,7 +42,7 @@ void rexmit_buffer(hls::stream<rpc_id_t> & touch,
   for (rpc_id_t i = 0; i < MAX_RPCS; ++i) {
     rpc_id_t rpc_id;
     if (!refresh.empty()) {
-      refresh.remove(rpc_id);
+      rpc_id = refresh.remove();
       rexmit_store[rpc_id] = time;
     } else if (touch.read_nb(rpc_id)) {
       rexmit_store[rpc_id] = time;

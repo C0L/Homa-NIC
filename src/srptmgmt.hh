@@ -12,7 +12,7 @@
 #ifndef DEBUG 
 #define MAX_SRPT 1024
 #else
-#define MAX_SRPT 32
+#define MAX_SRPT 1024
 #endif
 
 #define MAX_OVERCOMMIT 8
@@ -117,33 +117,34 @@ template<typename T, int FIFO_SIZE>
 struct fifo_t {
   T buffer[FIFO_SIZE];
 
-  int insert_head;
+  int read_head;
 
   fifo_t() {
-    insert_head = 0;
+    read_head = -1;
   }
 
   void insert(T value) {
 #pragma HLS array_partition variable=buffer type=complete
-    //buffer[insert_head] = value;
-    buffer[FIFO_SIZE-1] = value;
-    insert_head++;
+    for (int i = FIFO_SIZE-2; i > 0; --i) {
+#pragma HLS unroll
+      buffer[i+1] = buffer[i];
+    }
+    
+    buffer[0] = value;
+    
+    read_head++;
   }
 
-  void remove(T & value) {
+  T remove() {
 #pragma HLS array_partition variable=buffer type=complete
-    value = buffer[0];
+    T val = buffer[read_head];
 
-    for (int i = 0; i < FIFO_SIZE; ++i) {
-#pragma HLS unroll
-      buffer[i] = buffer[i+1];
-    }
-
-    insert_head--;
+    read_head--;
+    return val;
   }
 
   bool empty() {
-    return insert_head == 0;
+    return read_head == -1;
   }
 };
 

@@ -11,6 +11,9 @@
 struct args_t;
 struct user_output_t;
 
+// Default stream depth
+#define DSD 1
+
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
 
