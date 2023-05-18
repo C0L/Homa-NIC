@@ -96,8 +96,8 @@ struct homa_message_in_t {
  * clients and incoming RPCs on servers.
  */
 struct homa_rpc_t {
-  ap_uint<32> buffout;
-  ap_uint<32> buffin;
+  uint32_t buffout;
+  uint32_t buffin;
   enum {
     RPC_OUTGOING            = 5,
     RPC_INCOMING            = 6,
@@ -197,7 +197,8 @@ struct table_op_t {
   entry_t<H,I> entry;
 };
 
-void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
+void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
+		      hls::stream<rpc_id_t> & rpc_stack_next_secondary,
 		      hls::stream<rpc_id_t> & rpc_stack_free);
 
 void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
@@ -212,18 +213,24 @@ void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
 		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
-		       hls::stream<homa_rpc_t> & rpc_buffer_insert);
+		       hls::stream<homa_rpc_t> & rpc_buffer_insert_primary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_insert_secondary);
 
-void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next,
+void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
+		       hls::stream<peer_id_t> & peer_stack_next_secondary,
 		       hls::stream<peer_id_t> & peer_stack_free);
 
-void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request,
-		       hls::stream<peer_id_t> & peer_table_response,
-		       hls::stream<homa_peer_t> & peer_table_insert);
+void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request_primary,
+		       hls::stream<peer_id_t> & peer_table_response_primary,
+		       hls::stream<peer_hashpack_t> & peer_table_request_secondary,
+		       hls::stream<peer_id_t> & peer_table_response_secondary,
+		       hls::stream<homa_peer_t> & peer_table_insert_primary,
+		       hls::stream<homa_peer_t> & peer_table_insert_secondary);
 
 void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request,
 			hls::stream<homa_peer_t> & peer_buffer_response,
-			hls::stream<homa_peer_t> & peer_buffer_insert);
+			hls::stream<homa_peer_t> & peer_buffer_insert_primary,
+			hls::stream<homa_peer_t> & peer_buffer_insert_secondary);
  
 peer_id_t homa_peer_find(in6_addr_t & addr);
 

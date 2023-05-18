@@ -51,7 +51,7 @@ void dma_ingress(homa_t * homa,
   if (!params->id) {
     /* This is a request message */
 
-    // Grab an unused RPC ID
+    // Grab an unused RPC ID (this is a client/even ID be default)
     rpc_stack_next.read(homa_rpc.rpc_id);
 
     homa_rpc.completion_cookie = params->completion_cookie;
@@ -132,7 +132,7 @@ void dma_ingress(homa_t * homa,
   homa_rpc.msgout.next_xmit_offset = 0;
   homa_rpc.msgout.sched_priority = 0;
 
-  // Indicate we want a timer value 
+  // TODO this can just be built into this core? Indicate we want a timer value 
   timer_request.write(1);
   // Read the timer value 
   timer_response.read(homa_rpc.msgout.init_cycles);

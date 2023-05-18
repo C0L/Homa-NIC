@@ -12,7 +12,7 @@
 #ifndef DEBUG 
 #define MAX_SRPT 1024
 #else
-#define MAX_SRPT 1024
+#define MAX_SRPT 32
 #endif
 
 #define MAX_OVERCOMMIT 8

@@ -109,10 +109,10 @@ struct homa_ack_t {
 };
 
 struct data_segment_t {
-  ap_uint<32> offset;
-  ap_uint<32> segment_length;
+  uint32_t offset;
+  uint32_t segment_length;
   homa_ack_t ack;
-  char data[0]; // TODO ?
+  char data[0];
 };
 
 struct data_header_t {
@@ -123,6 +123,13 @@ struct data_header_t {
   ap_uint<8> retransmit;
   ap_uint<8> pad;
   data_segment_t seg;
+};
+
+
+struct homa_ack {
+  __be64 client_id;
+  __be16 client_port;
+  __be16 server_port;
 };
 
 #endif

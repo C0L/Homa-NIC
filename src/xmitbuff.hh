@@ -16,20 +16,13 @@
 typedef ap_uint<NUM_XMIT_BUFFER_INDEX> xmit_id_t;
 
 // Size of transaction unit (bits) (one message worth of data)
-// TODO check this?
-//#define XMIT_UNIT_SIZE 1500
 #define XMIT_UNIT_SIZE 2048
 
-// typedef char xmit_unit_t[XMIT_UNIT_SIZE];
-// TODO try to increase up to 1 packet size?
 typedef ap_uint<XMIT_UNIT_SIZE> xmit_mblock_t;
 
 // Number of xmit_unit_t per buffer and bits needed to index that
 #define XMIT_BUFFER_SIZE 36
 #define XMIT_BUFFER_SIZE_INDEX 4
-
-// One full message buffer, which we have NUM_XMIT_BUFFER of and index into
-//typedef xmit_unit_t xmit_buffer_t[XMIT_BUFFER_SIZE];
 
 struct xmit_buffer_t {
   xmit_mblock_t buff[XMIT_BUFFER_SIZE]; 

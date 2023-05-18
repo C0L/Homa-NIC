@@ -18,7 +18,6 @@ using namespace std;
 // This is just used to tie off some streams for compilation sake
 void temp(hls::stream<xmit_id_t> & xmit_stack_free,
 	  hls::stream<rpc_id_t> & rpc_stack_free,
-	  hls::stream<homa_rpc_t> & rpc_table_insert,
 	  hls::stream<peer_id_t> & peer_stack_free,
 	  hls::stream<peer_id_t> & peer_buffer_request,
 	  hls::stream<homa_peer_t> & peer_buffer_response) {
@@ -29,9 +28,6 @@ void temp(hls::stream<xmit_id_t> & xmit_stack_free,
 
   rpc_id_t homa_rpc_id;
   rpc_stack_free.write(homa_rpc_id);
-
-  homa_rpc_t homa_rpc;
-  rpc_table_insert.write(homa_rpc);
 
   peer_id_t homa_peer_id;
   peer_stack_free.write(homa_peer_id);
@@ -51,8 +47,6 @@ void temp(hls::stream<xmit_id_t> & xmit_stack_free,
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  * @dma:   DMA memory space pointer
  */
-// TODO just make input and output axi seperate
-
 void homa(homa_t * homa,
 	  params_t * params,
 	  hls::stream<raw_frame_t> & link_ingress,
@@ -72,7 +66,6 @@ void homa(homa_t * homa,
   // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Tasks-and-Channels critical
   // Dataflow required for m_axi https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/Tasks-and-Dataflow
 
-
   /*
    * Tasks are effectively free-running threads that are infinitely looping
    * This more explicitly defines the parallelism of the processor
@@ -81,7 +74,8 @@ void homa(homa_t * homa,
    */
 
   /* update_rpc_stack */
-  hls_thread_local hls::stream<rpc_id_t> rpc_stack_next;
+  hls_thread_local hls::stream<rpc_id_t> rpc_stack_next_primary;
+  hls_thread_local hls::stream<rpc_id_t> rpc_stack_next_secondary;
   hls_thread_local hls::stream<rpc_id_t> rpc_stack_free;
   
   /* update_rpc_table */
@@ -100,7 +94,8 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_secondary;
   hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_ternary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_ternary;
-  hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_insert;
+  hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_insert_primary;
+  hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_insert_secondary;
 
   /* update_xmit_buffer */
   hls_thread_local hls::stream<xmit_in_t> xmit_buffer_insert;
@@ -129,18 +124,23 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<ap_uint<64>> timer_response_0;
 
   /* update_peer_stack */
-  hls_thread_local hls::stream<peer_id_t> peer_stack_next;
+  hls_thread_local hls::stream<peer_id_t> peer_stack_next_primary;
+  hls_thread_local hls::stream<peer_id_t> peer_stack_next_secondary;
   hls_thread_local hls::stream<peer_id_t> peer_stack_free;
   
   /* update_peer_table */
-  hls_thread_local hls::stream<peer_hashpack_t> peer_table_request;
-  hls_thread_local hls::stream<peer_id_t> peer_table_response;
-  hls_thread_local hls::stream<homa_peer_t> peer_table_insert;
+  hls_thread_local hls::stream<peer_hashpack_t> peer_table_request_primary;
+  hls_thread_local hls::stream<peer_id_t> peer_table_response_primary;
+  hls_thread_local hls::stream<peer_hashpack_t> peer_table_request_secondary;
+  hls_thread_local hls::stream<peer_id_t> peer_table_response_secondary;
+  hls_thread_local hls::stream<homa_peer_t> peer_table_insert_primary;
+  hls_thread_local hls::stream<homa_peer_t> peer_table_insert_secondary;
   
   /* update_peer_buffer */
   hls_thread_local hls::stream<peer_id_t> peer_buffer_request;
   hls_thread_local hls::stream<homa_peer_t> peer_buffer_response;
-  hls_thread_local hls::stream<homa_peer_t> peer_buffer_insert;
+  hls_thread_local hls::stream<homa_peer_t> peer_buffer_insert_primary;
+  hls_thread_local hls::stream<homa_peer_t> peer_buffer_insert_secondary;
 
   /* rexmit_buffer */
   hls_thread_local hls::stream<rpc_id_t> rexmit_touch;
@@ -155,18 +155,18 @@ void homa(homa_t * homa,
 	      maxi_in,
 	      xmit_buffer_insert,
 	      xmit_stack_next,
-	      rpc_stack_next,
+	      rpc_stack_next_secondary,
 	      rpc_table_request_secondary,
 	      rpc_table_response_secondary,
 	      rpc_buffer_request_ternary,
 	      rpc_buffer_response_ternary,
-	      rpc_buffer_insert,
+	      rpc_buffer_insert_secondary,
 	      srpt_xmit_queue_insert,
-	      peer_stack_next,
-	      peer_table_request,
-	      peer_table_response,
-	      peer_table_insert,
-	      peer_buffer_insert,
+	      peer_stack_next_secondary,
+	      peer_table_request_secondary,
+	      peer_table_response_secondary,
+	      peer_table_insert_secondary,
+	      peer_buffer_insert_secondary,
 	      timer_request_0,
 	      timer_response_0);
 
@@ -183,7 +183,8 @@ void homa(homa_t * homa,
 				      xmit_stack_free);
 
   hls_thread_local hls::task thread_3(update_rpc_stack,
-				      rpc_stack_next,
+				      rpc_stack_next_primary,
+				      rpc_stack_next_secondary,
 				      rpc_stack_free);
 
   /* Insert new RPCs and perform searches for RPCs */
@@ -202,7 +203,8 @@ void homa(homa_t * homa,
 				      rpc_buffer_response_secondary,
 				      rpc_buffer_request_ternary,
 				      rpc_buffer_response_ternary,
-				      rpc_buffer_insert);
+				      rpc_buffer_insert_primary,
+				      rpc_buffer_insert_secondary);
 
   /* Update the SRPT queue */
   hls_thread_local hls::task thread_6(update_xmit_srpt_queue,
@@ -234,28 +236,42 @@ void homa(homa_t * homa,
 				      srpt_xmit_queue_update,
 				      rpc_table_request_primary,
 				      rpc_table_response_primary,
+				      rpc_table_insert,
 				      rpc_buffer_request_primary,
 				      rpc_buffer_response_primary,
+				      rpc_buffer_insert_primary,
+				      rpc_stack_next_primary,
+				      peer_table_request_primary,
+				      peer_table_response_primary,
+				      peer_buffer_insert_primary,
+				      peer_table_insert_primary,
+				      peer_stack_next_primary,
 				      rexmit_touch,
 				      dma_egress_reqs);
+
 
   hls_thread_local hls::task thread_10(update_timer,
 				      timer_request_0,
 				      timer_response_0);
 
   hls_thread_local hls::task thread_11(update_peer_stack,
-				       peer_stack_next,
+				       peer_stack_next_primary,
+				       peer_stack_next_secondary,
 				       peer_stack_free);
 
   hls_thread_local hls::task thread_12(update_peer_table,
-				       peer_table_request,
-				       peer_table_response,
-				       peer_table_insert);
+				       peer_table_request_primary,
+				       peer_table_response_primary,
+				       peer_table_request_secondary,
+				       peer_table_response_secondary,
+				       peer_table_insert_primary,
+				       peer_table_insert_secondary);
 
   hls_thread_local hls::task thread_13(update_peer_buffer,
 				       peer_buffer_request,
 				       peer_buffer_response,
-				       peer_buffer_insert);
+				       peer_buffer_insert_primary,
+				       peer_buffer_insert_secondary);
 
   hls_thread_local hls::task thread_14(rexmit_buffer,
 				       rexmit_touch,
@@ -267,7 +283,6 @@ void homa(homa_t * homa,
 
   temp(xmit_stack_free,
        rpc_stack_free,
-       rpc_table_insert,
        peer_stack_free,
        peer_buffer_request,
        peer_buffer_response);

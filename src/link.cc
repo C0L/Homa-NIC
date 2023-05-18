@@ -1,5 +1,7 @@
 #include <string.h>
 
+#include "hls_math.h"
+
 #include "homa.hh"
 #include "link.hh"
 #include "dma.hh"
@@ -15,7 +17,7 @@ void proc_link_egress(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next,
 		      hls::stream<homa_rpc_t> & rpc_buffer_response,
 		      hls::stream<rpc_id_t> & rexmit_rpcs,
 		      hls::stream<raw_frame_t> & link_egress) {
-#pragma HLS PIPELINE II=1
+#pragma HLS pipeline II=1
  
   srpt_xmit_entry_t srpt_xmit_entry;
   srpt_xmit_queue_next.read(srpt_xmit_entry);
@@ -52,10 +54,19 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 		       hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_update,
 		       hls::stream<rpc_hashpack_t> & rpc_table_request,
 		       hls::stream<rpc_id_t> & rpc_table_response,
+		       hls::stream<homa_rpc_t> & rpc_table_insert,
 		       hls::stream<rpc_id_t> & rpc_buffer_request,   		       
 		       hls::stream<homa_rpc_t> & rpc_buffer_response,
+		       hls::stream<homa_rpc_t> & rpc_buffer_insert,
+		       hls::stream<rpc_id_t> & rpc_stack_next,
+		       hls::stream<peer_hashpack_t> & peer_table_request,
+		       hls::stream<peer_id_t> & peer_table_response,
+		       hls::stream<homa_peer_t> & peer_buffer_insert,
+		       hls::stream<homa_peer_t> & peer_table_insert,
+		       hls::stream<peer_id_t> & peer_stack_next,
 		       hls::stream<rpc_id_t> & rexmit_touch,
 		       hls::stream<dma_egress_req_t> & dma_egress_reqs) {
+
 #pragma HLS pipeline II=1 
 
   /*
@@ -90,29 +101,149 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 
     common_header_t * commonheader = (common_header_t *) (((char*) ipv6header) + sizeof(ipv6_header_t));
 
-    rpc_hashpack_t hashpack = {
-      ipv6header->src_address,
-      commonheader->sender_id,
-      commonheader->sport,
-      0
-    };
+    /* homa_incoming.c — homa_pkt_dispatch() */
 
-    // Grab the local RPC ID
-    rpc_table_request.write(hashpack);
+    uint64_t id = LOCALIZE_ID(commonheader->sender_id);
+
+    // TODO there could be an ACK in the packet? check homa_incoming.c
+
+    // A meaningful value in the rpc_buffer
     rpc_id_t local_id;
-    rpc_table_response.read(local_id);
-
-
     homa_rpc_t homa_rpc;
-    rpc_buffer_request.write(local_id);
-    rpc_buffer_response.read(homa_rpc);
+   
+    if (!IS_CLIENT(id)) {
+      /* homa_find_server_rpc */
 
-    // Grab the RPC struct with local name
+      // Search tuple for local rpc data from server rpc
+      rpc_hashpack_t rpc_hashpack = {
+	ipv6header->src_address,
+	id,
+	commonheader->sport,
+	0
+      };
+
+      // Search for associated RPC ID
+      rpc_table_request.write(rpc_hashpack);
+      rpc_table_response.read(local_id);
+
+      if (commonheader->doff == DATA) {
+	/* homa_rpc_new_server */
+
+	// Did the search fail? If so create a nw rpc
+	if (local_id == 0) { 
+	  homa_rpc.state = homa_rpc_t::RPC_INCOMING;
+
+	  // TODO set flags/grants in progress?
+
+	  /* homa_peer_find */
+
+	  /* Equivalent to homa_peer_find */
+	  peer_hashpack_t peer_hashpack = {ipv6header->src_address};
+	  peer_table_request.write(peer_hashpack); 
+	  peer_table_response.read(homa_rpc.peer_id);
+	  
+	  // If the peer table request returned 0, then no peer is found 
+	  if (homa_rpc.peer_id == 0) {
+	    // Get an available peer ID (an index into the peer buffer)
+	    peer_stack_next.read(homa_rpc.peer_id);
+	    
+	    // Create a new peer to add into the peer buffer
+	    homa_peer_t peer;
+	    peer.peer_id = homa_rpc.peer_id;
+	    peer.addr = ipv6header->src_address;
+	    peer.unsched_cutoffs[HOMA_MAX_PRIORITIES-1] = 0;
+	    peer.unsched_cutoffs[HOMA_MAX_PRIORITIES-2] = INT_MAX;
+	    peer.cutoff_version = 0;
+	    peer.last_update_jiffies = 0;
+	    peer.outstanding_resends = 0;
+	    peer.most_recent_resend = 0;
+	    peer.least_recent_rpc = NULL;
+	    peer.least_recent_ticks = 0;
+	    peer.current_ticks = -1;
+	    peer.resend_rpc = NULL;
+	    peer.num_acks = 0;
+	    
+	    // Store the peer data
+	    peer_buffer_insert.write(peer);
+	    
+	    // Store the mapping from IP addres to peer
+	    peer_table_insert.write(peer);
+	  } 
+
+	  homa_rpc.addr = ipv6header->src_address;
+	  homa_rpc.dport = commonheader->sport;
+	  homa_rpc.completion_cookie = 0; // TODO irrelevent for server side
+	  homa_rpc.msgin.total_length = -1;
+
+	  // TODO homa_rpc.msgout?
+
+	  homa_rpc.msgout.length = -1;
+	  homa_rpc.silent_ticks = 0;
+	  // TODO homa_rpc.resend_timer_ticks = homa->timer_ticks;
+	  homa_rpc.done_timer_ticks = 0;
+
+	  // Get a new local ID
+	  rpc_stack_next.read(local_id);
+	  homa_rpc.rpc_id = local_id;
+
+	  rpc_buffer_insert.write(homa_rpc);
+
+	  // Create a mapping from src address + id + sport -> local id
+	  rpc_table_insert.write(homa_rpc);
+	} else {
+	  rpc_buffer_request.write(local_id);
+	  rpc_buffer_response.read(homa_rpc);
+	}
+      }
+    } else {
+      // Client RPCs are meaningful in the rpc_buffer
+      local_id = id;
+    }
 
     switch(commonheader->doff) {
       case DATA: {
-	// TODO check if we need to issue more grants
-	
+	data_header_t * dataheader = (data_header_t *) (((char*) ipv6header) + sizeof(ipv6_header_t));
+
+	/* homa_incoming.c — homa_data_pkt */
+
+	if (homa_rpc.state != homa_rpc_t::RPC_INCOMING) {
+	  // Is this a response?
+	  if (IS_CLIENT(id)) {
+	    // Does this not fit the structure of a response
+	    if (homa_rpc.state != homa_rpc_t::RPC_OUTGOING) return;
+	    homa_rpc.state = homa_rpc_t::RPC_INCOMING;
+	  } else {
+	    // if (unlikely(rpc->msgin.total_length >= 0)) goto discard;
+	    if (homa_rpc.msgin.total_length >= 0) return;
+	  }
+	}
+
+	if (homa_rpc.msgin.total_length < 0) {
+	  /* homa_message_in_init */
+
+	  homa_rpc.msgin.total_length = length;
+	  homa_rpc.msgin.bytes_remaining = length;
+	  homa_rpc.incoming = (incoming > length) ? length : incoming;
+	  homa_rpc.priority = 0;
+	  homa_rpc.scheduled = length > incoming;
+	}
+
+	/* homa_incoming.c — homa_add_packet */
+
+	// TODO need to determine whether this data is new and handle partial blocks better
+	for (uint32_t seg = 0; seg < ceil(dataheader->seg.segment_length / sizeof(xmit_mblock_t)); ++seg) {
+	  dma_egress_req_t req = {((uint32_t) homa_rpc.buffout) + ((uint32_t) (seg * sizeof(xmit_mblock_t))) + ((uint32_t) dataheader->seg.offset), *((xmit_mblock_t*) (&(dataheader->seg.data) + (seg * sizeof(xmit_mblock_t))))};
+	}
+
+	//homa_rpc.total_length -= dataheader->seg.message_length;
+
+	if (homa_rpc.msgin.scheduled) {
+	  /* homa_check_grantable */
+	  // TODO make this RPC grantable
+	}
+
+	// TODO eventually handle cutoffs here
+
 	rexmit_touch.write(local_id);
 	break;
       }
@@ -153,16 +284,16 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
   srpt_xmit_entry_t xentry;
   srpt_xmit_queue_update.write(xentry);
 
-  rpc_id_t touch;
-  rexmit_touch.write(touch);
+  //rpc_id_t touch;
+  //rexmit_touch.write(touch);
 
   // Has a full ethernet frame been buffered? If so, grab it.
   //link_ingress.read(frame);
 
   // TODO this needs to get the address of the output
-  for (int i = 0; 6; ++i) {
-    dma_egress_req_t req; //= {i, frame.data[i]};
-    dma_egress_reqs.write(req);
-  }
+  //for (int i = 0; 6; ++i) {
+  //  dma_egress_req_t req; //= {i, frame.data[i]};
+  //  dma_egress_reqs.write(req);
+  //}
 }
 

@@ -24,11 +24,9 @@ struct params_t {
 };
 
 struct dma_egress_req_t {
-  int offset;
+  uint32_t offset;
   xmit_mblock_t mblock;
 };
-
-
 
 void dma_ingress(homa_t * homa,
 		 params_t * params,

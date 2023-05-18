@@ -2,7 +2,8 @@
 #include "cam.hh"
 
 // TODO maybe this can be combined with RPC table??
-void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
+void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
+		      hls::stream<rpc_id_t> & rpc_stack_next_secondary,
 		      hls::stream<rpc_id_t> & rpc_stack_free) {
 
   static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
@@ -11,15 +12,21 @@ void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next,
 
   rpc_id_t freed_rpc;
 
-  // TODO can we do away with null RPC that???
+  /*
+    RPC 0 is the null rpc (hence the +1)
+    Always return an even RPC ID, so that it may be converted to a server
+  */
+  
+
   if (!rpc_stack.empty()) {
     rpc_id_t next_rpc = rpc_stack.pop();
-    rpc_stack_next.write(next_rpc+1);
-  }
+    if (!(rpc_stack_next_primary.write_nb((next_rpc + 1) << 1))) {
+      rpc_stack_next_secondary.write((next_rpc + 1) << 1);
+    }
+  } 
 
-  // TODO expand the rpc_next stream
   if (rpc_stack_free.read_nb(freed_rpc)) {
-    rpc_stack.push(freed_rpc-1);
+    rpc_stack.push((freed_rpc >> 1) - 1);
   }
 }
 
@@ -29,6 +36,7 @@ void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
 		      hls::stream<rpc_hashpack_t> & rpc_table_request_secondary,
 		      hls::stream<rpc_id_t> & rpc_table_response_secondary,
      		      hls::stream<homa_rpc_t> & rpc_table_insert) {
+
   static entry_t<rpc_hashpack_t,rpc_id_t> table_0[RPC_SUB_TABLE_SIZE];
   static entry_t<rpc_hashpack_t,rpc_id_t> table_1[RPC_SUB_TABLE_SIZE];
   static entry_t<rpc_hashpack_t,rpc_id_t> table_2[RPC_SUB_TABLE_SIZE];
@@ -131,7 +139,8 @@ void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
 		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
-		       hls::stream<homa_rpc_t> & rpc_buffer_insert) {
+		       hls::stream<homa_rpc_t> & rpc_buffer_insert_primary,
+		       hls::stream<homa_rpc_t> & rpc_buffer_insert_secondary) {
   // Actual RPC data
   static homa_rpc_t rpcs[MAX_RPCS];
 #pragma HLS pipeline II=1
@@ -139,26 +148,33 @@ void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
   rpc_id_t query;
   homa_rpc_t update;
 
+  // Reclaim slot 0 in the table (the null RPC)
+
   if (rpc_buffer_request_primary.read_nb(query)) {
-    rpc_buffer_response_primary.write(rpcs[query]);
+    rpc_buffer_response_primary.write(rpcs[query-1]);
   } else if (rpc_buffer_request_secondary.read_nb(query)) {
-    rpc_buffer_response_secondary.write(rpcs[query]);
+    rpc_buffer_response_secondary.write(rpcs[query-1]);
   } else if (rpc_buffer_request_ternary.read_nb(query)) {
-    rpc_buffer_response_ternary.write(rpcs[query]);
-  } else if (rpc_buffer_insert.read_nb(update)) {
-    rpcs[update.rpc_id] = update;
+    rpc_buffer_response_ternary.write(rpcs[query-1]);
+  } else if (rpc_buffer_insert_primary.read_nb(update)) {
+    rpcs[update.rpc_id-1] = update;
+  } else if (rpc_buffer_insert_secondary.read_nb(update)) {
+    rpcs[update.rpc_id-1] = update;
   } 
 }
 
-void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next,
+void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
+		       hls::stream<peer_id_t> & peer_stack_next_secondary,
 		       hls::stream<peer_id_t> & peer_stack_free) {
   static stack_t<peer_id_t, MAX_RPCS> peer_stack(true);
 
 #pragma HLS pipeline II=1
-  // TODO compare to srpt queue?
+
   if (!peer_stack.empty()) {
     peer_id_t next_peer = peer_stack.pop();
-    peer_stack_next.write(next_peer);
+    if(!(peer_stack_next_primary.write_nb(next_peer))) {
+      peer_stack_next_secondary.write(next_peer);
+    }
   }
 
   peer_id_t freed_peer;
@@ -181,9 +197,13 @@ void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next,
 
 
 // TODO add support for deletion
-void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request,
-		       hls::stream<peer_id_t> & peer_table_response,
-		       hls::stream<homa_peer_t> & peer_table_insert) {
+void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request_primary,
+		       hls::stream<peer_id_t> & peer_table_response_primary,
+		       hls::stream<peer_hashpack_t> & peer_table_request_secondary,
+		       hls::stream<peer_id_t> & peer_table_response_secondary,
+		       hls::stream<homa_peer_t> & peer_table_insert_primary,
+		       hls::stream<homa_peer_t> & peer_table_insert_secondary) {
+
   static entry_t<peer_hashpack_t,peer_id_t> table_0[RPC_SUB_TABLE_SIZE];
   static entry_t<peer_hashpack_t,peer_id_t> table_1[RPC_SUB_TABLE_SIZE];
   static entry_t<peer_hashpack_t,peer_id_t> table_2[RPC_SUB_TABLE_SIZE];
@@ -206,9 +226,9 @@ void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request,
 
 #pragma HLS pipeline II=1
 
-  if (!peer_table_request.empty()) {
+  if (!peer_table_request_primary.empty()) {
     peer_hashpack_t query;
-    peer_table_request.read(query);
+    peer_table_request_primary.read(query);
 
     peer_id_t peer_id = 0;
     table_op_t<peer_hashpack_t,peer_id_t> cam_id;
@@ -225,10 +245,37 @@ void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request,
     if (ops.search(query, cam_id))  peer_id = cam_id.entry.id;
 
     // If peer id was not updated, then this will return 0, indicating no hit was found
-    peer_table_response.write(peer_id);
-  } else if (!peer_table_insert.empty()) {
+    peer_table_response_primary.write(peer_id);
+  } else if (!peer_table_request_secondary.empty()) {
+    peer_hashpack_t query;
+    peer_table_request_secondary.read(query);
+
+    peer_id_t peer_id = 0;
+    table_op_t<peer_hashpack_t,peer_id_t> cam_id;
+
+    entry_t<peer_hashpack_t,peer_id_t> search_0 = table_0[murmur3_32((uint32_t *) &query, 7, SEED0)];
+    entry_t<peer_hashpack_t,peer_id_t> search_1 = table_1[murmur3_32((uint32_t *) &query, 7, SEED1)];
+    entry_t<peer_hashpack_t,peer_id_t> search_2 = table_2[murmur3_32((uint32_t *) &query, 7, SEED2)];
+    entry_t<peer_hashpack_t,peer_id_t> search_3 = table_3[murmur3_32((uint32_t *) &query, 7, SEED3)];
+
+    if (search_0.hashpack == query) peer_id = search_0.id;
+    if (search_1.hashpack == query) peer_id = search_1.id;
+    if (search_2.hashpack == query) peer_id = search_2.id;
+    if (search_3.hashpack == query) peer_id = search_3.id;
+    if (ops.search(query, cam_id))  peer_id = cam_id.entry.id;
+
+    // If peer id was not updated, then this will return 0, indicating no hit was found
+    peer_table_response_secondary.write(peer_id);
+  } else if (!peer_table_insert_primary.empty()) {
     homa_peer_t insertion;
-    peer_table_insert.read(insertion);
+    peer_table_insert_primary.read(insertion);
+
+    peer_hashpack_t hashpack = {insertion.addr};
+
+    ops.push({0, {hashpack, insertion.peer_id}});
+  } else if (!peer_table_insert_secondary.empty()) {
+    homa_peer_t insertion;
+    peer_table_insert_secondary.read(insertion);
 
     peer_hashpack_t hashpack = {insertion.addr};
 
@@ -263,7 +310,8 @@ void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request,
 
 void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request_primary,
 			hls::stream<homa_peer_t> & peer_buffer_response_primary,
-			hls::stream<homa_peer_t> & peer_buffer_insert) {
+			hls::stream<homa_peer_t> & peer_buffer_insert_primary,
+			hls::stream<homa_peer_t> & peer_buffer_insert_secondary) {
   // Actual RPC data
   static homa_peer_t peers[MAX_PEERS];
 #pragma HLS pipeline II=1
@@ -275,9 +323,11 @@ void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request_primary,
   } 
 
   homa_peer_t update;
-  if (peer_buffer_insert.read_nb(update)) {
+  if (peer_buffer_insert_primary.read_nb(update)) {
     peers[update.peer_id] = update;
-  } 
+  } else if (peer_buffer_insert_secondary.read_nb(update)) {
+    peers[update.peer_id] = update;
+  }
 }
 
 uint32_t murmur_32_scramble(uint32_t k) {

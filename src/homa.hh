@@ -11,17 +11,21 @@
 struct args_t;
 struct user_output_t;
 
-// Default stream depth
-#define DSD 1
+// Client RPC IDs are even, servers are odd 
+#define IS_CLIENT(id) ((id & 1) == 0)
+
+// Sender->Client and Client->Sender rpc ID conversion
+#define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
 
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
 
-#define HOMA_MAX_HEADER 90
-
-#define ETHERNET_MAX_PAYLOAD 1500
-
 #define IPV6_HEADER_LENGTH 40
+
+#define HOMA_ETH_OVERHEAD 24
+#define HOMA_MIN_PKT_LENGTH 26
+#define HOMA_MAX_HEADER 90
+#define ETHERNET_MAX_PAYLOAD 1500
 
 /*
  * define HOMA_MAX_PRIORITIES - The maximum number of priority levels that
@@ -40,14 +44,8 @@ struct user_output_t;
  *  Refer to: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/How-AXI4-Stream-is-Implemented
  */
 // TODO ???.. add more specific type information based on smallest message block unit?
-typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
-
-// Layer 2 ethernet frame
-//typedef hls::axis<ethernet_t, 0, 0, 0> raw_frame_t;
-
-//typedef hls::axis<xmit_mblock_t[6], 0, 0, 0> raw_frame_t;
-//typedef hls::axis<ap_uint<8>[1522], 0, 0, 0> raw_frame_t;
-//typedef hls::axis<ap_uint<12176>, 0, 0, 0> raw_frame_t;
+typedef hls::axis<char[1522], 0, 0, 0> raw_frame_t;
+//typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
 
 /**
  * struct homa - Overall information about the Homa protocol implementation.
@@ -75,12 +73,6 @@ struct homa_t {
   ap_uint<32> timer_ticks;
   int flags;
 };
-
-//template<typename F, typename S>
-//struct pair_t {
-//  F first;
-//  S second;
-//};
 
 void homa(hls::stream<raw_frame_t> & link_ingress,
 	  hls::stream<raw_frame_t> & link_egress,
