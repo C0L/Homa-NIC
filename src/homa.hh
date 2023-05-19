@@ -1,7 +1,7 @@
 #ifndef HOMA_H
 #define HOMA_H
 
-#define DEBUG
+//#define DEBUG
 
 #include "ap_int.h"
 #include "hls_stream.h"
@@ -43,9 +43,8 @@ struct user_output_t;
  *
  *  Refer to: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/How-AXI4-Stream-is-Implemented
  */
-// TODO ???.. add more specific type information based on smallest message block unit?
-typedef hls::axis<char[1522], 0, 0, 0> raw_frame_t;
-//typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
+//typedef hls::axis<char[1522], 0, 0, 0> raw_frame_t;
+typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
 
 /**
  * struct homa - Overall information about the Homa protocol implementation.

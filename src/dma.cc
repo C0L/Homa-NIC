@@ -26,9 +26,7 @@ void dma_ingress(homa_t * homa,
 		 hls::stream<peer_hashpack_t> & peer_table_request,
 		 hls::stream<peer_id_t> & peer_table_response,
 		 hls::stream<homa_peer_t> & peer_table_insert,
-		 hls::stream<homa_peer_t> & peer_buffer_insert,
-		 hls::stream<ap_uint<1>> & timer_request,
-		 hls::stream<ap_uint<64>> & timer_response) {
+		 hls::stream<homa_peer_t> & peer_buffer_insert) {
   // TODO this function signature is absurd. Pack into structs maybe?
 #pragma HLS interface mode=ap_ctrl_hs port=return
   
@@ -103,7 +101,7 @@ void dma_ingress(homa_t * homa,
     homa_rpc.silent_ticks = 0;
 
     // TODO homa timer is unimplemented
-    homa_rpc.resend_timer_ticks = homa->timer_ticks;
+    //homa_rpc.resend_timer_ticks = homa->timer_ticks;
     homa_rpc.done_timer_ticks = 0;
     homa_rpc.buffout = params->buffout;
     homa_rpc.buffin = params->buffin;
@@ -133,9 +131,9 @@ void dma_ingress(homa_t * homa,
   homa_rpc.msgout.sched_priority = 0;
 
   // TODO this can just be built into this core? Indicate we want a timer value 
-  timer_request.write(1);
+  //timer_request.write(1);
   // Read the timer value 
-  timer_response.read(homa_rpc.msgout.init_cycles);
+  //timer_response.read(homa_rpc.msgout.init_cycles);
 
   // TODO don't compute this every time
   int max_pkt_data = homa->mtu - IPV6_HEADER_LENGTH - sizeof(data_header_t);

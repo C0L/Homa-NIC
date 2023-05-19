@@ -20,7 +20,8 @@ void temp(hls::stream<xmit_id_t> & xmit_stack_free,
 	  hls::stream<rpc_id_t> & rpc_stack_free,
 	  hls::stream<peer_id_t> & peer_stack_free,
 	  hls::stream<peer_id_t> & peer_buffer_request,
-	  hls::stream<homa_peer_t> & peer_buffer_response) {
+	  hls::stream<homa_peer_t> & peer_buffer_response,
+	  hls::stream<rpc_id_t> & rexmit_complete) {
   // Garbage to pass compilation
   // This may interrupt normal behavior if it is hammering some path in the output stream
   xmit_id_t xmit_id;
@@ -37,6 +38,9 @@ void temp(hls::stream<xmit_id_t> & xmit_stack_free,
 
   homa_peer_t resp_peer;
   peer_buffer_response.read(resp_peer);
+
+  rpc_id_t rexmit;
+  rexmit_complete.read(rexmit);
 }
 
 
@@ -119,10 +123,6 @@ void homa(homa_t * homa,
   /* dma_egress */
   hls_thread_local hls::stream<dma_egress_req_t> dma_egress_reqs;
 
-  /* update_timer */
-  hls_thread_local hls::stream<ap_uint<1>> timer_request_0;
-  hls_thread_local hls::stream<ap_uint<64>> timer_response_0;
-
   /* update_peer_stack */
   hls_thread_local hls::stream<peer_id_t> peer_stack_next_primary;
   hls_thread_local hls::stream<peer_id_t> peer_stack_next_secondary;
@@ -143,8 +143,9 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<homa_peer_t> peer_buffer_insert_secondary;
 
   /* rexmit_buffer */
-  hls_thread_local hls::stream<rpc_id_t> rexmit_touch;
-  hls_thread_local hls::stream<rpc_id_t> rexmit_rpcs;
+  hls_thread_local hls::stream<rexmit_t> rexmit_touch;
+  hls_thread_local hls::stream<rpc_id_t> rexmit_complete;
+  hls_thread_local hls::stream<rexmit_t> rexmit_rpcs;
 
 #pragma HLS dataflow
   /* Control Driven Region */
@@ -166,9 +167,7 @@ void homa(homa_t * homa,
 	      peer_table_request_secondary,
 	      peer_table_response_secondary,
 	      peer_table_insert_secondary,
-	      peer_buffer_insert_secondary,
-	      timer_request_0,
-	      timer_response_0);
+	      peer_buffer_insert_secondary);
 
   /* Data Driven Region */
 
@@ -250,10 +249,6 @@ void homa(homa_t * homa,
 				      dma_egress_reqs);
 
 
-  hls_thread_local hls::task thread_10(update_timer,
-				      timer_request_0,
-				      timer_response_0);
-
   hls_thread_local hls::task thread_11(update_peer_stack,
 				       peer_stack_next_primary,
 				       peer_stack_next_secondary,
@@ -275,6 +270,7 @@ void homa(homa_t * homa,
 
   hls_thread_local hls::task thread_14(rexmit_buffer,
 				       rexmit_touch,
+				       rexmit_complete,
 				       rexmit_rpcs);
  
   dma_egress(dma_egress_reqs,
@@ -285,7 +281,7 @@ void homa(homa_t * homa,
        rpc_stack_free,
        peer_stack_free,
        peer_buffer_request,
-       peer_buffer_response);
-
+       peer_buffer_response,
+       rexmit_complete);
 }
 

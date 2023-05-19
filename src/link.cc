@@ -15,7 +15,7 @@ void proc_link_egress(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next,
 		      hls::stream<xmit_mblock_t> & xmit_buffer_response,
 		      hls::stream<rpc_id_t> & rpc_buffer_request,
 		      hls::stream<homa_rpc_t> & rpc_buffer_response,
-		      hls::stream<rpc_id_t> & rexmit_rpcs,
+		      hls::stream<rexmit_t> & rexmit_rpcs,
 		      hls::stream<raw_frame_t> & link_egress) {
 #pragma HLS pipeline II=1
  
@@ -25,7 +25,7 @@ void proc_link_egress(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next,
   srpt_grant_entry_t srpt_grant_entry;
   srpt_grant_queue_next.write(srpt_grant_entry);
 
-  rpc_id_t rexmit;
+  rexmit_t rexmit;
   rexmit_rpcs.read(rexmit);
 
   homa_rpc_t homa_rpc;
@@ -64,7 +64,7 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 		       hls::stream<homa_peer_t> & peer_buffer_insert,
 		       hls::stream<homa_peer_t> & peer_table_insert,
 		       hls::stream<peer_id_t> & peer_stack_next,
-		       hls::stream<rpc_id_t> & rexmit_touch,
+		       hls::stream<rexmit_t> & rexmit_touch,
 		       hls::stream<dma_egress_req_t> & dma_egress_reqs) {
 
 #pragma HLS pipeline II=1 
@@ -221,18 +221,29 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 	if (homa_rpc.msgin.total_length < 0) {
 	  /* homa_message_in_init */
 
-	  homa_rpc.msgin.total_length = length;
-	  homa_rpc.msgin.bytes_remaining = length;
-	  homa_rpc.incoming = (incoming > length) ? length : incoming;
-	  homa_rpc.priority = 0;
-	  homa_rpc.scheduled = length > incoming;
+	  //homa_rpc.msgin.total_length = length;
+	  //homa_rpc.msgin.bytes_remaining = length;
+	  //homa_rpc.incoming = (incoming > length) ? length : incoming;
+	  //homa_rpc.priority = 0;
+	  //homa_rpc.scheduled = length > incoming;
 	}
 
 	/* homa_incoming.c — homa_add_packet */
 
+	// ID to update, packet recieved, max number of packets
+	rexmit_touch.write({local_id, 0, 0}); // TODO
+
 	// TODO need to determine whether this data is new and handle partial blocks better
 	for (uint32_t seg = 0; seg < ceil(dataheader->seg.segment_length / sizeof(xmit_mblock_t)); ++seg) {
-	  dma_egress_req_t req = {((uint32_t) homa_rpc.buffout) + ((uint32_t) (seg * sizeof(xmit_mblock_t))) + ((uint32_t) dataheader->seg.offset), *((xmit_mblock_t*) (&(dataheader->seg.data) + (seg * sizeof(xmit_mblock_t))))};
+	  // Offset in DMA space, offset in packet space + offset in segment space
+	  uint32_t dma_offset = homa_rpc.buffout + dataheader->seg.offset + seg * sizeof(xmit_mblock_t);
+
+	  // Offset of this segment in packet's data block
+	  xmit_mblock_t seg_data = *((xmit_mblock_t*) (&(dataheader->seg.data) + (seg * sizeof(xmit_mblock_t))));
+
+	  // TODO this may grab garbage data if the segment runs off the end?
+
+	  dma_egress_reqs.write({dma_offset, seg_data});
 	}
 
 	//homa_rpc.total_length -= dataheader->seg.message_length;
@@ -244,7 +255,6 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 
 	// TODO eventually handle cutoffs here
 
-	rexmit_touch.write(local_id);
 	break;
       }
 

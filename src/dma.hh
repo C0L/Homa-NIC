@@ -44,9 +44,7 @@ void dma_ingress(homa_t * homa,
 		 hls::stream<peer_hashpack_t> & peer_table_request,
 		 hls::stream<peer_id_t> & peer_table_response,
 		 hls::stream<homa_peer_t> & peer_table_insert,
-		 hls::stream<homa_peer_t> & peer_buffer_insert,
-		 hls::stream<ap_uint<1>> & timer_request,
-		 hls::stream<ap_uint<64>> & timer_response);
+		 hls::stream<homa_peer_t> & peer_buffer_insert);
 
 void dma_egress(hls::stream<dma_egress_req_t> & dma_egress_reqs,
 		xmit_mblock_t * maxi_out);

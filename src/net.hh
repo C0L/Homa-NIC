@@ -126,10 +126,10 @@ struct data_header_t {
 };
 
 
-struct homa_ack {
-  __be64 client_id;
-  __be16 client_port;
-  __be16 server_port;
-};
+//struct homa_ack {
+//  __be64 client_id;
+//  __be16 client_port;
+//  __be16 server_port;
+//};
 
 #endif

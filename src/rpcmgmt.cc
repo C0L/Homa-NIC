@@ -17,7 +17,6 @@ void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
     Always return an even RPC ID, so that it may be converted to a server
   */
   
-
   if (!rpc_stack.empty()) {
     rpc_id_t next_rpc = rpc_stack.pop();
     if (!(rpc_stack_next_primary.write_nb((next_rpc + 1) << 1))) {
@@ -182,17 +181,6 @@ void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
   if (peer_stack_free.read_nb(freed_peer)) {
     peer_stack.push(freed_peer);
   }
-
-  //peer_id_t freed_peer;
-  //if (peer_stack_free.read_nb(freed_peer)) {
-  //  peer_stack.push(freed_peer);
-  //}
-
-  //peer_id_t new_peer;
-  //if (!peer_stack_next.full() && !peer_stack.empty()) {
-  //  new_peer = peer_stack.pop();
-  //  peer_stack_next.write(new_peer);
-  //}
 }
 
 

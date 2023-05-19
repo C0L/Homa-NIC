@@ -1,21 +1,6 @@
 #include "timer.hh"
 #include "srptmgmt.hh"
 
-// TODO confirm this is actually free running
-// May need to annotate this as a free running pipeline
-//void update_timer(hls::stream<ap_uint<1>> & timer_request_0,
-//		  hls::stream<ap_uint<64>> & timer_response_0) {
-//
-//  static ap_uint<64> timer = 0;
-//
-//  timer++;
-//
-//  ap_uint<1> request_0;
-//  if (timer_request_0.read_nb(request_0)) {
-//    timer_response_0.write_nb(timer);
-//  }
-//}
-
 /**
  * rexmit_buffer() - Determines when RESEND requests need to be issued
  * @touch:  Incoming stream from link_ingress. Resets the timer on an RPC 
@@ -33,18 +18,19 @@ void rexmit_buffer(hls::stream<rexmit_t> & touch,
 
   static uint64_t rexmit_store[MAX_RPCS];
 
+  // TODO This is probably too expensive?
   static packetmap_t packetmaps[MAX_RPCS];
-
+  
   static fifo_t<rpc_id_t, 2> refresh;
-
+  
   // No dependencies within loops or between iterations
-  #pragma HLS dependence variable=rexmit_store inter WAR false
-  #pragma HLS dependence variable=rexmit_store inter RAW false
-  #pragma HLS dependence variable=rexmit_store intra WAR false
-  #pragma HLS dependence variable=rexmit_store intra RAW false
-
+#pragma HLS dependence variable=rexmit_store inter WAR false
+#pragma HLS dependence variable=rexmit_store inter RAW false
+#pragma HLS dependence variable=rexmit_store intra WAR false
+#pragma HLS dependence variable=rexmit_store intra RAW false
+  
   static uint64_t time = 0;
-
+  
   /*
    * This loop has an interation latency of 3 cycles but II of 1
    * The reason we need a small FIFO is that it is not possible to
@@ -55,23 +41,37 @@ void rexmit_buffer(hls::stream<rexmit_t> & touch,
    * A multi-ported RAM would resolve this
    */
   for (rpc_id_t i = 0; i < MAX_RPCS; ++i) {
-    //rpc_id_t rpc_id;
-
+    rexmit_t rexmit_touch;
+  
     if (!refresh.empty()) {
-      rpc_id = refresh.remove();
+      rpc_id_t rpc_id = refresh.remove();
       rexmit_store[rpc_id] = time;
-    } else if (touch.read_nb(rpc_id)) {
-      rexmit_store[rpc_id] = time;
+    } else if (touch.read_nb(rexmit_touch)) {
+      rexmit_store[rexmit_touch.rpc_id] = time;
+
+      // A max offset of -1 indicates update timer only
+      if (rexmit_touch.max_offset != -1) {
+	packetmap_t packetmap = packetmaps[rexmit_touch.rpc_id];
+
+	packetmap[rexmit_touch.offset] = 1;
+	// Compare against -1 (all ones)
+	if (packetmap.range(rexmit_touch.max_offset, 0).and_reduce()) {
+	  complete.write(rexmit_touch.rpc_id);
+	}
+
+	packetmaps[rexmit_touch.rpc_id] = packetmap;
+      }
     }
-    
+      
     uint64_t entry_time = rexmit_store[i];
-    
+      
     if (entry_time - time >= REXMIT_CUTOFF) {
-      if (rexmit.write_nb(i)) {
+      if (rexmit.write_nb({i,0,0})) {
+	// TODO Need lower and upper bound for retransmission?
 	refresh.insert(i);
       }
     }
-
+  
     time++;
   }
 }

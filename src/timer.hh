@@ -11,21 +11,26 @@
 
 #define PACKETMAP_WIDTH 715
 
-typedef packetmap_t ap_uint<PACKETMAP_WIDTH>;
+typedef ap_uint<PACKETMAP_WIDTH> packetmap_t;
 
 // Index into a packetmap bitmap
-typedef packetmap_idx_t ap_uint<10>;
+typedef ap_uint<10> packetmap_idx_t;
 
 struct rexmit_t {
   rpc_id_t rpc_id;
   packetmap_idx_t offset;
+  packetmap_idx_t max_offset;
 };
 
 
-void update_timer(hls::stream<ap_uint<1>> & timer_request_0,
-		  hls::stream<ap_uint<64>> & timer_response_0);
+//void update_timer(hls::stream<ap_uint<1>> & timer_request_0,
+//hls::stream<ap_uint<64>> & timer_response_0);
 
-void rexmit_buffer(hls::stream<rpc_id_t> & touch,
-		   hls::stream<rpc_id_t> & rexmit);
+//void rexmit_buffer(hls::stream<rpc_id_t> & touch,
+//		   hls::stream<rpc_id_t> & rexmit);
+
+void rexmit_buffer(hls::stream<rexmit_t> & touch, 
+		   hls::stream<rpc_id_t> & complete,
+		   hls::stream<rexmit_t> & rexmit);
 
 #endif
