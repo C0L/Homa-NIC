@@ -1,7 +1,7 @@
 #ifndef HOMA_H
 #define HOMA_H
 
-//#define DEBUG
+#define DEBUG
 
 #include "ap_int.h"
 #include "hls_stream.h"
@@ -27,11 +27,6 @@ struct user_output_t;
 #define HOMA_MAX_HEADER 90
 #define ETHERNET_MAX_PAYLOAD 1500
 
-/*
- * define HOMA_MAX_PRIORITIES - The maximum number of priority levels that
- * Homa can use (the actual number can be restricted to less than this at
- * runtime). Changing this value will affect packet formats.
- */
 #define HOMA_MAX_PRIORITIES 8
 
 /*  Data "bucket" for incoming or outgoing ethernet frames

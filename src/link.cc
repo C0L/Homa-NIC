@@ -157,10 +157,10 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 	    peer.last_update_jiffies = 0;
 	    peer.outstanding_resends = 0;
 	    peer.most_recent_resend = 0;
-	    peer.least_recent_rpc = NULL;
+	    //peer.least_recent_rpc = NULL;
 	    peer.least_recent_ticks = 0;
 	    peer.current_ticks = -1;
-	    peer.resend_rpc = NULL;
+	    //peer.resend_rpc = NULL;
 	    peer.num_acks = 0;
 	    
 	    // Store the peer data

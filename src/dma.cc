@@ -5,7 +5,6 @@
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 
-// TODO If the message is short < 1000 bytes, it should bypass DMA and bypass the SRPT system
 /**
  * dma_ingress()
  * Pull user request from DMA and the first message caches worth of bytes
@@ -27,6 +26,7 @@ void dma_ingress(homa_t * homa,
 		 hls::stream<peer_id_t> & peer_table_response,
 		 hls::stream<homa_peer_t> & peer_table_insert,
 		 hls::stream<homa_peer_t> & peer_buffer_insert) {
+
   // TODO this function signature is absurd. Pack into structs maybe?
 #pragma HLS interface mode=ap_ctrl_hs port=return
   
@@ -80,10 +80,8 @@ void dma_ingress(homa_t * homa,
       peer.last_update_jiffies = 0;
       peer.outstanding_resends = 0;
       peer.most_recent_resend = 0;
-      peer.least_recent_rpc = NULL;
       peer.least_recent_ticks = 0;
       peer.current_ticks = -1;
-      peer.resend_rpc = NULL;
       peer.num_acks = 0;
 
       // Store the peer data

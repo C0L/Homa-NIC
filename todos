@@ -1,0 +1,11 @@
+How to handle rexmission if the size of the xmit buffer is 15000 bytes. Should we just assume that rexmit is rare and that it will incur some greater penalty (fetching from over DMA). Needs to be larger then RTTbytes?
+
+Rpc_buffer needs to consider the left shift
+
+Virtualization?
+
+RPC should be larger than 2^14. LIFO increases risk of old packet being dislodged. Could also tag the RPC ids somehow.
+
+High level figure showing pipeline and fifo interfaces to all of the cores
+
+If the message is short < 1000 bytes, it should bypass DMA (and maybe the SRPT system) 

@@ -29,7 +29,7 @@ void update_xmit_buffer(hls::stream<xmit_in_t> & xmit_buffer_insert,
 			hls::stream<xmit_req_t> & xmit_buffer_request,
 			hls::stream<xmit_mblock_t> & xmit_buffer_response) {
   static xmit_buffer_t xmit_buffer[NUM_XMIT_BUFFER];
-#pragma HLS array_partition variable=xmit_buffer type=cyclic factor=32
+  //#pragma HLS array_partition variable=xmit_buffer type=cyclic factor=32
 #pragma HLS pipeline II=1
 
   // TODO invocations need to be pipelined across invocations

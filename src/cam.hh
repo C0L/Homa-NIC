@@ -19,7 +19,7 @@ struct cam_t {
 #pragma HLS unroll
       // TODO fix type. Need to define structs in here?
       if (buffer[i].entry.hashpack == key) {
-	value = buffer[i]; // TODO 
+	value = buffer[i];
 	// TODO may eventually need to get all matches and return top one when there is a deletion process
 	return true;
       }

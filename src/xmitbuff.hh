@@ -3,14 +3,17 @@
 
 #include "homa.hh"
 
-#ifndef DEBUG
-// Number of buffers to allocate and bits to index it
+//#ifndef DEBUG
+//// Number of buffers to allocate and bits to index it
+//#define NUM_XMIT_BUFFER 1024
+//#define NUM_XMIT_BUFFER_INDEX 10
+//#else
 #define NUM_XMIT_BUFFER 1024
 #define NUM_XMIT_BUFFER_INDEX 10
-#else
-#define NUM_XMIT_BUFFER 16 
-#define NUM_XMIT_BUFFER_INDEX 4
-#endif
+
+//#define NUM_XMIT_BUFFER 16 
+//#define NUM_XMIT_BUFFER_INDEX 4
+//#endif
 
 // Index into xmit buffers
 typedef ap_uint<NUM_XMIT_BUFFER_INDEX> xmit_id_t;
