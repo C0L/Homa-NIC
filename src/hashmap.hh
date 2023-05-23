@@ -20,7 +20,7 @@ struct table_op_t {
   E entry;
 };
 
-template<typename H, typename I, int TABLE_SIZE, int PACK_SIZE, int CAM_SIZE>
+template<typename H, typename I, int TABLE_SIZE, int TABLE_IDX, int PACK_SIZE, int CAM_SIZE>
 struct hashmap_t {
   typedef entry_t<H,I> E;
 
@@ -32,28 +32,16 @@ struct hashmap_t {
   cam_t<H,table_op_t<E>,CAM_SIZE> ops;
 
   I search(H query) {
-    // TODO may no longer be needed
-#pragma HLS dependence variable=ops inter RAW false
-#pragma HLS dependence variable=ops inter WAR false
-
-#pragma HLS dependence variable=table_0 inter RAW false
-#pragma HLS dependence variable=table_1 inter RAW false
-#pragma HLS dependence variable=table_2 inter RAW false
-#pragma HLS dependence variable=table_3 inter RAW false
-  
-#pragma HLS dependence variable=table_0 inter WAR false
-#pragma HLS dependence variable=table_1 inter WAR false
-#pragma HLS dependence variable=table_2 inter WAR false
-#pragma HLS dependence variable=table_3 inter WAR false
+#pragma HLS pipeline II=1
 
     I result = 0;
 
     table_op_t<E> cam_id;
     
-    entry_t<H,I> search_0 = table_0[murmur3_32(query, PACK_SIZE, SEED0)];
-    entry_t<H,I> search_1 = table_1[murmur3_32(query, PACK_SIZE, SEED1)];
-    entry_t<H,I> search_2 = table_2[murmur3_32(query, PACK_SIZE, SEED2)];
-    entry_t<H,I> search_3 = table_3[murmur3_32(query, PACK_SIZE, SEED3)];
+    entry_t<H,I> search_0 = table_0[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED0)];
+    entry_t<H,I> search_1 = table_1[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED1)];
+    entry_t<H,I> search_2 = table_2[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED2)];
+    entry_t<H,I> search_3 = table_3[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED3)];
 
     if (search_0.hashpack == query) result = search_0.id;
     if (search_1.hashpack == query) result = search_1.id;
@@ -65,17 +53,13 @@ struct hashmap_t {
   }
 
   void queue(E insert) {
-    // TODO may no longer be needed
-#pragma HLS dependence variable=ops inter RAW false
-#pragma HLS dependence variable=ops inter WAR false
+#pragma HLS pipeline II=1
     ops.push((table_op_t<E>) {0, insert});
   }
 
   void process() {
-    // TODO may no longer be needed
-#pragma HLS dependence variable=ops inter RAW false
-#pragma HLS dependence variable=ops inter WAR false
-    
+#pragma HLS pipeline II=1
+
     if (!ops.empty()) {
       E out_entry;
     
@@ -83,25 +67,25 @@ struct hashmap_t {
 
       switch(op.table_id) {
       case 0: {
-      	uint32_t hash = murmur3_32(op.entry.hashpack, PACK_SIZE, SEED0);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED0);
       	out_entry = table_0[hash];
       	table_0[hash] = op.entry;
 	break;
       }
       case 1: {
-	uint32_t hash = murmur3_32(op.entry.hashpack, PACK_SIZE, SEED1);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED1);
       	out_entry = table_1[hash];
       	table_1[hash] = op.entry;
 	break;
       }
       case 2: {
-	uint32_t hash = murmur3_32(op.entry.hashpack, PACK_SIZE, SEED2);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED2);
 	out_entry = table_2[hash];
 	table_2[hash] = op.entry;
 	break;
       }
       case 3: {
-        uint32_t hash = murmur3_32(op.entry.hashpack, PACK_SIZE, SEED3);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED3);
         out_entry = table_3[hash];                                            	
         table_3[hash] = op.entry;
 	break;
@@ -124,8 +108,8 @@ struct hashmap_t {
   }
 
   uint32_t murmur3_32(H hashpack, int len, uint32_t seed) {
-    uint32_t * key = (uint32_t*) &hashpack;
 #pragma HLS pipeline II=1
+    uint32_t * key = (uint32_t*) &hashpack;
     uint32_t h = seed;
     uint32_t k;
 

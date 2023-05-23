@@ -16,6 +16,7 @@
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
 #define PEER_HP_SIZE 4
+
 struct peer_hashpack_t {
   ap_uint<128> s6_addr;
 
@@ -27,15 +28,15 @@ struct peer_hashpack_t {
 struct homa_peer_t {
   peer_id_t peer_id;
   ap_uint<128> addr;
-  int unsched_cutoffs[HOMA_MAX_PRIORITIES];
-  ap_uint<16> cutoff_version;
-  unsigned long last_update_jiffies;
-  int outstanding_resends;
-  int most_recent_resend;
-  ap_uint<32> least_recent_ticks;
-  ap_uint<32> current_ticks;
-  int num_acks;
-  homa_ack_t acks[NUM_PEER_UNACKED_IDS];
+  //int unsched_cutoffs[HOMA_MAX_PRIORITIES];
+  //ap_uint<16> cutoff_version;
+  //unsigned long last_update_jiffies;
+  //int outstanding_resends;
+  //int most_recent_resend;
+  //ap_uint<32> least_recent_ticks;
+  //ap_uint<32> current_ticks;
+  //int num_acks;
+  //homa_ack_t acks[NUM_PEER_UNACKED_IDS];
 };
 
 void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,

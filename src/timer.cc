@@ -1,78 +1,145 @@
 #include "timer.hh"
-#include "srptmgmt.hh"
 
 /**
- * rexmit_buffer() - Determines when RESEND requests need to be issued
- * @touch:  Incoming stream from link_ingress. Resets the timer on an RPC 
+ * rexmit_buffer() - Determines when resent requests need to be issued and
+ * manages packet bitmaps. Will evaluate touch requests (reset timer/update packetmap)
+ * immediately, but crawls through RPCs to evaluate resend requests. Resend requests
+ * contain the offset of the first packet that needs to be resent.
+ * @touch:  Incoming stream from link_ingress. Resets the timer on an RPC and updates
+ * packet maps.
+ * @complete: RPCs that have an all '1' packetmap, and thus have been completely
+ * received, have their RPC ID placed on the complete stream.
  * @rexmit: Outgoing stream to link_egress. RPC that needs a RESEND request.
- * Note: when an RPC has been completed, to prevent incorrect RESEND request
- * the RPC entry must be cleared. Instead of using an explicit "delete" stream
- * just touch with a value of 0xFFFFFFFFFFFFFFFF to the respective RPC, which
- * will effectively disable it.
+ *
+ * TODO: when an RPC has been completed, to prevent incorrect RESEND request
+ * the RPC entry is cleared. However, if an RPC were to fail their needs to be
+ * an explicit reset process.
  */
 void rexmit_buffer(hls::stream<rexmit_t> & touch, 
 		   hls::stream<rpc_id_t> & complete,
 		   hls::stream<rexmit_t> & rexmit) {
 
-  // If offset is -1, then just touch message and leave the packetmap alone?
-
+  /* 
+   * A 64 bit timestamp is stored for each RPC. 
+   * If the difference (+MAX_RPCS cycles) between the value stored
+   * in the rexmit_store, and the current time, is over 200000 then
+   * trigger a resend.
+   *
+   * We need to specify that multiple loop iterations will not have a
+   * memory dependence (i.e. memory access across loop iterations
+   * to rexmit_store are not overlapping). "inter" WAR/RAW specify
+   * we do not consider these true memory dependencies.
+   */
   static uint64_t rexmit_store[MAX_RPCS];
-
-  // TODO This is probably too expensive?
-  static packetmap_t packetmaps[MAX_RPCS];
-  
-  static fifo_t<rpc_id_t, 2> refresh;
-  
-  // No dependencies within loops or between iterations
 #pragma HLS dependence variable=rexmit_store inter WAR false
 #pragma HLS dependence variable=rexmit_store inter RAW false
-#pragma HLS dependence variable=rexmit_store intra WAR false
-#pragma HLS dependence variable=rexmit_store intra RAW false
+
+  /*
+   * Currently,
+   *   block size PM_BS = 32,
+   *   num blocks PM_NB = 32,
+   *
+   * Packetmaps is a 2^14 * 32 array of 32 bit values. This choice was made based
+   * on the difficulty of mapping a 1D array or a more appropriate 2D array properly
+   * with a cyclic BRAM mapping. 32 bit values fit well given the max output port
+   * size of BRAMs is 36.
+   *
+   * Cyclic partitioning is needed because we need to pull an entire 1024 bitmap out
+   * for evaluating completness in a single cycle, so elements of the bitmap must be
+   * aggregated.
+   *
+   * We specify that there are no memory dependencies across or within loop iterations.
+   */
+  static ap_uint<PM_BS> packetmaps[MAX_RPCS * PM_NB];
+#pragma HLS array_partition type=cyclic factor=PM_NB variable=packetmaps
+#pragma HLS dependence variable=packetmaps inter WAR false
+#pragma HLS dependence variable=packetmaps inter RAW false
+#pragma HLS dependence variable=packetmaps intra WAR false
+#pragma HLS dependence variable=packetmaps intra RAW false
   
   static uint64_t time = 0;
-  
-  /*
-   * This loop has an interation latency of 3 cycles but II of 1
-   * The reason we need a small FIFO is that it is not possible to
-   * 1) touch an RPC, 2) refresh the RPC value after a RESEND
-   * in the same cycle due to BRAM pressure.
-   * To resolve this we unify all insertions (RPC touches/RESEND updates)
-   * via the FIFO so that only a single insertion takes place per iteration
-   * A multi-ported RAM would resolve this
-   */
-  for (rpc_id_t i = 0; i < MAX_RPCS; ++i) {
+
+  // Take touch requests if we have them, otherwise crawl through RPCs
+  for (rpc_id_t bram_id = 0; bram_id < MAX_RPCS;) {
     rexmit_t rexmit_touch;
   
-    if (!refresh.empty()) {
-      rpc_id_t rpc_id = refresh.remove();
-      rexmit_store[rpc_id] = time;
-    } else if (touch.read_nb(rexmit_touch)) {
-      rexmit_store[rexmit_touch.rpc_id] = time;
+    if (touch.read_nb(rexmit_touch)) {
 
-      // A max offset of -1 indicates update timer only
-      if (rexmit_touch.max_offset != -1) {
-	packetmap_t packetmap = packetmaps[rexmit_touch.rpc_id];
+      ap_uint<PM_BS> packetmap[PM_NB];
+#pragma HLS array_partition variable=packetmap complete
 
-	packetmap[rexmit_touch.offset] = 1;
-	// Compare against -1 (all ones)
-	if (packetmap.range(rexmit_touch.max_offset, 0).and_reduce()) {
-	  complete.write(rexmit_touch.rpc_id);
+      if (rexmit_touch.init) {
+
+	int block = rexmit_touch.length / PM_BS;
+	int offset = rexmit_touch.length - (block * PM_BS);
+
+	for (int i = 0; i < PM_NB; ++i) {
+#pragma HLS unroll
+	  if (i < block) packetmap[i] = 0; else if (i > block) packetmap[i] = ~((ap_uint<PM_BS>) 0);
 	}
 
-	packetmaps[rexmit_touch.rpc_id] = packetmap;
+	// TODO check
+	ap_uint<PM_BS> transition = ~((ap_uint<PM_BS>) 0);
+	packetmap[block] = transition >> offset;
+      } else {
+	for (int i = 0; i < PM_NB; ++i) {
+#pragma HLS unroll
+	  packetmap[i] = packetmaps[rexmit_touch.rpc_id * PM_BS + i];
+	}
       }
-    }
-      
-    uint64_t entry_time = rexmit_store[i];
-      
-    if (entry_time - time >= REXMIT_CUTOFF) {
-      if (rexmit.write_nb({i,0,0})) {
-	// TODO Need lower and upper bound for retransmission?
-	refresh.insert(i);
+
+      int block = rexmit_touch.offset / PM_BS;
+      int offset = rexmit_touch.offset - (block * PM_BS);
+     
+      packetmap[block][offset] = 1;
+
+      // Compare against all ones
+      bool done = true;
+      for (int i = 0; i < PM_NB; ++i) {
+#pragma HLS unroll
+	if (packetmap[i] != ~((ap_uint<PM_BS>) 0)) done = false;
       }
+
+      if (done) {
+	// Notify user msg is complete?
+	complete.write(rexmit_touch.rpc_id);
+
+	// Disable this RPC
+	rexmit_store[rexmit_touch.rpc_id] = 0;
+      } else {
+	rexmit_store[rexmit_touch.rpc_id] = time;
+      }
+
+      for (int i = 0; i < PM_NB; ++i) {
+#pragma HLS unroll
+	packetmaps[rexmit_touch.rpc_id * PM_BS + i] = packetmap[i];
+      }
+    } else {
+      uint64_t entry_time = rexmit_store[bram_id];
+            
+      if (entry_time != 0 && entry_time - time >= REXMIT_CUTOFF) {
+      	// Where should retransmission begin?
+	ap_uint<PM_BS> block;
+      
+      	for (int i = PM_BS-1; i >= 0; --i) {
+#pragma HLS unroll
+      	  if (packetmaps[bram_id * PM_BS + i] != ~((ap_uint<PM_BS>) 0)) block = packetmaps[bram_id * PM_BS + i];
+      	}
+
+	int offset;
+	for (int i = PM_BS-1; i >= 0; --i) {
+#pragma HLS unroll
+	  if (block[i] == 0) offset = i;
+	}
+            
+      	if (rexmit.write_nb({bram_id, false, offset, 0})) {
+      	  rexmit_store[bram_id] = time;
+      	}
+      }
+
+      ++bram_id;
     }
   
     time++;
   }
 }
-

@@ -90,7 +90,7 @@ struct rpc_hashpack_t {
   uint16_t empty;
 
   bool operator==(const rpc_hashpack_t & other) const {
-    return (s6_addr == other.s6_addr && id == other.id && port == other.port);
+      return (s6_addr == other.s6_addr && id == other.id && port == other.port);
   }
 };
 
@@ -112,26 +112,6 @@ void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert_secondary);
-
-
-//void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
-//		       hls::stream<peer_id_t> & peer_stack_next_secondary,
-//		       hls::stream<peer_id_t> & peer_stack_free);
-//
-//void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request_primary,
-//		       hls::stream<peer_id_t> & peer_table_response_primary,
-//		       hls::stream<peer_hashpack_t> & peer_table_request_secondary,
-//		       hls::stream<peer_id_t> & peer_table_response_secondary,
-//		       hls::stream<homa_peer_t> & peer_table_insert_primary,
-//		       hls::stream<homa_peer_t> & peer_table_insert_secondary);
-//
-//void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request,
-//			hls::stream<homa_peer_t> & peer_buffer_response,
-//			hls::stream<homa_peer_t> & peer_buffer_insert_primary,
-//			hls::stream<homa_peer_t> & peer_buffer_insert_secondary);
-// 
-//peer_id_t homa_peer_find(in6_addr_t & addr);
-
 
 
 #endif

@@ -74,15 +74,6 @@ void dma_ingress(homa_t * homa,
       homa_peer_t peer;
       peer.peer_id = homa_rpc.peer_id;
       peer.addr = params->dest_addr.sin6_addr.s6_addr;
-      peer.unsched_cutoffs[HOMA_MAX_PRIORITIES-1] = 0;
-      peer.unsched_cutoffs[HOMA_MAX_PRIORITIES-2] = INT_MAX;
-      peer.cutoff_version = 0;
-      peer.last_update_jiffies = 0;
-      peer.outstanding_resends = 0;
-      peer.most_recent_resend = 0;
-      peer.least_recent_ticks = 0;
-      peer.current_ticks = -1;
-      peer.num_acks = 0;
 
       // Store the peer data
       peer_buffer_insert.write(peer);

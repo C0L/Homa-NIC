@@ -42,7 +42,6 @@ void proc_link_egress(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next,
     raw_frame.data[i%6] = mblock;
     if (i % 6 == 0) link_egress.write(raw_frame);
   }
-
 }
 
 /**
@@ -149,20 +148,10 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 	    
 	    // Create a new peer to add into the peer buffer
 	    homa_peer_t peer;
+	    // TODO: there will eventually be other entries in the homa_peer_t
 	    peer.peer_id = homa_rpc.peer_id;
 	    peer.addr = ipv6header->src_address;
-	    peer.unsched_cutoffs[HOMA_MAX_PRIORITIES-1] = 0;
-	    peer.unsched_cutoffs[HOMA_MAX_PRIORITIES-2] = INT_MAX;
-	    peer.cutoff_version = 0;
-	    peer.last_update_jiffies = 0;
-	    peer.outstanding_resends = 0;
-	    peer.most_recent_resend = 0;
-	    //peer.least_recent_rpc = NULL;
-	    peer.least_recent_ticks = 0;
-	    peer.current_ticks = -1;
-	    //peer.resend_rpc = NULL;
-	    peer.num_acks = 0;
-	    
+
 	    // Store the peer data
 	    peer_buffer_insert.write(peer);
 	    
@@ -231,7 +220,7 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 	/* homa_incoming.c — homa_add_packet */
 
 	// ID to update, packet recieved, max number of packets
-	rexmit_touch.write({local_id, 0, 0}); // TODO
+	rexmit_touch.write({local_id, true, 0, 0}); // TODO
 
 	// TODO need to determine whether this data is new and handle partial blocks better
 	for (uint32_t seg = 0; seg < ceil(dataheader->seg.segment_length / sizeof(xmit_mblock_t)); ++seg) {

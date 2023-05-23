@@ -1,7 +1,9 @@
 #include "rpcmgmt.hh"
 #include "hashmap.hh"
 
-// TODO maybe this can be combined with RPC table??
+/**
+ * update_rpc_stack() -  ....
+ */
 void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
 		      hls::stream<rpc_id_t> & rpc_stack_next_secondary,
 		      hls::stream<rpc_id_t> & rpc_stack_free) {
@@ -19,7 +21,9 @@ void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
   
   if (!rpc_stack.empty()) {
     rpc_id_t next_rpc = rpc_stack.pop();
-    if (!(rpc_stack_next_primary.write_nb((next_rpc + 1) << 1))) {
+    if (!rpc_stack_next_primary.full()) {
+      rpc_stack_next_primary.write((next_rpc + 1) << 1);
+    } else if (!rpc_stack_next_secondary.full()) {
       rpc_stack_next_secondary.write((next_rpc + 1) << 1);
     }
   } 
@@ -29,14 +33,20 @@ void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
   }
 }
 
-// TODO add support for deletion
+/**
+ * update_rpc_table() -  ....
+ *
+ * TODO: add support for deletion
+ */
 void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
 		      hls::stream<rpc_id_t> & rpc_table_response_primary,
 		      hls::stream<rpc_hashpack_t> & rpc_table_request_secondary,
 		      hls::stream<rpc_id_t> & rpc_table_response_secondary,
      		      hls::stream<homa_rpc_t> & rpc_table_insert) {
-
-  static hashmap_t<rpc_hashpack_t, rpc_id_t, RPC_SUB_TABLE_SIZE, RPC_HP_SIZE, MAX_OPS> hashmap;
+  static hashmap_t<rpc_hashpack_t, rpc_id_t, RPC_SUB_TABLE_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE, MAX_OPS> hashmap;
+  // TODO check these deps
+#pragma HLS dependence variable=hashmap inter WAR false
+#pragma HLS dependence variable=hashmap inter RAW false
 
 #pragma HLS pipeline II=1
 
@@ -77,22 +87,25 @@ void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert_secondary) {
   // Actual RPC data
   static homa_rpc_t rpcs[MAX_RPCS];
+#pragma HLS dependence variable=rpcs inter WAR false
+#pragma HLS dependence variable=rpcs inter RAW false
+
 #pragma HLS pipeline II=1
 
   rpc_id_t query;
   homa_rpc_t update;
 
-  // Reclaim slot 0 in the table (the null RPC)
-
   if (rpc_buffer_request_primary.read_nb(query)) {
-    rpc_buffer_response_primary.write(rpcs[query-1]);
+    rpc_buffer_response_primary.write(rpcs[(query >> 1)-1]);
   } else if (rpc_buffer_request_secondary.read_nb(query)) {
-    rpc_buffer_response_secondary.write(rpcs[query-1]);
+    rpc_buffer_response_secondary.write(rpcs[(query >> 1)-1]);
   } else if (rpc_buffer_request_ternary.read_nb(query)) {
-    rpc_buffer_response_ternary.write(rpcs[query-1]);
-  } else if (rpc_buffer_insert_primary.read_nb(update)) {
-    rpcs[update.rpc_id-1] = update;
+    rpc_buffer_response_ternary.write(rpcs[(query >> 1)-1]);
+  }
+
+  if (rpc_buffer_insert_primary.read_nb(update)) {
+    rpcs[(update.rpc_id >> 1)-1] = update;
   } else if (rpc_buffer_insert_secondary.read_nb(update)) {
-    rpcs[update.rpc_id-1] = update;
+    rpcs[(update.rpc_id >> 1)-1] = update;
   } 
 }

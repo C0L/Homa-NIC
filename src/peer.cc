@@ -2,6 +2,7 @@
 #include "stack.hh"
 #include "hashmap.hh"
 
+// TODO II = 2??
 void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
 		       hls::stream<peer_id_t> & peer_stack_next_secondary,
 		       hls::stream<peer_id_t> & peer_stack_free) {
@@ -11,16 +12,18 @@ void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
 #pragma HLS pipeline II=1
 
   if (!peer_stack.empty()) {
-    peer_id_t next_peer = peer_stack.pop();
-    if(!(peer_stack_next_primary.write_nb(next_peer))) {
-      peer_stack_next_secondary.write(next_peer);
+    if (!peer_stack_next_primary.full()) {
+      peer_id_t next_peer = peer_stack.pop();
+      peer_stack_next_primary.write(next_peer+1);
+    } else if(!peer_stack_next_secondary.full()) {
+      peer_id_t next_peer = peer_stack.pop();
+      peer_stack_next_secondary.write(next_peer+1);
     }
   }
 
   peer_id_t freed_peer;
-
   if (peer_stack_free.read_nb(freed_peer)) {
-    peer_stack.push(freed_peer);
+    peer_stack.push(freed_peer-1);
   }
 }
 
@@ -33,7 +36,10 @@ void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request_primary
 		       hls::stream<homa_peer_t> & peer_table_insert_primary,
 		       hls::stream<homa_peer_t> & peer_table_insert_secondary) {
 
-  static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_HP_SIZE, MAX_OPS> hashmap;
+  static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
+  // TODO check these deps
+#pragma HLS dependence variable=hashmap inter WAR false
+#pragma HLS dependence variable=hashmap inter RAW false
 
 #pragma HLS pipeline II=1
 
@@ -83,13 +89,13 @@ void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request_primary,
   peer_id_t query;
 
   if (peer_buffer_request_primary.read_nb(query)) {
-    peer_buffer_response_primary.write(peers[query]);
+    peer_buffer_response_primary.write(peers[query-1]);
   } 
 
   homa_peer_t update;
   if (peer_buffer_insert_primary.read_nb(update)) {
-    peers[update.peer_id] = update;
+    peers[update.peer_id-1] = update;
   } else if (peer_buffer_insert_secondary.read_nb(update)) {
-    peers[update.peer_id] = update;
+    peers[update.peer_id-1] = update;
   }
 }
