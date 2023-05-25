@@ -143,7 +143,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<homa_peer_t> peer_buffer_insert_secondary;
 
   /* rexmit_buffer */
-  hls_thread_local hls::stream<rexmit_t> rexmit_touch;
+  hls_thread_local hls::stream<touch_t> rexmit_touch;
   hls_thread_local hls::stream<rpc_id_t> rexmit_complete;
   hls_thread_local hls::stream<rexmit_t> rexmit_rpcs;
 

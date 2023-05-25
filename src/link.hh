@@ -31,7 +31,7 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 		       hls::stream<homa_peer_t> & peer_buffer_insert,
 		       hls::stream<homa_peer_t> & peer_table_insert,
 		       hls::stream<peer_id_t> & peer_stack_next,
-		       hls::stream<rexmit_t> & rexmit_touch,
+		       hls::stream<touch_t> & rexmit_touch,
 		       hls::stream<dma_egress_req_t> & dma_egress_reqs);
 
 #endif

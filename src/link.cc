@@ -15,34 +15,56 @@ void proc_link_egress(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next,
 		      hls::stream<xmit_mblock_t> & xmit_buffer_response,
 		      hls::stream<rpc_id_t> & rpc_buffer_request,
 		      hls::stream<homa_rpc_t> & rpc_buffer_response,
-		      hls::stream<rexmit_t> & rexmit_rpcs,
-		      hls::stream<raw_frame_t> & link_egress) {
+		      hls::stream<rexmit_t> & rexmit_rpcs_in,
+		      hls::stream<raw_frame_t> & link_egress_out) {
+
 #pragma HLS pipeline II=1
- 
-  srpt_xmit_entry_t srpt_xmit_entry;
-  srpt_xmit_queue_next.read(srpt_xmit_entry);
 
-  srpt_grant_entry_t srpt_grant_entry;
-  srpt_grant_queue_next.write(srpt_grant_entry);
+  // TODO how to write a partial packet to the output stream?
 
-  rexmit_t rexmit;
-  rexmit_rpcs.read(rexmit);
+  // Need to use a smaller size block (which determines the data). Should probs be 512 bits. Write as many 512 bit chunks as needed until the tlast can be asserted. (or maybe just pick the max TDATA width?) Need to rework the incoming interface as well?
 
-  homa_rpc_t homa_rpc;
-  rpc_buffer_request.write(srpt_xmit_entry.rpc_id);
-  rpc_buffer_response.read(homa_rpc);
+  // Are there control packets that need to be sent?
+  if (!link_egress_out.empty() && !control_in.empty()) {
+    // Read info for this RPC
+   //raw_frame_t raw_frame;
+  //// TODO this is temporary and wrong just to test datapath
+  //for (int i = 0; i < XMIT_BUFFER_SIZE; ++i) {
+  //  xmit_mblock_t mblock;
+  //  //xmit_req_t xmit_req = {homa_rpc.msgout.xmit_id, (xmit_offset_t) i};
+  //  xmit_buffer_request.write((xmit_req_t) {homa_rpc.msgout.xmit_id, (xmit_offset_t) i});
+  //  xmit_buffer_response.read(mblock);
+  //  raw_frame.data[i%6] = mblock;
+  //  if (i % 6 == 0) link_egress.write(raw_frame);
+  //}
 
-  raw_frame_t raw_frame;
-  // TODO this is temporary and wrong just to test datapath
-  for (int i = 0; i < XMIT_BUFFER_SIZE; ++i) {
-    xmit_mblock_t mblock;
-    //xmit_req_t xmit_req = {homa_rpc.msgout.xmit_id, (xmit_offset_t) i};
-    xmit_buffer_request.write((xmit_req_t) {homa_rpc.msgout.xmit_id, (xmit_offset_t) i});
-    xmit_buffer_response.read(mblock);
-    raw_frame.data[i%6] = mblock;
-    if (i % 6 == 0) link_egress.write(raw_frame);
+  // Are there packets to send and is there space for that packet
+  } else if (!link_egress_out.empty() && !srpt_xmit_queue_next.empty()) {
+    // Read info for this RPC
+
+  // Are there any grants that need to be sent 
+  } else if (!link_egress_out.empty() && !srpt_grant_queue_next.empty()) {
+    // Read info for this RPC
+      
+  // Are there any RPCs that need to be retransmitted 
+  } else if (!link_egress_out.empty() && !rexmit_rpcs.empty()) {
+    // Read info for this RPC
   }
-}
+ 
+    //srpt_xmit_entry_t srpt_xmit_entry;
+    //srpt_xmit_queue_next.read(srpt_xmit_entry);
+
+    //srpt_grant_entry_t srpt_grant_entry;
+    //srpt_grant_queue_next.write(srpt_grant_entry);
+
+    //rexmit_t rexmit;
+    //rexmit_rpcs.read(rexmit);
+
+    //homa_rpc_t homa_rpc;
+    //rpc_buffer_request.write(srpt_xmit_entry.rpc_id);
+    //rpc_buffer_response.read(homa_rpc);
+
+ }
 
 /**
  * proc_link_ingress() - 
@@ -63,7 +85,7 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 		       hls::stream<homa_peer_t> & peer_buffer_insert,
 		       hls::stream<homa_peer_t> & peer_table_insert,
 		       hls::stream<peer_id_t> & peer_stack_next,
-		       hls::stream<rexmit_t> & rexmit_touch,
+		       hls::stream<touch_t> & rexmit_touch,
 		       hls::stream<dma_egress_req_t> & dma_egress_reqs) {
 
 #pragma HLS pipeline II=1 
