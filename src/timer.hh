@@ -8,12 +8,6 @@
 
 // HOMA_MAX_MESSAGE_LENGTH / (ETHERNET_MAX_PAYLOAD(1500) - IPV6_HEADER_LENGTH(40) - HOMA_MAX_DATA_PKT_HEADER(60))
 
-// Block size 
-//#define PM_BS 32
-
-// Number blocks
-//#define PM_NB 32 
-
 // Index into a packetmap bitmap
 typedef ap_uint<10> packetmap_idx_t;
 

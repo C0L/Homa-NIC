@@ -8,4 +8,8 @@ RPC should be larger than 2^14. LIFO increases risk of old packet being dislodge
 
 High level figure showing pipeline and fifo interfaces to all of the cores
 
-If the message is short < 1000 bytes, it should bypass DMA (and maybe the SRPT system) 
+If the message is short < 1000 bytes, it should bypass DMA (and maybe the SRPT system)
+
+The streams will need to be deeper in certain places? Or will the writes just stall and it will be fine?
+
+Can pipelining be properly performed with blocking reads and writes? It may only allow for a single read to be placed before a result is read. This would create large latency stalls.

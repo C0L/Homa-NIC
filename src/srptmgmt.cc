@@ -20,9 +20,6 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
   static uint32_t grants[MAX_RPCS];
   static fifo_t<srpt_xmit_entry_t, MAX_SRPT> exhausted;
 
-  //#pragma HLS dependence variable=srpt_queue intra WAR false
-  //#pragma HLS dependence variable=srpt_queue intra RAW false
-
   /*
     Check if the head of the SRPT is not complete but expended all grantable bytes
     If so, then add the entry to the blocked set in BRAM, and add to FIFO
@@ -41,7 +38,7 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
     
     srpt_queue_next.write(head);
 
-    head.remaining = (head.remaining - PACKET_SIZE < 0) ? 0 : head.remaining - PACKET_SIZE;
+    head.remaining = (head.remaining - HOMA_PAYLOAD_SIZE < 0) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
 
     uint32_t grant = grants[head.rpc_id];
 

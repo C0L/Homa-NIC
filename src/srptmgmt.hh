@@ -7,7 +7,7 @@
 #include "rpcmgmt.hh"
 
 // TODO placeholder 
-#define PACKET_SIZE 1024
+//#define PACKET_SIZE 1024
 
 #ifndef DEBUG 
 #define MAX_SRPT 1024
@@ -141,6 +141,14 @@ struct fifo_t {
 
     read_head--;
     return val;
+  }
+
+  T & head() {
+    return buffer[read_head];
+  }
+
+  bool full() {
+    return read_head == MAX_SRPT-1;
   }
 
   bool empty() {

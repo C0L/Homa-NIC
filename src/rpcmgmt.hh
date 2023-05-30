@@ -8,15 +8,11 @@
 #include "stack.hh"
 
 #define MAX_RPCS 16384
-#define MAX_RPCS_LOG2 14
 
 #define RPC_SUB_TABLE_SIZE 16384
 #define RPC_SUB_TABLE_INDEX 14
 
 #define MAX_OPS 64
-
-// To index all the RPCs, we need LOG2 of the max number of RPCs
-typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 
 /**
  * struct homa_message_out - Describes a message (either request or response)
@@ -70,8 +66,10 @@ struct homa_rpc_t {
   int flags;
   int grants_in_progress;
   peer_id_t peer;
-  ap_uint<128> addr;
+  ap_uint<128> saddr;
+  ap_uint<128> daddr;
   uint16_t dport;
+  uint16_t sport;
   peer_id_t peer_id;
   rpc_id_t rpc_id; 
   ap_uint<64> completion_cookie;
@@ -106,8 +104,8 @@ void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
 
 void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
-		       hls::stream<rpc_id_t> & rpc_buffer_request_secondary,
-		       hls::stream<homa_rpc_t> & rpc_buffer_response_secondary,
+		       hls::stream<pending_pkt_t> & pending_pkt_in,
+		       hls::stream<pending_pkt_t> & pending_pkt_out,
 		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
 		       hls::stream<homa_rpc_t> & rpc_buffer_insert_primary,

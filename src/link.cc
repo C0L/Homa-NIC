@@ -1,103 +1,192 @@
 #include <string.h>
 
-#include "hls_math.h"
-
 #include "homa.hh"
 #include "link.hh"
 #include "dma.hh"
 
-/**
- * proc_link_egress() - 
- */
-void proc_link_egress(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next,
-		      hls::stream<srpt_grant_entry_t> & srpt_grant_queue_next,
-		      hls::stream<xmit_req_t> & xmit_buffer_request,
-		      hls::stream<xmit_mblock_t> & xmit_buffer_response,
-		      hls::stream<rpc_id_t> & rpc_buffer_request,
-		      hls::stream<homa_rpc_t> & rpc_buffer_response,
-		      hls::stream<rexmit_t> & rexmit_rpcs_in,
-		      hls::stream<raw_frame_t> & link_egress_out) {
-
+// Initiate an outgoing packet
+void pkt_generator(hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_next_in,
+		   hls::stream<srpt_grant_entry_t> & srpt_grant_queue_next_in,
+		   hls::stream<rexmit_t> & rexmit_rpcs_in,
+		   hls::stream<pending_pkt_t> & pending_pkt_out) {
 #pragma HLS pipeline II=1
 
-  // TODO how to write a partial packet to the output stream?
+  if (!srpt_xmit_queue_next_in.empty()) {
+    srpt_xmit_entry_t next_data_pkt = srpt_xmit_queue_next_in.read();
 
-  // Need to use a smaller size block (which determines the data). Should probs be 512 bits. Write as many 512 bit chunks as needed until the tlast can be asserted. (or maybe just pick the max TDATA width?) Need to rework the incoming interface as well?
+    uint32_t data_bytes = MIN(next_data_pkt.remaining, HOMA_PAYLOAD_SIZE);
+    uint32_t total_bytes = DATA_PKT_HEADER + data_bytes;
 
-  // Are there control packets that need to be sent?
-  if (!link_egress_out.empty() && !control_in.empty()) {
-    // Read info for this RPC
-   //raw_frame_t raw_frame;
-  //// TODO this is temporary and wrong just to test datapath
-  //for (int i = 0; i < XMIT_BUFFER_SIZE; ++i) {
-  //  xmit_mblock_t mblock;
-  //  //xmit_req_t xmit_req = {homa_rpc.msgout.xmit_id, (xmit_offset_t) i};
-  //  xmit_buffer_request.write((xmit_req_t) {homa_rpc.msgout.xmit_id, (xmit_offset_t) i});
-  //  xmit_buffer_response.read(mblock);
-  //  raw_frame.data[i%6] = mblock;
-  //  if (i % 6 == 0) link_egress.write(raw_frame);
-  //}
+    pending_pkt_t pending_pkt;
+    pending_pkt.type = DATA;
+    pending_pkt.rpc_id = next_data_pkt.rpc_id;
+    pending_pkt.total_bytes = total_bytes;
+    pending_pkt.data_bytes = data_bytes;
 
-  // Are there packets to send and is there space for that packet
-  } else if (!link_egress_out.empty() && !srpt_xmit_queue_next.empty()) {
-    // Read info for this RPC
+    pending_pkt_out.write(pending_pkt);
+  } else if (!srpt_grant_queue_next_in.empty()) {
+    srpt_grant_entry_t next_grant_pkt = srpt_grant_queue_next_in.read();
 
-  // Are there any grants that need to be sent 
-  } else if (!link_egress_out.empty() && !srpt_grant_queue_next.empty()) {
-    // Read info for this RPC
-      
-  // Are there any RPCs that need to be retransmitted 
-  } else if (!link_egress_out.empty() && !rexmit_rpcs.empty()) {
-    // Read info for this RPC
+    // TODO 
+    pending_pkt_t pending_pkt;
+    pending_pkt.type = GRANT;
+
+    pending_pkt_out.write(pending_pkt);
+  } else if (!rexmit_rpcs_in.empty()) {
+    rexmit_t rexmit = rexmit_rpcs_in.read();
+
+    // TODO 
+    pending_pkt_t pending_pkt;
+    pending_pkt.type = RESEND;
+
+    pending_pkt_out.write(pending_pkt);
   }
- 
-    //srpt_xmit_entry_t srpt_xmit_entry;
-    //srpt_xmit_queue_next.read(srpt_xmit_entry);
+}
 
-    //srpt_grant_entry_t srpt_grant_entry;
-    //srpt_grant_queue_next.write(srpt_grant_entry);
+void pkt_buffer(hls::stream<pending_pkt_t> & pending_pkt_in,
+		hls::stream<pkt_block_t> & pkt_block_out) {
 
-    //rexmit_t rexmit;
-    //rexmit_rpcs.read(rexmit);
+  static pending_pkt_t pending_pkt;
+  
+#pragma HLS pipeline II=1
+  if (pending_pkt.valid == 1 && pending_pkt.sent_bytes < pending_pkt.total_bytes) {
+    pending_pkt.sent_bytes += 64;
+    pkt_block_t pkt_block;
 
-    //homa_rpc_t homa_rpc;
-    //rpc_buffer_request.write(srpt_xmit_entry.rpc_id);
-    //rpc_buffer_response.read(homa_rpc);
+    if (pending_pkt.sent_bytes >= pending_pkt.total_bytes) {
+      pkt_block.done = 1;
+      pending_pkt.valid = 0;
+    }
 
- }
+    switch(pending_pkt.type) {
+      case DATA: {
+  	if (pending_pkt.sent_bytes == 64) {
+	  // Packet block configuration — no data bytes needed
+  	  pkt_block.type = DATA;
+  	  pkt_block.data_bytes = 0;
+	  pkt_block.xmit_id = pending_pkt.xmit_id;
+
+  	  data_block_0_t * block = (data_block_0_t *) pkt_block.buff;
+
+	  // Ethernet header
+	  block->dest_mac = 0xFFFFFF;
+	  block->src_mac = 0xFFFFFF;
+	  block->ethertype = ETHERTYPE_IPV6;
+
+	  // IPv6 header
+	  block->version = 0xF;
+	  block->traffic_class = 0xFF;
+	  block->flow_label = 0xFFFFF;
+	  block->next_header = IPPROTO_HOMA;
+	  block->hop_limit = 0xFF;
+	  block->src_address = pending_pkt.saddr;
+	  block->dest_address = pending_pkt.daddr;
+
+	  // Start of common header
+	  block->sport = pending_pkt.sport;
+	  block->dport = pending_pkt.dport;
+	  block->unused = 0;
+
+  	} else if (pending_pkt.sent_bytes == 128) {
+	  // Packet block configuration — 14 data bytes needed
+  	  pkt_block.type = DATA;
+  	  pkt_block.data_bytes = 14;
+	  pkt_block.xmit_id = pending_pkt.xmit_id;
+
+  	  data_block_1_t * block = (data_block_1_t *) pkt_block.buff;
+
+	  // Remaining bytes of common header
+	  block->unused0 = 0;
+	  block->doff = 0xFFFFFFFF;
+	  block->type = DATA;
+	  block->unused1 = 0;
+	  block->checksum = 0;
+	  block->unused2 = 0;
+	  block->sender_id = pending_pkt.rpc_id;
+
+	  // Data header
+	  block->message_length = 0xFFFFFFFF;
+	  block->incoming = 0xFFFFFFFF;
+	  block->cutoff_version = 0xFFFFFFFF;
+	  block->retransmit = 0xFFFFFFFF;
+	  block->pad = 0;
+	  block->offset = 0xFFFFFFFF;
+	  block->segment_length = 0xFFFFFFFF;
+
+	  // Ack header
+	  block->client_id = 0;
+	  block->client_port = 0;
+	  block->server_port = 0;
+  	} else {
+	  pkt_block.type = DATA;
+  	  pkt_block.data_bytes = 64;
+	  pkt_block.xmit_id = pending_pkt.xmit_id;
+	}
+      } 
+    }
+
+    pkt_block_out.write(pkt_block);
+  }
+
+  if (pending_pkt.valid == 0 && !pending_pkt_in.empty()) {
+    pending_pkt_in.read(pending_pkt);
+  } 
+}
+
+// Convert packet streams to the outgoing link
+void link_egress(hls::stream<pkt_block_t> & pkt_block_in,
+		 hls::stream<raw_stream_t> & link_egress_out) {
+
+#pragma HLS pipeline II=1
+  pkt_block_t data_pkt = pkt_block_in.read();
+
+  raw_stream_t raw_chunk;
+
+  for (int i = 0; i < 64; ++i) {
+#pragma HLS unroll
+    raw_chunk.data[i] = data_pkt.buff[i];
+  }
+
+  // TODO needs to check if last packet in sequence and set tlast if so
+  if (data_pkt.done == 1) {
+    raw_chunk.last = 1;
+  }
+
+  link_egress_out.write(raw_chunk);
+}
 
 /**
  * proc_link_ingress() - 
  * 
  */
-void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
-		       hls::stream<srpt_grant_entry_t> & srpt_grant_queue_insert,
-		       hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_update,
-		       hls::stream<rpc_hashpack_t> & rpc_table_request,
-		       hls::stream<rpc_id_t> & rpc_table_response,
-		       hls::stream<homa_rpc_t> & rpc_table_insert,
-		       hls::stream<rpc_id_t> & rpc_buffer_request,   		       
-		       hls::stream<homa_rpc_t> & rpc_buffer_response,
-		       hls::stream<homa_rpc_t> & rpc_buffer_insert,
-		       hls::stream<rpc_id_t> & rpc_stack_next,
-		       hls::stream<peer_hashpack_t> & peer_table_request,
-		       hls::stream<peer_id_t> & peer_table_response,
-		       hls::stream<homa_peer_t> & peer_buffer_insert,
-		       hls::stream<homa_peer_t> & peer_table_insert,
-		       hls::stream<peer_id_t> & peer_stack_next,
-		       hls::stream<touch_t> & rexmit_touch,
-		       hls::stream<dma_egress_req_t> & dma_egress_reqs) {
+void link_ingress(hls::stream<raw_frame_t> & link_ingress_in,
+		  hls::stream<srpt_grant_entry_t> & srpt_grant_queue_insert,
+		  hls::stream<srpt_xmit_entry_t> & srpt_xmit_queue_update,
+		  hls::stream<rpc_hashpack_t> & rpc_table_request,
+		  hls::stream<rpc_id_t> & rpc_table_response,
+		  hls::stream<homa_rpc_t> & rpc_table_insert,
+		  hls::stream<rpc_id_t> & rpc_buffer_request,   		       
+		  hls::stream<homa_rpc_t> & rpc_buffer_response,
+		  hls::stream<homa_rpc_t> & rpc_buffer_insert,
+		  hls::stream<rpc_id_t> & rpc_stack_next,
+		  hls::stream<peer_hashpack_t> & peer_table_request,
+		  hls::stream<peer_id_t> & peer_table_response,
+		  hls::stream<homa_peer_t> & peer_buffer_insert,
+		  hls::stream<homa_peer_t> & peer_table_insert,
+		  hls::stream<peer_id_t> & peer_stack_next,
+		  hls::stream<touch_t> & rexmit_touch,
+		  hls::stream<dma_egress_req_t> & dma_egress_reqs) {
 
-#pragma HLS pipeline II=1 
+#pragma HLS pipeline II=1
 
   /*
    * Are there incoming ethernet frames to process
    * Raw frame max size for non jumbo frames:
    *   6 + 6 + 4 + 2 + 1500 + 4 = 1522 bytes 
    */
-  if (!link_ingress.empty()) {
+  if (!link_ingress_in.empty()) {
     raw_frame_t raw_frame;
-    link_ingress.read(raw_frame);
+    link_ingress_in.read(raw_frame);
 
     ethernet_header_t * ethheader = (ethernet_header_t*) &(raw_frame.data);
 
@@ -181,7 +270,7 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
 	    peer_table_insert.write(peer);
 	  } 
 
-	  homa_rpc.addr = ipv6header->src_address;
+	  homa_rpc.daddr = ipv6header->src_address;
 	  homa_rpc.dport = commonheader->sport;
 	  homa_rpc.completion_cookie = 0; // TODO irrelevent for server side
 	  homa_rpc.msgin.total_length = -1;
@@ -317,4 +406,3 @@ void proc_link_ingress(hls::stream<raw_frame_t> & link_ingress,
   //  dma_egress_reqs.write(req);
   //}
 }
-

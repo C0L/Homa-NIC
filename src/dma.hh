@@ -19,6 +19,7 @@ struct params_t {
   uint32_t buffin;
   int length;
   sockaddr_in6_t dest_addr;
+  sockaddr_in6_t src_addr;
   uint64_t id;
   uint64_t completion_cookie;
 };

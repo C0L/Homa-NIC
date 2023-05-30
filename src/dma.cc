@@ -83,8 +83,10 @@ void dma_ingress(homa_t * homa,
     } 
 
     // TODO assume user formated port correctly? (removed the ntphs function)
-    homa_rpc.addr = params->dest_addr.sin6_addr.s6_addr;
+    homa_rpc.daddr = params->dest_addr.sin6_addr.s6_addr;
     homa_rpc.dport = params->dest_addr.sin6_port;
+    homa_rpc.saddr = params->src_addr.sin6_addr.s6_addr;
+    homa_rpc.sport = params->src_addr.sin6_port;
     homa_rpc.msgin.total_length = -1;
     homa_rpc.msgout.length = -1;
     homa_rpc.silent_ticks = 0;

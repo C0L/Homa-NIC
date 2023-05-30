@@ -53,16 +53,16 @@ void temp(hls::stream<xmit_id_t> & xmit_stack_free,
  */
 void homa(homa_t * homa,
 	  params_t * params,
-	  hls::stream<raw_frame_t> & link_ingress,
-	  hls::stream<raw_frame_t> & link_egress,
+	  hls::stream<raw_frame_t> & link_ingress_in,
+	  hls::stream<raw_stream_t> & link_egress_out,
 	  hls::burst_maxi<xmit_mblock_t> maxi_in, // TODO use same interface for both axi then remove bundle
 	  xmit_mblock_t * maxi_out) {
 
 #pragma HLS interface s_axilite port=homa bundle=config
 #pragma HLS interface s_axilite port=params bundle=onboard
 
-#pragma HLS interface axis port=link_ingress
-#pragma HLS interface axis port=link_egress
+#pragma HLS interface axis port=link_ingress_in
+#pragma HLS interface axis port=link_egress_out
 
 #pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
 #pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=32 num_write_outstanding=32 max_read_burst_length=16 max_write_burst_length=16
@@ -94,8 +94,6 @@ void homa(homa_t * homa,
   /* update_rpc_buffer */
   hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_primary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_primary;
-  hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_secondary;
-  hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_secondary;
   hls_thread_local hls::stream<rpc_id_t> rpc_buffer_request_ternary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_response_ternary;
   hls_thread_local hls::stream<homa_rpc_t> rpc_buffer_insert_primary;
@@ -147,6 +145,11 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<rpc_id_t> rexmit_complete;
   hls_thread_local hls::stream<rexmit_t> rexmit_rpcs;
 
+  hls_thread_local hls::stream<pending_pkt_t> pkt_gen_out;
+  hls_thread_local hls::stream<pending_pkt_t> pkt_rpc_buff_out;
+  hls_thread_local hls::stream<pkt_block_t> pkt_rate_buff_out;
+  hls_thread_local hls::stream<pkt_block_t> pkt_xmit_out;
+
 #pragma HLS dataflow
   /* Control Driven Region */
 
@@ -174,8 +177,8 @@ void homa(homa_t * homa,
   /* Check for new messages that need to be onboarded and fill a message buffer if needed */
   hls_thread_local hls::task thread_1(update_xmit_buffer,
 				      xmit_buffer_insert,
-				      xmit_buffer_request,
-				      xmit_buffer_response);
+				      pkt_rate_buff_out,
+				      pkt_xmit_out);
 
   hls_thread_local hls::task thread_2(update_xmit_stack,
 				      xmit_stack_next,
@@ -198,8 +201,8 @@ void homa(homa_t * homa,
   hls_thread_local hls::task thread_5(update_rpc_buffer,
 				      rpc_buffer_request_primary,
 				      rpc_buffer_response_primary,
-				      rpc_buffer_request_secondary,
-				      rpc_buffer_response_secondary,
+				      pkt_gen_out,
+				      pkt_rpc_buff_out,
 				      rpc_buffer_request_ternary,
 				      rpc_buffer_response_ternary,
 				      rpc_buffer_insert_primary,
@@ -219,18 +222,22 @@ void homa(homa_t * homa,
 				      srpt_grant_queue_next);
 
   /* Send packets */
-  hls_thread_local hls::task thread_8(proc_link_egress,
-				      srpt_xmit_queue_next,
-				      srpt_grant_queue_next,
-				      xmit_buffer_request,
-				      xmit_buffer_response,
-				      rpc_buffer_request_secondary,
-				      rpc_buffer_response_secondary,
-				      rexmit_rpcs,
-				      link_egress);
+  hls_thread_local hls::task thread_8(link_egress,
+				      pkt_xmit_out,
+				      link_egress_out);
 
-  hls_thread_local hls::task thread_9(proc_link_ingress,
-				      link_ingress,
+  hls_thread_local hls::task thread_15(pkt_buffer,
+				       pkt_rpc_buff_out,
+				       pkt_rate_buff_out);
+
+  hls_thread_local hls::task thread_10(pkt_generator,
+  				       srpt_xmit_queue_next,
+  				       srpt_grant_queue_next,
+  				       rexmit_rpcs,
+				       pkt_gen_out);
+
+  hls_thread_local hls::task thread_9(link_ingress,
+				      link_ingress_in,
 				      srpt_grant_queue_insert,
 				      srpt_xmit_queue_update,
 				      rpc_table_request_primary,
