@@ -7,18 +7,16 @@
  * @srpt_queue_grant: Updates for RPCs when more bytes are granted
  * @srpt_queue_next:   The highest priority value to transmit
  */
-void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
-			    hls::stream<srpt_xmit_entry_t> & srpt_queue_grants,
-			    hls::stream<srpt_xmit_entry_t> & srpt_queue_next) {
-  // TODO a single byte will grant an entire message
+void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
+		    hls::stream<srpt_data_t> & data_pkt_o) {
+		    //hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
+		    //hls::stream<onboard_rpc_t> & onboard_rpc_in,
+		    //hls::stream<srpt_xmit_entry_t> & srpt_queue_grants,
+		    //hls::stream<srpt_xmit_entry_t> & srpt_queue_next) {
 
   // TODO can use a smaller FIFO (of pipeline depth) for removing the sync error. After popping from the srpt add it to the blocked RPC BRAM.
   // And add it to the 5 element FIFO. Once it reaches the end of the FIFO, check if the grant has changed, if so readd to SRPT. Otherwise,
   // discard the entry. Need to ensure that a grant does not reactivate and FIFO reactivate.
-
-  static srpt_queue_t<srpt_xmit_entry_t, MAX_SRPT> srpt_queue;
-  static uint32_t grants[MAX_RPCS];
-  static fifo_t<srpt_xmit_entry_t, MAX_SRPT> exhausted;
 
   /*
     Check if the head of the SRPT is not complete but expended all grantable bytes
@@ -30,13 +28,16 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
     and we should readd to the SRPT
   */
 
+  static srpt_queue_t<srpt_xmit_entry_t, MAX_SRPT> srpt_queue;
+  static uint32_t grants[MAX_RPCS];
+  static fifo_t<srpt_xmit_entry_t, MAX_SRPT> exhausted;
+
 #pragma HLS pipeline II=1
 
-  if (!srpt_queue_next.full() && !srpt_queue.empty()) {
-    //if (srpt_queue_next.empty() && !srpt_queue.empty()) {
+  if (!data_pkt_o.full() && !srpt_queue.empty()) {
     srpt_xmit_entry_t & head = srpt_queue.head();
     
-    srpt_queue_next.write(head);
+    data_pkt_o.write(head);
 
     head.remaining = (head.remaining - HOMA_PAYLOAD_SIZE < 0) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
 
@@ -54,9 +55,9 @@ void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
     if (complete || ungranted) {
       srpt_queue.pop();
     }
-  } else if (!srpt_queue_insert.empty()) {
-    srpt_xmit_entry_t new_entry;
-    srpt_queue_insert.read(new_entry);
+  } else if (!new_rpc_i.empty()) {
+    new_rpc_t new_rpc = new_rpc_i.read();
+    srpt_data_t new_entry = {new_rpc.rpc_id, new_rpc.length, new_rpc.granted, new_rpc.length};
     grants[new_entry.rpc_id] = new_entry.granted;
     srpt_queue.push(new_entry);
   } else if (!srpt_queue_grants.empty()) {

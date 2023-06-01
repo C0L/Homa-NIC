@@ -16,51 +16,6 @@
 #define HOMA_PAYLOAD_SIZE 1386
 
 /*
- * Socket structures
- */
-typedef uint16_t sa_family_t;
-typedef uint16_t in_port_t;
-
-struct sockaddr_t {
-  sa_family_t      sa_family;
-  unsigned char    sa_data[14];
-};
-
-struct in_addr_t {
-  uint32_t       s_addr;     /* address in network byte order */
-};
-
-struct sockaddr_in_t {
-  sa_family_t    sin_family; /* address family: AF_INET */
-  in_port_t      sin_port;   /* port in network byte order */
-  in_addr_t      sin_addr;   /* internet address */
-};
-
-struct in6_addr_t {
-  ap_uint<128>    s6_addr;   /* IPv6 address */
-  //unsigned char   s6_addr[16];   /* IPv6 address */
-};
-
-struct sockaddr_in6_t {
-  sa_family_t     sin6_family;   /* AF_INET6 */
-  in_port_t       sin6_port;     /* port number */
-  uint32_t        sin6_flowinfo; /* IPv6 flow information */
-  in6_addr_t      sin6_addr;     /* IPv6 address */
-  uint32_t        sin6_scope_id; /* Scope ID (new in 2.4) */
-};
-
-/**
- * Holds either an IPv4 or IPv6 address (smaller and easier to use than
- * sockaddr_storage).
- */
-typedef union sockaddr_in_union {
-  sockaddr_t sa;
-  sockaddr_in_t in4;
-  sockaddr_in6_t in6;
-} sockaddr_in_union_t;
-
-
-/*
  * Ethernet structures
  */
 struct ipv6_header_t {

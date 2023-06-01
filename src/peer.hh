@@ -3,17 +3,15 @@
 
 #include "homa.hh"
 #include "net.hh"
-#include "xmitbuff.hh"
+#include "databuff.hh"
 
 #define PEER_SUB_TABLE_SIZE 16384
 #define PEER_SUB_TABLE_INDEX 14
 
 #define MAX_PEERS 16384
-#define MAX_PEERS_LOG2 14
+
 
 #define NUM_PEER_UNACKED_IDS 5
-
-typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
 #define PEER_HP_SIZE 4
 
@@ -39,19 +37,22 @@ struct homa_peer_t {
   //homa_ack_t acks[NUM_PEER_UNACKED_IDS];
 };
 
-void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
-		       hls::stream<peer_id_t> & peer_stack_next_secondary,
-		       hls::stream<peer_id_t> & peer_stack_free);
 
-void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request_primary,
-		       hls::stream<peer_id_t> & peer_table_response_primary,
-		       hls::stream<peer_hashpack_t> & peer_table_request_secondary,
-		       hls::stream<peer_id_t> & peer_table_response_secondary,
-		       hls::stream<homa_peer_t> & peer_table_insert_primary,
-		       hls::stream<homa_peer_t> & peer_table_insert_secondary);
+void peer_map(stream_t<new_rpc_t, new_rpc_t> & new_rpc_s);
 
-void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request,
-			hls::stream<homa_peer_t> & peer_buffer_response,
-			hls::stream<homa_peer_t> & peer_buffer_insert_primary,
-			hls::stream<homa_peer_t> & peer_buffer_insert_secondary);
+//void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
+//		       hls::stream<peer_id_t> & peer_stack_next_secondary,
+//		       hls::stream<peer_id_t> & peer_stack_free);
+//
+//void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request_primary,
+//		       hls::stream<peer_id_t> & peer_table_response_primary,
+//		       hls::stream<peer_hashpack_t> & peer_table_request_secondary,
+//		       hls::stream<peer_id_t> & peer_table_response_secondary,
+//		       hls::stream<homa_peer_t> & peer_table_insert_primary,
+//		       hls::stream<homa_peer_t> & peer_table_insert_secondary);
+//
+//void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request,
+//			hls::stream<homa_peer_t> & peer_buffer_response,
+//			hls::stream<homa_peer_t> & peer_buffer_insert_primary,
+//			hls::stream<homa_peer_t> & peer_buffer_insert_secondary);
 #endif

@@ -6,9 +6,6 @@
 #include "homa.hh"
 #include "rpcmgmt.hh"
 
-// TODO placeholder 
-//#define PACKET_SIZE 1024
-
 #ifndef DEBUG 
 #define MAX_SRPT 1024
 #else
@@ -25,28 +22,28 @@
 template<typename T, int MAX_SIZE>
 struct srpt_queue_t;
 
-struct srpt_xmit_entry_t {
+struct srpt_data_t {
   rpc_id_t rpc_id; 
   uint32_t remaining;
   uint32_t granted;
   uint32_t total;
 
-  srpt_xmit_entry_t() {
+  srpt_data_t() {
     rpc_id = 0;
     remaining = 0xFFFFFFFF;
     granted = 0;
     total = 0;
   }
 
-  // TODO total probably does not need to be stored
-  srpt_xmit_entry_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, uint32_t total) {
+  //data TODO total probably does not need to be stored
+  srpt_data_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, uint32_t total) {
     this->rpc_id = rpc_id;
     this->remaining = remaining;
     this->granted = granted;
     this->total = total;
   }
 
-  bool operator==(const srpt_xmit_entry_t & other) const {
+  bool operator==(const srpt_data_t & other) const {
     return (rpc_id == other.rpc_id &&
 	    remaining == other.remaining &&
 	    granted == other.granted &&
@@ -54,38 +51,38 @@ struct srpt_xmit_entry_t {
   }
 
   // Ordering operator
-  bool operator>(srpt_xmit_entry_t & other) {
+  bool operator>(srpt_data_t & other) {
     return remaining > other.remaining;
   }
 
-  void update_priority(srpt_xmit_entry_t & other) {}
+  void update_priority(srpt_data_t & other) {}
 
   void print() {
     std::cerr << rpc_id << " " << remaining << std::endl;
   }
 };
 
-struct srpt_grant_entry_t {
+struct srpt_grant_t {
   peer_id_t peer_id;
   rpc_id_t rpc_id;
   uint32_t grantable;
   ap_uint<2> priority;
 
-  srpt_grant_entry_t() {
+  srpt_grant_t() {
     peer_id = 0;
     rpc_id = 0;
     grantable = 0xFFFFFFFF;
     priority = EMPTY;
   }
 
-  srpt_grant_entry_t(peer_id_t peer_id, uint32_t grantable,  rpc_id_t rpc_id, ap_uint<2> priority) {
+  srpt_grant_t(peer_id_t peer_id, uint32_t grantable,  rpc_id_t rpc_id, ap_uint<2> priority) {
     this->peer_id = peer_id;
     this->rpc_id = rpc_id;
     this->grantable = grantable;
     this->priority = priority;
   }
 
-  bool operator==(const srpt_grant_entry_t & other) const {
+  bool operator==(const srpt_grant_t & other) const {
     return (peer_id == other.peer_id &&
 	    rpc_id == other.rpc_id &&
 	    grantable == other.grantable &&
@@ -93,7 +90,7 @@ struct srpt_grant_entry_t {
   }
 
   // Ordering operator
-  bool operator>(srpt_grant_entry_t & other) {
+  bool operator>(srpt_grant_t & other) {
     if (priority == MSG && peer_id == other.peer_id) {
       return true;
     } else {
@@ -101,7 +98,7 @@ struct srpt_grant_entry_t {
     } 
   }
 
-  void update_priority(srpt_grant_entry_t & other) {
+  void update_priority(srpt_grant_t & other) {
     if (priority == MSG && other.peer_id == peer_id) {
       other.priority = (other.priority == BLOCKED) ? ACTIVE : BLOCKED;
     }
@@ -326,13 +323,11 @@ struct srpt_queue_t {
   }
 };
 
-void update_xmit_srpt_queue(hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
-			    hls::stream<srpt_xmit_entry_t> & srpt_queue_update,
-			    hls::stream<srpt_xmit_entry_t> & srpt_queue_next);
+void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
+		    hls::stream<srpt_data_t> & data_pkt_o);
 
-void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert,
-			     hls::stream<srpt_grant_entry_t> & srpt_queue_receipt,
-			     hls::stream<srpt_grant_entry_t> & srpt_queue_next);
-
+void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
+			     hls::stream<srpt_grant_t> & srpt_queue_receipt,
+			     hls::stream<srpt_grant_t> & srpt_queue_next);
 
 #endif

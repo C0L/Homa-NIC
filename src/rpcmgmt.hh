@@ -4,7 +4,7 @@
 #include "homa.hh"
 #include "peer.hh"
 #include "net.hh"
-#include "xmitbuff.hh"
+#include "databuff.hh"
 #include "stack.hh"
 
 #define MAX_RPCS 16384
@@ -20,12 +20,11 @@
  */
 struct homa_message_out_t {
   int length;
-  xmit_id_t xmit_id;
-  int next_xmit_offset;
+  dbuff_id_t dbuff_id;
   int unscheduled;
   int granted;
-  ap_uint<8> sched_priority;
-  ap_uint<64> init_cycles;
+  //ap_uint<8> sched_priority;
+  //ap_uint<64> init_cycles;
 };
 
 /**
@@ -65,7 +64,6 @@ struct homa_rpc_t {
 
   int flags;
   int grants_in_progress;
-  peer_id_t peer;
   ap_uint<128> saddr;
   ap_uint<128> daddr;
   uint16_t dport;
@@ -92,24 +90,26 @@ struct rpc_hashpack_t {
   }
 };
 
-void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
-		      hls::stream<rpc_id_t> & rpc_stack_next_secondary,
-		      hls::stream<rpc_id_t> & rpc_stack_free);
 
-void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
-		      hls::stream<rpc_id_t> & rpc_table_response_primary,
-		      hls::stream<rpc_hashpack_t> & rpc_table_request_secondary,
-		      hls::stream<rpc_id_t> & rpc_table_response_secondary,
-     		      hls::stream<homa_rpc_t> & rpc_table_insert);
+void update_rpc_table(stream_t<new_rpc_t, new_rpc_t> & new_rpc_s);
 
-void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
-		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
-		       hls::stream<pending_pkt_t> & pending_pkt_in,
-		       hls::stream<pending_pkt_t> & pending_pkt_out,
-		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
-		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
-		       hls::stream<homa_rpc_t> & rpc_buffer_insert_primary,
-		       hls::stream<homa_rpc_t> & rpc_buffer_insert_secondary);
-
+//void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
+//		      hls::stream<rpc_id_t> & rpc_stack_next_secondary,
+//		      hls::stream<rpc_id_t> & rpc_stack_free);
+//
+//void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
+//		      hls::stream<rpc_id_t> & rpc_table_response_primary,
+//		      hls::stream<rpc_hashpack_t> & rpc_table_request_secondary,
+//		      hls::stream<rpc_id_t> & rpc_table_response_secondary,
+//     		      hls::stream<homa_rpc_t> & rpc_table_insert);
+//
+//void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
+//		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
+//		       hls::stream<pending_pkt_t> & pending_pkt_in,
+//		       hls::stream<pending_pkt_t> & pending_pkt_out,
+//		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
+//		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
+//		       hls::stream<homa_rpc_t> & rpc_buffer_insert_primary,
+//		       hls::stream<homa_rpc_t> & rpc_buffer_insert_secondary);
 
 #endif

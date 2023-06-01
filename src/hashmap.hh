@@ -99,6 +99,10 @@ struct hashmap_t {
     }
   }
 
+  //uint32_t simple_hash(H hashpack, int len, uint32_t seed) {
+  // h(k) = k(k+2)modm
+  //}
+
   uint32_t murmur_32_scramble(uint32_t k) {
 #pragma HLS pipeline II=1
     k *= 0xcc9e2d51;

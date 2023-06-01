@@ -13,3 +13,9 @@ If the message is short < 1000 bytes, it should bypass DMA (and maybe the SRPT s
 The streams will need to be deeper in certain places? Or will the writes just stall and it will be fine?
 
 Can pipelining be properly performed with blocking reads and writes? It may only allow for a single read to be placed before a result is read. This would create large latency stalls.
+
+Simpler hash function?
+
+Is a peer map even really needed?
+
+Where to place unscheduled bytes in DMA space?
