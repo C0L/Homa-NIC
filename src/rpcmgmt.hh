@@ -91,25 +91,11 @@ struct rpc_hashpack_t {
 };
 
 
-void update_rpc_table(stream_t<new_rpc_t, new_rpc_t> & new_rpc_s);
+//void rpc_map(hls::stream);
 
-//void update_rpc_stack(hls::stream<rpc_id_t> & rpc_stack_next_primary,
-//		      hls::stream<rpc_id_t> & rpc_stack_next_secondary,
-//		      hls::stream<rpc_id_t> & rpc_stack_free);
-//
-//void update_rpc_table(hls::stream<rpc_hashpack_t> & rpc_table_request_primary,
-//		      hls::stream<rpc_id_t> & rpc_table_response_primary,
-//		      hls::stream<rpc_hashpack_t> & rpc_table_request_secondary,
-//		      hls::stream<rpc_id_t> & rpc_table_response_secondary,
-//     		      hls::stream<homa_rpc_t> & rpc_table_insert);
-//
-//void update_rpc_buffer(hls::stream<rpc_id_t> & rpc_buffer_request_primary,
-//		       hls::stream<homa_rpc_t> & rpc_buffer_response_primary,
-//		       hls::stream<pending_pkt_t> & pending_pkt_in,
-//		       hls::stream<pending_pkt_t> & pending_pkt_out,
-//		       hls::stream<rpc_id_t> & rpc_buffer_request_ternary,
-//		       hls::stream<homa_rpc_t> & rpc_buffer_response_ternary,
-//		       hls::stream<homa_rpc_t> & rpc_buffer_insert_primary,
-//		       hls::stream<homa_rpc_t> & rpc_buffer_insert_secondary);
+void rpc_state(hls::stream<new_rpc_t> & peer_map__rpc_state,
+	       hls::stream<new_rpc_t> & rpc_state__srpt_data,
+	       hls::stream<out_pkt_t> & egress_sel__rpc_state, 
+	       hls::stream<out_pkt_t> & rpc_state__chunk_dispatch);
 
 #endif

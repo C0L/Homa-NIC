@@ -38,10 +38,10 @@ struct hashmap_t {
 
     table_op_t<E> cam_id;
     
-    entry_t<H,I> search_0 = table_0[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED0)];
-    entry_t<H,I> search_1 = table_1[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED1)];
-    entry_t<H,I> search_2 = table_2[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED2)];
-    entry_t<H,I> search_3 = table_3[(ap_uint<TABLE_IDX>) murmur3_32(query, PACK_SIZE, SEED3)];
+    entry_t<H,I> search_0 = table_0[(ap_uint<TABLE_IDX>) simple_hash(query, SEED0)];
+    entry_t<H,I> search_1 = table_1[(ap_uint<TABLE_IDX>) simple_hash(query, SEED1)];
+    entry_t<H,I> search_2 = table_2[(ap_uint<TABLE_IDX>) simple_hash(query, SEED2)];
+    entry_t<H,I> search_3 = table_3[(ap_uint<TABLE_IDX>) simple_hash(query, SEED3)];
 
     if (search_0.hashpack == query) result = search_0.id;
     if (search_1.hashpack == query) result = search_1.id;
@@ -67,25 +67,25 @@ struct hashmap_t {
 
       switch(op.table_id) {
       case 0: {
-	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED0);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED0);
       	out_entry = table_0[hash];
       	table_0[hash] = op.entry;
 	break;
       }
       case 1: {
-	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED1);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED1);
       	out_entry = table_1[hash];
       	table_1[hash] = op.entry;
 	break;
       }
       case 2: {
-	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED2);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED2);
 	out_entry = table_2[hash];
 	table_2[hash] = op.entry;
 	break;
       }
       case 3: {
-	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) murmur3_32(op.entry.hashpack, PACK_SIZE, SEED3);
+	ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED3);
         out_entry = table_3[hash];                                            	
         table_3[hash] = op.entry;
 	break;
@@ -99,9 +99,11 @@ struct hashmap_t {
     }
   }
 
-  //uint32_t simple_hash(H hashpack, int len, uint32_t seed) {
-  // h(k) = k(k+2)modm
-  //}
+  ap_uint<TABLE_IDX> simple_hash(H hashpack, uint32_t seed) {
+    ap_uint<PACK_SIZE*32> * hashbits = (ap_uint<PACK_SIZE*32>*) &hashpack;
+    ap_uint<TABLE_IDX> table_idx = ((*hashbits * seed) % TABLE_SIZE) >> (32 - TABLE_IDX);
+    return table_idx;
+  }
 
   uint32_t murmur_32_scramble(uint32_t k) {
 #pragma HLS pipeline II=1

@@ -15,6 +15,7 @@ void egress_selector(hls::stream<srpt_data_t> & data_pkt_i,
   // TODO prioritize grants
 
   if (!data_pkt_i.empty()) {
+    DEBUG_MSG("Egress selector data packet")
     srpt_data_t next_data_pkt = data_pkt_i.read();
 
     uint32_t data_bytes = MIN(next_data_pkt.remaining, HOMA_PAYLOAD_SIZE);
@@ -24,7 +25,9 @@ void egress_selector(hls::stream<srpt_data_t> & data_pkt_i,
     out_pkt.type = DATA;
     out_pkt.rpc_id = next_data_pkt.rpc_id;
     out_pkt.total_bytes = total_bytes;
-    out_pkt.data_bytes = data_bytes;
+    out_pkt.sent_bytes = 0;
+    out_pkt.data_offset = next_data_pkt.total - next_data_pkt.remaining;
+    out_pkt.valid = 1;
 
     out_pkt_o.write(out_pkt);
   }
@@ -48,56 +51,63 @@ void egress_selector(hls::stream<srpt_data_t> & data_pkt_i,
   //}
 }
 
-void pkt_chunk_dispatch(stream_t<out_pkt_t, out_block_t> out_pkt_s) {
 
+void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
+			hls::stream<out_block_t> & chunk_dispatch__dbuff) {
   static out_pkt_t out_pkt;
   
 #pragma HLS pipeline II=1
 
   if (out_pkt.valid == 1 && out_pkt.sent_bytes < out_pkt.total_bytes) {
-    out_pkt.sent_bytes += 64;
-
+    //std::cerr << "DEBUG: Send chunk" << std::endl;
     out_block_t out_block;
 
-    if (out_pkt.sent_bytes >= out_pkt.total_bytes) {
-      out_block.done = 1;
+    if ((out_pkt.sent_bytes + 64) >= out_pkt.total_bytes) {
+      out_block.last = 1;
       out_pkt.valid = 0;
     }
 
     switch(out_pkt.type) {
       case DATA: {
-  	if (out_pkt.sent_bytes == 64) {
+  	if (out_pkt.sent_bytes == 0) {
+	  DEBUG_MSG("DATA Chunk 0")
 	  // Packet block configuration — no data bytes needed
   	  out_block.type = DATA;
-  	  out_block.data_bytes = 0;
+  	  out_block.data_bytes = NO_DATA;
 	  out_block.dbuff_id = out_pkt.dbuff_id;
+	  out_pkt.data_offset += NO_DATA;
 
-  	  data_block_0_t * block = (data_block_0_t *) out_block.buff;
+	  //ap_uint<512> * block = (ap_uint<512> *) out_block.buff;
+
+	  (out_block.buff)(48,0) = 0xAAAAAAAAAAAA;
+	  (out_block.buff)(96,48) = 0xBBBBBBBBBBBB;
+  	  //data_block_0_t * block = (data_block_0_t *) out_block.buff;
 
 	  // Ethernet header
-	  block->dest_mac = 0xFFFFFF;
-	  block->src_mac = 0xFFFFFF;
-	  block->ethertype = ETHERTYPE_IPV6;
+	  //block->dest_mac = 0xAAAAAAAAAAAA;
+	  //block->src_mac  = 0xBBBBBBBBBBBB;
+	  //block->ethertype = ETHERTYPE_IPV6;
 
 	  // IPv6 header
-	  block->version = 0xF;
-	  block->traffic_class = 0xFF;
-	  block->flow_label = 0xFFFFF;
-	  block->next_header = IPPROTO_HOMA;
-	  block->hop_limit = 0xFF;
-	  block->src_address = out_pkt.saddr;
-	  block->dest_address = out_pkt.daddr;
+	  //block->version = 0xC;
+	  //block->traffic_class = 0xDD;
+	  //block->flow_label = 0xEEEEE;
+	  //block->next_header = IPPROTO_HOMA;
+	  //block->hop_limit = 0xFF;
+	  //block->src_address = out_pkt.saddr;
+	  //block->dest_address = out_pkt.daddr;
 
-	  // Start of common header
-	  block->sport = out_pkt.sport;
-	  block->dport = out_pkt.dport;
-	  block->unused = 0;
-
-  	} else if (out_pkt.sent_bytes == 128) {
+	  //// Start of common header
+	  //block->sport = out_pkt.sport;
+	  //block->dport = out_pkt.dport;
+	  //block->unused = 0;
+  	} else if (out_pkt.sent_bytes == 64) {
+	  DEBUG_MSG("DATA Chunk 1")
 	  // Packet block configuration — 14 data bytes needed
   	  out_block.type = DATA;
-  	  out_block.data_bytes = 14;
+  	  out_block.data_bytes = PARTIAL_DATA;
 	  out_block.dbuff_id = out_pkt.dbuff_id;
+	  out_pkt.data_offset += PARTIAL_DATA;
 
   	  data_block_1_t * block = (data_block_1_t *) out_block.buff;
 
@@ -123,19 +133,27 @@ void pkt_chunk_dispatch(stream_t<out_pkt_t, out_block_t> out_pkt_s) {
 	  block->client_id = 0;
 	  block->client_port = 0;
 	  block->server_port = 0;
+
   	} else {
+	  DEBUG_MSG("DATA Chunk")
 	  out_block.type = DATA;
-  	  out_block.data_bytes = 64;
+  	  out_block.data_bytes = ALL_DATA;
 	  out_block.dbuff_id = out_pkt.dbuff_id;
+	  out_pkt.data_offset += ALL_DATA;
 	}
       } 
     }
 
-    out_pkt_s.out.write(out_block);
+    out_block.offset = out_pkt.data_offset;
+
+    out_pkt.sent_bytes += 64;
+    //out_pkt.data_offset += 64;
+    chunk_dispatch__dbuff.write(out_block);
   }
 
-  if (out_pkt.valid == 0 && !out_pkt_s.in.empty()) {
-    out_pkt_s.in.read(out_pkt);
+  if (out_pkt.valid == 0 && !rpc_state__chunk_dispatch.empty()) {
+    rpc_state__chunk_dispatch.read(out_pkt);
+    DEBUG_MSG("Read new packet " << out_pkt.data_offset)
   } 
 }
 

@@ -77,6 +77,7 @@ void rexmit_buffer(hls::stream<touch_t> & touch_in,
       if (packetmap.head - packetmap.length == 0) {
 	// Notify user msg is complete?
 	complete_out.write(rexmit_touch.rpc_id);
+	DEBUG_MSG("Complete RPC");
 
 	// Disable this RPC
 	last_touches[rexmit_touch.rpc_id] = 0;

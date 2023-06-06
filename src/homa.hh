@@ -19,6 +19,9 @@ struct user_output_t;
 // Sender->Client and Client->Sender rpc ID conversion
 #define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
 
+// #define DEBUG_MSG(a) std::cerr << "DEBUG: " << a << std::endl;
+#define DEBUG_MSG(a)
+
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
 
@@ -41,7 +44,8 @@ struct user_output_t;
  *
  *  Refer to: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/How-AXI4-Stream-is-Implemented
  */
-typedef hls::axis<char[64], 1, 1, 1> raw_stream_t;
+typedef hls::axis<ap_uint<512>, 1, 1, 1> raw_stream_t;
+//typedef hls::axis<char[64], 1, 1, 1> raw_stream_t;
 typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
 
 #define MAX_PEERS_LOG2 14
@@ -66,21 +70,24 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 // Index into data buffers
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
-struct dbuff_block_t {
-  char buff[DBUFF_CHUNK_SIZE];
-};
-
-typedef dbuff_block_t dbuff_t[DBUFF_CHUNK_SIZE];
-//struct dbuff_t {
-//  dbuff_block_t blocks[XMIT_BUFFER_SIZE]; 
+typedef ap_uint<512> dbuff_chunk_t;
+//struct dbuff_chunk_t {
+//  char buff[DBUFF_CHUNK_SIZE];
 //};
+
+//typedef dbuff_chunk_t dbuff_t[DBUFF_NUM_CHUNKS];
+//struct dbuff_t {
+//  dbuff_chunk_t blocks[DBUFF_NUM_CHUNKS]; 
+//};
+typedef dbuff_chunk_t dbuff_t[DBUFF_NUM_CHUNKS];
 
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
 typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 struct dbuff_in_t {
-  dbuff_block_t block;
+  dbuff_chunk_t block;
   dbuff_id_t dbuff_id;
+  dbuff_coffset_t dbuff_chunk;
 };
 
 
@@ -167,7 +174,7 @@ struct params_t {
   uint32_t buffout;
   // Offset in DMA space for input
   uint32_t buffin;
-  int length;
+  uint32_t length;
   sockaddr_in6_t dest_addr;
   sockaddr_in6_t src_addr;
   uint64_t id;
@@ -179,9 +186,9 @@ struct out_pkt_t {
   homa_packet_type type;
   rpc_id_t rpc_id;
   dbuff_id_t dbuff_id;
-  uint32_t total_bytes;
-  uint32_t data_bytes;
-  uint32_t sent_bytes;
+  uint32_t total_bytes; // How many bytes in this packet
+  uint32_t data_offset; // Next byte to load in message buffer
+  uint32_t sent_bytes;  // How many bytes have been converted to chunks
   ap_uint<128> saddr;
   ap_uint<128> daddr;
   uint16_t sport;
@@ -189,12 +196,20 @@ struct out_pkt_t {
   ap_uint<1> valid;
 };
 
+enum data_bytes_e {
+  NO_DATA      = 0,
+  ALL_DATA     = 64,
+  PARTIAL_DATA = 14,
+};
+
 struct out_block_t {
   homa_packet_type type;
-  dbuff_id_t dbuff_id;
-  uint8_t data_bytes;
-  ap_uint<1> done;
-  char buff[64];
+  dbuff_id_t dbuff_id;     // Which data buffer is the RPC message stored in
+  uint32_t offset;         // Offset in data message
+  data_bytes_e data_bytes; // How many data bytes to add to this block
+  ap_uint<1> last;
+  ap_uint<512> buff;
+  //char buff[64];
 };
 
 struct new_rpc_t {
@@ -202,27 +217,21 @@ struct new_rpc_t {
   uint32_t buffout;
   uint32_t buffin;
   uint32_t rtt_bytes;
-  int length;
-  int granted;
+  uint32_t length;
+  uint32_t granted;
   sockaddr_in6_t dest_addr;
   sockaddr_in6_t src_addr;
   uint64_t id;
-  uint64_t local_id;
+  rpc_id_t local_id;
   peer_id_t peer_id;
   uint64_t completion_cookie;
 };
 
-template<typename I, typename O>
-struct stream_t {
-  hls::stream<I> & in;
-  hls::stream<O> & out;
-};
-
 void homa(homa_t * homa,
 	  params_t * params,
-	  hls::stream<raw_frame_t> & link_ingress_in, 
+	  hls::stream<raw_stream_t> & link_ingress_in, 
 	  hls::stream<raw_stream_t> & link_egress_out,
-	  hls::burst_maxi<dbuff_block_t> maxi_in, 
-	  dbuff_block_t * maxi_out);
+	  hls::burst_maxi<dbuff_chunk_t> maxi_in, 
+	  dbuff_chunk_t * maxi_out);
 
 #endif

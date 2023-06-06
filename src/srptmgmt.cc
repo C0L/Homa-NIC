@@ -9,10 +9,6 @@
  */
 void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
 		    hls::stream<srpt_data_t> & data_pkt_o) {
-		    //hls::stream<srpt_xmit_entry_t> & srpt_queue_insert,
-		    //hls::stream<onboard_rpc_t> & onboard_rpc_in,
-		    //hls::stream<srpt_xmit_entry_t> & srpt_queue_grants,
-		    //hls::stream<srpt_xmit_entry_t> & srpt_queue_next) {
 
   // TODO can use a smaller FIFO (of pipeline depth) for removing the sync error. After popping from the srpt add it to the blocked RPC BRAM.
   // And add it to the 5 element FIFO. Once it reaches the end of the FIFO, check if the grant has changed, if so readd to SRPT. Otherwise,
@@ -28,20 +24,23 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
     and we should readd to the SRPT
   */
 
-  static srpt_queue_t<srpt_xmit_entry_t, MAX_SRPT> srpt_queue;
+  static srpt_queue_t<srpt_data_t, MAX_SRPT> srpt_queue;
   static uint32_t grants[MAX_RPCS];
-  static fifo_t<srpt_xmit_entry_t, MAX_SRPT> exhausted;
+  static fifo_t<srpt_data_t, MAX_SRPT> exhausted;
 
 #pragma HLS pipeline II=1
 
   if (!data_pkt_o.full() && !srpt_queue.empty()) {
-    srpt_xmit_entry_t & head = srpt_queue.head();
+
+    srpt_data_t & head = srpt_queue.head();
     
     data_pkt_o.write(head);
 
-    head.remaining = (head.remaining - HOMA_PAYLOAD_SIZE < 0) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
+    head.remaining = (HOMA_PAYLOAD_SIZE > head.remaining) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
 
     uint32_t grant = grants[head.rpc_id];
+
+    std::cerr << "DEBUG: SRPT Data Out " <<  grant << std::endl;
 
     // TODO can probably do away with this subtraction step by inverting the value of the grant
     bool ungranted = (head.total - grant == head.remaining);
@@ -57,15 +56,19 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
     }
   } else if (!new_rpc_i.empty()) {
     new_rpc_t new_rpc = new_rpc_i.read();
-    srpt_data_t new_entry = {new_rpc.rpc_id, new_rpc.length, new_rpc.granted, new_rpc.length};
+
+    srpt_data_t new_entry = {new_rpc.local_id, new_rpc.length, new_rpc.granted, new_rpc.length};
     grants[new_entry.rpc_id] = new_entry.granted;
     srpt_queue.push(new_entry);
-  } else if (!srpt_queue_grants.empty()) {
-    srpt_xmit_entry_t new_grant;
-    srpt_queue_grants.read(new_grant);
-    grants[new_grant.rpc_id] = new_grant.granted;
-  } else if (!exhausted.empty()) {
-    srpt_xmit_entry_t exhausted_entry = exhausted.remove();
+    std::cerr << "DEBUG: Add DATA SRPT With Grant: " << new_entry.remaining << std::endl;
+  }
+  //else if (!srpt_queue_grants.empty()) {
+  //  srpt_data_t new_grant;
+  //  srpt_queue_grants.read(new_grant);
+  //  grants[new_grant.rpc_id] = new_grant.granted;
+  //} else
+  else if (!exhausted.empty()) {
+    srpt_data_t exhausted_entry = exhausted.remove();
     uint32_t grant = grants[exhausted_entry.rpc_id];
     if (grant != exhausted_entry.granted) {
       exhausted_entry.granted = grant;
@@ -90,20 +93,20 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
  * a message it has not seen, makes it eligible for granting. 
  * @srpt_queue_next:   The next rpc that should be granted to. Goes to link_egress. 
  */
-void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert,
-			     hls::stream<srpt_grant_entry_t> & srpt_queue_receipt,
-			     hls::stream<srpt_grant_entry_t> & srpt_queue_next) {
+void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
+			     hls::stream<srpt_grant_t> & srpt_queue_receipt,
+			     hls::stream<srpt_grant_t> & srpt_queue_next) {
 
   static peer_id_t active_set[MAX_OVERCOMMIT];
   static stack_t<ap_uint<3>, MAX_OVERCOMMIT> active_set_stack(true);
-  static srpt_queue_t<srpt_grant_entry_t, MAX_SRPT> srpt_queue;
+  static srpt_queue_t<srpt_grant_t, MAX_SRPT> srpt_queue;
 
 #pragma HLS pipeline II=1
 
   // TODO some of these may be receipts
   // TODO Receipt path to reset active set and send message
   if (!srpt_queue_insert.empty()) {
-    srpt_grant_entry_t new_entry;
+    srpt_grant_t new_entry;
     srpt_queue_insert.read(new_entry);
 
     int peer_match = -1;
@@ -122,7 +125,9 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert
 
     srpt_queue_next.write(new_entry);
   } else if (!srpt_queue_next.full() && srpt_queue.head().priority != BLOCKED && !active_set_stack.empty()) {
-    srpt_grant_entry_t & head = srpt_queue.head();
+    std::cerr << "DEBUG: Popped new grant" << std::endl;
+
+    srpt_grant_t & head = srpt_queue.head();
 
     int peer_match = -1;
     for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
@@ -138,7 +143,7 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_entry_t> & srpt_queue_insert
       ap_uint<3> idx = active_set_stack.pop();
       active_set[idx] = head.peer_id;
 
-      srpt_grant_entry_t msg = srpt_grant_entry_t(head.peer_id, 0, 0, MSG);
+      srpt_grant_t msg = {head.peer_id, 0, 0, MSG};
 
       srpt_queue.pop();
       srpt_queue.push(msg);

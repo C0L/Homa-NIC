@@ -10,8 +10,8 @@ add_files ./src/dma.cc
 add_files ./src/dma.hh
 add_files ./src/link.cc
 add_files ./src/link.hh 
-add_files ./src/xmitbuff.cc
-add_files ./src/xmitbuff.hh
+add_files ./src/databuff.cc
+add_files ./src/databuff.hh
 add_files ./src/timer.cc
 add_files ./src/timer.hh
 add_files ./src/net.hh

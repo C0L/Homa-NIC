@@ -1,18 +1,23 @@
 #include "peer.hh"
 #include "stack.hh"
 #include "hashmap.hh"
+#include <iostream>
 
-void peer_map(stream_t<new_rpc_t, new_rpc_t> & new_rpc_s) {
+void peer_map(hls::stream<new_rpc_t> & dma_ingress__peer_map,
+	      hls::stream<new_rpc_t> & peer_map__rpc_state) {
+
   static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
   static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
 
-  //#pragma HLS dependence variable=hashmap inter WAR false
-  //#pragma HLS dependence variable=hashmap inter RAW false
+  // TODO Can this be problematic?
+#pragma HLS dependence variable=hashmap inter WAR false
+#pragma HLS dependence variable=hashmap inter RAW false
 
 #pragma HLS pipeline II=1
 
-  if (!new_rpc_s.in.empty()) {
-    new_rpc_t new_rpc = new_rpc_s.in.read();
+  if (!dma_ingress__peer_map.empty()) {
+    std::cerr << "DEBUG: Checking peer map" << std::endl;
+    new_rpc_t new_rpc = dma_ingress__peer_map.read();
 
     // Is this a request message?
     if (new_rpc.id == 0) {
@@ -29,7 +34,7 @@ void peer_map(stream_t<new_rpc_t, new_rpc_t> & new_rpc_s) {
       }
     }
 
-    new_rpc_s.out.write(new_rpc);
+    peer_map__rpc_state.write(new_rpc);
   } else {
     hashmap.process();
   }

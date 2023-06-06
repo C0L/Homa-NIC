@@ -10,7 +10,6 @@
 
 #define MAX_PEERS 16384
 
-
 #define NUM_PEER_UNACKED_IDS 5
 
 #define PEER_HP_SIZE 4
@@ -38,21 +37,7 @@ struct homa_peer_t {
 };
 
 
-void peer_map(stream_t<new_rpc_t, new_rpc_t> & new_rpc_s);
+void peer_map(hls::stream<new_rpc_t> & dma_ingress__peer_map,
+	      hls::stream<new_rpc_t> & peer_map__rpc_state);
 
-//void update_peer_stack(hls::stream<peer_id_t> & peer_stack_next_primary,
-//		       hls::stream<peer_id_t> & peer_stack_next_secondary,
-//		       hls::stream<peer_id_t> & peer_stack_free);
-//
-//void update_peer_table(hls::stream<peer_hashpack_t> & peer_table_request_primary,
-//		       hls::stream<peer_id_t> & peer_table_response_primary,
-//		       hls::stream<peer_hashpack_t> & peer_table_request_secondary,
-//		       hls::stream<peer_id_t> & peer_table_response_secondary,
-//		       hls::stream<homa_peer_t> & peer_table_insert_primary,
-//		       hls::stream<homa_peer_t> & peer_table_insert_secondary);
-//
-//void update_peer_buffer(hls::stream<peer_id_t> & peer_buffer_request,
-//			hls::stream<homa_peer_t> & peer_buffer_response,
-//			hls::stream<homa_peer_t> & peer_buffer_insert_primary,
-//			hls::stream<homa_peer_t> & peer_buffer_insert_secondary);
 #endif
