@@ -5,6 +5,7 @@
 #include "net.hh"
 
 void update_dbuff(hls::stream<dbuff_in_t> & dbuff_i,
+		  hls::stream<dbuff_notif_t> & dbuff__srpt_data,
 		  hls::stream<out_block_t> & chunk_dispatch__dbuff,
 		  hls::stream<raw_stream_t> & link_egress);
 		  

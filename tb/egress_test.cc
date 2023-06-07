@@ -18,39 +18,42 @@ void print_packet(hls::stream<raw_stream_t> & link_egress) {
 
   while (!block.last) {
     link_egress.read(block);
-    for (int i = 0; i < 64; ++i) {
-      std::cout << std::setw(2) << std::setfill('0') << std::hex << (int)(unsigned char) block.data[i];
-      std::cout << "|" << std::endl;
-      // std::cout << std::hex << (uint32_t) block.data[i];
-    }
+    std::cout << std::hex << block.data << std::endl;
+    //for (int i = 0; i < 64; ++i) {
+    //  std::cout << ('0') << std::hex << (int)(unsigned char) block.data[i];
+    //  std::cout << "|" << std::endl;
+    //  // std::cout << std::hex << (uint32_t) block.data[i];
+    //}
   }
 
   std::cerr << std::endl;
 }
 
+// TODO ap_uint<96> wide_var(“76543210fedcba9876543210”, 16); // Greater than 64-bit
+
 bool test_egress() {
   homa_t homa_cfg;
   homa_cfg.rtt_bytes = 60000;
-
-  char msg[] = "TEST MESSAGE. TEST MESSAGE. TEST MESSAGE. TEST MESSAGE. TEST ME";
 
   hls::stream<raw_stream_t> link_ingress;
   hls::stream<raw_stream_t> link_egress;
   dbuff_chunk_t maxi_in[128];
   dbuff_chunk_t maxi_out[128];
   for (int i = 0; i < 128; ++i) {
-    for (int j = 0; j < 64; ++j) {
-      maxi_in[i].buff[j] = msg[j];
+    for (int j = 15; j >= 0; --j) {
+      maxi_in[i](((j+1)*32)-1, j*32) = 0xDEADBEEF;
     }
   }
 
   sockaddr_in6_t dest_addr;
   sockaddr_in6_t src_addr;
 
-  dest_addr.sin6_addr.s6_addr = 0xDEADBEEFDEADBEEF;
+  dest_addr.sin6_addr.s6_addr(63, 0)   = 0xABCDEFABCDEFABCD;
+  dest_addr.sin6_addr.s6_addr(127, 64) = 0xABCDEFABCDEFABCD;
   dest_addr.sin6_port = 0xBEEF;
-  src_addr.sin6_addr.s6_addr = 0xDEADBEEFDEADBEEF;
-  src_addr.sin6_port = 0xBEEF;
+  src_addr.sin6_addr.s6_addr(63, 0)   = 0xDCBAFEDCBAFEDCBA;
+  src_addr.sin6_addr.s6_addr(127, 64) = 0xDCBAFEDCBAFEDCBA;
+  src_addr.sin6_port = 0xFEEB;
 
   // New RPC, offest 0 DMA out, offset 0 DMA in, 128 bytes to send, id (request message), cookie
   params_t params = {0, 0, 128, dest_addr, src_addr, 0, 0xFFFFFFFFFFFFFFFF};

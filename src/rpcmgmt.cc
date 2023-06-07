@@ -51,9 +51,6 @@ void rpc_state(hls::stream<new_rpc_t> & peer_map__rpc_state,
       homa_rpc.msgout.length = new_rpc.length;
       homa_rpc.msgout.dbuff_id = new_rpc.dbuff_id;
 
-      //std::cerr << homa_rpc.daddr << std::endl;
-      //std::cerr << new_rpc.dest_<< std::endl;
-
       rpcs[(new_rpc.local_id >> 1)-1] = homa_rpc;
     } else { // Is this a response message?
       homa_rpc_t homa_rpc = rpcs[(new_rpc.local_id >> 1)-1];
@@ -65,72 +62,4 @@ void rpc_state(hls::stream<new_rpc_t> & peer_map__rpc_state,
 
     rpc_state__srpt_data.write(new_rpc);
   }
-
-  // TODO if in_pkt_s .... else if new_rpc_s
-
-  //else if (!onboard_rpc_req_new_peer_in.empty()) {
-  //  onboard_rpc_t onboard_rpc = onboard_rpc_req_new_peer_in.read();
-  //  homa_rpc_t homa_rpc = rpcs[(onboard_rpc.rpc_id >> 1)-1];
-
-  //  homa_rpc.completion_cookie = onboard_rpc.completion_cookie;
-  //  homa_rpc.state = homa_rpc_t::RPC_OUTGOING;
-  //  homa_rpc.daddr = onboard_rpc.dest_addr.sin6_addr.s6_addr;
-  //  homa_rpc.dport = onboard_rpc.dest_addr.sin6_port;
-  //  homa_rpc.saddr = onboard_rpc.src_addr.sin6_addr.s6_addr;
-  //  homa_rpc.sport = onboard_rpc.src_addr.sin6_port;
-  //  homa_rpc.buffout = onboard_rpc.buffout;
-  //  homa_rpc.buffin = onboard_rpc.buffin;
-
-  //  rpcs[(onboard_rpc.rpc_id >> 1)-1] = homa_rpc;
-
-  //  int granted = rtt_bytes;
-  //  if (rtt_bytes > onboard_rpc.length)
-  //    granted = onboard_rpc.length;
-
-  //  onboard_rpc.granted = granted;
-
-  //  onboard_rpc_out.write(onboard_rpc);
-  //} else if (!onboard_rpc_req_in.empty()) {
-  //  onboard_rpc_t onboard_rpc = onboard_rpc_req_in.read();
-  //  homa_rpc_t homa_rpc = rpcs[(onboard_rpc.rpc_id >> 1)-1];
-
-  //  homa_rpc.completion_cookie = onboard_rpc.completion_cookie;
-  //  homa_rpc.state = homa_rpc_t::RPC_OUTGOING;
-  //  homa_rpc.daddr = onboard_rpc.dest_addr.sin6_addr.s6_addr;
-  //  homa_rpc.dport = onboard_rpc.dest_addr.sin6_port;
-  //  homa_rpc.saddr = onboard_rpc.src_addr.sin6_addr.s6_addr;
-  //  homa_rpc.sport = onboard_rpc.src_addr.sin6_port;
-  //  homa_rpc.buffout = onboard_rpc.buffout;
-  //  homa_rpc.buffin = onboard_rpc.buffin;
-
-  //  rpcs[(onboard_rpc.rpc_id >> 1)-1] = homa_rpc;
-
-  //  int granted = rtt_bytes;
-  //  if (rtt_bytes > onboard_rpc.length)
-  //    granted = onboard_rpc.length;
-
-  //  onboard_rpc.granted = granted;
-
-  //  onboard_rpc_out.write(onboard_rpc);
-  //} else if (!onboard_rpc_resp_in.empty()) {
-  //  onboard_rpc_t onboard_rpc = onboard_rpc_resp_in.read();
-  //  homa_rpc_t homa_rpc = rpcs[(onboard_rpc.rpc_id >> 1)-1];
-
-  //  homa_rpc.state = homa_rpc_t::RPC_OUTGOING;
-  //  rpcs[(onboard_rpc.rpc_id >> 1)-1] = homa_rpc;
-
-  //  int granted = rtt_bytes;
-  //  if (rtt_bytes > onboard_rpc.length)
-  //    granted = onboard_rpc.length;
-
-  //  onboard_rpc.granted = granted;
-  //  
-  //  onboard_rpc_out.write(onboard_rpc);
-  //}
- 
-  //if (rpc_buffer_insert_primary.read_nb(update)) {
-  //  rpcs[(update.rpc_id >> 1)-1] = update;
-  //} else if (rpc_buffer_insert_secondary.read_nb(update)) {
-  //  rpcs[(update.rpc_id >> 1)-1] = update;
-  //} 
 }

@@ -8,6 +8,7 @@
  * @srpt_queue_next:   The highest priority value to transmit
  */
 void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
+		    hls::stream<dbuff_notif_t> & dbuff_notif_i,
 		    hls::stream<srpt_data_t> & data_pkt_o) {
 
   // TODO can use a smaller FIFO (of pipeline depth) for removing the sync error. After popping from the srpt add it to the blocked RPC BRAM.
@@ -26,63 +27,83 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
 
   static srpt_queue_t<srpt_data_t, MAX_SRPT> srpt_queue;
   static uint32_t grants[MAX_RPCS];
+  static dbuff_notif_t dbuff_notifs[NUM_DBUFF];
   static fifo_t<srpt_data_t, MAX_SRPT> exhausted;
 
 #pragma HLS pipeline II=1
 
+  if (!dbuff_notif_i.empty()) {
+    dbuff_notif_t dbuff_notif = dbuff_notif_i.read();
+    dbuff_notifs[dbuff_notif.dbuff_id] = dbuff_notif;
+  }
+
   if (!data_pkt_o.full() && !srpt_queue.empty()) {
 
     srpt_data_t & head = srpt_queue.head();
-    
-    data_pkt_o.write(head);
 
-    head.remaining = (HOMA_PAYLOAD_SIZE > head.remaining) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
+    uint32_t remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
 
-    uint32_t grant = grants[head.rpc_id];
+    // Check if the offset of the highest byte needed has been recieved
+    dbuff_notif_t dbuff_notif = dbuff_notifs[head.dbuff_id];
+    bool blocked = ((dbuff_notif.dbuff_chunk + 1) * DBUFF_CHUNK_SIZE < (head.total - remaining));
 
-    std::cerr << "DEBUG: SRPT Data Out " <<  grant << std::endl;
-
-    // TODO can probably do away with this subtraction step by inverting the value of the grant
-    bool ungranted = (head.total - grant == head.remaining);
-    bool complete  = (head.remaining == 0);
-
-    if (!complete && ungranted) {
+    if (blocked) {
       exhausted.insert(head);
-    }
-
-    // Are we done sending this message, or are we out of granted bytes?
-    if (complete || ungranted) {
       srpt_queue.pop();
+    } else {
+      data_pkt_o.write(head);
+
+      head.remaining = remaining;
+      uint32_t grant = grants[head.rpc_id];
+
+      /*
+	grant is the byte up to which we are eligable to send
+	head.total - grant determines the maximum number of
+	remaining bytes we can send up to
+      */
+      bool ungranted = (head.total - grant < head.remaining);
+      bool complete  = (head.remaining == 0);
+
+      if (!complete && ungranted) {
+	exhausted.insert(head);
+      }
+
+      // Are we done sending this message, or are we out of granted bytes?
+      if (complete || ungranted) {
+	// TODO also wipe the dbuff notifs (so that a future message does not pickup garbage data)
+	srpt_queue.pop();
+      }
     }
   } else if (!new_rpc_i.empty()) {
     new_rpc_t new_rpc = new_rpc_i.read();
-
-    srpt_data_t new_entry = {new_rpc.local_id, new_rpc.length, new_rpc.granted, new_rpc.length};
-    grants[new_entry.rpc_id] = new_entry.granted;
+    srpt_data_t new_entry = {new_rpc.local_id, new_rpc.dbuff_id, new_rpc.length, new_rpc.length};
+    grants[new_entry.rpc_id] = new_rpc.granted;
     srpt_queue.push(new_entry);
-    std::cerr << "DEBUG: Add DATA SRPT With Grant: " << new_entry.remaining << std::endl;
+  } else if (!exhausted.empty()) {
+    srpt_data_t exhausted_entry = exhausted.remove();
+    uint32_t grant = grants[exhausted_entry.rpc_id];
+    dbuff_notif_t dbuff_notif = dbuff_notifs[exhausted_entry.dbuff_id];
+    uint32_t remaining  = (HOMA_PAYLOAD_SIZE > exhausted_entry.remaining) ? 0 : exhausted_entry.remaining - HOMA_PAYLOAD_SIZE;
+
+    // Even a single byte more of grant will enable one more packet of data
+    bool granted = (grant >= exhausted_entry.remaining);
+    // Regardless, we need to have enough packet data on hand to send this message
+    bool unblocked = (((dbuff_notif.dbuff_chunk+1) * DBUFF_CHUNK_SIZE) >= (exhausted_entry.total - remaining));
+
+    if (unblocked && granted) {
+      srpt_queue.push(exhausted_entry);
+    } else {
+      exhausted.insert(exhausted_entry);
+    }
   }
+
+  // TODO This can always happen unless we get a new RPC
   //else if (!srpt_queue_grants.empty()) {
   //  srpt_data_t new_grant;
   //  srpt_queue_grants.read(new_grant);
   //  grants[new_grant.rpc_id] = new_grant.granted;
   //} else
-  else if (!exhausted.empty()) {
-    srpt_data_t exhausted_entry = exhausted.remove();
-    uint32_t grant = grants[exhausted_entry.rpc_id];
-    if (grant != exhausted_entry.granted) {
-      exhausted_entry.granted = grant;
-      srpt_queue.push(exhausted_entry);
-    } else {
-      exhausted.insert(exhausted_entry);
-    }
-  } 
 }
-
-
-// When this value is added to the active set, the RPC is streamed to the link_egress, which decides
-// to grant as much as it pleases. When the results of this grant arrive in link_ingress, the rpc
-// is re-added as being grantable. 
 
 /**
  * update_grant_srpt_queue() - Determines what message to grant next. Messages are ordered by
@@ -125,8 +146,6 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
 
     srpt_queue_next.write(new_entry);
   } else if (!srpt_queue_next.full() && srpt_queue.head().priority != BLOCKED && !active_set_stack.empty()) {
-    std::cerr << "DEBUG: Popped new grant" << std::endl;
-
     srpt_grant_t & head = srpt_queue.head();
 
     int peer_match = -1;

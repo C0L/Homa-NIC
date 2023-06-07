@@ -4,7 +4,15 @@
 #include "link.hh"
 #include "dma.hh"
 
-// Initiate an outgoing packet
+/**
+ * egress_selector() - Chose which of data packets, grant packets, retransmission
+ * packets, and control packets to send next.
+ * @data_pkt_i - Next highest priority data packet input
+ * @grant_pkt_i - Next highest priority grant packet input
+ * @rexmit_pkt_i - Packets requiring retransmission input
+ * @out_pkt_o - Output stream to the RPC store to get info
+ * about the RPC before the packet can be sent
+ */
 void egress_selector(hls::stream<srpt_data_t> & data_pkt_i,
 		     hls::stream<srpt_grant_t> & grant_pkt_i,
 		     hls::stream<rexmit_t> & rexmit_pkt_i,
@@ -31,27 +39,17 @@ void egress_selector(hls::stream<srpt_data_t> & data_pkt_i,
 
     out_pkt_o.write(out_pkt);
   }
-
-  //else if (!srpt_grant_queue_next_in.empty()) {
-  //  srpt_grant_entry_t next_grant_pkt = srpt_grant_queue_next_in.read();
-
-  //  // TODO 
-  //  pending_pkt_t pending_pkt;
-  //  pending_pkt.type = GRANT;
-
-  //  pending_pkt_out.write(pending_pkt);
-  //} else if (!rexmit_rpcs_in.empty()) {
-  //  rexmit_t rexmit = rexmit_rpcs_in.read();
-
-  //  // TODO 
-  //  pending_pkt_t pending_pkt;
-  //  pending_pkt.type = RESEND;
-
-  //  pending_pkt_out.write(pending_pkt);
-  //}
 }
 
 
+/**
+ * pkt_chunk_dispatch() - Take in the packet header data and output
+ * structured 64 byte chunks of that packet. Chunks requiring message
+ * data will be augmented with that data in the next step. 
+ * @rpc_state__chunk_dispatch - Header data input to be sent on the link
+ * @chunk_dispatch__dbuff - 64 byte structured packet chunks output to
+ * this fifo to be augmented with data from the data buffer
+ */
 void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
 			hls::stream<out_block_t> & chunk_dispatch__dbuff) {
   static out_pkt_t out_pkt;
@@ -59,8 +57,8 @@ void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
 #pragma HLS pipeline II=1
 
   if (out_pkt.valid == 1 && out_pkt.sent_bytes < out_pkt.total_bytes) {
-    //std::cerr << "DEBUG: Send chunk" << std::endl;
     out_block_t out_block;
+    out_block.offset = out_pkt.data_offset;
 
     if ((out_pkt.sent_bytes + 64) >= out_pkt.total_bytes) {
       out_block.last = 1;
@@ -71,36 +69,33 @@ void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
       case DATA: {
   	if (out_pkt.sent_bytes == 0) {
 	  DEBUG_MSG("DATA Chunk 0")
+
 	  // Packet block configuration — no data bytes needed
   	  out_block.type = DATA;
   	  out_block.data_bytes = NO_DATA;
 	  out_block.dbuff_id = out_pkt.dbuff_id;
 	  out_pkt.data_offset += NO_DATA;
 
-	  //ap_uint<512> * block = (ap_uint<512> *) out_block.buff;
-
-	  (out_block.buff)(48,0) = 0xAAAAAAAAAAAA;
-	  (out_block.buff)(96,48) = 0xBBBBBBBBBBBB;
-  	  //data_block_0_t * block = (data_block_0_t *) out_block.buff;
-
 	  // Ethernet header
-	  //block->dest_mac = 0xAAAAAAAAAAAA;
-	  //block->src_mac  = 0xBBBBBBBBBBBB;
-	  //block->ethertype = ETHERTYPE_IPV6;
+	  (out_block.buff)(511-0,511-47)   = 0xAAAAAAAAAAAA;
+	  (out_block.buff)(511-48,511-95)  = 0xBBBBBBBBBBBB;
+	  (out_block.buff)(511-96,511-111) = ETHERTYPE_IPV6;
 
 	  // IPv6 header
-	  //block->version = 0xC;
-	  //block->traffic_class = 0xDD;
-	  //block->flow_label = 0xEEEEE;
-	  //block->next_header = IPPROTO_HOMA;
-	  //block->hop_limit = 0xFF;
-	  //block->src_address = out_pkt.saddr;
-	  //block->dest_address = out_pkt.daddr;
+	  (out_block.buff)(511-112,511-115) = 0xC;
+	  (out_block.buff)(511-116,511-123) = 0xDD;
+	  (out_block.buff)(511-124,511-143) = 0xEEEEE;
+	  (out_block.buff)(511-144,511-159) = IPPROTO_HOMA;
+	  (out_block.buff)(511-160,511-167) = 0xFF;
+	  (out_block.buff)(511-168,511-175) = 0xFF;
+	  (out_block.buff)(511-176,511-303) = out_pkt.saddr;
+	  (out_block.buff)(511-304,511-431) = out_pkt.daddr;
 
-	  //// Start of common header
-	  //block->sport = out_pkt.sport;
-	  //block->dport = out_pkt.dport;
-	  //block->unused = 0;
+	  // Start of common header
+	  (out_block.buff)(511-432,511-447) = out_pkt.sport;
+	  (out_block.buff)(511-448,511-463) = out_pkt.dport;
+	  (out_block.buff)(511-464,511-511) = 0xFFFFFFFFFFFF;
+
   	} else if (out_pkt.sent_bytes == 64) {
 	  DEBUG_MSG("DATA Chunk 1")
 	  // Packet block configuration — 14 data bytes needed
@@ -109,30 +104,37 @@ void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
 	  out_block.dbuff_id = out_pkt.dbuff_id;
 	  out_pkt.data_offset += PARTIAL_DATA;
 
-  	  data_block_1_t * block = (data_block_1_t *) out_block.buff;
+	  (out_block.buff)(63,0)    = 0xFFFFFFFFFFFFFFFF;
+	  (out_block.buff)(127,64)  = 0xFFFFFFFFFFFFFFFF;
+	  (out_block.buff)(191,128) = 0xFFFFFFFFFFFFFFFF;
+	  (out_block.buff)(255,192) = 0xFFFFFFFFFFFFFFFF;
+	  (out_block.buff)(319,256) = 0xFFFFFFFFFFFFFFFF;
+	  (out_block.buff)(383,320) = 0xFFFFFFFFFFFFFFFF;
+	  (out_block.buff)(447,384) = 0xFFFFFFFFFFFFFFFF;
+	  (out_block.buff)(511,448) = 0xFFFFFFFFFFFFFFFF;
 
 	  // Remaining bytes of common header
-	  block->unused0 = 0;
-	  block->doff = 0xFFFFFFFF;
-	  block->type = DATA;
-	  block->unused1 = 0;
-	  block->checksum = 0;
-	  block->unused2 = 0;
-	  block->sender_id = out_pkt.rpc_id;
+	  //block->unused0 = 0;
+	  //block->doff = 0xFFFFFFFF;
+	  //block->type = DATA;
+	  //block->unused1 = 0;
+	  //block->checksum = 0;
+	  //block->unused2 = 0;
+	  //block->sender_id = out_pkt.rpc_id;
 
-	  // Data header
-	  block->message_length = 0xFFFFFFFF;
-	  block->incoming = 0xFFFFFFFF;
-	  block->cutoff_version = 0xFFFFFFFF;
-	  block->retransmit = 0xFFFFFFFF;
-	  block->pad = 0;
-	  block->offset = 0xFFFFFFFF;
-	  block->segment_length = 0xFFFFFFFF;
+	  //// Data header
+	  //block->message_length = 0xFFFFFFFF;
+	  //block->incoming = 0xFFFFFFFF;
+	  //block->cutoff_version = 0xFFFFFFFF;
+	  //block->retransmit = 0xFFFFFFFF;
+	  //block->pad = 0;
+	  //block->offset = 0xFFFFFFFF;
+	  //block->segment_length = 0xFFFFFFFF;
 
-	  // Ack header
-	  block->client_id = 0;
-	  block->client_port = 0;
-	  block->server_port = 0;
+	  //// Ack header
+	  //block->client_id = 0;
+	  //block->client_port = 0;
+	  //block->server_port = 0;
 
   	} else {
 	  DEBUG_MSG("DATA Chunk")
@@ -144,10 +146,7 @@ void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
       } 
     }
 
-    out_block.offset = out_pkt.data_offset;
-
     out_pkt.sent_bytes += 64;
-    //out_pkt.data_offset += 64;
     chunk_dispatch__dbuff.write(out_block);
   }
 
@@ -187,7 +186,7 @@ void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
  * proc_link_ingress() - 
  * 
  */
-void link_ingress(hls::stream<raw_frame_t> & link_ingress_in,
+void link_ingress(hls::stream<raw_stream_t> & link_ingress_in,
 		  hls::stream<srpt_grant_t> & srpt_grant_queue_insert,
 		  hls::stream<srpt_data_t> & srpt_xmit_queue_update,
 		  hls::stream<rpc_hashpack_t> & rpc_table_request,

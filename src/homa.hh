@@ -34,19 +34,8 @@ struct user_output_t;
 
 #define HOMA_MAX_PRIORITIES 8
 
-
-/*  Data "bucket" for incoming or outgoing ethernet frames
- * 
- *  Maximum size of ethernet, assuming non-jumbo frames:
- *    6*8 + 6*8 + 4*8 + 2*8 + 1500*8 + 4*8 = 12176 bits
- *
- *  axis type handles stream particulars like indicating when the stream transaction is complete
- *
- *  Refer to: https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/How-AXI4-Stream-is-Implemented
- */
 typedef hls::axis<ap_uint<512>, 1, 1, 1> raw_stream_t;
-//typedef hls::axis<char[64], 1, 1, 1> raw_stream_t;
-typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
+// typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
 
 #define MAX_PEERS_LOG2 14
 
@@ -56,7 +45,7 @@ typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 #define MAX_RPCS_LOG2 14
 typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 
-/* xmit buffer */
+/* data buffer */
 
 #define NUM_DBUFF 1024 // Number of data buffers (max outgoing RPCs)
 #define DBUFF_INDEX 10 // Index into the data buffers
@@ -71,14 +60,7 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
 typedef ap_uint<512> dbuff_chunk_t;
-//struct dbuff_chunk_t {
-//  char buff[DBUFF_CHUNK_SIZE];
-//};
 
-//typedef dbuff_chunk_t dbuff_t[DBUFF_NUM_CHUNKS];
-//struct dbuff_t {
-//  dbuff_chunk_t blocks[DBUFF_NUM_CHUNKS]; 
-//};
 typedef dbuff_chunk_t dbuff_t[DBUFF_NUM_CHUNKS];
 
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
@@ -90,6 +72,10 @@ struct dbuff_in_t {
   dbuff_coffset_t dbuff_chunk;
 };
 
+struct dbuff_notif_t {
+  dbuff_id_t dbuff_id;
+  dbuff_coffset_t dbuff_chunk; 
+};
 
 /* network structures */
 typedef uint16_t sa_family_t;

@@ -65,6 +65,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<out_pkt_t> egress_sel__rpc_state;
   hls_thread_local hls::stream<out_pkt_t> rpc_state__chunk_dispatch;
   hls_thread_local hls::stream<out_block_t> chunk_dispatch__dbuff;
+  hls_thread_local hls::stream<dbuff_notif_t> dbuff__srpt_data;
 
 #pragma HLS dataflow
 
@@ -80,6 +81,7 @@ void homa(homa_t * homa,
 
   hls_thread_local hls::task srpt_data_pkts_task(srpt_data_pkts,
 						 rpc_state__srpt_data,
+						 dbuff__srpt_data,
 						 srpt_data__egress_sel);
 
   hls_thread_local hls::task egress_selector_task(egress_selector,
@@ -93,6 +95,7 @@ void homa(homa_t * homa,
 
   hls_thread_local hls::task update_dbuff_task(update_dbuff,
 					       dma_ingress__dbuff,
+					       dbuff__srpt_data,
 					       chunk_dispatch__dbuff, link_egress); 
 
   hls_thread_local hls::task tmp_task(tmp, freed_dbuffs);

@@ -23,30 +23,29 @@ template<typename T, int MAX_SIZE>
 struct srpt_queue_t;
 
 struct srpt_data_t {
-  rpc_id_t rpc_id; 
+  rpc_id_t rpc_id;
+  dbuff_id_t dbuff_id;
   uint32_t remaining;
-  uint32_t granted;
   uint32_t total;
 
   srpt_data_t() {
     rpc_id = 0;
+    dbuff_id = 0;
     remaining = 0xFFFFFFFF;
-    granted = 0;
     total = 0;
   }
 
   //data TODO total probably does not need to be stored
-  srpt_data_t(rpc_id_t rpc_id, uint32_t remaining, uint32_t granted, uint32_t total) {
+  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, uint32_t remaining, uint32_t total) {
     this->rpc_id = rpc_id;
+    this->dbuff_id = dbuff_id;
     this->remaining = remaining;
-    this->granted = granted;
     this->total = total;
   }
 
   bool operator==(const srpt_data_t & other) const {
     return (rpc_id == other.rpc_id &&
 	    remaining == other.remaining &&
-	    granted == other.granted &&
 	    total == other.total);
   }
 
@@ -324,6 +323,7 @@ struct srpt_queue_t {
 };
 
 void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
+		    hls::stream<dbuff_notif_t> & data_notif_i,
 		    hls::stream<srpt_data_t> & data_pkt_o);
 
 void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,

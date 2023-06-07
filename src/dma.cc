@@ -7,8 +7,16 @@
 #include "srptmgmt.hh"
 
 /**
- * dma_ingress()
- * Pull user request from DMA and the first message caches worth of bytes
+ * dma_ingress() - Injests new RPCs and homa configurations into the
+ * homa processor. Manages the databuffer IDs, as those must be generated before
+ * started pulling data from DMA, and we need to know the ID to store it in the
+ * homa_rpc.
+ * @homa         - Homa configuration parameters
+ * @params       - New RPCs that need to be onboarded
+ * @maxi         - Burstable AXI interface to the DMA space
+ * @freed_rpcs_o - Free RPC data buffer IDs for inclusion into the new RPCs
+ * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
+ * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
 void dma_ingress(homa_t * homa,
 		 params_t * params,
@@ -16,11 +24,19 @@ void dma_ingress(homa_t * homa,
 		 hls::stream<dbuff_id_t> & freed_rpcs_o,
 		 hls::stream<dbuff_in_t> & dbuff_o,
 		 hls::stream<new_rpc_t> & new_rpc_o) {
+
 #pragma HLS interface mode=ap_ctrl_hs port=return
 
+  // TODO could also move this to another core that just sends its outputs to a FIFO here...
   static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
   DEBUG_MSG("DMA Ingress") 
+
+  /*
+    TODO ensure this FIFO is very long a this process may not activate frequently
+    and it could cause a stall if someone is trying to write a freed dbuff id to
+    the free stream
+  */
 
   if (!freed_rpcs_o.empty()) {
     dbuff_id_t dbuff_id = freed_rpcs_o.read();
@@ -41,16 +57,6 @@ void dma_ingress(homa_t * homa,
 					    
   DEBUG_MSG(dbuff_id);
 
-  dbuff_in_t dbuff_in = {maxi.read(), dbuff_id, 0};
-  dbuff_o.write(dbuff_in);
-  
-  for (int i = 1; i < num_chunks; i++) {
-#pragma HLS pipeline II=1
-    dbuff_in = {maxi.read(), dbuff_id, i};
-    dbuff_o.write(dbuff_in);
-  }
-
-  // TODO only really need to wait for the first read to suceeed before this can be launched
   new_rpc_t new_rpc;
   new_rpc.dbuff_id = dbuff_id;
   new_rpc.buffout = params->buffout;
@@ -65,22 +71,18 @@ void dma_ingress(homa_t * homa,
   new_rpc.id = params->id;
   new_rpc.completion_cookie = params->completion_cookie;
 
-  //dbuff_o.write(dbuff_in);
-
-  //  dbuff_in_t dbuff_in = {maxi.read(), dbuff_id};
-  //  dbuff_o.write(dbuff_in);
-  //
   new_rpc_o.write(new_rpc);
-  //
-  //  // Iteratively read result of burst and set to xmit buffer
-  //
-  //  // TODO does the 64 byte chunk influence the retrieval of packet data?
-  //  // TODO should be handled by some async process. Let the dbuff handle rebuffering packets where data has not yet arrived.
-  //  for (int i = 0; i < DBUFF_NUM_CHUNKS-1; i++) {
-  //#pragma HLS pipeline II=1
-  //    dbuff_in = {maxi.read(), dbuff_id};
-  //    dbuff_o.write(dbuff_in);
-  //  }
+
+  dbuff_in_t dbuff_in = {maxi.read(), dbuff_id, 0};
+  dbuff_o.write(dbuff_in);
+  
+  for (int i = 1; i < num_chunks; i++) {
+#pragma HLS pipeline II=1
+    dbuff_in = {maxi.read(), dbuff_id, i};
+    dbuff_o.write(dbuff_in);
+  }
+
+  // TODO only really need to wait for the first read to suceeed before this can be launched
 }
 
 

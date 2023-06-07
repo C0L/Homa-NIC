@@ -6,7 +6,7 @@
 
 /**
  * update_dbuff() - Augment outgoing packet chunks with packet data
- * @dbuff_i   - Input stream of data that needs to be inserted into the on-chip
+ * @dbuff_i - Input stream of data that needs to be inserted into the on-chip
  * buffer. Contains the block index of the insertion, and the raw data.
  * @chunk_dispatch__dbuff - Input stream for outgoing packets that need to be
  * augmented with data from the data buffer. Each chunk indicates the number of
@@ -17,9 +17,8 @@
  * set, indicating a completiton of packet transmission.
  * TODO Needs to request data from DMA to keep the RB saturated with pkt data
  */
-
-
 void update_dbuff(hls::stream<dbuff_in_t> & dbuff_i,
+		  hls::stream<dbuff_notif_t> & dbuff__srpt_data,
 		  hls::stream<out_block_t> & chunk_dispatch__dbuff,
 		  hls::stream<raw_stream_t> & link_egress) {
 	
@@ -27,13 +26,14 @@ void update_dbuff(hls::stream<dbuff_in_t> & dbuff_i,
 
   // 1024 x 2^14 byte buffers
   static dbuff_t dbuff[NUM_DBUFF];
+#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
   // Do we need to add any data to data buffer 
   if (!dbuff_i.empty()) {
     dbuff_in_t dbuff_in = dbuff_i.read();
     DEBUG_MSG("Add Data Chunk: " << dbuff_in.dbuff_chunk << " " << dbuff_in.dbuff_id)
-
     dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk] = dbuff_in.block;
+    dbuff__srpt_data.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
   }
 
   // Do we need to process any packet chunks?
@@ -48,28 +48,16 @@ void update_dbuff(hls::stream<dbuff_in_t> & dbuff_i,
     if (out_block.type == DATA) {
       int curr_byte = out_block.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
 
-      //char double_buff[128];
       ap_uint<1024> double_buff;
 #pragma HLS array_partition variable=double_buff complete
-      
+
       int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
       int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
 
-      double_buff(512, 0) = dbuff[out_block.dbuff_id][block_offset];
-      double_buff(1023, 512) = dbuff[out_block.dbuff_id][block_offset+1];
-
-      //      for (int i = 0; i < DBUFF_CHUNK_SIZE; ++i) {
-      //#pragma HLS unroll
-      //	double_buff[i] = dbuff[out_block.dbuff_id][block_offset][i];
-      //	double_buff[i+DBUFF_CHUNK_SIZE] = dbuff[out_block.dbuff_id][block_offset+1].buff[i];
-      //      }
+      double_buff(511, 0) = dbuff[out_block.dbuff_id][block_offset+1];
+      double_buff(1023, 512) = dbuff[out_block.dbuff_id][block_offset];
 
       raw_stream.data = out_block.buff;
-      //      for (int i = 0; i < 64; ++i) {
-      //#pragma HLS unroll
-      //	raw_stream.data[i] = out_block.buff[i];
-      //      }
-
 
       // There is a more obvious C implementation — results in very expensive hardware 
       switch(out_block.data_bytes) {
@@ -78,19 +66,14 @@ void update_dbuff(hls::stream<dbuff_in_t> & dbuff_i,
       	}
       
       	case ALL_DATA: {
-	  raw_stream.data = double_buff((subyte_offset + ALL_DATA) * 8, subyte_offset*8);
-	  //      	  for (int i = 0; i < ALL_DATA; ++i) {
-	  //#pragma HLS unroll
-	  //      	    raw_stream.data[i] = double_buff[subyte_offset + i];
-	  //      	  }
+	  raw_stream.data = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + ALL_DATA) * 8));
+	  break;
       	}
       
       	case PARTIAL_DATA: {
-	  raw_stream.data(512, 512-(PARTIAL_DATA*8)) = double_buff((subyte_offset + PARTIAL_DATA) * 8, subyte_offset * 8);
-	  //      	  for (int i = 0; i < PARTIAL_DATA; ++i) {
-	  //#pragma HLS unroll
-	  //      	    raw_stream.data[i + 64 - PARTIAL_DATA] = double_buff[subyte_offset + i];
-	  //      	  }
+	  std::cerr << "PARTIAL DATA\n";
+	  raw_stream.data((PARTIAL_DATA*8)-1, 0) = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + PARTIAL_DATA) * 8));
+	  break;
       	}
       }
     } 
