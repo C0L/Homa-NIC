@@ -6,151 +6,8 @@
 #include "homa.hh"
 #include "rpcmgmt.hh"
 
-#ifndef DEBUG 
-#define MAX_SRPT 1024
-#else
-#define MAX_SRPT 32
-#endif
-
-#define MAX_OVERCOMMIT 8
-
-#define MSG 0
-#define EMPTY 1
-#define BLOCKED 2
-#define ACTIVE 3
-
 template<typename T, int MAX_SIZE>
 struct srpt_queue_t;
-
-struct srpt_data_t {
-  rpc_id_t rpc_id;
-  dbuff_id_t dbuff_id;
-  uint32_t remaining;
-  uint32_t total;
-
-  srpt_data_t() {
-    rpc_id = 0;
-    dbuff_id = 0;
-    remaining = 0xFFFFFFFF;
-    total = 0;
-  }
-
-  //data TODO total probably does not need to be stored
-  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, uint32_t remaining, uint32_t total) {
-    this->rpc_id = rpc_id;
-    this->dbuff_id = dbuff_id;
-    this->remaining = remaining;
-    this->total = total;
-  }
-
-  bool operator==(const srpt_data_t & other) const {
-    return (rpc_id == other.rpc_id &&
-	    remaining == other.remaining &&
-	    total == other.total);
-  }
-
-  // Ordering operator
-  bool operator>(srpt_data_t & other) {
-    return remaining > other.remaining;
-  }
-
-  void update_priority(srpt_data_t & other) {}
-
-  void print() {
-    std::cerr << rpc_id << " " << remaining << std::endl;
-  }
-};
-
-struct srpt_grant_t {
-  peer_id_t peer_id;
-  rpc_id_t rpc_id;
-  uint32_t grantable;
-  ap_uint<2> priority;
-
-  srpt_grant_t() {
-    peer_id = 0;
-    rpc_id = 0;
-    grantable = 0xFFFFFFFF;
-    priority = EMPTY;
-  }
-
-  srpt_grant_t(peer_id_t peer_id, uint32_t grantable,  rpc_id_t rpc_id, ap_uint<2> priority) {
-    this->peer_id = peer_id;
-    this->rpc_id = rpc_id;
-    this->grantable = grantable;
-    this->priority = priority;
-  }
-
-  bool operator==(const srpt_grant_t & other) const {
-    return (peer_id == other.peer_id &&
-	    rpc_id == other.rpc_id &&
-	    grantable == other.grantable &&
-	    priority == other.priority);
-  }
-
-  // Ordering operator
-  bool operator>(srpt_grant_t & other) {
-    if (priority == MSG && peer_id == other.peer_id) {
-      return true;
-    } else {
-      return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
-    } 
-  }
-
-  void update_priority(srpt_grant_t & other) {
-    if (priority == MSG && other.peer_id == peer_id) {
-      other.priority = (other.priority == BLOCKED) ? ACTIVE : BLOCKED;
-    }
-  }
-
-  void print() {
-    std::cerr << peer_id << " " << grantable << " " << priority << " " << rpc_id << std::endl;
-  }
-};
-
-
-template<typename T, int FIFO_SIZE>
-struct fifo_t {
-  T buffer[FIFO_SIZE];
-
-  int read_head;
-
-  fifo_t() {
-    read_head = -1;
-  }
-
-  void insert(T value) {
-#pragma HLS array_partition variable=buffer type=complete
-    for (int i = FIFO_SIZE-2; i > 0; --i) {
-#pragma HLS unroll
-      buffer[i+1] = buffer[i];
-    }
-    
-    buffer[0] = value;
-    
-    read_head++;
-  }
-
-  T remove() {
-#pragma HLS array_partition variable=buffer type=complete
-    T val = buffer[read_head];
-
-    read_head--;
-    return val;
-  }
-
-  T & head() {
-    return buffer[read_head];
-  }
-
-  bool full() {
-    return read_head == MAX_SRPT-1;
-  }
-
-  bool empty() {
-    return read_head == -1;
-  }
-};
 
 
 template<typename T, int MAX_SIZE>
@@ -324,10 +181,9 @@ struct srpt_queue_t {
 
 void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
 		    hls::stream<dbuff_notif_t> & data_notif_i,
-		    hls::stream<srpt_data_t> & data_pkt_o);
+		    hls::stream<ready_data_pkt_t> & data_pkt_o);
 
-void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
-			     hls::stream<srpt_grant_t> & srpt_queue_receipt,
-			     hls::stream<srpt_grant_t> & srpt_queue_next);
+void srpt_grant_pkts(hls::stream<srpt_grant_t> & rpc_state__srpt_grant,
+		     hls::stream<ready_grant_pkt_t> & srpt_grant__egress_selector);
 
 #endif

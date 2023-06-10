@@ -38,6 +38,8 @@ struct homa_peer_t {
 
 
 void peer_map(hls::stream<new_rpc_t> & dma_ingress__peer_map,
-	      hls::stream<new_rpc_t> & peer_map__rpc_state);
+	      hls::stream<new_rpc_t> & peer_map__rpc_state,
+	      hls::stream<header_in_t> & chunk_ingress__peer_map);
+
 
 #endif

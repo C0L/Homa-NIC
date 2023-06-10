@@ -4,8 +4,10 @@
 
 void rpc_state(hls::stream<new_rpc_t> & peer_map__rpc_state,
 	       hls::stream<new_rpc_t> & rpc_state__srpt_data,
-	       hls::stream<out_pkt_t> & egress_sel__rpc_state, 
-	       hls::stream<out_pkt_t> & rpc_state__chunk_dispatch) {
+	       hls::stream<header_out_t> & egress_sel__rpc_state, 
+	       hls::stream<header_out_t> & rpc_state__chunk_dispatch,
+	       hls::stream<srpt_grant_t> & rpc_state__srpt_grant,
+	       hls::stream<header_in_t> & rpc_state__dbuff_ingress) {
 
   static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
   static homa_rpc_t rpcs[MAX_RPCS]; // TODO annotate as dual port
@@ -14,10 +16,17 @@ void rpc_state(hls::stream<new_rpc_t> & peer_map__rpc_state,
 #pragma HLS dependence variable=rpcs inter WAR false
 #pragma HLS dependence variable=rpcs inter RAW false
 
+  // TODO placeholder
+  header_in_t header_in;
+  rpc_state__dbuff_ingress.write(header_in);
+
+  srpt_grant_t srpt_grant;
+  rpc_state__srpt_grant.write(srpt_grant);
+
   /* Read only process */
   if (!egress_sel__rpc_state.empty()) {
 
-    out_pkt_t out_pkt = egress_sel__rpc_state.read();
+    header_out_t out_pkt = egress_sel__rpc_state.read();
     homa_rpc_t homa_rpc = rpcs[(out_pkt.rpc_id >> 1)-1];
 
     out_pkt.dbuff_id = homa_rpc.msgout.dbuff_id;
@@ -39,6 +48,7 @@ void rpc_state(hls::stream<new_rpc_t> & peer_map__rpc_state,
     if (new_rpc.id == 0) { // Is this a request message?
       std::cerr << "REQUEST MESSAGE\n";
       new_rpc.local_id = rpc_stack.pop();
+      std::cerr << "RPC: " << new_rpc.local_id << std::endl;
       homa_rpc_t homa_rpc;
       homa_rpc.state = homa_rpc_t::RPC_OUTGOING;
       homa_rpc.rpc_id = new_rpc.local_id;

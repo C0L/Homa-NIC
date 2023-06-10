@@ -12,19 +12,17 @@
 
 struct homa_t;
 
-struct dma_egress_req_t {
-  uint32_t offset;
-  dbuff_chunk_t mblock;
-};
+void new_rpc(homa_t * homa,
+	     params_t * params,
+	     hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
+	     hls::stream<dbuff_id_t> & freed_rpcs_o,
+	     hls::stream<new_rpc_t> & new_rpc_o);
 
-void dma_ingress(homa_t * homa,
-		 params_t * params,
-		 hls::burst_maxi<dbuff_chunk_t> maxi,
-		 hls::stream<dbuff_id_t> & freed_rpcs_o,
-		 hls::stream<dbuff_in_t> & dbuff_o,
-		 hls::stream<new_rpc_t> & new_rpc_o);
+void dma_read(dbuff_chunk_t * maxi,
+	      hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
+	      hls::stream<dbuff_in_t> & dma_requests__dbuff);
 
-void dma_egress(hls::stream<dma_egress_req_t> & dma_egress_reqs,
-		dbuff_chunk_t * maxi_out);
+void dma_write(dbuff_chunk_t * maxi,
+	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write);
 
 #endif

@@ -4,205 +4,333 @@
 #include "link.hh"
 #include "dma.hh"
 
+
+// https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Typical-Operation
+
 /**
  * egress_selector() - Chose which of data packets, grant packets, retransmission
  * packets, and control packets to send next.
  * @data_pkt_i - Next highest priority data packet input
  * @grant_pkt_i - Next highest priority grant packet input
  * @rexmit_pkt_i - Packets requiring retransmission input
- * @out_pkt_o - Output stream to the RPC store to get info
+ * @header_out_o - Output stream to the RPC store to get info
  * about the RPC before the packet can be sent
  */
-void egress_selector(hls::stream<srpt_data_t> & data_pkt_i,
-		     hls::stream<srpt_grant_t> & grant_pkt_i,
+void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
+		     hls::stream<ready_grant_pkt_t> & grant_pkt_i,
 		     hls::stream<rexmit_t> & rexmit_pkt_i,
-		     hls::stream<out_pkt_t> & out_pkt_o) {
+		     hls::stream<header_out_t> & header_out_o) {
 
 #pragma HLS pipeline II=1
 
-  // TODO prioritize grants
+  if (!grant_pkt_i.empty()) {
+    DEBUG_MSG("Egress selector grant packet")
+    ready_grant_pkt_t ready_grant_pkt = grant_pkt_i.read();
 
-  if (!data_pkt_i.empty()) {
+    header_out_t header_out;
+    header_out.type = GRANT;
+    header_out.rpc_id = ready_grant_pkt.rpc_id;
+    header_out.granted_bytes = ready_grant_pkt.granted;
+
+    header_out.valid = 1;
+
+    header_out_o.write(header_out);
+
+  } else if (!data_pkt_i.empty()) {
     DEBUG_MSG("Egress selector data packet")
-    srpt_data_t next_data_pkt = data_pkt_i.read();
+    ready_data_pkt_t ready_data_pkt = data_pkt_i.read();
 
-    uint32_t data_bytes = MIN(next_data_pkt.remaining, HOMA_PAYLOAD_SIZE);
-    uint32_t total_bytes = DATA_PKT_HEADER + data_bytes;
+    uint32_t data_bytes = MIN(ready_data_pkt.remaining, HOMA_PAYLOAD_SIZE);
+    uint32_t packet_bytes = DATA_PKT_HEADER + data_bytes;
 
-    out_pkt_t out_pkt;
-    out_pkt.type = DATA;
-    out_pkt.rpc_id = next_data_pkt.rpc_id;
-    out_pkt.total_bytes = total_bytes;
-    out_pkt.sent_bytes = 0;
-    out_pkt.data_offset = next_data_pkt.total - next_data_pkt.remaining;
-    out_pkt.valid = 1;
+    header_out_t header_out;
+    header_out.type = DATA;
+    header_out.rpc_id = ready_data_pkt.rpc_id;
+    header_out.packet_bytes = packet_bytes;
+    header_out.granted_bytes = ready_data_pkt.granted;
+    header_out.total_bytes = ready_data_pkt.total;
+    header_out.sent_bytes = 0;
+    header_out.data_offset = ready_data_pkt.total - ready_data_pkt.remaining;
+    header_out.valid = 1;
 
-    out_pkt_o.write(out_pkt);
-  }
+    header_out_o.write(header_out);
+  } 
 }
 
 
 /**
- * pkt_chunk_dispatch() - Take in the packet header data and output
+ * pkt_chunk_egress() - Take in the packet header data and output
  * structured 64 byte chunks of that packet. Chunks requiring message
  * data will be augmented with that data in the next step. 
  * @rpc_state__chunk_dispatch - Header data input to be sent on the link
  * @chunk_dispatch__dbuff - 64 byte structured packet chunks output to
  * this fifo to be augmented with data from the data buffer
  */
-void pkt_chunk_dispatch(hls::stream<out_pkt_t> & rpc_state__chunk_dispatch,
-			hls::stream<out_block_t> & chunk_dispatch__dbuff) {
-  static out_pkt_t out_pkt;
-  
-#pragma HLS pipeline II=1
+void pkt_chunk_egress(hls::stream<header_out_t> & rpc_state__chunk_dispatch,
+		      hls::stream<out_chunk_t> & chunk_dispatch__dbuff) {
 
-  if (out_pkt.valid == 1 && out_pkt.sent_bytes < out_pkt.total_bytes) {
-    out_block_t out_block;
-    out_block.offset = out_pkt.data_offset;
+  static header_out_t doublebuff[2];
+#pragma HLS array_partition variable=doublebuff type=complete
+#pragma HLS dependence variable=doublebuff intra RAW false
+#pragma HLS dependence variable=doublebuff intra WAR false
 
-    if ((out_pkt.sent_bytes + 64) >= out_pkt.total_bytes) {
-      out_block.last = 1;
-      out_pkt.valid = 0;
-    }
+  static ap_uint<1> w_pkt = 0;
+  static ap_uint<1> r_pkt = 0;
 
-    switch(out_pkt.type) {
-      case DATA: {
-  	if (out_pkt.sent_bytes == 0) {
-	  DEBUG_MSG("DATA Chunk 0")
-
-	  // Packet block configuration — no data bytes needed
-  	  out_block.type = DATA;
-  	  out_block.data_bytes = NO_DATA;
-	  out_block.dbuff_id = out_pkt.dbuff_id;
-	  out_pkt.data_offset += NO_DATA;
-
-	  // Ethernet header
-	  (out_block.buff)(511-0,511-47)   = 0xAAAAAAAAAAAA;
-	  (out_block.buff)(511-48,511-95)  = 0xBBBBBBBBBBBB;
-	  (out_block.buff)(511-96,511-111) = ETHERTYPE_IPV6;
-
-	  // IPv6 header
-	  (out_block.buff)(511-112,511-115) = 0xC;
-	  (out_block.buff)(511-116,511-123) = 0xDD;
-	  (out_block.buff)(511-124,511-143) = 0xEEEEE;
-	  (out_block.buff)(511-144,511-159) = IPPROTO_HOMA;
-	  (out_block.buff)(511-160,511-167) = 0xFF;
-	  (out_block.buff)(511-168,511-175) = 0xFF;
-	  (out_block.buff)(511-176,511-303) = out_pkt.saddr;
-	  (out_block.buff)(511-304,511-431) = out_pkt.daddr;
-
-	  // Start of common header
-	  (out_block.buff)(511-432,511-447) = out_pkt.sport;
-	  (out_block.buff)(511-448,511-463) = out_pkt.dport;
-	  (out_block.buff)(511-464,511-511) = 0xFFFFFFFFFFFF;
-
-  	} else if (out_pkt.sent_bytes == 64) {
-	  DEBUG_MSG("DATA Chunk 1")
-	  // Packet block configuration — 14 data bytes needed
-  	  out_block.type = DATA;
-  	  out_block.data_bytes = PARTIAL_DATA;
-	  out_block.dbuff_id = out_pkt.dbuff_id;
-	  out_pkt.data_offset += PARTIAL_DATA;
-
-	  (out_block.buff)(63,0)    = 0xFFFFFFFFFFFFFFFF;
-	  (out_block.buff)(127,64)  = 0xFFFFFFFFFFFFFFFF;
-	  (out_block.buff)(191,128) = 0xFFFFFFFFFFFFFFFF;
-	  (out_block.buff)(255,192) = 0xFFFFFFFFFFFFFFFF;
-	  (out_block.buff)(319,256) = 0xFFFFFFFFFFFFFFFF;
-	  (out_block.buff)(383,320) = 0xFFFFFFFFFFFFFFFF;
-	  (out_block.buff)(447,384) = 0xFFFFFFFFFFFFFFFF;
-	  (out_block.buff)(511,448) = 0xFFFFFFFFFFFFFFFF;
-
-	  // Remaining bytes of common header
-	  //block->unused0 = 0;
-	  //block->doff = 0xFFFFFFFF;
-	  //block->type = DATA;
-	  //block->unused1 = 0;
-	  //block->checksum = 0;
-	  //block->unused2 = 0;
-	  //block->sender_id = out_pkt.rpc_id;
-
-	  //// Data header
-	  //block->message_length = 0xFFFFFFFF;
-	  //block->incoming = 0xFFFFFFFF;
-	  //block->cutoff_version = 0xFFFFFFFF;
-	  //block->retransmit = 0xFFFFFFFF;
-	  //block->pad = 0;
-	  //block->offset = 0xFFFFFFFF;
-	  //block->segment_length = 0xFFFFFFFF;
-
-	  //// Ack header
-	  //block->client_id = 0;
-	  //block->client_port = 0;
-	  //block->server_port = 0;
-
-  	} else {
-	  DEBUG_MSG("DATA Chunk")
-	  out_block.type = DATA;
-  	  out_block.data_bytes = ALL_DATA;
-	  out_block.dbuff_id = out_pkt.dbuff_id;
-	  out_pkt.data_offset += ALL_DATA;
-	}
-      } 
-    }
-
-    out_pkt.sent_bytes += 64;
-    chunk_dispatch__dbuff.write(out_block);
+  // Need to decouple reading from input stream and reading from current packet
+  if (!rpc_state__chunk_dispatch.empty() && doublebuff[w_pkt].valid == 0) {
+    doublebuff[w_pkt] = rpc_state__chunk_dispatch.read();
+    w_pkt++;
   }
 
-  if (out_pkt.valid == 0 && !rpc_state__chunk_dispatch.empty()) {
-    rpc_state__chunk_dispatch.read(out_pkt);
-    DEBUG_MSG("Read new packet " << out_pkt.data_offset)
-  } 
+#pragma HLS pipeline II=1
+
+  // We have data to send
+  if (doublebuff[r_pkt].valid == 1) {
+    header_out_t & header_out = doublebuff[r_pkt];
+
+    out_chunk_t out_chunk;
+    out_chunk.offset = header_out.data_offset;
+
+    switch(header_out.type) {
+    case DATA: {
+      if (header_out.sent_bytes == 0) {
+	DEBUG_MSG("DATA Chunk 0")
+
+	// Ethernet header
+	(out_chunk.buff)(511-0,511-47)   = 0xAAAAAAAAAAAA;        // TODO MAC Dest (set by phy?)
+	(out_chunk.buff)(511-48,511-95)  = 0xBBBBBBBBBBBB;        // TODO MAC Src (set by phy?)
+	(out_chunk.buff)(511-96,511-111) = ETHERTYPE_IPV6;        // Ethertype (fixed)
+
+	// IPv6 header
+	(out_chunk.buff)(511-112,511-115) = 0x6;                  // Version (fixed)
+	(out_chunk.buff)(511-116,511-123) = 0x00;                 // Traffic Class (left empty)
+	(out_chunk.buff)(511-124,511-143) = 0xEEEEE;              // TODO Flow Label ?
+
+	(out_chunk.buff)(511-144,511-159) = header_out.packet_bytes - PREFACE_HEADER; // Payload Length
+	(out_chunk.buff)(511-160,511-167) = IPPROTO_HOMA;         // Next Header
+	(out_chunk.buff)(511-168,511-175) = 0x0;                  // Hop Limit
+	(out_chunk.buff)(511-176,511-303) = header_out.saddr;        // Sender Address
+	(out_chunk.buff)(511-304,511-431) = header_out.daddr;        // Destination Address
+
+	// Start of common header
+	(out_chunk.buff)(511-432,511-447) = header_out.sport;        // Sender Port
+	(out_chunk.buff)(511-448,511-463) = header_out.dport;        // Destination Port
+	(out_chunk.buff)(511-464,511-511) = 0xFFFFFFFFFFFF;       // Unused
+
+	// Packet block configuration — no data bytes needed
+  	out_chunk.type = DATA;
+  	out_chunk.data_bytes = NO_DATA;
+	out_chunk.dbuff_id = header_out.dbuff_id;
+	header_out.data_offset += NO_DATA;
+
+      } else if (header_out.sent_bytes == 64) {
+	DEBUG_MSG("DATA Chunk 1")
+
+	ap_uint<8> doff = 10 << 4;
+
+	// Rest of common header
+	(out_chunk.buff)(511-0,511-15)   = 0xFFFF;                // Unused
+	(out_chunk.buff)(511-16,511-23)  = doff;                  // doff (4 byte chunks in data header)
+	(out_chunk.buff)(511-24,511-31)  = DATA;                  // type
+	(out_chunk.buff)(511-32,511-47)  = 0xFFFF;                // Unused
+	(out_chunk.buff)(511-48,511-63)  = 0x0;                   // Checksum (unused)
+	(out_chunk.buff)(511-64,511-79)  = 0xFFFF;                // Unused
+	(out_chunk.buff)(511-80,511-143) = header_out.rpc_id;        // Sender ID
+
+	// Data header
+	(out_chunk.buff)(511-144,511-175) = header_out.total_bytes;   // Message Length (entire message)
+	(out_chunk.buff)(511-176,511-207) = header_out.granted_bytes; // Incoming TODO 
+	(out_chunk.buff)(511-208,511-223) = 0xFFFF;                // Cuttof Version (unimplemented) TODO
+	(out_chunk.buff)(511-224,511-231) = 0xFF;                  // Retransmit (unimplemented) TODO
+	(out_chunk.buff)(511-232,511-239) = 0xFF;                  // Pad 
+
+	// Data Segment
+	(out_chunk.buff)(511-240,511-271) = header_out.data_offset;                    // Offset
+	(out_chunk.buff)(511-272,511-303) = header_out.packet_bytes - DATA_PKT_HEADER; // Segment Length
+
+	// Ack header
+	(out_chunk.buff)(511-304,511-367) = 0xFFFFFFFFFFFFFFFF; // Client ID
+	(out_chunk.buff)(511-368,511-383) = 0xFFFF;             // Client Port
+	(out_chunk.buff)(511-384,511-399) = 0xFFFF;             // Server Port
+
+	// Packet block configuration — 14 data bytes needed
+  	out_chunk.type = DATA;
+  	out_chunk.data_bytes = PARTIAL_DATA;
+	out_chunk.dbuff_id = header_out.dbuff_id;
+	header_out.data_offset += PARTIAL_DATA;
+      } else {
+	DEBUG_MSG("DATA Chunk")
+	out_chunk.type = DATA;
+  	out_chunk.data_bytes = ALL_DATA;
+	out_chunk.dbuff_id = header_out.dbuff_id;
+	header_out.data_offset += ALL_DATA;
+      }
+      break;
+    }
+
+    case GRANT: {
+      if (header_out.sent_bytes == 0) {
+	// TODO this is repetitive
+	
+	// Ethernet header
+	(out_chunk.buff)(511-0,511-47)   = 0xAAAAAAAAAAAA;        // TODO MAC Dest (set by phy?)
+	(out_chunk.buff)(511-48,511-95)  = 0xBBBBBBBBBBBB;        // TODO MAC Src (set by phy?)
+	(out_chunk.buff)(511-96,511-111) = ETHERTYPE_IPV6;        // Ethertype (fixed)
+
+	// IPv6 header
+	(out_chunk.buff)(511-112,511-115) = 0x6;                  // Version (fixed)
+	(out_chunk.buff)(511-116,511-123) = 0x00;                 // Traffic Class (left empty)
+	(out_chunk.buff)(511-124,511-143) = 0xEEEEE;              // TODO Flow Label ?
+
+	(out_chunk.buff)(511-144,511-159) = header_out.packet_bytes; // Payload Length
+	(out_chunk.buff)(511-160,511-167) = IPPROTO_HOMA;            // Next Header
+	(out_chunk.buff)(511-168,511-175) = 0x0;                     // Hop Limit
+	(out_chunk.buff)(511-176,511-303) = header_out.saddr;        // Sender Address
+	(out_chunk.buff)(511-304,511-431) = header_out.daddr;        // Destination Address
+
+	// Start of common header
+	(out_chunk.buff)(511-432,511-447) = header_out.sport;        // Sender Port
+	(out_chunk.buff)(511-448,511-463) = header_out.dport;        // Destination Port
+	(out_chunk.buff)(511-464,511-511) = 0xFFFFFFFFFFFF;          // Unused
+
+	// Packet block configuration — no data bytes needed
+  	out_chunk.type = GRANT;
+  	out_chunk.data_bytes = NO_DATA;
+
+      } else if (header_out.sent_bytes == 64) {
+
+	ap_uint<8> doff = 10 << 4;
+
+	// Rest of common header
+	(out_chunk.buff)(511-0,511-15)   = 0xFFFF;                // Unused
+	(out_chunk.buff)(511-16,511-23)  = doff;                  // doff (4 byte chunks in data header)
+	(out_chunk.buff)(511-24,511-31)  = DATA;                  // type
+	(out_chunk.buff)(511-32,511-47)  = 0xFFFF;                // Unused
+	(out_chunk.buff)(511-48,511-63)  = 0x0;                   // Checksum (unused)
+	(out_chunk.buff)(511-64,511-79)  = 0xFFFF;                // Unused
+	(out_chunk.buff)(511-80,511-143) = header_out.rpc_id;     // Sender ID
+
+	// Grant Header
+	(out_chunk.buff)(511-144,511-175) = header_out.granted_bytes;   // Message Length (entire message)
+	(out_chunk.buff)(511-176,511-183) = 0xFF;                 // Priority TODO 
+
+	// Packet block configuration — no data bytes needed
+  	out_chunk.type = GRANT;
+  	out_chunk.data_bytes = NO_DATA;
+      } 
+    }
+    }
+
+    header_out.sent_bytes += 64;
+
+    if (header_out.sent_bytes >= header_out.packet_bytes) {
+      header_out.valid = 0;
+      out_chunk.last = 1;
+      r_pkt++;
+    }
+
+    chunk_dispatch__dbuff.write(out_chunk);
+  }
 }
 
-// Convert packet streams to the outgoing link
-//void link_egress(stream_t<out_block_t, raw_stream_t> & out_pkt_s) {
-//
-//		 //hls::stream<out_block_t> & out_block_in,
-//		 //hls::stream<raw_stream_t> & link_egress_out) {
-//
-//#pragma HLS pipeline II=1
-//  out_block_t data_pkt = out_pkt_s.in.read();
-//  raw_stream_t raw_chunk;
-//
-//  for (int i = 0; i < 64; ++i) {
-//#pragma HLS unroll
-//    raw_chunk.data[i] = data_pkt.buff[i];
-//  }
-//
-//  // TODO needs to check if last packet in sequence and set tlast if so
-//  if (data_pkt.done == 1) {
-//    raw_chunk.last = 1;
-//  }
-//
-//  out_pkt_s.out.write(raw_chunk);
-//}
+/**
+ * pkt_chunk_ingress() - Take packet chunks from the link, reconstruct packets,
+ * write data to a temporary holding buffer
+ * @link_egress - Raw 64B chunks from the link
+ * @chunk_ingress__peer_map - Outgoing stream for incoming headers to peer map
+ * @chunk_ingress__data_stageing  - Outgoing stream for storing data until we know
+ * where to place it in DMA space
+ *
+ * We can't just write directly to DMA space as we don't know where until
+ * we have performed the reverse mapping to get a local RPC ID.
+ *
+ * Could alternatively send all packets through the same path but this approach
+ * seems simpler
+ */
+void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
+		       hls::stream<header_in_t> & chunk_ingress__peer_map,
+		       hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress) {
+#pragma HLS pipeline II=1
+  // TODO this gradual parsing approach feels awk. Could build the packet in memory and then do it all at once?
 
+  static header_in_t header_in;
+  static in_chunk_t data_block;
 
+  raw_stream_t raw_stream = link_ingress.read();
 
+  // For every type of homa packet we need to read at least two blocks
+  if (header_in.read_bytes == 0) {
+    header_in.read_bytes += 64;
+    // TODO perform other checks here (correct ethertype, version, next header)...
+    header_in.packet_bytes = raw_stream.data(511-144,511-159) + PREFACE_HEADER;
+    header_in.saddr = raw_stream.data(511-176,511-303);
+    header_in.daddr = raw_stream.data(511-304,511-431);
+    header_in.sport = raw_stream.data(511-432,511-447);
+    header_in.dport = raw_stream.data(511-448,511-463);
+  } else if (header_in.read_bytes == 64) {
+    header_in.read_bytes += 64;
+    uint8_t type = raw_stream.data(511-24,511-31);
+    header_in.type = (homa_packet_type) type;  // Packet type
+    header_in.id = raw_stream.data(511-80,511-143);   // Sender RPC ID
+
+    switch(header_in.type) {
+      case GRANT: {
+
+	break;
+      }
+
+      case DATA: {
+	header_in.total_bytes = (raw_stream.data)(511-144,511-175);   // Length of ENTIRE message
+	header_in.granted_bytes = (raw_stream.data)(511-176,511-207); // Expected incoming bytes
+	header_in.data_offset = (raw_stream.data)(511-240,511-271);   // Offset in message of segment
+
+	// TODO parse acks
+	data_block.last = raw_stream.last;
+	data_block.buff(511, 511-112) = (raw_stream.data)(511-400,0);
+	chunk_ingress__dbuff_ingress.write(data_block);
+
+	data_block.offset += 14;
+	
+	break;
+      }
+    }
+
+    chunk_ingress__peer_map.write(header_in);
+  } else {
+    data_block.buff = raw_stream.data;
+    data_block.last = raw_stream.last;
+    chunk_ingress__dbuff_ingress.write(data_block);
+
+    data_block.offset += 64;
+  }
+
+  if (raw_stream.last) {
+    header_in.read_bytes = 0;
+  }
+}
 
 /**
  * proc_link_ingress() - 
  * 
  */
-void link_ingress(hls::stream<raw_stream_t> & link_ingress_in,
-		  hls::stream<srpt_grant_t> & srpt_grant_queue_insert,
-		  hls::stream<srpt_data_t> & srpt_xmit_queue_update,
-		  hls::stream<rpc_hashpack_t> & rpc_table_request,
-		  hls::stream<rpc_id_t> & rpc_table_response,
-		  hls::stream<homa_rpc_t> & rpc_table_insert,
-		  hls::stream<rpc_id_t> & rpc_buffer_request,   		       
-		  hls::stream<homa_rpc_t> & rpc_buffer_response,
-		  hls::stream<homa_rpc_t> & rpc_buffer_insert,
-		  hls::stream<rpc_id_t> & rpc_stack_next,
-		  hls::stream<peer_hashpack_t> & peer_table_request,
-		  hls::stream<peer_id_t> & peer_table_response,
-		  hls::stream<homa_peer_t> & peer_buffer_insert,
-		  hls::stream<homa_peer_t> & peer_table_insert,
-		  hls::stream<peer_id_t> & peer_stack_next,
-		  hls::stream<touch_t> & rexmit_touch,
-		  hls::stream<dma_egress_req_t> & dma_egress_reqs) {
+//void link_ingress(hls::stream<raw_stream_t> & link_ingress_in,
+//		  hls::stream<srpt_grant_t> & srpt_grant_queue_insert,
+//		  hls::stream<srpt_data_t> & srpt_xmit_queue_update,
+//		  hls::stream<rpc_hashpack_t> & rpc_table_request,
+//		  hls::stream<rpc_id_t> & rpc_table_response,
+//		  hls::stream<homa_rpc_t> & rpc_table_insert,
+//		  hls::stream<rpc_id_t> & rpc_buffer_request,   		       
+//		  hls::stream<homa_rpc_t> & rpc_buffer_response,
+//		  hls::stream<homa_rpc_t> & rpc_buffer_insert,
+//		  hls::stream<rpc_id_t> & rpc_stack_next,
+//		  hls::stream<peer_hashpack_t> & peer_table_request,
+//		  hls::stream<peer_id_t> & peer_table_response,
+//		  hls::stream<homa_peer_t> & peer_buffer_insert,
+//		  hls::stream<homa_peer_t> & peer_table_insert,
+//		  hls::stream<peer_id_t> & peer_stack_next,
+//		  hls::stream<touch_t> & rexmit_touch,
+//		  hls::stream<dma_egress_req_t> & dma_egress_reqs) {
 
   //#pragma HLS pipeline II=1
   //
@@ -432,4 +560,4 @@ void link_ingress(hls::stream<raw_stream_t> & link_ingress_in,
   //  //  dma_egress_req_t req; //= {i, frame.data[i]};
   //  //  dma_egress_reqs.write(req);
   //  //}
-}
+//}

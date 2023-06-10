@@ -19,3 +19,12 @@ Simpler hash function?
 Is a peer map even really needed?
 
 Where to place unscheduled bytes in DMA space?
+
+How does ethernet mac subsytem handle the empty chunks in the last packet chunk? The tlast of the AXI Stream is used to assert the completition of an ethernet frame.
+    - Is this why the AXI Stream runs at 322 MHz??
+
+Timer core needs to be looped in
+
+Grant packets need to feed to SRPT queue
+
+ACKs need to be sent

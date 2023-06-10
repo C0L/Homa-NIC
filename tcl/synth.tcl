@@ -11,5 +11,5 @@ add_files ./src/timer.cc
 set_param general.maxThreads 16
 open_solution -reset "solution1" -flow_target vivado
 set_part {xcvu9p-flgb2104-2-i}
-create_clock -period 5 -name default
+create_clock -period 3.1 -name default
 csynth_design

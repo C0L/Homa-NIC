@@ -2,10 +2,12 @@
 #define RPCMGMT_H
 
 #include "homa.hh"
+#include "srptmgmt.hh"
 #include "peer.hh"
 #include "net.hh"
 #include "databuff.hh"
 #include "stack.hh"
+
 
 #define MAX_RPCS 16384
 
@@ -90,12 +92,11 @@ struct rpc_hashpack_t {
   }
 };
 
-
-//void rpc_map(hls::stream);
-
 void rpc_state(hls::stream<new_rpc_t> & peer_map__rpc_state,
 	       hls::stream<new_rpc_t> & rpc_state__srpt_data,
-	       hls::stream<out_pkt_t> & egress_sel__rpc_state, 
-	       hls::stream<out_pkt_t> & rpc_state__chunk_dispatch);
+	       hls::stream<header_out_t> & egress_sel__rpc_state, 
+	       hls::stream<header_out_t> & rpc_state__chunk_dispatch,
+	       hls::stream<srpt_grant_t> & rpc_state__srpt_grant,
+	       hls::stream<header_in_t> & rpc_state__dbuff_ingress);
 
 #endif

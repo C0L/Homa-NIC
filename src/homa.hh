@@ -1,6 +1,8 @@
 #ifndef HOMA_H
 #define HOMA_H
 
+#include <iostream>
+
 #define DEBUG
 
 #include "ap_int.h"
@@ -21,6 +23,20 @@ struct user_output_t;
 
 // #define DEBUG_MSG(a) std::cerr << "DEBUG: " << a << std::endl;
 #define DEBUG_MSG(a)
+
+
+#ifndef DEBUG 
+#define MAX_SRPT 1024
+#else
+#define MAX_SRPT 32
+#endif
+
+#define MAX_OVERCOMMIT 8
+
+#define SRPT_MSG 0
+#define SRPT_EMPTY 1
+#define SRPT_BLOCKED 2
+#define SRPT_ACTIVE 3
 
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
@@ -165,21 +181,59 @@ struct params_t {
   sockaddr_in6_t src_addr;
   uint64_t id;
   uint64_t completion_cookie;
+  ap_uint<1> valid;
 };
 
 /* continuation structures */
-struct out_pkt_t {
+struct header_out_t {
   homa_packet_type type;
   rpc_id_t rpc_id;
+  uint32_t dma_offset;
   dbuff_id_t dbuff_id;
-  uint32_t total_bytes; // How many bytes in this packet
-  uint32_t data_offset; // Next byte to load in message buffer
-  uint32_t sent_bytes;  // How many bytes have been converted to chunks
+  uint32_t total_bytes;   // How many bytes in this message
+  uint32_t packet_bytes;  // How many bytes in this packet 
+  uint32_t data_offset;   // Next byte to load in message buffer
+  uint32_t sent_bytes;    // How many bytes have been converted to chunks
+  uint32_t granted_bytes; // Offset in message that we can send up to
+  uint32_t msg_length;    // Total length of the message
   ap_uint<128> saddr;
   ap_uint<128> daddr;
   uint16_t sport;
   uint16_t dport;
   ap_uint<1> valid;
+};
+
+struct header_in_t {
+  homa_packet_type type;
+  rpc_id_t rpc_id;         // Internal RPC ID
+  uint64_t id;             // RPC ID from the packet
+  peer_id_t peer_id;
+  uint32_t dma_offset;
+  uint32_t total_bytes;   // How many bytes in this message
+  uint32_t packet_bytes;  // How many bytes in this packet 
+  uint32_t data_offset;   // Next byte to load in message buffer
+  uint32_t read_bytes;    // How many bytes have been converted from chunks
+  uint32_t granted_bytes; // Offset of newly recieved grant
+  uint32_t msg_length;    // Total length of the message
+  ap_uint<128> saddr;
+  ap_uint<128> daddr;
+  uint16_t sport;
+  uint16_t dport;
+  ap_uint<1> valid;
+};
+
+struct ready_grant_pkt_t {
+  rpc_id_t rpc_id;
+  uint32_t granted;
+  // TODO 
+};
+
+struct ready_data_pkt_t {
+  rpc_id_t rpc_id;
+  dbuff_id_t dbuff_id;
+  uint32_t remaining;
+  uint32_t total;
+  uint32_t granted;
 };
 
 enum data_bytes_e {
@@ -188,14 +242,19 @@ enum data_bytes_e {
   PARTIAL_DATA = 14,
 };
 
-struct out_block_t {
+struct in_chunk_t {
+  dbuff_chunk_t buff;
+  uint32_t offset;
+  ap_uint<1> last;
+};
+
+struct out_chunk_t {
   homa_packet_type type;
   dbuff_id_t dbuff_id;     // Which data buffer is the RPC message stored in
   uint32_t offset;         // Offset in data message
   data_bytes_e data_bytes; // How many data bytes to add to this block
   ap_uint<1> last;
   ap_uint<512> buff;
-  //char buff[64];
 };
 
 struct new_rpc_t {
@@ -213,11 +272,156 @@ struct new_rpc_t {
   uint64_t completion_cookie;
 };
 
+
+struct dma_r_req_t {
+  uint32_t offset;
+  dbuff_id_t dbuff_id;
+};
+
+struct dma_w_req_t {
+  uint32_t offset;
+  dbuff_chunk_t block;
+};
+
+
+
+struct srpt_data_t {
+  rpc_id_t rpc_id;
+  dbuff_id_t dbuff_id;
+  uint32_t remaining;
+  uint32_t total;
+
+  srpt_data_t() {
+    rpc_id = 0;
+    dbuff_id = 0;
+    remaining = 0xFFFFFFFF;
+    total = 0;
+  }
+
+  //data TODO total probably does not need to be stored
+  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, uint32_t remaining, uint32_t total) {
+    this->rpc_id = rpc_id;
+    this->dbuff_id = dbuff_id;
+    this->remaining = remaining;
+    this->total = total;
+  }
+
+  bool operator==(const srpt_data_t & other) const {
+    return (rpc_id == other.rpc_id &&
+	    remaining == other.remaining &&
+	    total == other.total);
+  }
+
+  // Ordering operator
+  bool operator>(srpt_data_t & other) {
+    return remaining > other.remaining;
+  }
+
+  void update_priority(srpt_data_t & other) {}
+
+  void print() {
+    std::cerr << rpc_id << " " << remaining << std::endl;
+  }
+};
+
+struct srpt_grant_t {
+  peer_id_t peer_id;
+  rpc_id_t rpc_id;
+  uint32_t grantable;
+  ap_uint<2> priority;
+
+  srpt_grant_t() {
+    peer_id = 0;
+    rpc_id = 0;
+    grantable = 0xFFFFFFFF;
+    priority = SRPT_EMPTY;
+  }
+
+  srpt_grant_t(peer_id_t peer_id, uint32_t grantable,  rpc_id_t rpc_id, ap_uint<2> priority) {
+    this->peer_id = peer_id;
+    this->rpc_id = rpc_id;
+    this->grantable = grantable;
+    this->priority = priority;
+  }
+
+  bool operator==(const srpt_grant_t & other) const {
+    return (peer_id == other.peer_id &&
+	    rpc_id == other.rpc_id &&
+	    grantable == other.grantable &&
+	    priority == other.priority);
+  }
+
+  // Ordering operator
+  bool operator>(srpt_grant_t & other) {
+    if (priority == SRPT_MSG && peer_id == other.peer_id) {
+      return true;
+    } else {
+      return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
+    } 
+  }
+
+  void update_priority(srpt_grant_t & other) {
+    if (priority == SRPT_MSG && other.peer_id == peer_id) {
+      other.priority = (other.priority == SRPT_BLOCKED) ? SRPT_ACTIVE : SRPT_BLOCKED;
+    }
+  }
+
+  void print() {
+    std::cerr << peer_id << " " << grantable << " " << priority << " " << rpc_id << std::endl;
+  }
+};
+
+
+template<typename T, int FIFO_SIZE>
+struct fifo_t {
+  T buffer[FIFO_SIZE];
+
+  int read_head;
+
+  fifo_t() {
+    read_head = -1;
+  }
+
+  void insert(T value) {
+#pragma HLS array_partition variable=buffer type=complete
+    for (int i = FIFO_SIZE-2; i > 0; --i) {
+#pragma HLS unroll
+      buffer[i+1] = buffer[i];
+    }
+    
+    buffer[0] = value;
+    
+    read_head++;
+  }
+
+  T remove() {
+#pragma HLS array_partition variable=buffer type=complete
+    T val = buffer[read_head];
+
+    read_head--;
+    return val;
+  }
+
+  T & head() {
+    return buffer[read_head];
+  }
+
+  bool full() {
+    return read_head == MAX_SRPT-1;
+  }
+
+  bool empty() {
+    return read_head == -1;
+  }
+};
+
+
+
 void homa(homa_t * homa,
 	  params_t * params,
 	  hls::stream<raw_stream_t> & link_ingress_in, 
 	  hls::stream<raw_stream_t> & link_egress_out,
-	  hls::burst_maxi<dbuff_chunk_t> maxi_in, 
+	  dbuff_chunk_t * maxi_in, 
 	  dbuff_chunk_t * maxi_out);
 
 #endif

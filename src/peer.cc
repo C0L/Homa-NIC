@@ -3,11 +3,15 @@
 #include "hashmap.hh"
 #include <iostream>
 
-void peer_map(hls::stream<new_rpc_t> & dma_ingress__peer_map,
-	      hls::stream<new_rpc_t> & peer_map__rpc_state) {
+void peer_map(hls::stream<new_rpc_t> & new_rpc__peer_map,
+	      hls::stream<new_rpc_t> & peer_map__rpc_state,
+	      hls::stream<header_in_t> & chunk_ingress__peer_map,
+	      hls::stream<header_in_t> & peer_map__rpc_state) {
 
   static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
   static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
+
+  header_in_t tmp = chunk_ingress__peer_map.read();
 
   // TODO Can this be problematic?
 #pragma HLS dependence variable=hashmap inter WAR false
@@ -15,9 +19,18 @@ void peer_map(hls::stream<new_rpc_t> & dma_ingress__peer_map,
 
 #pragma HLS pipeline II=1
 
-  if (!dma_ingress__peer_map.empty()) {
+  if (!chunk_ingress__peer_map.empty()) {
+    header_in_t header_in = chunk_ingress__peer_map.read();
+
+    peer_hashpack_t query = {header_in.daddr};
+
+    peer_id_t peer_id = hashmap.search(query);
+
+    header_in.peer_id = peer_id;
+    peer_map__rpc_state.write(header_in);
+  } else if (!new_rpc__peer_map.empty()) {
     std::cerr << "DEBUG: Checking peer map" << std::endl;
-    new_rpc_t new_rpc = dma_ingress__peer_map.read();
+    new_rpc_t new_rpc = new_rpc__peer_map.read();
 
     // Is this a request message?
     if (new_rpc.id == 0) {

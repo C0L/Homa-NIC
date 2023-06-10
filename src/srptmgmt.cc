@@ -9,7 +9,7 @@
  */
 void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
 		    hls::stream<dbuff_notif_t> & dbuff_notif_i,
-		    hls::stream<srpt_data_t> & data_pkt_o) {
+		    hls::stream<ready_data_pkt_t> & data_pkt_o) {
 
   // TODO can use a smaller FIFO (of pipeline depth) for removing the sync error. After popping from the srpt add it to the blocked RPC BRAM.
   // And add it to the 5 element FIFO. Once it reaches the end of the FIFO, check if the grant has changed, if so readd to SRPT. Otherwise,
@@ -28,6 +28,7 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
   static srpt_queue_t<srpt_data_t, MAX_SRPT> srpt_queue;
   static uint32_t grants[MAX_RPCS];
   static dbuff_notif_t dbuff_notifs[NUM_DBUFF];
+  // static blocked rpcs...
   static fifo_t<srpt_data_t, MAX_SRPT> exhausted;
 
 #pragma HLS pipeline II=1
@@ -43,7 +44,7 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
 
     uint32_t remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
 
-    // Check if the offset of the highest byte needed has been recieved
+    // Check if the offset of the highest byte needed has been received
     dbuff_notif_t dbuff_notif = dbuff_notifs[head.dbuff_id];
     bool blocked = ((dbuff_notif.dbuff_chunk + 1) * DBUFF_CHUNK_SIZE < (head.total - remaining));
 
@@ -51,10 +52,10 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
       exhausted.insert(head);
       srpt_queue.pop();
     } else {
-      data_pkt_o.write(head);
+      uint32_t grant = grants[head.rpc_id];
+      data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grant});
 
       head.remaining = remaining;
-      uint32_t grant = grants[head.rpc_id];
 
       /*
 	grant is the byte up to which we are eligable to send
@@ -114,9 +115,8 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
  * a message it has not seen, makes it eligible for granting. 
  * @srpt_queue_next:   The next rpc that should be granted to. Goes to link_egress. 
  */
-void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
-			     hls::stream<srpt_grant_t> & srpt_queue_receipt,
-			     hls::stream<srpt_grant_t> & srpt_queue_next) {
+void srpt_grant_pkts(hls::stream<srpt_grant_t> & rpc_state__srpt_grant,
+		     hls::stream<ready_grant_pkt_t> & srpt_grant__egress_selector) {
 
   static peer_id_t active_set[MAX_OVERCOMMIT];
   static stack_t<ap_uint<3>, MAX_OVERCOMMIT> active_set_stack(true);
@@ -124,11 +124,8 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
 
 #pragma HLS pipeline II=1
 
-  // TODO some of these may be receipts
-  // TODO Receipt path to reset active set and send message
-  if (!srpt_queue_insert.empty()) {
-    srpt_grant_t new_entry;
-    srpt_queue_insert.read(new_entry);
+  if (!rpc_state__srpt_grant.empty()) {
+    srpt_grant_t new_entry = rpc_state__srpt_grant.read();
 
     int peer_match = -1;
     for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
@@ -144,8 +141,8 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
       new_entry.priority = ACTIVE;
     }
 
-    srpt_queue_next.write(new_entry);
-  } else if (!srpt_queue_next.full() && srpt_queue.head().priority != BLOCKED && !active_set_stack.empty()) {
+    srpt_queue.push(new_entry);
+  } else if (!srpt_grant__egress_selector.full() && srpt_queue.head().priority != BLOCKED && !active_set_stack.empty()) {
     srpt_grant_t & head = srpt_queue.head();
 
     int peer_match = -1;
@@ -157,7 +154,7 @@ void update_grant_srpt_queue(hls::stream<srpt_grant_t> & srpt_queue_insert,
     }
 
     if (peer_match == -1) {
-      srpt_queue_next.write(head);
+      srpt_grant__egress_selector.write({head.rpc_id, head.grantable});
 
       ap_uint<3> idx = active_set_stack.pop();
       active_set[idx] = head.peer_id;
