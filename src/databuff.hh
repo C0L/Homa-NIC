@@ -7,7 +7,7 @@
 
 void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
 		   hls::stream<dma_w_req_t> & dbuff_ingress__dma_write,
-		   hls::stream<header_in_t> & rpc_store__dbuff_ingress);
+		   hls::stream<header_t> & rpc_store__dbuff_ingress);
 
 void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
 		  hls::stream<dbuff_notif_t> & dbuff_egress__srpt_data,

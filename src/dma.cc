@@ -6,8 +6,19 @@
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 
+void homa_recvmsg(homa_t * homa,
+		  recvmsg_t * recvmsg,
+		  hls::stream<recvmsg_t> & recvmsg_o) {
+
+  if (recvmsg->valid) {
+    recvmsg_t new_recvmsg = *recvmsg;
+
+    recvmsg_o.write(new_recvmsg);
+  }
+}
+
 /**
- * new_rpc() - Injests new RPCs and homa configurations into the
+ * sendmsg() - Injests new RPCs and homa configurations into the
  * homa processor. Manages the databuffer IDs, as those must be generated before
  * started pulling data from DMA, and we need to know the ID to store it in the
  * homa_rpc.
@@ -18,11 +29,11 @@
  * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
-void new_rpc(homa_t * homa,
-	     params_t * params,
-	     hls::stream<dma_r_req_t> & new_rpc__dma_read,
-	     hls::stream<dbuff_id_t> & freed_rpcs_o,
-	     hls::stream<new_rpc_t> & new_rpc_o) {
+void homa_sendmsg(homa_t * homa,
+	     sendmsg_t * sendmsg,
+	     hls::stream<dma_r_req_t> & dma_read_o,
+	     hls::stream<dbuff_id_t> & freed_rpcs_i,
+	     hls::stream<sendmsg_t> & sendmsg_o) {
 
   // TODO could also move this to another core that just sends its outputs to a FIFO here...
   static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
@@ -35,41 +46,28 @@ void new_rpc(homa_t * homa,
     the free stream
   */
 
-  if (!freed_rpcs_o.empty()) {
-    dbuff_id_t dbuff_id = freed_rpcs_o.read();
+  if (!freed_rpcs_i.empty()) {
+    dbuff_id_t dbuff_id = freed_rpcs_i.read();
     dbuff_stack.push(dbuff_id);
   }
 
-  DEBUG_MSG(params->length)
-
-  if (params->valid)  {
-    float chunks = ((float) params->length) / DBUFF_CHUNK_SIZE;
+  DEBUG_MSG(sendmsg->length)
+  if (sendmsg->valid)  {
+    float chunks = ((float) sendmsg->length) / DBUFF_CHUNK_SIZE;
     uint32_t num_chunks = ceil(chunks);
-
-    std::cerr << num_chunks << std::endl;
 
     DEBUG_MSG(num_chunks)
 
     dbuff_id_t dbuff_id = dbuff_stack.pop();
 
-    new_rpc_t new_rpc;
-    new_rpc.dbuff_id = dbuff_id;
-    new_rpc.buffout = params->buffout;
-    new_rpc.buffin = params->buffin;
-    new_rpc.rtt_bytes = homa->rtt_bytes;
-    new_rpc.length = params->length;
+    sendmsg_t new_sendmsg = *sendmsg;
+    new_sendmsg.dbuff_id = dbuff_id;
+    new_sendmsg.granted = (homa->rtt_bytes > new_sendmsg.length) ? new_sendmsg.length : homa->rtt_bytes;
 
-    new_rpc.granted = (new_rpc.rtt_bytes > new_rpc.length) ? new_rpc.length : new_rpc.rtt_bytes;
-
-    new_rpc.dest_addr = params->dest_addr;
-    new_rpc.src_addr = params->src_addr;
-    new_rpc.id = params->id;
-    new_rpc.completion_cookie = params->completion_cookie;
-
-    new_rpc_o.write(new_rpc);
+    sendmsg_o.write(new_sendmsg);
 
     for (uint32_t i = 0; i < num_chunks; ++i) {
-      new_rpc__dma_read.write({params->buffin + i, dbuff_id});
+      dma_read_o.write({new_sendmsg.buffin + i, dbuff_id});
     }
   }
 }
@@ -87,8 +85,10 @@ void dma_read(dbuff_chunk_t * maxi,
 
 #pragma HLS pipeline II=1
 
-  dma_r_req_t dma_req = rpc_ingress__dma_read.read();
-  dma_requests__dbuff.write({*(maxi + dma_req.offset), dma_req.dbuff_id, dma_req.offset});
+  if (!rpc_ingress__dma_read.empty()) {
+    dma_r_req_t dma_req = rpc_ingress__dma_read.read();
+    dma_requests__dbuff.write({*(maxi + dma_req.offset), dma_req.dbuff_id, dma_req.offset});
+  }
 }
 
 /**
@@ -100,7 +100,8 @@ void dma_write(dbuff_chunk_t * maxi,
 	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
 
 #pragma HLS pipeline II=1
-
-  dma_w_req_t dma_req = dbuff_ingress__dma_write.read();
-  *(maxi + dma_req.offset) = dma_req.block;
+  if (!dbuff_ingress__dma_write.empty()) {
+    dma_w_req_t dma_req = dbuff_ingress__dma_write.read();
+    *(maxi + dma_req.offset) = dma_req.block;
+  }
 }

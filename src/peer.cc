@@ -3,15 +3,15 @@
 #include "hashmap.hh"
 #include <iostream>
 
-void peer_map(hls::stream<new_rpc_t> & new_rpc__peer_map,
-	      hls::stream<new_rpc_t> & peer_map__rpc_state,
-	      hls::stream<header_in_t> & chunk_ingress__peer_map,
-	      hls::stream<header_in_t> & peer_map__rpc_state) {
+void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
+	      hls::stream<sendmsg_t> & sendmsg_o,
+	      hls::stream<recvmsg_t> & recvmsg_i,
+	      hls::stream<recvmsg_t> & recvmsg_o,
+	      hls::stream<header_t> & header_in_i,
+	      hls::stream<header_t> & header_in_o) {
 
   static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
   static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
-
-  header_in_t tmp = chunk_ingress__peer_map.read();
 
   // TODO Can this be problematic?
 #pragma HLS dependence variable=hashmap inter WAR false
@@ -19,80 +19,46 @@ void peer_map(hls::stream<new_rpc_t> & new_rpc__peer_map,
 
 #pragma HLS pipeline II=1
 
-  if (!chunk_ingress__peer_map.empty()) {
-    header_in_t header_in = chunk_ingress__peer_map.read();
+  if (!header_in_i.empty()) {
+    header_t header_in = header_in_i.read();
 
-    peer_hashpack_t query = {header_in.daddr};
+    peer_hashpack_t query = {header_in.saddr};
 
     peer_id_t peer_id = hashmap.search(query);
 
     header_in.peer_id = peer_id;
-    peer_map__rpc_state.write(header_in);
-  } else if (!new_rpc__peer_map.empty()) {
-    std::cerr << "DEBUG: Checking peer map" << std::endl;
-    new_rpc_t new_rpc = new_rpc__peer_map.read();
+    header_in_o.write(header_in);
+  } else if (!sendmsg_i.empty()) {
+    sendmsg_t sendmsg = sendmsg_i.read();
 
-    // Is this a request message?
-    if (new_rpc.id == 0) {
-      // Get a unique local ID for this peer
-      peer_hashpack_t query = {new_rpc.dest_addr.sin6_addr.s6_addr};
-      new_rpc.peer_id = hashmap.search(query);
+    peer_hashpack_t query = {sendmsg.daddr};
+    sendmsg.peer_id = hashmap.search(query);
 
-      // Search for peer failed, create it
-      if (new_rpc.peer_id == 0) {
-	new_rpc.peer_id = peer_stack.pop();
+    if (sendmsg.peer_id == 0) {
+      sendmsg.peer_id = peer_stack.pop();
 
-	entry_t<peer_hashpack_t, peer_id_t> entry = {query, new_rpc.peer_id};
-	hashmap.queue(entry);
-      }
+      entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
+      hashmap.queue(entry);
     }
 
-    peer_map__rpc_state.write(new_rpc);
+    sendmsg_o.write(sendmsg);
+  } else if (!recvmsg_i.empty()) {
+    recvmsg_t recvmsg = recvmsg_i.read();
+
+    peer_hashpack_t query = {recvmsg.daddr};
+    recvmsg.peer_id = hashmap.search(query);
+
+    if (recvmsg.peer_id == 0) {
+      recvmsg.peer_id = peer_stack.pop();
+
+      entry_t<peer_hashpack_t, peer_id_t> entry = {query, recvmsg.peer_id};
+      hashmap.queue(entry);
+    }
+
+    recvmsg_o.write(recvmsg);
   } else {
     hashmap.process();
   }
-
-  //else if (!onboard_rpc_insert_in.empty()) {
-  //  onboard_rpc_t onboard_rpc = onboard_rpc_insert_in.read();
-
-  //  peer_hashpack_t hashpack = {onboard_rpc.daddr};
-
-  //  entry_t<peer_hashpack_t, peer_id_t> entry = {hashpack, insertion.peer_id};
-  //  hashmap.queue(entry);
-
-  //  onboard_rpc_insert_out.write(onboard_rpc);
-  //}
-
-  //if (!peer_table_request_primary.empty()) {
-  //  peer_hashpack_t query;
-  //  peer_table_request_primary.read(query);
-
-  //  peer_id_t peer_id = hashmap.search(query);
-
-  //  peer_table_response_primary.write(peer_id);
-  //} else if (!peer_table_request_secondary.empty()) {
-  //  peer_hashpack_t query;
-  //  peer_table_request_secondary.read(query);
-
-  //  peer_id_t peer_id = hashmap.search(query);
-
-  //  peer_table_response_secondary.write(peer_id);
-  //} else if (!peer_table_insert_primary.empty()) {
-  //  homa_peer_t insertion;
-  //  peer_table_insert_primary.read(insertion);
-
-  //  peer_hashpack_t hashpack = {insertion.addr};
-
-  //  entry_t<peer_hashpack_t, peer_id_t> entry = {hashpack, insertion.peer_id};
-  //  hashmap.queue(entry);
-  //} else if (!peer_table_insert_secondary.empty()) {
-  //  homa_peer_t insertion;
-  //  peer_table_insert_secondary.read(insertion);
-
-  //  peer_hashpack_t hashpack = {insertion.addr};
-
-  //  entry_t<peer_hashpack_t, peer_id_t> entry = {hashpack, insertion.peer_id};
-  //  hashmap.queue(entry);
 }
 
 //void peer_state(stream_t<new_rpc_t, new_rpc_t> & new_rpc_t) {

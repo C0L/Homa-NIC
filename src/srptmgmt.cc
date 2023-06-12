@@ -7,7 +7,7 @@
  * @srpt_queue_grant: Updates for RPCs when more bytes are granted
  * @srpt_queue_next:   The highest priority value to transmit
  */
-void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
+void srpt_data_pkts(hls::stream<sendmsg_t> & sendmsg_i,
 		    hls::stream<dbuff_notif_t> & dbuff_notif_i,
 		    hls::stream<ready_data_pkt_t> & data_pkt_o) {
 
@@ -39,7 +39,6 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
   }
 
   if (!data_pkt_o.full() && !srpt_queue.empty()) {
-
     srpt_data_t & head = srpt_queue.head();
 
     uint32_t remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? 0 : head.remaining - HOMA_PAYLOAD_SIZE;
@@ -75,10 +74,10 @@ void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
 	srpt_queue.pop();
       }
     }
-  } else if (!new_rpc_i.empty()) {
-    new_rpc_t new_rpc = new_rpc_i.read();
-    srpt_data_t new_entry = {new_rpc.local_id, new_rpc.dbuff_id, new_rpc.length, new_rpc.length};
-    grants[new_entry.rpc_id] = new_rpc.granted;
+  } else if (!sendmsg_i.empty()) {
+    sendmsg_t sendmsg = sendmsg_i.read();
+    srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
+    grants[new_entry.rpc_id] = sendmsg.granted;
     srpt_queue.push(new_entry);
   } else if (!exhausted.empty()) {
     srpt_data_t exhausted_entry = exhausted.remove();
@@ -136,13 +135,13 @@ void srpt_grant_pkts(hls::stream<srpt_grant_t> & rpc_state__srpt_grant,
     }
 
     if (peer_match != -1) {
-      new_entry.priority = BLOCKED;
+      new_entry.priority = SRPT_BLOCKED;
     } else {
-      new_entry.priority = ACTIVE;
+      new_entry.priority = SRPT_ACTIVE;
     }
 
     srpt_queue.push(new_entry);
-  } else if (!srpt_grant__egress_selector.full() && srpt_queue.head().priority != BLOCKED && !active_set_stack.empty()) {
+  } else if (!srpt_grant__egress_selector.full() && srpt_queue.head().priority != SRPT_BLOCKED && !active_set_stack.empty()) {
     srpt_grant_t & head = srpt_queue.head();
 
     int peer_match = -1;
@@ -159,7 +158,7 @@ void srpt_grant_pkts(hls::stream<srpt_grant_t> & rpc_state__srpt_grant,
       ap_uint<3> idx = active_set_stack.pop();
       active_set[idx] = head.peer_id;
 
-      srpt_grant_t msg = {head.peer_id, 0, 0, MSG};
+      srpt_grant_t msg = {head.peer_id, 0, 0, SRPT_MSG};
 
       srpt_queue.pop();
       srpt_queue.push(msg);

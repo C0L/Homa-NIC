@@ -179,7 +179,7 @@ struct srpt_queue_t {
   }
 };
 
-void srpt_data_pkts(hls::stream<new_rpc_t> & new_rpc_i,
+void srpt_data_pkts(hls::stream<sendmsg_t> & new_rpc_i,
 		    hls::stream<dbuff_notif_t> & data_notif_i,
 		    hls::stream<ready_data_pkt_t> & data_pkt_o);
 

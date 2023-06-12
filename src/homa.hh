@@ -94,41 +94,41 @@ struct dbuff_notif_t {
 };
 
 /* network structures */
-typedef uint16_t sa_family_t;
-typedef uint16_t in_port_t;
-
-struct sockaddr_t {
-  sa_family_t      sa_family;
-  unsigned char    sa_data[14];
-};
-
-struct in_addr_t {
-  uint32_t       s_addr;     /* address in network byte order */
-};
-
-struct sockaddr_in_t {
-  sa_family_t    sin_family; /* address family: AF_INET */
-  in_port_t      sin_port;   /* port in network byte order */
-  in_addr_t      sin_addr;   /* internet address */
-};
-
-struct in6_addr_t {
-  ap_uint<128>    s6_addr;   /* IPv6 address */
-};
-
-struct sockaddr_in6_t {
-  sa_family_t     sin6_family;   /* AF_INET6 */
-  in_port_t       sin6_port;     /* port number */
-  uint32_t        sin6_flowinfo; /* IPv6 flow information */
-  in6_addr_t      sin6_addr;     /* IPv6 address */
-  uint32_t        sin6_scope_id; /* Scope ID (new in 2.4) */
-};
-
-typedef union sockaddr_in_union {
-  sockaddr_t sa;
-  sockaddr_in_t in4;
-  sockaddr_in6_t in6;
-} sockaddr_in_union_t;
+//typedef uint16_t sa_family_t;
+//typedef uint16_t in_port_t;
+//
+//struct sockaddr_t {
+//  sa_family_t      sa_family;
+//  unsigned char    sa_data[14];
+//};
+//
+//struct in_addr_t {
+//  uint32_t       s_addr;     /* address in network byte order */
+//};
+//
+//struct sockaddr_in_t {
+//  sa_family_t    sin_family; /* address family: AF_INET */
+//  in_port_t      sin_port;   /* port in network byte order */
+//  in_addr_t      sin_addr;   /* internet address */
+//};
+//
+//struct in6_addr_t {
+//  ap_uint<128>    s6_addr;   /* IPv6 address */
+//};
+//
+//struct sockaddr_in6_t {
+//  sa_family_t     sin6_family;   /* AF_INET6 */
+//  in_port_t       sin6_port;     /* port number */
+//  uint32_t        sin6_flowinfo; /* IPv6 flow information */
+//  in6_addr_t      sin6_addr;     /* IPv6 address */
+//  uint32_t        sin6_scope_id; /* Scope ID (new in 2.4) */
+//};
+//
+//typedef union sockaddr_in_union {
+//  sockaddr_t sa;
+//  sockaddr_in_t in4;
+//  sockaddr_in6_t in6;
+//} sockaddr_in_union_t;
 
 
 /* homa structures */
@@ -171,54 +171,155 @@ struct homa_t {
   int flags;
 };
 
-struct params_t {
-  // Offset in DMA space for output
+/**
+ * struct homa_message_out - Describes a message (either request or response)
+ * for which this machine is the sender.
+ */
+struct homa_message_out_t {
+  int length;
+  dbuff_id_t dbuff_id;
+  int unscheduled;
+  int granted;
+  //ap_uint<8> sched_priority;
+  //ap_uint<64> init_cycles;
+};
+
+/**
+ * struct homa_message_in - Holds the state of a message received by
+ * this machine; used for both requests and responses.
+ */
+struct homa_message_in_t {
+  int total_length;
+  int bytes_remaining;
+  int incoming;
+  int priority;
+  bool scheduled;
+  ap_uint<64> birth;
+  int copied_out;
+};
+
+/**
+ * struct homa_rpc - One of these structures exists for each active
+ * RPC. The same structure is used to manage both outgoing RPCs on
+ * clients and incoming RPCs on servers.
+ */
+struct homa_rpc_t {
   uint32_t buffout;
-  // Offset in DMA space for input
   uint32_t buffin;
-  uint32_t length;
-  sockaddr_in6_t dest_addr;
-  sockaddr_in6_t src_addr;
-  uint64_t id;
+
+  enum {
+    RPC_OUTGOING            = 5,
+    RPC_INCOMING            = 6,
+    RPC_IN_SERVICE          = 8,
+    RPC_DEAD                = 9
+  } state;
+
+  //int flags;
+  //int grants_in_progress;
+  ap_uint<128> saddr;
+  ap_uint<128> daddr;
+  uint16_t dport;
+  uint16_t sport;
+  peer_id_t peer_id;
+  rpc_id_t rpc_id; 
+  ap_uint<64> completion_cookie;
+  homa_message_in_t msgin;
+  homa_message_out_t msgout;
+  //int silent_ticks;
+  //ap_uint<32> resend_timer_ticks;
+  //ap_uint<32> done_timer_ticks;
+};
+
+
+//struct params_t {
+//  // Offset in DMA space for output
+//  uint32_t buffout;
+//  // Offset in DMA space for input
+//  uint32_t buffin;
+//  uint32_t length;
+//  sockaddr_in6_t dest_addr;
+//  sockaddr_in6_t src_addr;
+//  uint64_t id;
+//  uint64_t completion_cookie;
+//  ap_uint<1> valid;
+//};
+
+struct sendmsg_t {
+  uint32_t buffin; // Offset in DMA space for input
+  uint32_t length; // Total length of message
+  
+  ap_uint<128> saddr; // Sender address
+  ap_uint<128> daddr; // Destination address
+
+  uint16_t sport; // Sender port
+  uint16_t dport; // Destination port
+
+  uint64_t id; // RPC specified by caller
   uint64_t completion_cookie;
+
+  // internal use
+  uint32_t  granted;
+  rpc_id_t local_id; // Local RPC ID 
+  dbuff_id_t dbuff_id; // Data buffer ID for outgoing data
+  peer_id_t peer_id; // Local ID for this destination address
+  ap_uint<1> valid;
+};
+
+struct recvmsg_t {
+  uint32_t buffout; // Offset in DMA space for output
+
+  ap_uint<128> saddr; // Sender address
+  ap_uint<128> daddr; // Destination address
+
+  uint16_t sport; // Sender port
+  uint16_t dport; // Destination port
+
+  uint64_t id; // RPC specified by caller
+  rpc_id_t local_id; // Local RPC ID 
+  peer_id_t peer_id; // Local ID for this peer
+
   ap_uint<1> valid;
 };
 
 /* continuation structures */
-struct header_out_t {
-  homa_packet_type type;
-  rpc_id_t rpc_id;
-  uint32_t dma_offset;
-  dbuff_id_t dbuff_id;
-  uint32_t total_bytes;   // How many bytes in this message
-  uint32_t packet_bytes;  // How many bytes in this packet 
-  uint32_t data_offset;   // Next byte to load in message buffer
-  uint32_t sent_bytes;    // How many bytes have been converted to chunks
-  uint32_t granted_bytes; // Offset in message that we can send up to
-  uint32_t msg_length;    // Total length of the message
-  ap_uint<128> saddr;
-  ap_uint<128> daddr;
-  uint16_t sport;
-  uint16_t dport;
-  ap_uint<1> valid;
-};
 
-struct header_in_t {
-  homa_packet_type type;
-  rpc_id_t rpc_id;         // Internal RPC ID
-  uint64_t id;             // RPC ID from the packet
+struct header_t {
+  // Local Values
+  rpc_id_t local_id;
   peer_id_t peer_id;
+  dbuff_id_t dbuff_id;
   uint32_t dma_offset;
-  uint32_t total_bytes;   // How many bytes in this message
-  uint32_t packet_bytes;  // How many bytes in this packet 
-  uint32_t data_offset;   // Next byte to load in message buffer
-  uint32_t read_bytes;    // How many bytes have been converted from chunks
-  uint32_t granted_bytes; // Offset of newly recieved grant
-  uint32_t msg_length;    // Total length of the message
+  uint32_t processed_bytes;
+  uint32_t packet_bytes;
+
+  // IPv6 + Common Header
+  uint32_t payload_length;
   ap_uint<128> saddr;
   ap_uint<128> daddr;
   uint16_t sport;
   uint16_t dport;
+  homa_packet_type type;
+  uint64_t sender_id;
+
+  // Data Header
+  uint32_t message_length; 
+  uint32_t incoming;
+  uint16_t cutoff_version;
+  uint8_t retransmit;
+
+  // Data Segment
+  uint32_t data_offset;
+  uint32_t segment_length;
+
+  // Ack Header
+  uint64_t client_id;
+  uint16_t client_port;
+  uint16_t server_port;
+
+  // Grant Header
+  uint32_t grant_offset;
+  uint8_t priority;
+
   ap_uint<1> valid;
 };
 
@@ -257,22 +358,6 @@ struct out_chunk_t {
   ap_uint<512> buff;
 };
 
-struct new_rpc_t {
-  dbuff_id_t dbuff_id;
-  uint32_t buffout;
-  uint32_t buffin;
-  uint32_t rtt_bytes;
-  uint32_t length;
-  uint32_t granted;
-  sockaddr_in6_t dest_addr;
-  sockaddr_in6_t src_addr;
-  uint64_t id;
-  rpc_id_t local_id;
-  peer_id_t peer_id;
-  uint64_t completion_cookie;
-};
-
-
 struct dma_r_req_t {
   uint32_t offset;
   dbuff_id_t dbuff_id;
@@ -282,8 +367,6 @@ struct dma_w_req_t {
   uint32_t offset;
   dbuff_chunk_t block;
 };
-
-
 
 struct srpt_data_t {
   rpc_id_t rpc_id;
@@ -416,9 +499,9 @@ struct fifo_t {
 };
 
 
-
 void homa(homa_t * homa,
-	  params_t * params,
+	  sendmsg_t * sendmsg,
+	  recvmsg_t * recvmsg,
 	  hls::stream<raw_stream_t> & link_ingress_in, 
 	  hls::stream<raw_stream_t> & link_egress_out,
 	  dbuff_chunk_t * maxi_in, 

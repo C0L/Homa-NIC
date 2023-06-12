@@ -11,15 +11,15 @@
  */
 void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
 		   hls::stream<dma_w_req_t> & dbuff_ingress__dma_write,
-		   hls::stream<header_in_t> & rpc_store__dbuff_ingress) {
+		   hls::stream<header_t> & rpc_store__dbuff_ingress) {
 #pragma HLS pipeline II=1
-  static fifo_t<in_chunk_t,128> rebuff;
-  static header_in_t header_in;
 
-  if (!chunk_ingress__dbuff_ingress.empty()) {
-    in_chunk_t in_chunk = chunk_ingress__dbuff_ingress.read();
-    rebuff.insert(in_chunk);
-  }
+  // TODO can this be problematic?
+  static fifo_t<in_chunk_t,128> rebuff;
+#pragma HLS dependence variable=rebuff inter WAR false
+#pragma HLS dependence variable=rebuff inter RAW false
+
+  static header_t header_in;
 
   if (header_in.valid && !rebuff.empty()) {
     in_chunk_t in_chunk = rebuff.remove();
@@ -27,6 +27,11 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
     dbuff_ingress__dma_write.write({in_chunk.offset + header_in.dma_offset, in_chunk.buff});
 
     if (in_chunk.last) header_in.valid = 0;
+  }
+
+  if (!chunk_ingress__dbuff_ingress.empty()) {
+    in_chunk_t in_chunk = chunk_ingress__dbuff_ingress.read();
+    rebuff.insert(in_chunk);
   }
 
   if (!header_in.valid && !rpc_store__dbuff_ingress.empty()) {

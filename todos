@@ -28,3 +28,5 @@ Timer core needs to be looped in
 Grant packets need to feed to SRPT queue
 
 ACKs need to be sent
+
+Where do unscheduled data bytes go? Where should we place data in DMA that we did not request?

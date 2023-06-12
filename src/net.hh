@@ -15,6 +15,9 @@
 // Number of bytes in ethernet + ipv6 header
 #define PREFACE_HEADER 54
 
+// Number of bytes in homa data ethernet header
+#define HOMA_DATA_HEADER 60
+
 // Maximum number of bytes in a homa DATA payload
 #define HOMA_PAYLOAD_SIZE 1386
 

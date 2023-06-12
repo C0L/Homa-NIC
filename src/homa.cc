@@ -29,7 +29,8 @@ void tmp(hls::stream<dbuff_id_t> & freed_dbuffs) {
  * @dma:   DMA memory space pointer
  */
 void homa(homa_t * homa,
-	  params_t * params,
+	  sendmsg_t * sendmsg,
+	  recvmsg_t * recvmsg,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress,
 	  dbuff_chunk_t * maxi_in,
@@ -38,8 +39,10 @@ void homa(homa_t * homa,
 #pragma HLS interface mode=ap_ctrl_none port=return
 
 #pragma HLS interface s_axilite port=homa bundle=homa
-#pragma HLS interface s_axilite port=params bundle=params
-#pragma HLS interface mode=ap_vld port=params
+#pragma HLS interface s_axilite port=sendmsg bundle=sendmsg
+#pragma HLS interface mode=ap_vld port=sendmsg
+#pragma HLS interface s_axilite port=recvmsg bundle=recvmsg
+#pragma HLS interface mode=ap_vld port=recvmsg
 
 #pragma HLS interface axis port=link_ingress
 #pragma HLS interface axis port=link_egress
@@ -58,37 +61,55 @@ void homa(homa_t * homa,
    */
   hls_thread_local hls::stream<dbuff_id_t> freed_dbuffs;
   hls_thread_local hls::stream<dbuff_in_t> new_rpc__dbuff_ingress;
-  hls_thread_local hls::stream<new_rpc_t> new_rpc__peer_map;
-  hls_thread_local hls::stream<new_rpc_t> peer_map__rpc_state;
-  hls_thread_local hls::stream<new_rpc_t> rpc_state__srpt_data;
+
+  hls_thread_local hls::stream<sendmsg_t> new_rpc__peer_map;
+  hls_thread_local hls::stream<sendmsg_t> peer_map__rpc_state;
+  hls_thread_local hls::stream<sendmsg_t> rpc_state__srpt_data;
+
   hls_thread_local hls::stream<ready_data_pkt_t> srpt_data__egress_sel;
   hls_thread_local hls::stream<ready_grant_pkt_t> srpt_grant__egress_sel;
   hls_thread_local hls::stream<rexmit_t> rexmit__egress_sel;
-  hls_thread_local hls::stream<header_out_t> egress_sel__rpc_state;
-  hls_thread_local hls::stream<header_out_t> rpc_state__chunk_egress;
+
+  hls_thread_local hls::stream<header_t> egress_sel__rpc_state; // header_out
+  hls_thread_local hls::stream<header_t> rpc_state__chunk_egress; // header_out
+  hls_thread_local hls::stream<header_t> peer_map__rpc_map; // header_in
+  hls_thread_local hls::stream<header_t> rpc_map__rpc_state; //header_in
+
   hls_thread_local hls::stream<out_chunk_t> chunk_egress__dbuff_ingress;
   hls_thread_local hls::stream<dbuff_notif_t> dbuff_ingress__srpt_data;
   hls_thread_local hls::stream<dma_r_req_t> new_rpc__dma_read;
   hls_thread_local hls::stream<in_chunk_t> chunk_ingress__dbuff_ingress;
   hls_thread_local hls::stream<dma_w_req_t> dbuff_ingress__dma_write;
-  hls_thread_local hls::stream<header_in_t> rpc_state__dbuff_ingress;
+  hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress;
   hls_thread_local hls::stream<srpt_grant_t> rpc_state__srpt_grant;
-  hls_thread_local hls::stream<header_in_t> chunk_ingress__peer_map;
+  hls_thread_local hls::stream<header_t> chunk_ingress__peer_map;
+  
+  hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map__rpc_map;
+  hls_thread_local hls::stream<recvmsg_t> recvmsg__rpc_map__rpc_state;
+  hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map;
 
 #pragma HLS dataflow
-
 
   /* Data Driven Region */
 
   hls_thread_local hls::task peer_map_task(peer_map,
 					   new_rpc__peer_map, peer_map__rpc_state,
-					   chunk_ingress__peer_map, peer_map__rpc_state);
+					   recvmsg__peer_map, recvmsg__peer_map__rpc_map,
+					   chunk_ingress__peer_map, peer_map__rpc_map);
 
   hls_thread_local hls::task rpc_state_task(rpc_state,
-					    peer_map__rpc_state, rpc_state__srpt_data,
-					    egress_sel__rpc_state, rpc_state__chunk_egress,
-					    rpc_state__srpt_grant,
-					    rpc_state__dbuff_ingress);
+					    peer_map__rpc_state, rpc_state__srpt_data, // sendmsg
+					    recvmsg__rpc_map__rpc_state, // recvmsg
+					    egress_sel__rpc_state, rpc_state__chunk_egress, // header_out
+					    rpc_state__dbuff_ingress, rpc_map__rpc_state, // header_in
+					    rpc_state__srpt_grant);
+
+  hls_thread_local hls::task rpc_map_task(rpc_map,
+					  peer_map__rpc_map,
+					  rpc_map__rpc_state,
+					  recvmsg__peer_map__rpc_map,
+					  recvmsg__rpc_map__rpc_state);
+
 
   hls_thread_local hls::task srpt_data_pkts_task(srpt_data_pkts,
 						 rpc_state__srpt_data,
@@ -127,7 +148,9 @@ void homa(homa_t * homa,
   hls_thread_local hls::task tmp_task(tmp, freed_dbuffs);
 
   /* Control Driven Region */
-  new_rpc(homa, params, new_rpc__dma_read, freed_dbuffs, new_rpc__peer_map);
+  homa_sendmsg(homa, sendmsg, new_rpc__dma_read, freed_dbuffs, new_rpc__peer_map);
+
+  homa_recvmsg(homa, recvmsg, recvmsg__peer_map);
 
   dma_read(maxi_in, new_rpc__dma_read, new_rpc__dbuff_ingress);
 

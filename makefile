@@ -7,8 +7,8 @@ unit_test:
 srptmgmt_test:
 	vitis_hls tcl/srptmgmt_test.tcl
 
-egress_test:
-	vitis_hls tcl/egress_test.tcl
+link_test:
+	vitis_hls tcl/link_test.tcl
 
 clean:
 	rm vitis_hls.log
