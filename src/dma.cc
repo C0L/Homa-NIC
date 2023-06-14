@@ -9,10 +9,8 @@
 void homa_recvmsg(homa_t * homa,
 		  recvmsg_t * recvmsg,
 		  hls::stream<recvmsg_t> & recvmsg_o) {
-
   if (recvmsg->valid) {
     recvmsg_t new_recvmsg = *recvmsg;
-
     recvmsg_o.write(new_recvmsg);
   }
 }
@@ -96,12 +94,17 @@ void dma_read(dbuff_chunk_t * maxi,
  * @maxi - The MAXI interface connected to DMA space
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
-void dma_write(dbuff_chunk_t * maxi,
+void dma_write(char * maxi,
+//void dma_write(dbuff_chunk_t * maxi,
 	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
 
 #pragma HLS pipeline II=1
+
   if (!dbuff_ingress__dma_write.empty()) {
+    //std::cerr << "DMA WRITE\n";
     dma_w_req_t dma_req = dbuff_ingress__dma_write.read();
-    *(maxi + dma_req.offset) = dma_req.block;
+    std::cout << dma_req.offset << std::endl;
+    std::cout << std::hex << dma_req.block << std::endl;
+    *((dbuff_chunk_t*) (maxi + dma_req.offset)) = dma_req.block;
   }
 }

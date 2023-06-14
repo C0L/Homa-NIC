@@ -31,10 +31,12 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
 
   if (!chunk_ingress__dbuff_ingress.empty()) {
     in_chunk_t in_chunk = chunk_ingress__dbuff_ingress.read();
+    std::cout << "rebuffeer: " << std::hex << in_chunk.buff << std::endl;
     rebuff.insert(in_chunk);
   }
-
+  //std::cerr << header_in.valid << " " << !rpc_store__dbuff_ingress.empty() << std::endl;
   if (!header_in.valid && !rpc_store__dbuff_ingress.empty()) {
+    //std::cerr << "READ NEW HEADER\n";
     header_in = rpc_store__dbuff_ingress.read();
   }
 }

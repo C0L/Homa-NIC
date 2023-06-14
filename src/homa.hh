@@ -257,12 +257,13 @@ struct sendmsg_t {
   uint64_t id; // RPC specified by caller
   uint64_t completion_cookie;
 
-  // internal use
+  ap_uint<1> valid;
+
+  // Internal use
   uint32_t  granted;
   rpc_id_t local_id; // Local RPC ID 
   dbuff_id_t dbuff_id; // Data buffer ID for outgoing data
   peer_id_t peer_id; // Local ID for this destination address
-  ap_uint<1> valid;
 };
 
 struct recvmsg_t {
@@ -275,10 +276,12 @@ struct recvmsg_t {
   uint16_t dport; // Destination port
 
   uint64_t id; // RPC specified by caller
-  rpc_id_t local_id; // Local RPC ID 
-  peer_id_t peer_id; // Local ID for this peer
 
   ap_uint<1> valid;
+
+  // Internal use
+  rpc_id_t local_id; // Local RPC ID 
+  peer_id_t peer_id; // Local ID for this peer
 };
 
 /* continuation structures */
@@ -504,7 +507,8 @@ void homa(homa_t * homa,
 	  recvmsg_t * recvmsg,
 	  hls::stream<raw_stream_t> & link_ingress_in, 
 	  hls::stream<raw_stream_t> & link_egress_out,
-	  dbuff_chunk_t * maxi_in, 
-	  dbuff_chunk_t * maxi_out);
+	  dbuff_chunk_t * maxi_in,
+	  char * maxi_out);
+	  //dbuff_chunk_t * maxi_out);
 
 #endif

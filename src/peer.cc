@@ -6,9 +6,7 @@
 void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
 	      hls::stream<sendmsg_t> & sendmsg_o,
 	      hls::stream<recvmsg_t> & recvmsg_i,
-	      hls::stream<recvmsg_t> & recvmsg_o,
-	      hls::stream<header_t> & header_in_i,
-	      hls::stream<header_t> & header_in_o) {
+	      hls::stream<recvmsg_t> & recvmsg_o) {
 
   static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
   static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
@@ -19,16 +17,21 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
 
 #pragma HLS pipeline II=1
 
-  if (!header_in_i.empty()) {
-    header_t header_in = header_in_i.read();
+  //if (!header_in_i.empty()) {
+  //  std::cerr << "header in peer map\n";
+  //  header_t header_in = header_in_i.read();
 
-    peer_hashpack_t query = {header_in.saddr};
+  //  peer_hashpack_t query = {header_in.saddr};
 
-    peer_id_t peer_id = hashmap.search(query);
+  //  peer_id_t peer_id = hashmap.search(query);
 
-    header_in.peer_id = peer_id;
-    header_in_o.write(header_in);
-  } else if (!sendmsg_i.empty()) {
+  //  header_in.peer_id = peer_id;
+
+  //  //std::cerr << "header out " << peer_id << std::endl;
+  //  header_in_o.write(header_in);
+  //} else
+  if (!sendmsg_i.empty()) {
+    std::cerr << "sendmsg\n";
     sendmsg_t sendmsg = sendmsg_i.read();
 
     peer_hashpack_t query = {sendmsg.daddr};
@@ -43,12 +46,16 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
 
     sendmsg_o.write(sendmsg);
   } else if (!recvmsg_i.empty()) {
+    std::cerr << "non empty\n";
     recvmsg_t recvmsg = recvmsg_i.read();
 
     peer_hashpack_t query = {recvmsg.daddr};
     recvmsg.peer_id = hashmap.search(query);
 
+    std::cerr << "RECV PEER LOOKUP: " << recvmsg.peer_id << std::endl;
+
     if (recvmsg.peer_id == 0) {
+      std::cerr << "RECV INSERTING NEW PEER ID\n";
       recvmsg.peer_id = peer_stack.pop();
 
       entry_t<peer_hashpack_t, peer_id_t> entry = {query, recvmsg.peer_id};

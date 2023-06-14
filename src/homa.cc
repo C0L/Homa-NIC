@@ -34,7 +34,8 @@ void homa(homa_t * homa,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress,
 	  dbuff_chunk_t * maxi_in,
-	  dbuff_chunk_t * maxi_out) {
+	  char * maxi_out) {
+	  //dbuff_chunk_t * maxi_out) {
 
 #pragma HLS interface mode=ap_ctrl_none port=return
 
@@ -82,10 +83,10 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<dma_w_req_t> dbuff_ingress__dma_write;
   hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress;
   hls_thread_local hls::stream<srpt_grant_t> rpc_state__srpt_grant;
-  hls_thread_local hls::stream<header_t> chunk_ingress__peer_map;
+  hls_thread_local hls::stream<header_t> chunk_ingress__rpc_map;
   
-  hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map__rpc_map;
-  hls_thread_local hls::stream<recvmsg_t> recvmsg__rpc_map__rpc_state;
+  hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map__rpc_state;
+  hls_thread_local hls::stream<recvmsg_t> recvmsg__rpc_state__rpc_map;
   hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map;
 
 #pragma HLS dataflow
@@ -94,21 +95,19 @@ void homa(homa_t * homa,
 
   hls_thread_local hls::task peer_map_task(peer_map,
 					   new_rpc__peer_map, peer_map__rpc_state,
-					   recvmsg__peer_map, recvmsg__peer_map__rpc_map,
-					   chunk_ingress__peer_map, peer_map__rpc_map);
+					   recvmsg__peer_map, recvmsg__peer_map__rpc_state);
+  //chunk_ingress__peer_map, peer_map__rpc_map);
 
   hls_thread_local hls::task rpc_state_task(rpc_state,
 					    peer_map__rpc_state, rpc_state__srpt_data, // sendmsg
-					    recvmsg__rpc_map__rpc_state, // recvmsg
+					    recvmsg__peer_map__rpc_state, recvmsg__rpc_state__rpc_map, // recvmsg
 					    egress_sel__rpc_state, rpc_state__chunk_egress, // header_out
-					    rpc_state__dbuff_ingress, rpc_map__rpc_state, // header_in
+					    rpc_map__rpc_state, rpc_state__dbuff_ingress, // header_in
 					    rpc_state__srpt_grant);
 
   hls_thread_local hls::task rpc_map_task(rpc_map,
-					  peer_map__rpc_map,
-					  rpc_map__rpc_state,
-					  recvmsg__peer_map__rpc_map,
-					  recvmsg__rpc_map__rpc_state);
+					  chunk_ingress__rpc_map, rpc_map__rpc_state,
+					  recvmsg__rpc_state__rpc_map);
 
 
   hls_thread_local hls::task srpt_data_pkts_task(srpt_data_pkts,
@@ -131,7 +130,7 @@ void homa(homa_t * homa,
 
   hls_thread_local hls::task pkt_chunk_ingress_task(pkt_chunk_ingress,
 						    link_ingress,
-						    chunk_ingress__peer_map,
+						    chunk_ingress__rpc_map,
 						    chunk_ingress__dbuff_ingress);
 
   hls_thread_local hls::task dbuff_egress_task(dbuff_egress,

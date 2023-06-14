@@ -35,6 +35,7 @@ void rpc_stack(hls::stream<rpc_id_t> & new_rpc_id_0_o,
 void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 	       hls::stream<sendmsg_t> & sendmsg_o,
 	       hls::stream<recvmsg_t> & recvmsg_i,
+	       hls::stream<recvmsg_t> & recvmsg_o,
 	       hls::stream<header_t> & header_out_i, 
 	       hls::stream<header_t> & header_out_o,
 	       hls::stream<header_t> & header_in_i,
@@ -44,7 +45,6 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 
 void rpc_map(hls::stream<header_t> & header_in_i,
 	     hls::stream<header_t> & header_in_o,
-	     hls::stream<recvmsg_t> & recvmsg_i,
-	     hls::stream<recvmsg_t> & recvmsg_o);
+	     hls::stream<recvmsg_t> & recvmsg_i);
 
 #endif

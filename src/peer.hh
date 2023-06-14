@@ -41,9 +41,7 @@ struct homa_peer_t {
 void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
 	      hls::stream<sendmsg_t> & sendmsg_o,
 	      hls::stream<recvmsg_t> & recvmsg_i,
-	      hls::stream<recvmsg_t> & recvmsg_o,
-	      hls::stream<header_t> & header_in_i,
-	      hls::stream<header_t> & header_in_o);
+	      hls::stream<recvmsg_t> & recvmsg_o);
 
 
 
