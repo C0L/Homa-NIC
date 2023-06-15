@@ -91,7 +91,7 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
     dbuff_in_t dbuff_in = dbuff_egress_i.read();
     //DEBUG_MSG("Add Data Chunk: " << dbuff_in.dbuff_chunk << " " << dbuff_in.dbuff_id)
     //std::cerr << "data buffer ID " << dbuff_in.dbuff_id << " " << dbuff_in.dbuff_chunk << std::endl;
-    std::cout << std::hex << dbuff_in.block << std::endl;
+    //std::cout << std::hex << dbuff_in.block << std::endl;
     //std::cout << std::hex << dbuff_in.block.reverse() << std::endl;
     dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk] = dbuff_in.block;
     dbuff_egress__srpt_data.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
@@ -121,13 +121,10 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
 
       double_buff(511, 0) = dbuff[out_block.dbuff_id][block_offset+1];
       double_buff(1023, 512) = dbuff[out_block.dbuff_id][block_offset];
-      //double_buff(0, 511) = dbuff[out_block.dbuff_id][block_offset+1];
-      //double_buff(512, 1023) = dbuff[out_block.dbuff_id][block_offset];
-
 
       raw_stream.data = out_block.buff;
 
-      std::cout << std::hex << double_buff << std::endl;
+      //std::cout << std::hex << double_buff << std::endl;
       // There is a more obvious C implementation — results in very expensive hardware 
       switch(out_block.data_bytes) {
       	case NO_DATA: {
@@ -136,17 +133,12 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
       	}
       
       	case ALL_DATA: {
-	  //std::cerr << "ALL DATA\n";
 	  raw_stream.data = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + ALL_DATA) * 8));
-	  //std::cout << std::hex << double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + ALL_DATA) * 8)) << std::endl;
 
 	  break;
       	}
       
       	case PARTIAL_DATA: {
-	  //std::cerr << "PARTIAL DATA\n";
-	  //std::cerr <<  double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + PARTIAL_DATA) * 8)) << std::endl;
-
 	  raw_stream.data((PARTIAL_DATA*8)-1, 0) = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + PARTIAL_DATA) * 8));
 	  break;
       	}

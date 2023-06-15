@@ -50,8 +50,7 @@ struct user_output_t;
 
 #define HOMA_MAX_PRIORITIES 8
 
-typedef hls::axis<char[64], 1, 1, 1> raw_stream_t;
-//typedef hls::axis<ap_uint<512>, 1, 1, 1> raw_stream_t;
+typedef hls::axis<ap_uint<512>, 1, 1, 1> raw_stream_t;
 // typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
 
 #define MAX_PEERS_LOG2 14

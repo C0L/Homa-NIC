@@ -42,6 +42,15 @@ void homa_sendmsg(homa_t * homa,
   }
 }
 
+void byte_order_flip(dbuff_chunk_t & in, dbuff_chunk_t & out) {
+#pragma HLS inline
+  for (int i = 0; i < 64; ++i) {
+#pragma HLS unroll
+    out(511 - (i * 8), 504 - (i * 8)) = in(7 + (i * 8), 0 + (i * 8));
+  }
+}
+
+
 // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/AXI-Burst-Transfers
 
 /**
@@ -57,11 +66,10 @@ void dma_read(char * maxi,
     dma_r_req_t dma_req = rpc_ingress__dma_read.read();
     for (int i = 0; i < dma_req.length; ++i) {
 #pragma HLS pipeline II=1
-      //std::cout << "BLOCK: " << std::hex << *((dbuff_chunk_t*) (maxi + dma_req.offset + (i*64))) << std::endl;
-      dbuff_chunk_t chunk = *((dbuff_chunk_t*) (maxi + dma_req.offset + (i*64)));
-      //dbuff_chunk_t chunk;
-      //memcpy(&chunk, maxi + dma_req.offset + (i*64), 64);
-      dma_requests__dbuff.write({chunk, dma_req.dbuff_id, dma_req.offset + i});
+      dbuff_chunk_t big_order = *((dbuff_chunk_t*) (maxi + dma_req.offset + (i*64)));
+      dbuff_chunk_t little_order;
+      byte_order_flip(big_order, little_order);
+      dma_requests__dbuff.write({little_order, dma_req.dbuff_id, dma_req.offset + i});
     }
   }
 }
@@ -75,9 +83,11 @@ void dma_write(char * maxi,
 	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
 
 #pragma HLS pipeline II=1
-
   if (!dbuff_ingress__dma_write.empty()) {
     dma_w_req_t dma_req = dbuff_ingress__dma_write.read();
-    *((dbuff_chunk_t*) (maxi + dma_req.offset)) = dma_req.block;
+    dbuff_chunk_t big_order;
+    byte_order_flip(dma_req.block, big_order);
+    std::cout << std::hex << big_order << std::endl;
+    *((dbuff_chunk_t*) (maxi + dma_req.offset)) = big_order;
   }
 }

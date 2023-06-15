@@ -9,6 +9,7 @@
 #include "hls_stream.h"
 
 #include "homa.hh"
+#include "dma.hh"
 
 using namespace std;
 
@@ -22,14 +23,25 @@ void print_packet(hls::stream<raw_stream_t> & link_egress) {
 
   int i = 0;
   while (!block.last) {
-    //std::cerr << "DATA READ\n";
+    std::cerr << "DATA READ\n";
     link_egress.read(block);
-    //std::cout << std::hex << block.data << std::endl;
-    memcpy(packet + (i * 64), &block.data, 64);
+    std::cout << std::hex << block.data << std::endl;
+    dbuff_chunk_t big_order;
+    byte_order_flip(block.data, big_order);
+    char * bd = ((char*)&big_order);
+    //printf("%02x\n", bd[0]);
+    //printf("%02x\n", bd[1]);
+    memcpy(packet + (i * 64), bd, 64);
     i++;
   }
+  //std::cout << "PACKET\n";
+  //for (int i = 0; i < 1522; ++i) {
+  //  printf("%02x", packet[i]);
+  //}
+  //std::cout << std::endl;
 
-  std::cout << packet + 142 << std::endl;
+
+  std::cout << packet + 114 << std::endl;
 }
 
 

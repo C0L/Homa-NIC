@@ -20,6 +20,8 @@ void homa_recvmsg(homa_t * homa,
 		  recvmsg_t * recvmsg,
 		  hls::stream<recvmsg_t> & recvmsg_o);
 
+void byte_order_flip(dbuff_chunk_t & in, dbuff_chunk_t & out);
+
 void dma_read(char * maxi,
 	      hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
 	      hls::stream<dbuff_in_t> & dma_requests__dbuff);
