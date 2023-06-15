@@ -1,6 +1,30 @@
+#include <iostream>
+
 #include "databuff.hh"
 #include "rpcmgmt.hh"
-#include <iostream>
+#include "hls_math.h"
+
+void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
+		 hls::stream<sendmsg_t> & sendmsg_o,
+		 hls::stream<dma_r_req_t> & dma_read_o) {
+#pragma HLS pipeline II=1
+
+  static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
+
+  if (!sendmsg_i.empty()) {
+    sendmsg_t sendmsg = sendmsg_i.read();
+
+    sendmsg.dbuff_id = dbuff_stack.pop();
+
+    float chunks = ((float) sendmsg.length) / DBUFF_CHUNK_SIZE;
+    uint32_t num_chunks = ceil(chunks);
+
+    //std::cerr << "DMA WRITE: " << sendmsg.buffin << " " << num_chunks << sendmsg.dbuff_id << std::endl;
+    dma_read_o.write({sendmsg.buffin, num_chunks, sendmsg.dbuff_id});
+
+    sendmsg_o.write(sendmsg);
+  }
+}
 
 /**
  * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
@@ -31,12 +55,9 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
 
   if (!chunk_ingress__dbuff_ingress.empty()) {
     in_chunk_t in_chunk = chunk_ingress__dbuff_ingress.read();
-    std::cout << "rebuffeer: " << std::hex << in_chunk.buff << std::endl;
     rebuff.insert(in_chunk);
   }
-  //std::cerr << header_in.valid << " " << !rpc_store__dbuff_ingress.empty() << std::endl;
   if (!header_in.valid && !rpc_store__dbuff_ingress.empty()) {
-    //std::cerr << "READ NEW HEADER\n";
     header_in = rpc_store__dbuff_ingress.read();
   }
 }
@@ -68,7 +89,10 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
   // Do we need to add any data to data buffer 
   if (!dbuff_egress_i.empty()) {
     dbuff_in_t dbuff_in = dbuff_egress_i.read();
-    DEBUG_MSG("Add Data Chunk: " << dbuff_in.dbuff_chunk << " " << dbuff_in.dbuff_id)
+    //DEBUG_MSG("Add Data Chunk: " << dbuff_in.dbuff_chunk << " " << dbuff_in.dbuff_id)
+    //std::cerr << "data buffer ID " << dbuff_in.dbuff_id << " " << dbuff_in.dbuff_chunk << std::endl;
+    std::cout << std::hex << dbuff_in.block << std::endl;
+    //std::cout << std::hex << dbuff_in.block.reverse() << std::endl;
     dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk] = dbuff_in.block;
     dbuff_egress__srpt_data.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
   }
@@ -91,23 +115,38 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
       int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
       int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
 
+      //std::cerr << "BLOCK OFFSET: " << block_offset << std::endl;
+      //std::cerr << "SUBYTE OFFSET: " << subyte_offset << std::endl;
+      //std::cerr << "DBUFF ID: " << out_block.dbuff_id << std::endl;
+
       double_buff(511, 0) = dbuff[out_block.dbuff_id][block_offset+1];
       double_buff(1023, 512) = dbuff[out_block.dbuff_id][block_offset];
+      //double_buff(0, 511) = dbuff[out_block.dbuff_id][block_offset+1];
+      //double_buff(512, 1023) = dbuff[out_block.dbuff_id][block_offset];
+
 
       raw_stream.data = out_block.buff;
 
+      std::cout << std::hex << double_buff << std::endl;
       // There is a more obvious C implementation — results in very expensive hardware 
       switch(out_block.data_bytes) {
       	case NO_DATA: {
+	  //std::cerr << "NO DATA\n";
       	  break;
       	}
       
       	case ALL_DATA: {
+	  //std::cerr << "ALL DATA\n";
 	  raw_stream.data = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + ALL_DATA) * 8));
+	  //std::cout << std::hex << double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + ALL_DATA) * 8)) << std::endl;
+
 	  break;
       	}
       
       	case PARTIAL_DATA: {
+	  //std::cerr << "PARTIAL DATA\n";
+	  //std::cerr <<  double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + PARTIAL_DATA) * 8)) << std::endl;
+
 	  raw_stream.data((PARTIAL_DATA*8)-1, 0) = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + PARTIAL_DATA) * 8));
 	  break;
       	}

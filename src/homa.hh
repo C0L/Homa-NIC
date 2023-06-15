@@ -50,7 +50,8 @@ struct user_output_t;
 
 #define HOMA_MAX_PRIORITIES 8
 
-typedef hls::axis<ap_uint<512>, 1, 1, 1> raw_stream_t;
+typedef hls::axis<char[64], 1, 1, 1> raw_stream_t;
+//typedef hls::axis<ap_uint<512>, 1, 1, 1> raw_stream_t;
 // typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
 
 #define MAX_PEERS_LOG2 14
@@ -92,44 +93,6 @@ struct dbuff_notif_t {
   dbuff_id_t dbuff_id;
   dbuff_coffset_t dbuff_chunk; 
 };
-
-/* network structures */
-//typedef uint16_t sa_family_t;
-//typedef uint16_t in_port_t;
-//
-//struct sockaddr_t {
-//  sa_family_t      sa_family;
-//  unsigned char    sa_data[14];
-//};
-//
-//struct in_addr_t {
-//  uint32_t       s_addr;     /* address in network byte order */
-//};
-//
-//struct sockaddr_in_t {
-//  sa_family_t    sin_family; /* address family: AF_INET */
-//  in_port_t      sin_port;   /* port in network byte order */
-//  in_addr_t      sin_addr;   /* internet address */
-//};
-//
-//struct in6_addr_t {
-//  ap_uint<128>    s6_addr;   /* IPv6 address */
-//};
-//
-//struct sockaddr_in6_t {
-//  sa_family_t     sin6_family;   /* AF_INET6 */
-//  in_port_t       sin6_port;     /* port number */
-//  uint32_t        sin6_flowinfo; /* IPv6 flow information */
-//  in6_addr_t      sin6_addr;     /* IPv6 address */
-//  uint32_t        sin6_scope_id; /* Scope ID (new in 2.4) */
-//};
-//
-//typedef union sockaddr_in_union {
-//  sockaddr_t sa;
-//  sockaddr_in_t in4;
-//  sockaddr_in6_t in6;
-//} sockaddr_in_union_t;
-
 
 /* homa structures */
 enum homa_packet_type {
@@ -230,19 +193,6 @@ struct homa_rpc_t {
   //ap_uint<32> done_timer_ticks;
 };
 
-
-//struct params_t {
-//  // Offset in DMA space for output
-//  uint32_t buffout;
-//  // Offset in DMA space for input
-//  uint32_t buffin;
-//  uint32_t length;
-//  sockaddr_in6_t dest_addr;
-//  sockaddr_in6_t src_addr;
-//  uint64_t id;
-//  uint64_t completion_cookie;
-//  ap_uint<1> valid;
-//};
 
 struct sendmsg_t {
   uint32_t buffin; // Offset in DMA space for input
@@ -363,6 +313,7 @@ struct out_chunk_t {
 
 struct dma_r_req_t {
   uint32_t offset;
+  uint32_t length;
   dbuff_id_t dbuff_id;
 };
 
@@ -507,8 +458,7 @@ void homa(homa_t * homa,
 	  recvmsg_t * recvmsg,
 	  hls::stream<raw_stream_t> & link_ingress_in, 
 	  hls::stream<raw_stream_t> & link_egress_out,
-	  dbuff_chunk_t * maxi_in,
+	  char * maxi_in,
 	  char * maxi_out);
-	  //dbuff_chunk_t * maxi_out);
 
 #endif

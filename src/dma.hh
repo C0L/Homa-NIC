@@ -14,19 +14,16 @@ struct homa_t;
 
 void homa_sendmsg(homa_t * homa,
 		  sendmsg_t * params,
-		  hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
-		  hls::stream<dbuff_id_t> & freed_rpcs_o,
-		  hls::stream<sendmsg_t> & new_rpc_o);
+		  hls::stream<sendmsg_t> & sendmsg_o);
 
 void homa_recvmsg(homa_t * homa,
 		  recvmsg_t * recvmsg,
 		  hls::stream<recvmsg_t> & recvmsg_o);
 
-void dma_read(dbuff_chunk_t * maxi,
+void dma_read(char * maxi,
 	      hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
 	      hls::stream<dbuff_in_t> & dma_requests__dbuff);
 
-//void dma_write(dbuff_chunk_t * maxi,
 void dma_write(char * maxi,
 	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write);
 

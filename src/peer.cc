@@ -31,7 +31,6 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
   //  header_in_o.write(header_in);
   //} else
   if (!sendmsg_i.empty()) {
-    std::cerr << "sendmsg\n";
     sendmsg_t sendmsg = sendmsg_i.read();
 
     peer_hashpack_t query = {sendmsg.daddr};
@@ -46,16 +45,12 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
 
     sendmsg_o.write(sendmsg);
   } else if (!recvmsg_i.empty()) {
-    std::cerr << "non empty\n";
     recvmsg_t recvmsg = recvmsg_i.read();
 
     peer_hashpack_t query = {recvmsg.daddr};
     recvmsg.peer_id = hashmap.search(query);
 
-    std::cerr << "RECV PEER LOOKUP: " << recvmsg.peer_id << std::endl;
-
     if (recvmsg.peer_id == 0) {
-      std::cerr << "RECV INSERTING NEW PEER ID\n";
       recvmsg.peer_id = peer_stack.pop();
 
       entry_t<peer_hashpack_t, peer_id_t> entry = {query, recvmsg.peer_id};

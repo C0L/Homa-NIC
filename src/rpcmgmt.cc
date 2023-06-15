@@ -14,6 +14,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 
   static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
   static homa_rpc_t rpcs[MAX_RPCS];
+
 #pragma HLS pipeline II=1
 #pragma HLS dependence variable=rpcs inter WAR false
 #pragma HLS dependence variable=rpcs inter RAW false
@@ -33,7 +34,6 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
   }
 
   if (!header_in_i.empty()) {
-    //std::cerr << "header in rpc state\n";
     header_t header_in = header_in_i.read();
 
     homa_rpc_t homa_rpc = rpcs[(header_in.local_id >> 1)-1];
@@ -78,7 +78,6 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
   } else if (!recvmsg_i.empty()) {
     recvmsg_t recvmsg = recvmsg_i.read();
 
-    //if (recvmsg.id == 0) std::cerr << "new ID\n";
     // If the caller ID determines if this machine is client or server
     recvmsg.local_id = (recvmsg.id == 0) ? rpc_stack.pop() : (rpc_id_t) recvmsg.id;
 
@@ -91,7 +90,6 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
     homa_rpc.sport = recvmsg.sport;
     homa_rpc.buffout = recvmsg.buffout;
 
-    //std::cerr << "configured buffout " << homa_rpc.buffout << " ID " << recvmsg.local_id << std::endl;
 
     rpcs[(recvmsg.local_id >> 1)-1] = homa_rpc;
     recvmsg_o.write(recvmsg);
@@ -111,7 +109,6 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 #pragma HLS pipeline II=1
 
   if (!header_in_i.empty()) {
-    //std::cerr << "header in rpc map\n";
     header_t header_in = header_in_i.read();
 
     /* The incoming message is a request */
@@ -120,13 +117,9 @@ void rpc_map(hls::stream<header_t> & header_in_i,
       // Unscheduled packets need to be mapped to tmp recv entry
       if (header_in.type == DATA) {
 	if (header_in.data_offset == 0) {
-	  //std::cerr << "DATA PACKET FIRST ARRIVIAL\n";
 	  rpc_hashpack_t recvfind = {header_in.daddr, 0, header_in.dport, 0};
 
 	  header_in.local_id = hashmap.search(recvfind);
-
-	  //std::cerr << "check mapping: " << header_in.daddr << " " << std::hex << header_in.dport << " " << header_in.local_id << std::endl;
-	  //std::cerr << "GOT " << header_in.local_id << std::endl;;
 
 	  rpc_hashpack_t recvspecialize = {header_in.daddr, header_in.sender_id, header_in.dport, 0};
 
@@ -145,16 +138,13 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
     // If the incoming message is a response, the RPC ID is already valid in the local store
     header_in_o.write(header_in);
-    //std::cerr << "rpc map out\n";
   } else if (!recvmsg_i.empty()) {
     recvmsg_t recvmsg = recvmsg_i.read();
 
-    // Create a temporary mapping
+    // Create a mapping for incoming data
     rpc_hashpack_t query = {recvmsg.daddr, recvmsg.id, recvmsg.dport, 0};
 
     hashmap.queue({query, recvmsg.local_id}); 
-    //std::cerr << "insert mapping: " << recvmsg.daddr << " " << std::hex << recvmsg.dport << " " << recvmsg.local_id << std::endl;
-    //recvmsg_o.write(recvmsg);
   } else {
     hashmap.process();
   }
