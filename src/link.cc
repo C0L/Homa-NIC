@@ -36,11 +36,9 @@ void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
     header_out_o.write(header_out);
 
   } else if (!data_pkt_i.empty()) {
-    DEBUG_MSG("Egress selector data packet")
     ready_data_pkt_t ready_data_pkt = data_pkt_i.read();
 
     uint32_t data_bytes = MIN(ready_data_pkt.remaining, HOMA_PAYLOAD_SIZE);
-    //uint32_t payload_length = // TODO DATA_PKT_HEADER + data_bytes;
 
     header_t header_out;
     header_out.type = DATA;
@@ -57,6 +55,16 @@ void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
     header_out_o.write(header_out);
   } 
 }
+
+template<int W>
+void htno_set(ap_uint<W*8> & out, const ap_uint<W*8> & in) {
+#pragma HLS inline 
+  for (int i = 0; i < W; ++i) {
+#pragma HLS unroll
+    out((W * 8) - 1 - (i * 8), (W*8) - 8 - (i * 8)) = in(7 + (i * 8), 0 + (i * 8));
+  }
+}
+
 
 /**
  * pkt_chunk_egress() - Take in the packet header data and output
@@ -95,28 +103,24 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
     switch(header_out.type) {
     case DATA: {
       if (header_out.processed_bytes == 0) {
-	DEBUG_MSG("DATA Chunk 0")
 
 	// Ethernet header
-	(out_chunk.buff)(511-0,511-47)   = 0xAAAAAAAAAAAA;        // TODO MAC Dest (set by phy?)
-	(out_chunk.buff)(511-48,511-95)  = 0xBBBBBBBBBBBB;        // TODO MAC Src (set by phy?)
-	(out_chunk.buff)(511-96,511-111) = ETHERTYPE_IPV6;        // Ethertype (fixed)
+	htno_set<6>(*((ap_uint<48>*) (out_chunk.buff.data)), MAC_DST); // TODO MAC Dest (set by phy?)
+	htno_set<6>(*((ap_uint<48>*) (out_chunk.buff.data + 6)), MAC_SRC); // TODO MAC Src (set by phy?)
+	htno_set<2>(*((ap_uint<16>*) (out_chunk.buff.data + 12)), ETHERTYPE_IPV6); // Ethertype
 
 	// IPv6 header
-	(out_chunk.buff)(511-112,511-115) = 0x6;                  // Version (fixed)
-	(out_chunk.buff)(511-116,511-123) = 0x00;                 // Traffic Class (left empty)
-	(out_chunk.buff)(511-124,511-143) = 0xEEEEE;              // TODO Flow Label ?
-
-	(out_chunk.buff)(511-144,511-159) = header_out.packet_bytes - PREFACE_HEADER; // Payload Length
-	(out_chunk.buff)(511-160,511-167) = IPPROTO_HOMA;         // Next Header
-	(out_chunk.buff)(511-168,511-175) = 0x0;                  // Hop Limit
-	(out_chunk.buff)(511-176,511-303) = header_out.saddr;        // Sender Address
-	(out_chunk.buff)(511-304,511-431) = header_out.daddr;        // Destination Address
+	htno_set<4>(*((ap_uint<32>*) (out_chunk.buff.data + 14)), VTF); // Version/Traffic Class/Flow Label
+	htno_set<2>(*((ap_uint<16>*) (out_chunk.buff.data + 18)), header_out.packet_bytes - PREFACE_HEADER); // Payload Length
+	htno_set<1>(*((ap_uint<8>*) (out_chunk.buff.data + 20)), IPPROTO_HOMA); // Next Header
+	htno_set<1>(*((ap_uint<8>*) (out_chunk.buff.data + 21)), HOP_LIMIT); // Hop Limit
+	htno_set<16>(*((ap_uint<128>*) (out_chunk.buff.data + 22)), header_out.saddr); // Sender Address
+	htno_set<16>(*((ap_uint<128>*) (out_chunk.buff.data + 38)), header_out.daddr); // Destination Address
 
 	// Start of common header
-	(out_chunk.buff)(511-432,511-447) = header_out.sport;        // Sender Port
-	(out_chunk.buff)(511-448,511-463) = header_out.dport;        // Destination Port
-	(out_chunk.buff)(511-464,511-511) = 0xFFFFFFFFFFFF;       // Unused
+	htno_set<2>(*((ap_uint<16>*) (out_chunk.buff.data + 54)), header_out.sport); // Sender Port
+	htno_set<2>(*((ap_uint<16>*) (out_chunk.buff.data + 56)), header_out.dport); // Destination Port
+	// Unused
 
 	// Packet block configuration — no data bytes needed
   	out_chunk.type = DATA;
@@ -125,34 +129,32 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
 	header_out.data_offset += NO_DATA;
 
       } else if (header_out.processed_bytes == 64) {
-	DEBUG_MSG("DATA Chunk 1")
-
-	ap_uint<8> doff = 10 << 4;
-
 	// Rest of common header
-	(out_chunk.buff)(511-0,511-15)   = 0xFFFF;                // Unused
-	(out_chunk.buff)(511-16,511-23)  = doff;                  // doff (4 byte chunks in data header)
-	(out_chunk.buff)(511-24,511-31)  = DATA;                  // type
-	(out_chunk.buff)(511-32,511-47)  = 0xFFFF;                // Unused
-	(out_chunk.buff)(511-48,511-63)  = 0x0;                   // Checksum (unused)
-	(out_chunk.buff)(511-64,511-79)  = 0xFFFF;                // Unused
-	(out_chunk.buff)(511-80,511-143) = header_out.sender_id;     // Sender ID
+	*((ap_uint<16>*) (out_chunk.buff.data)) = 0; // Unused (2 bytes)
+	htno_set<1>(*((ap_uint<8>*) (out_chunk.buff.data+2)), DOFF);      // doff (4 byte chunks in data header)
+	htno_set<1>(*((ap_uint<8>*) (out_chunk.buff.data+3)), DATA_TYPE); // Type
+	*((ap_uint<16>*) (out_chunk.buff.data+4)) = 0; // Unused (2 bytes)
+	*((ap_uint<16>*) (out_chunk.buff.data+6)) = 0; // Checksum (unused) (2 bytes)
+	*((ap_uint<16>*) (out_chunk.buff.data+8)) = 0; // Unused  (2 bytes)
+	htno_set<8>(*((ap_uint<64>*) (out_chunk.buff.data+10)), header_out.sender_id); // Sender ID
 
 	// Data header
-	(out_chunk.buff)(511-144,511-175) = header_out.message_length;   // Message Length (entire message)
-	(out_chunk.buff)(511-176,511-207) = header_out.incoming; // Incoming TODO 
-	(out_chunk.buff)(511-208,511-223) = 0xFFFF;                // Cuttof Version (unimplemented) TODO
-	(out_chunk.buff)(511-224,511-231) = 0xFF;                  // Retransmit (unimplemented) TODO
-	(out_chunk.buff)(511-232,511-239) = 0xFF;                  // Pad 
+	htno_set<4>(*((ap_uint<32>*) (out_chunk.buff.data+18)), header_out.message_length); // Message Length (entire message)
+	htno_set<4>(*((ap_uint<32>*) (out_chunk.buff.data+22)), header_out.incoming); // Incoming TODO
+	*((ap_uint<16>*) (out_chunk.buff.data+26)) = 0; // Cutoff Version (unimplemented) (2 bytes) TODO
+	*((ap_uint<8>*) (out_chunk.buff.data+27)) = 0; // Retransmit (unimplemented) (1 byte) TODO
+	*((ap_uint<8>*) (out_chunk.buff.data+28)) = 0; // Pad (1 byte)
 
 	// Data Segment
-	(out_chunk.buff)(511-240,511-271) = header_out.data_offset;                    // Offset
-	(out_chunk.buff)(511-272,511-303) = header_out.segment_length; // Segment Length
+	htno_set<4>(*((ap_uint<32>*) (out_chunk.buff.data+29)), header_out.data_offset);    // Offset
+	htno_set<4>(*((ap_uint<32>*) (out_chunk.buff.data+33)), header_out.segment_length); // Segment Length
 
 	// Ack header
-	(out_chunk.buff)(511-304,511-367) = 0xFFFFFFFFFFFFFFFF; // Client ID
-	(out_chunk.buff)(511-368,511-383) = 0xFFFF;             // Client Port
-	(out_chunk.buff)(511-384,511-399) = 0xFFFF;             // Server Port
+	*((ap_uint<64>*) (out_chunk.buff.data+37)) = 0; // Client ID (8 bytes) TODO
+	*((ap_uint<16>*) (out_chunk.buff.data+45)) = 0; // Client Port (2 bytes) TODO
+	*((ap_uint<16>*) (out_chunk.buff.data+47)) = 0; // Server Port (2 bytes) TODO
+
+	*((ap_uint<112>*) (out_chunk.buff.data+49)) = 0; // Data
 
 	// Packet block configuration — 14 data bytes needed
   	out_chunk.type = DATA;
@@ -160,7 +162,6 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
 	out_chunk.dbuff_id = header_out.dbuff_id;
 	header_out.data_offset += PARTIAL_DATA;
       } else {
-	DEBUG_MSG("DATA Chunk")
 	out_chunk.type = DATA;
   	out_chunk.data_bytes = ALL_DATA;
 	out_chunk.dbuff_id = header_out.dbuff_id;
@@ -174,25 +175,25 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
 	// TODO this is repetitive
 	
 	// Ethernet header
-	(out_chunk.buff)(511-0,511-47)   = 0xAAAAAAAAAAAA;        // TODO MAC Dest (set by phy?)
-	(out_chunk.buff)(511-48,511-95)  = 0xBBBBBBBBBBBB;        // TODO MAC Src (set by phy?)
-	(out_chunk.buff)(511-96,511-111) = ETHERTYPE_IPV6;        // Ethertype (fixed)
+	//(*buff)(511-0,511-47)   = 0xAAAAAAAAAAAA;        // TODO MAC Dest (set by phy?)
+	//(*buff)(511-48,511-95)  = 0xBBBBBBBBBBBB;        // TODO MAC Src (set by phy?)
+	//(*buff)(511-96,511-111) = ETHERTYPE_IPV6;        // Ethertype (fixed)
 
-	// IPv6 header
-	(out_chunk.buff)(511-112,511-115) = 0x6;                  // Version (fixed)
-	(out_chunk.buff)(511-116,511-123) = 0x00;                 // Traffic Class (left empty)
-	(out_chunk.buff)(511-124,511-143) = 0xEEEEE;              // TODO Flow Label ?
+	//// IPv6 header
+	//(*buff)(511-112,511-115) = 0x6;                  // Version (fixed)
+	//(*buff)(511-116,511-123) = 0x00;                 // Traffic Class (left empty)
+	//(*buff)(511-124,511-143) = 0xEEEEE;              // TODO Flow Label ?
 
-	(out_chunk.buff)(511-144,511-159) = header_out.payload_length; // Payload Length
-	(out_chunk.buff)(511-160,511-167) = IPPROTO_HOMA;            // Next Header
-	(out_chunk.buff)(511-168,511-175) = 0x0;                     // Hop Limit
-	(out_chunk.buff)(511-176,511-303) = header_out.saddr;        // Sender Address
-	(out_chunk.buff)(511-304,511-431) = header_out.daddr;        // Destination Address
+	//(*buff)(511-144,511-159) = header_out.payload_length; // Payload Length
+	//(*buff)(511-160,511-167) = IPPROTO_HOMA;            // Next Header
+	//(*buff)(511-168,511-175) = 0x0;                     // Hop Limit
+	//(*buff)(511-176,511-303) = header_out.saddr;        // Sender Address
+	//(*buff)(511-304,511-431) = header_out.daddr;        // Destination Address
 
-	// Start of common header
-	(out_chunk.buff)(511-432,511-447) = header_out.sport;        // Sender Port
-	(out_chunk.buff)(511-448,511-463) = header_out.dport;        // Destination Port
-	(out_chunk.buff)(511-464,511-511) = 0xFFFFFFFFFFFF;          // Unused
+	//// Start of common header
+	//(*buff)(511-432,511-447) = header_out.sport;        // Sender Port
+	//(*buff)(511-448,511-463) = header_out.dport;        // Destination Port
+	//(*buff)(511-464,511-511) = 0xFFFFFFFFFFFF;          // Unused
 
 	// Packet block configuration — no data bytes needed
   	out_chunk.type = GRANT;
@@ -203,17 +204,17 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
 	ap_uint<8> doff = 10 << 4;
 
 	// Rest of common header
-	(out_chunk.buff)(511-0,511-15)   = 0xFFFF;                // Unused
-	(out_chunk.buff)(511-16,511-23)  = doff;                  // doff (4 byte chunks in data header)
-	(out_chunk.buff)(511-24,511-31)  = DATA;                  // type
-	(out_chunk.buff)(511-32,511-47)  = 0xFFFF;                // Unused
-	(out_chunk.buff)(511-48,511-63)  = 0x0;                   // Checksum (unused)
-	(out_chunk.buff)(511-64,511-79)  = 0xFFFF;                // Unused
-	(out_chunk.buff)(511-80,511-143) = header_out.sender_id;     // Sender ID
+	//(*buff)(511-0,511-15)   = 0xFFFF;                // Unused
+	//(*buff)(511-16,511-23)  = doff;                  // doff (4 byte chunks in data header)
+	//(*buff)(511-24,511-31)  = DATA;                  // type
+	//(*buff)(511-32,511-47)  = 0xFFFF;                // Unused
+	//(*buff)(511-48,511-63)  = 0x0;                   // Checksum (unused)
+	//(*buff)(511-64,511-79)  = 0xFFFF;                // Unused
+	//(*buff)(511-80,511-143) = header_out.sender_id;     // Sender ID
 
-	// Grant Header
-	(out_chunk.buff)(511-144,511-175) = header_out.message_length; // Message Length (entire message)
-	(out_chunk.buff)(511-176,511-183) = 0xFF;                      // Priority TODO 
+	//// Grant Header
+	//(*buff)(511-144,511-175) = header_out.message_length; // Message Length (entire message)
+	//(*buff)(511-176,511-183) = 0xFF;                      // Priority TODO 
 
 	// Packet block configuration — no data bytes needed
   	out_chunk.type = GRANT;
@@ -227,7 +228,10 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
     if (header_out.processed_bytes >= header_out.packet_bytes) {
       header_out.valid = 0;
       out_chunk.last = 1;
+      doublebuff[r_pkt].valid = 0; // TODO maybe not needed?
       r_pkt++;
+    } else {
+      out_chunk.last = 0;
     }
 
     chunk_out_o.write(out_chunk);
@@ -257,29 +261,39 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
   static header_t header_in;
   static in_chunk_t data_block;
 
-  //std::cerr << header_in.processed_bytes << std::endl;
-
   raw_stream_t raw_stream = link_ingress.read();
-  //std::cerr << "READ FROM LINK\n";
+
   // For every type of homa packet we need to read at least two blocks
   if (header_in.processed_bytes == 0) {
     header_in.processed_bytes += 64;
-    // TODO perform other checks here (correct ethertype, version, next header)...
-    header_in.payload_length = raw_stream.data(511-144,511-159);
-    header_in.saddr = raw_stream.data(511-176,511-303);
-    header_in.daddr = raw_stream.data(511-304,511-431);
-    header_in.sport = raw_stream.data(511-432,511-447);
-    header_in.dport = raw_stream.data(511-448,511-463);
 
-    //std::cerr << "READ PORT " << header_in.sport << std::endl;
+    ap_uint<16> payload_length;
+    ap_uint<128> saddr;
+    ap_uint<128> daddr;
+    ap_uint<16> sport;
+    ap_uint<16> dport;
 
-    //std::cerr << "GOT HEADER BLOCK 0\n";
+    htno_set<2>(payload_length, *((ap_uint<16>*) (raw_stream.data.data + 18)));
+    htno_set<16>(saddr, *((ap_uint<128>*) (raw_stream.data.data + 22)));
+    htno_set<16>(daddr, *((ap_uint<128>*) (raw_stream.data.data + 38)));
+    htno_set<2>(sport, *((ap_uint<16>*) (raw_stream.data.data + 54)));
+    htno_set<2>(dport, *((ap_uint<16>*) (raw_stream.data.data + 56)));
+
+    header_in.payload_length = payload_length;
+    header_in.saddr = saddr;
+    header_in.daddr = daddr;
+    header_in.sport = sport;
+    header_in.dport = dport;
   } else if (header_in.processed_bytes == 64) {
     header_in.processed_bytes += 64;
-    uint8_t type = raw_stream.data(511-24,511-31);
-    header_in.type = (homa_packet_type) type;  // Packet type
-    uint64_t id = raw_stream.data(511-80,511-143);
+    ap_uint<8> type;
+    htno_set<1>(type, *((ap_uint<8>*) (raw_stream.data.data + 3)));
+    header_in.type = (homa_packet_type) (uint8_t) type;  // Packet type
+
+    ap_uint<64> id;
+    htno_set<8>(id, *((ap_uint<64>*) (raw_stream.data.data + 10)));
     header_in.sender_id = LOCALIZE_ID(id); // Sender RPC ID
+
     header_in.valid = 1;
 
     switch(header_in.type) {
@@ -289,22 +303,27 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
       }
 
       case DATA: {
-	header_in.message_length = (raw_stream.data)(511-144,511-175);   // Length of ENTIRE message
-	header_in.incoming = (raw_stream.data)(511-176,511-207); // Expected incoming bytes
-	header_in.data_offset = (raw_stream.data)(511-240,511-271);   // Offset in message of segment
+	ap_uint<32> message_length;
+	ap_uint<32> incoming;
+	ap_uint<32> data_offset;
+	htno_set<4>(message_length, *((ap_uint<32>*) (raw_stream.data.data+18))); // Message Length (entire message)
+	htno_set<4>(incoming, *((ap_uint<32>*) (raw_stream.data.data+22))); // Expected Incoming Bytes
+	htno_set<4>(data_offset, *((ap_uint<32>*) (raw_stream.data.data+29)));    // Offset in message of segment
+	header_in.message_length = message_length;
+	header_in.incoming = incoming;
+	header_in.data_offset = data_offset;
+
+	//std::cerr << "DATA OFFSET: " << header_in.data_offset << std::endl;
 
 	// TODO parse acks
 
-	data_block.buff(511, 400) = (raw_stream.data)(511-400,0);
-	data_block.buff(399, 0) = 0;
+	for (int i = 0; i < PARTIAL_DATA; ++i) {
+#pragma HLS unroll
+	  data_block.buff.data[i] = raw_stream.data.data[64 - PARTIAL_DATA + i];
+	}
 
-	//data_block.buff(511, 511-112) = (raw_stream.data)(511-400,0);
-	//std::cerr << "PARTIAL BLOCK: " << data_block.buff << std::endl;
-	//std::cout << "PARTIAL: " << std::hex << data_block.buff << std::endl;
 	data_block.last = raw_stream.last;
 	chunk_in_o.write(data_block);
-
-	//std::cerr << "WROTE DATA CHUNK\n";
 
 	data_block.offset += 14;
 	
@@ -312,19 +331,17 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
       }
     }
 
-    //std::cerr << "COMPLETED HEADER BLOCK\n";
     header_in_o.write(header_in);
   } else {
     data_block.buff = raw_stream.data;
     data_block.last = raw_stream.last;
     chunk_in_o.write(data_block);
-    //std::cerr << "WROTE PURE DATA CHUNK\n";
 
     data_block.offset += 64;
   }
 
   if (raw_stream.last) {
-    //std::cerr << "LAST CHUNK RECEIVED\n";
+    data_block.offset = 0;
     header_in.processed_bytes = 0;
   }
 }

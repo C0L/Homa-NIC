@@ -3,9 +3,8 @@
 
 #include "ap_int.h"
 #include <stdint.h>
- 
-#define ETHERTYPE_IPV6 0x86DD
-#define IPPROTO_HOMA 0xFD
+
+//#define IPPROTO_HOMA 0xFD
 
 #define INADDR_ANY ((unsigned long int) 0x00000000)
 

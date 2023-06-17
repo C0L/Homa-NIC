@@ -16,10 +16,9 @@ void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
 
     sendmsg.dbuff_id = dbuff_stack.pop();
 
-    float chunks = ((float) sendmsg.length) / DBUFF_CHUNK_SIZE;
-    uint32_t num_chunks = ceil(chunks);
+    uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
+    if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
 
-    //std::cerr << "DMA WRITE: " << sendmsg.buffin << " " << num_chunks << sendmsg.dbuff_id << std::endl;
     dma_read_o.write({sendmsg.buffin, num_chunks, sendmsg.dbuff_id});
 
     sendmsg_o.write(sendmsg);
@@ -47,8 +46,9 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
 
   if (header_in.valid && !rebuff.empty()) {
     in_chunk_t in_chunk = rebuff.remove();
+    std::cerr << "CHUNK: " << in_chunk.offset + header_in.data_offset << std::endl;
     // Place chunk in DMA space at global offset + packet offset
-    dbuff_ingress__dma_write.write({in_chunk.offset + header_in.dma_offset, in_chunk.buff});
+    dbuff_ingress__dma_write.write({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
 
     if (in_chunk.last) header_in.valid = 0;
   }
@@ -57,8 +57,10 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
     in_chunk_t in_chunk = chunk_ingress__dbuff_ingress.read();
     rebuff.insert(in_chunk);
   }
+
   if (!header_in.valid && !rpc_store__dbuff_ingress.empty()) {
     header_in = rpc_store__dbuff_ingress.read();
+    std::cerr << "HEADER IN " << std::endl;
   }
 }
 
@@ -89,10 +91,6 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
   // Do we need to add any data to data buffer 
   if (!dbuff_egress_i.empty()) {
     dbuff_in_t dbuff_in = dbuff_egress_i.read();
-    //DEBUG_MSG("Add Data Chunk: " << dbuff_in.dbuff_chunk << " " << dbuff_in.dbuff_id)
-    //std::cerr << "data buffer ID " << dbuff_in.dbuff_id << " " << dbuff_in.dbuff_chunk << std::endl;
-    //std::cout << std::hex << dbuff_in.block << std::endl;
-    //std::cout << std::hex << dbuff_in.block.reverse() << std::endl;
     dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk] = dbuff_in.block;
     dbuff_egress__srpt_data.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
   }
@@ -101,45 +99,48 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
   if (!chunk_dispatch__dbuff_egress.empty()) {
     out_chunk_t out_block = chunk_dispatch__dbuff_egress.read();
 
-    DEBUG_MSG("Grab Data Chunk: " << out_block.dbuff_id << " " << out_block.offset)
-
     raw_stream_t raw_stream;
 
     // Is this a data type packet?
     if (out_block.type == DATA) {
       int curr_byte = out_block.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
 
-      ap_uint<1024> double_buff;
-#pragma HLS array_partition variable=double_buff complete
-
       int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
       int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
 
-      //std::cerr << "BLOCK OFFSET: " << block_offset << std::endl;
-      //std::cerr << "SUBYTE OFFSET: " << subyte_offset << std::endl;
-      //std::cerr << "DBUFF ID: " << out_block.dbuff_id << std::endl;
+      integral_t c0 = dbuff[out_block.dbuff_id][block_offset];
+      integral_t c1 = dbuff[out_block.dbuff_id][block_offset+1];
 
-      double_buff(511, 0) = dbuff[out_block.dbuff_id][block_offset+1];
-      double_buff(1023, 512) = dbuff[out_block.dbuff_id][block_offset];
+      char double_buff[128];
+
+#pragma HLS array_partition variable=double_buff complete
+      
+      for (int i = 0; i < 64; ++i) {
+	double_buff[i]    = c0.data[i];
+	double_buff[i+64] = c1.data[i];
+      }
 
       raw_stream.data = out_block.buff;
 
-      //std::cout << std::hex << double_buff << std::endl;
       // There is a more obvious C implementation — results in very expensive hardware 
-      switch(out_block.data_bytes) {
+     switch(out_block.data_bytes) {
       	case NO_DATA: {
-	  //std::cerr << "NO DATA\n";
       	  break;
       	}
       
       	case ALL_DATA: {
-	  raw_stream.data = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + ALL_DATA) * 8));
-
+	  for (int i = 0; i < ALL_DATA; ++i) {
+#pragma HLS unroll
+	    raw_stream.data.data[i] = double_buff[subyte_offset + i];
+	  }
 	  break;
       	}
       
       	case PARTIAL_DATA: {
-	  raw_stream.data((PARTIAL_DATA*8)-1, 0) = double_buff(1023 - (subyte_offset * 8), 1024 - ((subyte_offset + PARTIAL_DATA) * 8));
+	  for (int i = 0; i < PARTIAL_DATA; ++i) {
+#pragma HLS unroll
+	    raw_stream.data.data[64 - PARTIAL_DATA + i] = double_buff[subyte_offset + i];
+	  }
 	  break;
       	}
       }

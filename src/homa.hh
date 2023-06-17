@@ -24,7 +24,6 @@ struct user_output_t;
 // #define DEBUG_MSG(a) std::cerr << "DEBUG: " << a << std::endl;
 #define DEBUG_MSG(a)
 
-
 #ifndef DEBUG 
 #define MAX_SRPT 1024
 #else
@@ -50,9 +49,6 @@ struct user_output_t;
 
 #define HOMA_MAX_PRIORITIES 8
 
-typedef hls::axis<ap_uint<512>, 1, 1, 1> raw_stream_t;
-// typedef hls::axis<ap_uint<2048>[6], 0, 0, 0> raw_frame_t;
-
 #define MAX_PEERS_LOG2 14
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
@@ -75,15 +71,17 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 // Index into data buffers
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
-typedef ap_uint<512> dbuff_chunk_t;
+struct integral_t {
+  unsigned char data[64];
+};
 
-typedef dbuff_chunk_t dbuff_t[DBUFF_NUM_CHUNKS];
+typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
 
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
 typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 struct dbuff_in_t {
-  dbuff_chunk_t block;
+  integral_t block;
   dbuff_id_t dbuff_id;
   dbuff_coffset_t dbuff_chunk;
 };
@@ -92,6 +90,8 @@ struct dbuff_notif_t {
   dbuff_id_t dbuff_id;
   dbuff_coffset_t dbuff_chunk; 
 };
+
+typedef hls::axis<integral_t, 1, 1, 1> raw_stream_t;
 
 /* homa structures */
 enum homa_packet_type {
@@ -245,7 +245,7 @@ struct header_t {
   uint32_t packet_bytes;
 
   // IPv6 + Common Header
-  uint32_t payload_length;
+  uint16_t payload_length;
   ap_uint<128> saddr;
   ap_uint<128> daddr;
   uint16_t sport;
@@ -296,7 +296,7 @@ enum data_bytes_e {
 };
 
 struct in_chunk_t {
-  dbuff_chunk_t buff;
+  integral_t buff;
   uint32_t offset;
   ap_uint<1> last;
 };
@@ -307,7 +307,7 @@ struct out_chunk_t {
   uint32_t offset;         // Offset in data message
   data_bytes_e data_bytes; // How many data bytes to add to this block
   ap_uint<1> last;
-  ap_uint<512> buff;
+  integral_t buff;
 };
 
 struct dma_r_req_t {
@@ -318,8 +318,21 @@ struct dma_r_req_t {
 
 struct dma_w_req_t {
   uint32_t offset;
-  dbuff_chunk_t block;
+  integral_t block;
 };
+
+
+ 
+const ap_uint<16> ETHERTYPE_IPV6 = 0x86DD;
+const ap_uint<48> MAC_DST = 0xAAAAAAAAAAAA;
+const ap_uint<48> MAC_SRC = 0xBBBBBBBBBBBB;
+const ap_uint<32> VTF = 0x600FFFFF;
+const ap_uint<8> IPPROTO_HOMA = 0xFD;
+const ap_uint<8> HOP_LIMIT = 0x00;
+const ap_uint<8> DOFF = 10 << 4;
+const ap_uint<8> DATA_TYPE = DATA;
+
+
 
 struct srpt_data_t {
   rpc_id_t rpc_id;
@@ -420,7 +433,8 @@ struct fifo_t {
 
   void insert(T value) {
 #pragma HLS array_partition variable=buffer type=complete
-    for (int i = FIFO_SIZE-2; i > 0; --i) {
+
+    for (int i = FIFO_SIZE-2; i >= 0; --i) {
 #pragma HLS unroll
       buffer[i+1] = buffer[i];
     }
@@ -438,12 +452,18 @@ struct fifo_t {
     return val;
   }
 
+  void dump() {
+    for (int i = 0; i < 64; ++i) {
+      std::cerr << buffer[i].offset << std::endl;
+    }
+  }
+
   T & head() {
     return buffer[read_head];
   }
 
   bool full() {
-    return read_head == MAX_SRPT-1;
+    return read_head == FIFO_SIZE-1;
   }
 
   bool empty() {

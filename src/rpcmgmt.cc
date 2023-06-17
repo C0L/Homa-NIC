@@ -30,6 +30,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
     header_out.saddr = homa_rpc.saddr;
     header_out.sport = homa_rpc.sport;
 
+
     header_out_o.write(header_out);
   }
 
