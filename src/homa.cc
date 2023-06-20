@@ -69,7 +69,8 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<in_chunk_t> chunk_ingress__dbuff_ingress;
   hls_thread_local hls::stream<dma_w_req_t> dbuff_ingress__dma_write;
   hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress;
-  hls_thread_local hls::stream<srpt_grant_t> rpc_state__srpt_grant;
+  hls_thread_local hls::stream<header_t> rpc_state__srpt_grant;
+  hls_thread_local hls::stream<header_t> header_in__rpc_state__srpt_data;
   hls_thread_local hls::stream<header_t> chunk_ingress__rpc_map;
   
   hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map__rpc_state;
@@ -95,10 +96,11 @@ void homa(homa_t * homa,
       recvmsg__peer_map__rpc_state,
       recvmsg__rpc_state__rpc_map, // recvmsg
       egress_sel__rpc_state,
-      rpc_state__chunk_egress, // header_out
-      rpc_map__rpc_state,
+      rpc_state__chunk_egress,  // header_out
+      rpc_map__rpc_state,       // header_in
       rpc_state__dbuff_ingress, // header_in
-      rpc_state__srpt_grant
+      rpc_state__srpt_grant,    // header_in
+      header_in__rpc_state__srpt_data      // header_in
   );
 
   hls_thread_local hls::task rpc_map_task(
@@ -113,7 +115,8 @@ void homa(homa_t * homa,
       srpt_data_pkts,
       rpc_state__srpt_data,
       dbuff_ingress__srpt_data,
-      srpt_data__egress_sel
+      srpt_data__egress_sel,
+      header_in__rpc_state__srpt_data
   );
 
   hls_thread_local hls::task srpt_grant_pkts_task(

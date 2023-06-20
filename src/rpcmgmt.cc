@@ -9,8 +9,9 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 	       hls::stream<header_t> & header_out_i, 
 	       hls::stream<header_t> & header_out_o,
 	       hls::stream<header_t> & header_in_i,
-	       hls::stream<header_t> & header_in_o,
-	       hls::stream<srpt_grant_t> & srpt_grant_o) {
+	       hls::stream<header_t> & header_in_dbuff_o,
+	       hls::stream<header_t> & header_in_grant_o,
+	       hls::stream<header_t> & header_in_srpt_o) {
 
   static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
   static homa_rpc_t rpcs[MAX_RPCS];
@@ -30,7 +31,6 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
     header_out.saddr = homa_rpc.saddr;
     header_out.sport = homa_rpc.sport;
 
-
     header_out_o.write(header_out);
   }
 
@@ -39,13 +39,22 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 
     homa_rpc_t homa_rpc = rpcs[(header_in.local_id >> 1)-1];
 
-    if (header_in.type == DATA) {
-      header_in.dma_offset = homa_rpc.buffout;
-      // TODO maybe need some other info depending on packet type?
-      header_in_o.write(header_in);
-    } else if (header_in.type == GRANT) {
-      srpt_grant_t srpt_grant;
-      srpt_grant_o.write(srpt_grant);
+    switch (header_in.type) {
+      case DATA: {
+	// TODO maybe other data needs to be accumulated
+	header_in.dma_offset = homa_rpc.buffout;
+
+	header_in_dbuff_o.write(header_in); // Write to data buffer
+	header_in_grant_o.write(header_in); // Write to SRPT grant queue
+	break;
+      }
+
+      case GRANT: {
+	// TODO maybe other data needs to be accumulated
+	
+	header_in_srpt_o.write(header_in); // Write to SRPT data queue
+	break;
+      }
     }
   }
 
@@ -90,7 +99,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
     homa_rpc.saddr = recvmsg.saddr;
     homa_rpc.sport = recvmsg.sport;
     homa_rpc.buffout = recvmsg.buffout;
-
+    //homa_rpc.rtt_bytes = recvmsg.rtt_bytes;
 
     rpcs[(recvmsg.local_id >> 1)-1] = homa_rpc;
     recvmsg_o.write(recvmsg);
@@ -124,7 +133,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
 	  rpc_hashpack_t recvspecialize = {header_in.daddr, header_in.sender_id, header_in.dport, 0};
 
-	  hashmap.queue({recvspecialize , header_in.local_id});
+	  hashmap.queue({recvspecialize, header_in.local_id});
 	} else {
 	  rpc_hashpack_t recvspecialize = {header_in.daddr, header_in.sender_id, header_in.dport, 0};
 
@@ -132,7 +141,6 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 	}
       } else {
 	rpc_hashpack_t query = {header_in.daddr, header_in.sender_id, header_in.dport, 0};
-
 	header_in.local_id = hashmap.search(query);
       }
     }

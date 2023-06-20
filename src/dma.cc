@@ -6,11 +6,12 @@
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 
-void homa_recvmsg(homa_t * homa,
+void homa_recvmsg(const homa_t * homa,
 		  recvmsg_t * recvmsg,
 		  hls::stream<recvmsg_t> & recvmsg_o) {
   if (recvmsg->valid) {
     recvmsg_t new_recvmsg = *recvmsg;
+    //new_recvmsg.rtt_bytes = homa->rtt_bytes;
     recvmsg_o.write(new_recvmsg);
   }
 }
@@ -27,7 +28,7 @@ void homa_recvmsg(homa_t * homa,
  * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
-void homa_sendmsg(homa_t * homa,
+void homa_sendmsg(const homa_t * homa,
 	     sendmsg_t * sendmsg,
 	     hls::stream<sendmsg_t> & sendmsg_o) {
 
@@ -67,10 +68,11 @@ void dma_read(char * maxi,
  */
 void dma_write(char * maxi,
 	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
-
+  //TODO this is not really pipelined. 70 cycle layency per req
 #pragma HLS pipeline II=1
   if (!dbuff_ingress__dma_write.empty()) {
     dma_w_req_t dma_req = dbuff_ingress__dma_write.read();
+
     *((integral_t*) (maxi + dma_req.offset)) = dma_req.block;
   }
 }

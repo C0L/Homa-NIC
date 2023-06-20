@@ -17,8 +17,16 @@ struct srpt_queue_t {
   int offset;
 
   srpt_queue_t() {
+    //#pragma HLS dependence variable=buffer inter RAW false
+    //#pragma HLS dependence variable=buffer inter WAR false
+    //#pragma HLS dependence variable=size inter RAW false
+    //#pragma HLS dependence variable=size inter WAR false
+    //#pragma HLS dependence variable=offset inter RAW false
+    //#pragma HLS dependence variable=offset inter WAR false
+
     //#pragma HLS dependence variable=buffer intra RAW false
     //#pragma HLS dependence variable=buffer intra WAR false
+
     for (int id = 0; id < MAX_SIZE+1; ++id) {
       buffer[id] = T();
     }
@@ -43,6 +51,11 @@ struct srpt_queue_t {
   void push(T new_entry) {
     //#pragma HLS dependence variable=buffer intra RAW false
     //#pragma HLS dependence variable=buffer intra WAR false
+    //#pragma HLS dependence variable=size inter RAW false
+    //#pragma HLS dependence variable=size inter WAR false
+    //#pragma HLS dependence variable=offset size RAW false
+    //#pragma HLS dependence variable=offset offset WAR false
+
 #pragma HLS array_partition variable=buffer type=complete
     size = (size == MAX_SRPT) ? size : size+1;
 
@@ -87,6 +100,13 @@ struct srpt_queue_t {
   void pop() {
     //#pragma HLS dependence variable=buffer intra RAW false
     //#pragma HLS dependence variable=buffer intra WAR false
+    //#pragma HLS dependence variable=size inter RAW false
+    //#pragma HLS dependence variable=size inter WAR false
+    //#pragma HLS dependence variable=offset size RAW false
+    //#pragma HLS dependence variable=offset offset WAR false
+
+    //#pragma HLS dependence variable=buffer intra RAW false
+    //#pragma HLS dependence variable=buffer intra WAR false
 
     T tmp[MAX_SIZE+1];
     //#pragma HLS dependence variable=tmp intra RAW false
@@ -119,6 +139,14 @@ struct srpt_queue_t {
     // id-1 < id+1 < id 
 
   void order() {
+    //#pragma HLS dependence variable=buffer intra RAW false
+    //#pragma HLS dependence variable=buffer intra WAR false
+    //#pragma HLS dependence variable=size inter RAW false
+    //#pragma HLS dependence variable=size inter WAR false
+    //#pragma HLS dependence variable=offset size RAW false
+    //#pragma HLS dependence variable=offset offset WAR false
+
+
     //#pragma HLS dependence variable=buffer intra RAW false
     //#pragma HLS dependence variable=buffer intra WAR false
     
@@ -181,9 +209,10 @@ struct srpt_queue_t {
 
 void srpt_data_pkts(hls::stream<sendmsg_t> & new_rpc_i,
 		    hls::stream<dbuff_notif_t> & data_notif_i,
-		    hls::stream<ready_data_pkt_t> & data_pkt_o);
+		    hls::stream<ready_data_pkt_t> & data_pkt_o,
+		    hls::stream<header_t> & header_in_i);
 
-void srpt_grant_pkts(hls::stream<srpt_grant_t> & rpc_state__srpt_grant,
-		     hls::stream<ready_grant_pkt_t> & srpt_grant__egress_selector);
+void srpt_grant_pkts(hls::stream<header_t> & header_in_i,
+		     hls::stream<ready_grant_pkt_t> & grant_pkt_o);
 
 #endif

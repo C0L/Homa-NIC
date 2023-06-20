@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#define DEBUG
+// #define DEBUG
 
 #include "ap_int.h"
 #include "hls_stream.h"
@@ -27,15 +27,22 @@ struct user_output_t;
 #ifndef DEBUG 
 #define MAX_SRPT 1024
 #else
-#define MAX_SRPT 32
+#define MAX_SRPT 8
 #endif
 
+#ifndef DEBUG 
 #define MAX_OVERCOMMIT 8
+#else
+#define MAX_OVERCOMMIT 1
+#endif
 
-#define SRPT_MSG 0
-#define SRPT_EMPTY 1
-#define SRPT_BLOCKED 2
-#define SRPT_ACTIVE 3
+#define SRPT_UPDATE 0
+#define SRPT_UPDATE_BLOCK 1
+#define SRPT_INVALIDATE 2
+#define SRPT_UNBLOCK 3
+#define SRPT_EMPTY 4
+#define SRPT_BLOCKED 5
+#define SRPT_ACTIVE 6
 
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
@@ -48,6 +55,9 @@ struct user_output_t;
 #define ETHERNET_MAX_PAYLOAD 1500
 
 #define HOMA_MAX_PRIORITIES 8
+
+// How many bytes need to be accumulated before another GRANT pkt is sent
+#define GRANT_REFRESH 10000
 
 #define MAX_PEERS_LOG2 14
 
@@ -111,7 +121,7 @@ enum homa_packet_type {
  */
 struct homa_t {
   int mtu;
-  int rtt_bytes;
+  uint32_t rtt_bytes;
   int link_mbps;
   int num_priorities;
   int priority_map[HOMA_MAX_PRIORITIES];
@@ -187,11 +197,12 @@ struct homa_rpc_t {
   ap_uint<64> completion_cookie;
   homa_message_in_t msgin;
   homa_message_out_t msgout;
+
+  uint32_t rtt_bytes;
   //int silent_ticks;
   //ap_uint<32> resend_timer_ticks;
   //ap_uint<32> done_timer_ticks;
 };
-
 
 struct sendmsg_t {
   uint32_t buffin; // Offset in DMA space for input
@@ -231,6 +242,7 @@ struct recvmsg_t {
   // Internal use
   rpc_id_t local_id; // Local RPC ID 
   peer_id_t peer_id; // Local ID for this peer
+  //uint32_t rtt_bytes;
 };
 
 /* continuation structures */
@@ -243,6 +255,7 @@ struct header_t {
   uint32_t dma_offset;
   uint32_t processed_bytes;
   uint32_t packet_bytes;
+  uint32_t rtt_bytes;
 
   // IPv6 + Common Header
   uint16_t payload_length;
@@ -276,9 +289,9 @@ struct header_t {
 };
 
 struct ready_grant_pkt_t {
+  peer_id_t peer_id;
   rpc_id_t rpc_id;
-  uint32_t granted;
-  // TODO 
+  uint32_t grantable;
 };
 
 struct ready_data_pkt_t {
@@ -347,7 +360,6 @@ struct srpt_data_t {
     total = 0;
   }
 
-  //data TODO total probably does not need to be stored
   srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, uint32_t remaining, uint32_t total) {
     this->rpc_id = rpc_id;
     this->dbuff_id = dbuff_id;
@@ -377,7 +389,7 @@ struct srpt_grant_t {
   peer_id_t peer_id;
   rpc_id_t rpc_id;
   uint32_t grantable;
-  ap_uint<2> priority;
+  ap_uint<3> priority;
 
   srpt_grant_t() {
     peer_id = 0;
@@ -386,7 +398,7 @@ struct srpt_grant_t {
     priority = SRPT_EMPTY;
   }
 
-  srpt_grant_t(peer_id_t peer_id, uint32_t grantable,  rpc_id_t rpc_id, ap_uint<2> priority) {
+  srpt_grant_t(peer_id_t peer_id, rpc_id_t rpc_id, uint32_t grantable, ap_uint<3> priority) {
     this->peer_id = peer_id;
     this->rpc_id = rpc_id;
     this->grantable = grantable;
@@ -402,16 +414,21 @@ struct srpt_grant_t {
 
   // Ordering operator
   bool operator>(srpt_grant_t & other) {
-    if (priority == SRPT_MSG && peer_id == other.peer_id) {
-      return true;
-    } else {
-      return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
-    } 
+    return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
   }
 
   void update_priority(srpt_grant_t & other) {
-    if (priority == SRPT_MSG && other.peer_id == peer_id) {
-      other.priority = (other.priority == SRPT_BLOCKED) ? SRPT_ACTIVE : SRPT_BLOCKED;
+    if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE_BLOCK) {
+      other.grantable = grantable;
+      other.priority = SRPT_BLOCKED;
+    } else if (other.peer_id == peer_id && priority == SRPT_UPDATE_BLOCK) {
+      other.priority = SRPT_BLOCKED;
+    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE) {
+      other.grantable = grantable;
+    } else if (other.peer_id == peer_id && priority == SRPT_UNBLOCK) {
+      other.priority = SRPT_ACTIVE;
+    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_INVALIDATE) {
+      other.priority = SRPT_INVALIDATE;
     }
   }
 
@@ -464,6 +481,55 @@ struct fifo_t {
 
   bool full() {
     return read_head == FIFO_SIZE-1;
+  }
+
+  bool empty() {
+    return read_head == -1;
+  }
+};
+
+
+template<typename T, int FIFO_SIZE>
+struct fifo_id_t {
+  T buffer[FIFO_SIZE];
+
+  int read_head;
+
+  fifo_id_t(bool init) {
+    if (init) {
+      // Each RPC id begins as available 
+      for (int id = 0; id < FIFO_SIZE; ++id) {
+	buffer[id] = id;
+      }
+      read_head = FIFO_SIZE-1;
+    } else {
+      read_head = -1;
+    }
+  }
+
+  void insert(T value) {
+#pragma HLS array_partition variable=buffer type=complete
+
+    for (int i = FIFO_SIZE-2; i >= 0; --i) {
+#pragma HLS unroll
+      buffer[i+1] = buffer[i];
+    }
+    
+    buffer[0] = value;
+    
+    read_head++;
+  }
+
+  T remove() {
+#pragma HLS array_partition variable=buffer type=complete
+    T val = buffer[read_head];
+
+    read_head--;
+    return val;
+  }
+
+  T & head() {
+    return buffer[read_head];
   }
 
   bool empty() {

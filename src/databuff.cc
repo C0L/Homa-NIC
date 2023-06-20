@@ -28,39 +28,39 @@ void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
 /**
  * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
  * packet header to determine DMA destination.
- * @chunk_ingress__dbuff_ingress - Incoming data chunks from link destined for DMA
- * @dbuff_ingress__dma_write - Outgoing requests for data to be placed in DMA
- * @chunk_ingress__dbuff_ingress - Incoming headers that determine DMA placement
+ * @chunk_in_o - Incoming data chunks from link destined for DMA
+ * @dma_w_req_o - Outgoing requests for data to be placed in DMA
+ * @header_in_i - Incoming headers that determine DMA placement
  */
-void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
-		   hls::stream<dma_w_req_t> & dbuff_ingress__dma_write,
-		   hls::stream<header_t> & rpc_store__dbuff_ingress) {
+void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
+		   hls::stream<dma_w_req_t> & dma_w_req_o,
+		   hls::stream<header_t> & header_in_i) {
 #pragma HLS pipeline II=1
 
+
+  static fifo_t<in_chunk_t,16> rebuff;
+
   // TODO can this be problematic?
-  static fifo_t<in_chunk_t,128> rebuff;
-#pragma HLS dependence variable=rebuff inter WAR false
-#pragma HLS dependence variable=rebuff inter RAW false
+  //#pragma HLS dependence variable=rebuff inter WAR false
+  //#pragma HLS dependence variable=rebuff inter RAW false
 
   static header_t header_in;
 
   if (header_in.valid && !rebuff.empty()) {
     in_chunk_t in_chunk = rebuff.remove();
-    std::cerr << "CHUNK: " << in_chunk.offset + header_in.data_offset << std::endl;
     // Place chunk in DMA space at global offset + packet offset
-    dbuff_ingress__dma_write.write({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
+    dma_w_req_o.write({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
 
     if (in_chunk.last) header_in.valid = 0;
   }
 
-  if (!chunk_ingress__dbuff_ingress.empty()) {
-    in_chunk_t in_chunk = chunk_ingress__dbuff_ingress.read();
+  if (!chunk_in_o.empty()) {
+    in_chunk_t in_chunk = chunk_in_o.read();
     rebuff.insert(in_chunk);
   }
 
-  if (!header_in.valid && !rpc_store__dbuff_ingress.empty()) {
-    header_in = rpc_store__dbuff_ingress.read();
-    std::cerr << "HEADER IN " << std::endl;
+  if (!header_in.valid && !header_in_i.empty()) {
+    header_in = header_in_i.read();
   }
 }
 
@@ -68,7 +68,8 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
  * dbuff_egress() - Augment outgoing packet chunks with packet data
  * @dbuff_egress_i - Input stream of data that needs to be inserted into the on-chip
  * buffer. Contains the block index of the insertion, and the raw data.
- * @chunk_dispatch__dbuff_egress - Input stream for outgoing packets that need to be
+ * @dbuff_notif_o - Notification to the SRPT core that data is ready on-chip
+ * @out_chunk_i - Input stream for outgoing packets that need to be
  * augmented with data from the data buffer. Each chunk indicates the number of
  * bytes it will need to accumulate from the data buffer, which data buffer,
  * and what global byte offset in the message to send.
@@ -78,8 +79,8 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress,
  * TODO Needs to request data from DMA to keep the RB saturated with pkt data
  */
 void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
-		  hls::stream<dbuff_notif_t> & dbuff_egress__srpt_data,
-		  hls::stream<out_chunk_t> & chunk_dispatch__dbuff_egress,
+		  hls::stream<dbuff_notif_t> & dbuff_notif_o,
+		  hls::stream<out_chunk_t> & out_chunk_i,
 		  hls::stream<raw_stream_t> & link_egress) {
 	
 #pragma HLS pipeline II=1
@@ -92,12 +93,12 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
   if (!dbuff_egress_i.empty()) {
     dbuff_in_t dbuff_in = dbuff_egress_i.read();
     dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk] = dbuff_in.block;
-    dbuff_egress__srpt_data.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
+    dbuff_notif_o.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
   }
 
   // Do we need to process any packet chunks?
-  if (!chunk_dispatch__dbuff_egress.empty()) {
-    out_chunk_t out_block = chunk_dispatch__dbuff_egress.read();
+  if (!out_chunk_i.empty()) {
+    out_chunk_t out_block = out_chunk_i.read();
 
     raw_stream_t raw_stream;
 

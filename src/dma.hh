@@ -12,11 +12,11 @@
 
 struct homa_t;
 
-void homa_sendmsg(homa_t * homa,
+void homa_sendmsg(const homa_t * homa,
 		  sendmsg_t * params,
 		  hls::stream<sendmsg_t> & sendmsg_o);
 
-void homa_recvmsg(homa_t * homa,
+void homa_recvmsg(const homa_t * homa,
 		  recvmsg_t * recvmsg,
 		  hls::stream<recvmsg_t> & recvmsg_o);
 

@@ -39,8 +39,9 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 	       hls::stream<header_t> & header_out_i, 
 	       hls::stream<header_t> & header_out_o,
 	       hls::stream<header_t> & header_in_i,
-	       hls::stream<header_t> & header_in_o,
-	       hls::stream<srpt_grant_t> & srpt_grant_o);
+	       hls::stream<header_t> & header_in_dbuff_o,
+	       hls::stream<header_t> & header_in_grant_o,
+	       hls::stream<header_t> & header_in_srpt_o);
 
 
 void rpc_map(hls::stream<header_t> & header_in_i,

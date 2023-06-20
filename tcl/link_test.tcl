@@ -22,4 +22,6 @@ add_files -tb ./tb/client_test.cc
 open_solution -reset "solution" -flow_target vitis
 set_part {xcvu9p-flgb2104-2-i}
 create_clock -period 3.1 -name default
-csim_design  
+csim_design
+csynth_design
+cosim_design
