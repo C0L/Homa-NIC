@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-// #define DEBUG
+#define DEBUG
 
 #include "ap_int.h"
 #include "hls_stream.h"
@@ -31,7 +31,7 @@ struct user_output_t;
 #endif
 
 #ifndef DEBUG 
-#define MAX_OVERCOMMIT 8
+#define MAX_OVERCOMMIT 1
 #else
 #define MAX_OVERCOMMIT 1
 #endif
@@ -346,7 +346,6 @@ const ap_uint<8> DOFF = 10 << 4;
 const ap_uint<8> DATA_TYPE = DATA;
 
 
-
 struct srpt_data_t {
   rpc_id_t rpc_id;
   dbuff_id_t dbuff_id;
@@ -369,8 +368,8 @@ struct srpt_data_t {
 
   bool operator==(const srpt_data_t & other) const {
     return (rpc_id == other.rpc_id &&
-	    remaining == other.remaining &&
-	    total == other.total);
+  	    remaining == other.remaining &&
+  	    total == other.total);
   }
 
   // Ordering operator
@@ -407,9 +406,9 @@ struct srpt_grant_t {
 
   bool operator==(const srpt_grant_t & other) const {
     return (peer_id == other.peer_id &&
-	    rpc_id == other.rpc_id &&
-	    grantable == other.grantable &&
-	    priority == other.priority);
+  	    rpc_id == other.rpc_id &&
+  	    grantable == other.grantable &&
+  	    priority == other.priority);
   }
 
   // Ordering operator
@@ -418,6 +417,7 @@ struct srpt_grant_t {
   }
 
   void update_priority(srpt_grant_t & other) {
+
     if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE_BLOCK) {
       other.grantable = grantable;
       other.priority = SRPT_BLOCKED;
@@ -536,7 +536,6 @@ struct fifo_id_t {
     return read_head == -1;
   }
 };
-
 
 void homa(homa_t * homa,
 	  sendmsg_t * sendmsg,

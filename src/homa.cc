@@ -13,7 +13,14 @@
 #include "databuff.hh"
 #include "timer.hh"
 
+#include "srpt_grant_queue.hh"
+
 using namespace std;
+
+void tmp(hls::stream<ap_uint<125>> & i, hls::stream<ap_uint<1>> & o) {
+  i.write(1);
+  ap_uint<1> o_in = o.read();
+}
 
 /**
  * homa() - Top level homa packet processor
@@ -167,6 +174,22 @@ void homa(homa_t * homa,
       dbuff_ingress__dma_write,
       rpc_state__dbuff_ingress
   );
+
+  hls_thread_local hls::stream<ap_uint<125>> i;
+  hls_thread_local hls::stream<ap_uint<1>> o;
+
+  hls_thread_local hls::task srpt_grant_test_task(srpt_grant_queue_test,
+						  i,
+						  o
+
+  );
+
+  hls_thread_local hls::task tmp_task(tmp,
+				      i,
+				      o
+
+  );
+
 
 
   /* Control Driven Region */

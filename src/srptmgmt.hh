@@ -9,7 +9,6 @@
 template<typename T, int MAX_SIZE>
 struct srpt_queue_t;
 
-
 template<typename T, int MAX_SIZE>
 struct srpt_queue_t {
   T buffer[MAX_SIZE+1];
@@ -17,16 +16,6 @@ struct srpt_queue_t {
   int offset;
 
   srpt_queue_t() {
-    //#pragma HLS dependence variable=buffer inter RAW false
-    //#pragma HLS dependence variable=buffer inter WAR false
-    //#pragma HLS dependence variable=size inter RAW false
-    //#pragma HLS dependence variable=size inter WAR false
-    //#pragma HLS dependence variable=offset inter RAW false
-    //#pragma HLS dependence variable=offset inter WAR false
-
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-
     for (int id = 0; id < MAX_SIZE+1; ++id) {
       buffer[id] = T();
     }
@@ -49,19 +38,10 @@ struct srpt_queue_t {
   // id-2 < id-1 < id
   //        id-2 < id-1 < id
   void push(T new_entry) {
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-    //#pragma HLS dependence variable=size inter RAW false
-    //#pragma HLS dependence variable=size inter WAR false
-    //#pragma HLS dependence variable=offset size RAW false
-    //#pragma HLS dependence variable=offset offset WAR false
-
 #pragma HLS array_partition variable=buffer type=complete
     size = (size == MAX_SRPT) ? size : size+1;
 
     T tmp[MAX_SIZE+1];
-    //#pragma HLS dependence variable=tmp intra RAW false
-    //#pragma HLS dependence variable=tmp intra WAR false
 
     for(int id = MAX_SRPT; id > 0; --id) {
 #pragma HLS unroll
@@ -98,19 +78,7 @@ struct srpt_queue_t {
   // id   < id+1 < id+2
 
   void pop() {
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-    //#pragma HLS dependence variable=size inter RAW false
-    //#pragma HLS dependence variable=size inter WAR false
-    //#pragma HLS dependence variable=offset size RAW false
-    //#pragma HLS dependence variable=offset offset WAR false
-
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-
     T tmp[MAX_SIZE+1];
-    //#pragma HLS dependence variable=tmp intra RAW false
-    //#pragma HLS dependence variable=tmp intra WAR false
 
     for(int id = 0; id < MAX_SRPT; ++id) {
 #pragma HLS unroll
@@ -139,22 +107,10 @@ struct srpt_queue_t {
     // id-1 < id+1 < id 
 
   void order() {
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-    //#pragma HLS dependence variable=size inter RAW false
-    //#pragma HLS dependence variable=size inter WAR false
-    //#pragma HLS dependence variable=offset size RAW false
-    //#pragma HLS dependence variable=offset offset WAR false
-
-
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-    
+   
 #pragma HLS array_partition variable=buffer type=complete
 
     T tmp[MAX_SIZE+1];
-    //#pragma HLS dependence variable=tmp intra RAW false
-    //#pragma HLS dependence variable=tmp intra WAR false
 
     for(int id = 0; id < MAX_SRPT+1; ++id) {
 #pragma HLS unroll
@@ -173,9 +129,6 @@ struct srpt_queue_t {
   }
 
   void dump() {
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-
     std::cerr << std::endl;
     for (int id = 0; id < MAX_SRPT; ++id) {
       std::cerr << id << ":";
@@ -185,24 +138,14 @@ struct srpt_queue_t {
   
 
   T & head() {
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-
     return buffer[0];
   }
 
   int get_size() {
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-
     return size;
   }
 
   bool empty() {
-    //#pragma HLS dependence variable=buffer intra RAW false
-    //#pragma HLS dependence variable=buffer intra WAR false
-
-
     return (size == 0);
   }
 };
