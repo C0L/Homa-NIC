@@ -15,3 +15,4 @@ open_solution -reset "solution" -flow_target vivado
 set_part {xcvu9p-flgb2104-2-i}
 create_clock -period 3.1 -name default
 csynth_design
+#cosim_design

@@ -178,7 +178,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<ap_uint<125>> i;
   hls_thread_local hls::stream<ap_uint<1>> o;
 
-  hls_thread_local hls::task srpt_grant_test_task(srpt_grant_queue_test,
+  hls_thread_local hls::task srpt_grant_task(srpt_grant_queue,
 						  i,
 						  o
 

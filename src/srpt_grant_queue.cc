@@ -1,7 +1,7 @@
 #include "srpt_grant_queue.hh"
 
-void srpt_grant_queue_test(hls::stream<ap_uint<125>> & in, hls::stream<ap_uint<1>> & out) {
-  ap_uint<1> i = in.read();
+void srpt_grant_queue(hls::stream<ap_uint<125>> & in, hls::stream<ap_uint<1>> & out) {
+  ap_uint<125> i = in.read();
   out.write(i);
 }
 
