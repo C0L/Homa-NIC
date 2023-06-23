@@ -18,7 +18,7 @@ reg [124:0] header_in_data_i;
 reg grant_pkt_full_o;
 
 wire header_in_read_en_o;
-wire [124:0] grant_pkt_data_o;
+wire [94:0] grant_pkt_data_o;
 wire grant_pkt_write_en_o;
 
 // header_in
@@ -43,6 +43,10 @@ end end
 
     initial begin
         #5;
+        header_in_data_i = {124'b0};
+        header_in_empty_i = 1;
+        grant_pkt_full_o = 0;
+
         // Send reset signal
         ap_ce = 1; 
         ap_rst = 1; 
@@ -52,23 +56,20 @@ end end
         
         #5;
         ap_start = 1;
-        header_in_data_i = {14'b11111111111111, 14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
-
-        //header_in_data_i = {14'b1, 14'b1, 14'b1, 32'b10000, 32'b100, 32'b0};
+        //header_in_data_i = {14'b11111111111111, 14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
+        header_in_data_i = {14'b1, 14'b1, 14'b1, 32'b10000, 32'b100, 32'b0};
         header_in_empty_i = 0;
         grant_pkt_full_o = 0;
 
         #5;
-        header_in_data_i = {14'b00000001111111, 14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
-
-        //header_in_data_i = {14'b11111111111111, 14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
+        //header_in_data_i = {14'b00000001111111, 14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
+        header_in_data_i = {14'b11111111111111, 14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
         header_in_empty_i = 0;
         grant_pkt_full_o = 0;
         
         #5;
-        header_in_data_i = {14'b1, 14'b1, 14'b1, 32'b10000, 32'b100, 32'b0};
-
-        //header_in_data_i = {14'b00000001111111, 14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
+        //header_in_data_i = {14'b1, 14'b1, 14'b1, 32'b10000, 32'b100, 32'b0};
+        header_in_data_i = {14'b00000001111111, 14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
         header_in_empty_i = 0;
         grant_pkt_full_o = 0;
         
