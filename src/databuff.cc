@@ -98,56 +98,69 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
 
   // Do we need to process any packet chunks?
   if (!out_chunk_i.empty()) {
-    out_chunk_t out_block = out_chunk_i.read();
+    out_chunk_t out_chunk = out_chunk_i.read();
 
     raw_stream_t raw_stream;
 
+
     // Is this a data type packet?
-    if (out_block.type == DATA) {
-      int curr_byte = out_block.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
+    if (out_chunk.type == DATA) {
+      int curr_byte = out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
 
       int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
       int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
 
-      integral_t c0 = dbuff[out_block.dbuff_id][block_offset];
-      integral_t c1 = dbuff[out_block.dbuff_id][block_offset+1];
+      integral_t c0 = dbuff[out_chunk.dbuff_id][block_offset];
+      integral_t c1 = dbuff[out_chunk.dbuff_id][block_offset+1];
 
-      char double_buff[128];
+      //char double_buff[128];
+      ap_uint<1024> double_buff;
 
-#pragma HLS array_partition variable=double_buff complete
+      //#pragma HLS array_partition variable=double_buff complete
       
-      for (int i = 0; i < 64; ++i) {
-	double_buff[i]    = c0.data[i];
-	double_buff[i+64] = c1.data[i];
-      }
+      double_buff(511,0)    = c0.data(511,0);
+      double_buff(1023,512) = c1.data(511,0);
 
-      raw_stream.data = out_block.buff;
+      //     std::cerr << "DOUBLE BUFFER\n";
+      //     for (int i = 0; i < 128; ++i) {
+      //     	printf("%02x", (unsigned char) double_buff((i+1)*8 - 1,i*8));
+      //     }
+      //     std::cerr << std::endl;
+
+      //raw_stream.data = out_block.buff;
 
       // There is a more obvious C implementation — results in very expensive hardware 
-     switch(out_block.data_bytes) {
+     switch(out_chunk.data_bytes) {
       	case NO_DATA: {
+	  //std::cerr << "NOT DATA\n";
       	  break;
       	}
       
       	case ALL_DATA: {
-	  for (int i = 0; i < ALL_DATA; ++i) {
-#pragma HLS unroll
-	    raw_stream.data.data[i] = double_buff[subyte_offset + i];
-	  }
+	  out_chunk.buff.data(511, 0) = double_buff(((subyte_offset + ALL_DATA) * 8)-1 , subyte_offset * 8);
 	  break;
       	}
       
       	case PARTIAL_DATA: {
-	  for (int i = 0; i < PARTIAL_DATA; ++i) {
-#pragma HLS unroll
-	    raw_stream.data.data[64 - PARTIAL_DATA + i] = double_buff[subyte_offset + i];
-	  }
+	  out_chunk.buff.data(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
+
 	  break;
       	}
       }
     } 
 
-    raw_stream.last = out_block.last;
+    raw_stream.last = out_chunk.last;
+
+    //chunk_byte_swap(out_chunk.buff.data, raw_stream.data.data);
+
+
+    // std::cerr << "WRITE BLOCK\n";
+    // for (int i = 0; i < 64; ++i) {
+    //   printf("%02x", (unsigned char) out_chunk.buff.data((i+1)*8 - 1,i*8));
+    // }
+    // std::cerr << std::endl;
+
+    raw_stream.data.data = out_chunk.buff.data;
 
     link_egress.write(raw_stream);
   }

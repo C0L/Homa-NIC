@@ -33,6 +33,7 @@ void homa_sendmsg(const homa_t * homa,
 	     hls::stream<sendmsg_t> & sendmsg_o) {
 
   if (sendmsg->valid)  {
+    //std::cerr << "HOMA SENDMSG\n";
     sendmsg_t new_sendmsg = *sendmsg;
     
     new_sendmsg.granted = (homa->rtt_bytes > new_sendmsg.length) ? new_sendmsg.length : homa->rtt_bytes;
@@ -56,6 +57,11 @@ void dma_read(char * maxi,
       //std::cerr << dma_req.length << std::endl;
 #pragma HLS pipeline II=1
       integral_t big_order = *((integral_t*) (maxi + dma_req.offset + (i * 64)));
+      //for (int i = 0; i < 64; ++i) {
+        //printf("%02x", big_order.data((i+1)*8 - 1,i*8));
+	//std::cerr << (char) big_order.data((i+1)*8 - 1,i*8);
+      //}
+      //std::cerr << std::endl;
       dma_requests__dbuff.write({big_order, dma_req.dbuff_id, dma_req.offset + i});
     }
   }

@@ -19,9 +19,9 @@
 #define RPC_HP_SIZE 7
 struct rpc_hashpack_t {
   ap_uint<128> s6_addr;
-  uint64_t id;
-  uint16_t port;
-  uint16_t empty;
+  ap_uint<64> id;
+  ap_uint<16> port;
+  ap_uint<16> empty;
 
   bool operator==(const rpc_hashpack_t & other) const {
       return (s6_addr == other.s6_addr && id == other.id && port == other.port);
@@ -40,7 +40,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 	       hls::stream<header_t> & header_out_o,
 	       hls::stream<header_t> & header_in_i,
 	       hls::stream<header_t> & header_in_dbuff_o,
-	       hls::stream<header_t> & header_in_grant_o,
+	       hls::stream<ap_uint<124>> & header_in_grant_o,
 	       hls::stream<header_t> & header_in_srpt_o);
 
 

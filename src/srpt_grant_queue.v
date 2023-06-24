@@ -27,6 +27,9 @@
 `define HDR_INCOMING 63:32
 `define HDR_OFFSET 31:0
 
+// TODO maybe allow stealing of entries so long as the peers of those stolen entries are not in the active set?
+// TODO need some general ordering operations that can be done when idle (or does not have room to write)
+
 /**
  * 
  * 
@@ -84,39 +87,37 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 	   ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
 	   : (srpt_queue[entry-1][`GRANTABLE] > srpt_queue[entry][`GRANTABLE])) begin
 	    
-	    srpt_swap_even[entry][MSG_LEN] = srpt_queue[entry][MSG_LEN];
-	    srpt_swap_even[entry][PEER_ID] = srpt_queue[entry][PEER_ID];
-	    srpt_swap_even[entry][RPC_ID] = srpt_queue[entry][RPC_ID];
+	    srpt_swap_even[entry][`MSG_LEN] = srpt_queue[entry][`MSG_LEN];
+	    srpt_swap_even[entry][`PEER_ID] = srpt_queue[entry][`PEER_ID];
+	    srpt_swap_even[entry][`RPC_ID] = srpt_queue[entry][`RPC_ID];
 
 	    srpt_swap_even[entry+1] = srpt_queue[entry-1];
 
-	    if ((srpt_queue[entry-1][PEER_ID] == srpt_queue[entry][PEER_ID]) && 
-	    	(srpt_queue[entry-1][RPC_ID] == srpt_queue[qs][s+1][RPC_ID]) &&
-	    	(srpt_queue[entry-1][PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
-	       srpt_queue[entry+1][34:3] = {srpt_queue[qs][s][34:3], `SRPT_BLOCKED};
+	    if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+	    	(srpt_queue[entry-1][`RPC_ID] == srpt_queue[entry][`RPC_ID]) &&
+	    	(srpt_queue[entry-1][`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
 	        
-	       srpt_swap_even[entry][GRANTABLE] = srpt_queue[entry-1][GRANTABLE];
-	       srpt_swap_even[entry][PRIORITY] = `SRPT_BLOCKED;
+	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry-1][`GRANTABLE];
+	       srpt_swap_even[entry][`PRIORITY] = `SRPT_BLOCKED;
 	       
-	    end else if ((srpt_queue[qs][s][62:49] == srpt_queue[qs][s+1][62:49]) && 
-	    		 (srpt_queue[qs][s][2:0] == `SRPT_UPDATE_BLOCK)) begin
+	    end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+	    		 (srpt_queue[entry-1][`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
 	       
-	       srpt_swap_even[entry][GRANTABLE] = srpt_queue[entry][GRANTABLE];
-	       srpt_swap_even[entry][PRIORITY] = `SRPT_BLOCKED;
+	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
+	       srpt_swap_even[entry][`PRIORITY] = `SRPT_BLOCKED;
 	       
-	    end else if ((srpt_queue[qs][s][62:49] == srpt_queue[qs][s+1][62:49]) && 
-	    					    (srpt_queue[qs][s][48:35] == srpt_queue[qs][s+1][48:35]) &&
-	    					    (srpt_queue[qs][s][2:0] == `SRPT_UNBLOCK)) begin
+	    end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+	    		 (srpt_queue[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
 	        
-	       srpt_swap_even[entry][GRANTABLE] = srpt_queue[entry][GRANTABLE];
-	       srpt_swap_even[entry][PRIORITY] = `SRPT_ACTIVE;
+	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
+	       srpt_swap_even[entry][`PRIORITY] = `SRPT_ACTIVE;
 	       
-	    end else if ((srpt_queue[qs][s][62:49] == srpt_queue[qs][s+1][62:49]) && 
-	    					    (srpt_queue[qs][s][48:35] == srpt_queue[qs][s+1][48:35]) &&
-	    					    (srpt_queue[qs][s][2:0] == `SRPT_INVALIDATE)) begin
+	    end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+	    		 (srpt_queue[entry-1][`RPC_ID] == srpt_queue[entry][`RPC_ID]) &&
+	    		 (srpt_queue[entry-1][`PRIORITY] == `SRPT_INVALIDATE)) begin
 	       
-	       srpt_swap_even[entry][GRANTABLE] = srpt_queue[entry][GRANTABLE];
-	       srpt_swap_even[entry][PRIORITY] = `SRPT_ACTIVE;
+	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
+	       srpt_swap_even[entry][`PRIORITY] = `SRPT_EMPTY;
 	    end
 
 	 end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
@@ -132,45 +133,39 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 	 if ((srpt_swap_even[entry-1][`PRIORITY] != srpt_swap_even[entry][`PRIORITY]) 
 	   ? (srpt_swap_even[entry-1][`PRIORITY] < srpt_swap_even[entry][`PRIORITY]) 
 	   : (srpt_swap_even[entry-1][`GRANTABLE] > srpt_swap_even[entry][`GRANTABLE])) begin
-	    
-	    //srpt_swap_odd[entry] = srpt_swap_even[entry-1];
-	    //srpt_swap_odd[entry-1] = srpt_swap_even[entry];
-	    
-	    srpt_swap_odd[entry][MSG_LEN] = srpt_queue_even[entry][MSG_LEN];
-	    srpt_swap_odd[entry][PEER_ID] = srpt_queue_even[entry][PEER_ID];
-	    srpt_swap_odd[entry][RPC_ID] = srpt_queue_even[entry][RPC_ID];
 
-	    srpt_swap_odd[entry+1] = srpt_queue_even[entry-1];
+	    srpt_swap_odd[entry] = srpt_swap_even[entry-1];
+	    
+	    srpt_swap_odd[entry-1][`MSG_LEN] = srpt_swap_even[entry][`MSG_LEN];
+	    srpt_swap_odd[entry-1][`PEER_ID] = srpt_swap_even[entry][`PEER_ID];
+	    srpt_swap_odd[entry-1][`RPC_ID] = srpt_swap_even[entry][`RPC_ID];
 
-	    if ((srpt_queue_even[entry-1][PEER_ID] == srpt_queue_even[entry][PEER_ID]) && 
-	    	(srpt_queue_even[entry-1][RPC_ID] == srpt_queue_even[qs][s+1][RPC_ID]) &&
-	    	(srpt_queue_even[entry-1][PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
-	       srpt_queue_even[entry+1][34:3] = {srpt_queue_even[qs][s][34:3], `SRPT_BLOCKED};
+	    if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
+	    	(srpt_swap_even[entry-1][`RPC_ID] == srpt_swap_even[entry][`RPC_ID]) &&
+	    	(srpt_swap_even[entry-1][`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
 	        
-	       srpt_swap_odd[entry][GRANTABLE] = srpt_queue_even[entry-1][GRANTABLE];
-	       srpt_swap_odd[entry][PRIORITY] = `SRPT_BLOCKED;
+	       srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
+	       srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_BLOCKED;
 	       
-	    end else if ((srpt_queue_even[qs][s][62:49] == srpt_queue_even[qs][s+1][62:49]) && 
-	    		 (srpt_queue_even[qs][s][2:0] == `SRPT_UPDATE_BLOCK)) begin
+	    end else if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
+	    		 (srpt_swap_even[entry-1][`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
 	       
-	       srpt_swap_odd[entry][GRANTABLE] = srpt_queue_even[entry][GRANTABLE];
-	       srpt_swap_odd[entry][PRIORITY] = `SRPT_BLOCKED;
+	       srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
+	       srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_BLOCKED;
 	       
-	    end else if ((srpt_queue_even[qs][s][62:49] == srpt_queue_even[qs][s+1][62:49]) && 
-	    					    (srpt_queue_even[qs][s][48:35] == srpt_queue_even[qs][s+1][48:35]) &&
-	    					    (srpt_queue_even[qs][s][2:0] == `SRPT_UNBLOCK)) begin
+	    end else if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
+	    		 (srpt_swap_even[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
 	        
-	       srpt_swap_odd[entry][GRANTABLE] = srpt_queue_even[entry][GRANTABLE];
-	       srpt_swap_odd[entry][PRIORITY] = `SRPT_ACTIVE;
+	       srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
+	       srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_ACTIVE;
 	       
-	    end else if ((srpt_queue_even[qs][s][62:49] == srpt_queue_even[qs][s+1][62:49]) && 
-	    					    (srpt_queue_even[qs][s][48:35] == srpt_queue_even[qs][s+1][48:35]) &&
-	    					    (srpt_queue_even[qs][s][2:0] == `SRPT_INVALIDATE)) begin
+	    end else if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
+	    		 (srpt_swap_even[entry-1][`RPC_ID] == srpt_swap_even[entry][`RPC_ID]) &&
+	    		 (srpt_swap_even[entry-1][`PRIORITY] == `SRPT_INVALIDATE)) begin
 	       
-	       srpt_swap_odd[entry][GRANTABLE] = srpt_queue_even[entry][GRANTABLE];
-	       srpt_swap_odd[entry][PRIORITY] = `SRPT_ACTIVE;
+	       srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
+	       srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_EMPTY;
 	    end
-
 	 end else begin // if ((srpt_swap_even[entry-1][2:0] != srpt_swap_even[entry][2:0])...
 	    srpt_swap_odd[entry] = srpt_swap_even[entry];
 	    srpt_swap_odd[entry-1] = srpt_swap_even[entry-1];
@@ -203,17 +198,18 @@ endmodule
  * TODO this needs to consider duplicate packets (can't just increment recv bytes?).
  * The packet map core may need to be involved somehow
  */
-module srpt_grant_queue #(parameter MAX_OVERCOMMIT = 8,
-			  parameter MAX_OVERCOMMIT_LOG2 = 3)
-   (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
-    input			 header_in_empty_i,
-    output reg			 header_in_read_en_o,
-    input [`HEADER_SIZE-1:0]	 header_in_data_i,
-    input			 grant_pkt_full_o,
-    output reg			 grant_pkt_write_en_o,
-    output reg [`ENTRY_SIZE-1:0] grant_pkt_data_o,
-    output			 ap_idle, ap_done, ap_ready);
+module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
+		       input			    header_in_empty_i,
+		       output reg		    header_in_read_en_o,
+		       input [`HEADER_SIZE-1:0]	    header_in_data_i,
+		       input			    grant_pkt_full_o,
+		       output reg		    grant_pkt_write_en_o,
+		       output reg [`ENTRY_SIZE-1:0] grant_pkt_data_o,
+		       output			    ap_idle, ap_done, ap_ready);
    
+   parameter			 MAX_OVERCOMMIT = 8;
+   parameter			 MAX_OVERCOMMIT_LOG2 = 3;
+
    reg [`ENTRY_SIZE-1:0]			    active_set[MAX_OVERCOMMIT-1:0];
 
    reg						    we;
@@ -446,77 +442,3 @@ module srpt_grant_queue #(parameter MAX_OVERCOMMIT = 8,
    assign ap_done = 1;
    
 endmodule // srpt_grant_queue
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	 
-	 // TODO this is just responsible for managing the active set...
-	 
-   	    // Will this RPC ever need grants
-	    // If the message in were less than or equal to the incoming bytes, we would have nothing to do here
-	    //if (header_in_data_i[95:64] > header_in_data_i[63:32]) begin
-	    //   $display ("WILL NEED GRANTS");
-
-	       // The first unscheduled packet creates the entry in the SRPT queue.
-	       //if (header_in_data_i[31:0] == 0) begin
-		//  $display ("FIRST UNSCHEDULE DATA");
-
-		  // message_lengths[header_in_data_i[XX:YY].local_id] = header_in_data[XX:YY].message_length;
-
-		  // Is the new header peer already in the active set?
-		 // if (peer_match != {MAX_OVERCOMMIT{1'b1}}) begin
-		 //    $display ("PEER MATCH");
-
-		  //end else begin
-		   //  $display ("NEW UNSCHEDULED BYTES");
-		  //end // for (integer i = 0; i < MAX_OVERCOMMIT; ++i)
-	       //end // else: !if(peer_match != {MAX_OVERCOMMIT{1'b1}})
-	       // Other Received bytes
-	    //end else begin // if (header_in_data[XX:YY].data_offset == 0)
-	       //recv_bytes[header_in_data[XX:YY].local_id] <= recv_bytes[header_in_data[XX:YY]] + header_in.segment_length;
-
-	       //if (peer_match != {MAX_OVERCOMMIT{1'b1}} && rpc_match != {MAX_OVERCOMMIT{1'b1}}) begin
-	       /*
-		* Have we received all the bytes from an active grant?
-		* Have we accumulated enough data bytes to justify sending another grant packet?
-		* This avoids sending 1 GRANT for every DATA packet
-		*/
-	       //if (header_in_data_i[XX:YY].message_length <= header_in_data_i[XX:YY].data_offset + header_in_data_i[XX:YY].segment_length) begin
-	       //	    srpt_grant_t invalidate = {header_in.peer_id, header_in.local_id, 0, SRPT_INVALIDATE}; 
-	       //	    for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
-	       //#pragma HLS unroll
-	       //	      srpt_queue[i].push(invalidate);
-	       //	    }
-	       //
-	       //	    // Free the current peer ID
-	       //	    active_set_fifo.insert(peer_match);
-	       //end else if (recv_bytes[header_in_data[XX:YY]] > GRANT_REFRESH) begin
-	       //	    srpt_grant_t unblock = {header_in.peer_id, header_in.local_id, 0, SRPT_UNBLOCK};
-	       //	    
-	       //	    for (int i = 0; i < MAX_OVERCOMMIT; ++i) {
-	       //#pragma HLS unroll
-	       //	      if (peer_match != i) srpt_queue[i].push(unblock);
-	       //	    }
-	       //	    
-	       //	    // Free the current peer ID
-	       //	    active_set_fifo.insert(peer_match);
-
-	       //end
-	       //end
-	       //end // else: !if(header_in_data[XX:YY].data_offset == 0)
-	    //end // if (header_in_data_i[XX:YY].message_length <= header_in_data_i[XX:YY].incoming)
-	 //end
-

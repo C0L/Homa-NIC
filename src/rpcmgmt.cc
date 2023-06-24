@@ -10,7 +10,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 	       hls::stream<header_t> & header_out_o,
 	       hls::stream<header_t> & header_in_i,
 	       hls::stream<header_t> & header_in_dbuff_o,
-	       hls::stream<header_t> & header_in_grant_o,
+	       hls::stream<ap_uint<124>> & header_in_grant_o,
 	       hls::stream<header_t> & header_in_srpt_o) {
 
   static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
@@ -35,6 +35,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
   }
 
   if (!header_in_i.empty()) {
+    //std::cerr << "PEER IN HEADER IN\n";
     header_t header_in = header_in_i.read();
 
     homa_rpc_t homa_rpc = rpcs[(header_in.local_id >> 1)-1];
@@ -45,7 +46,14 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 	header_in.dma_offset = homa_rpc.buffout;
 
 	header_in_dbuff_o.write(header_in); // Write to data buffer
-	header_in_grant_o.write(header_in); // Write to SRPT grant queue
+
+	ap_uint<124> header_in_raw;
+	header_in_raw(31, 0) = header_in.data_offset;
+	header_in_raw(63, 32) = header_in.incoming;
+	header_in_raw(95, 64) = header_in.message_length;
+	header_in_raw(109, 96) = header_in.local_id;
+	header_in_raw(123, 110) = header_in.peer_id;
+	header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
 	break;
       }
 
@@ -60,6 +68,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 
   /* R/W Processes */
   if (!sendmsg_i.empty()) {
+    //std::cerr << "SEND MSG IN\n";
     sendmsg_t sendmsg = sendmsg_i.read();
 
     if (sendmsg.id == 0) { // Is this a request message?

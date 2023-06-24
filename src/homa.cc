@@ -13,8 +13,6 @@
 #include "databuff.hh"
 #include "timer.hh"
 
-#include "srpt_grant_queue.hh"
-
 using namespace std;
 
 void tmp(hls::stream<ap_uint<125>> & i, hls::stream<ap_uint<1>> & o) {
@@ -62,7 +60,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<sendmsg_t> rpc_state__srpt_data;
 
   hls_thread_local hls::stream<ready_data_pkt_t> srpt_data__egress_sel;
-  hls_thread_local hls::stream<ready_grant_pkt_t> srpt_grant__egress_sel;
+  hls_thread_local hls::stream<ap_uint<95>> srpt_grant__egress_sel;
   hls_thread_local hls::stream<rexmit_t> rexmit__egress_sel;
 
   hls_thread_local hls::stream<header_t> egress_sel__rpc_state; // header_out
@@ -76,7 +74,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<in_chunk_t> chunk_ingress__dbuff_ingress;
   hls_thread_local hls::stream<dma_w_req_t> dbuff_ingress__dma_write;
   hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress;
-  hls_thread_local hls::stream<header_t> rpc_state__srpt_grant;
+  hls_thread_local hls::stream<ap_uint<124>> rpc_state__srpt_grant;
   hls_thread_local hls::stream<header_t> header_in__rpc_state__srpt_data;
   hls_thread_local hls::stream<header_t> chunk_ingress__rpc_map;
   
@@ -174,23 +172,6 @@ void homa(homa_t * homa,
       dbuff_ingress__dma_write,
       rpc_state__dbuff_ingress
   );
-
-  hls_thread_local hls::stream<ap_uint<125>> i;
-  hls_thread_local hls::stream<ap_uint<1>> o;
-
-  hls_thread_local hls::task srpt_grant_task(srpt_grant_queue,
-						  i,
-						  o
-
-  );
-
-  hls_thread_local hls::task tmp_task(tmp,
-				      i,
-				      o
-
-  );
-
-
 
   /* Control Driven Region */
 

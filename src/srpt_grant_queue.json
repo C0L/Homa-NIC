@@ -1,9 +1,9 @@
 {
-	"c_function_name":"srpt_grant_queue",
-	"rtl_top_module_name":"srpt_grant_queue",
+	"c_function_name":"srpt_grant_pkts",
+	"rtl_top_module_name":"srpt_grant_pkts_v",
 	"c_files":[
 		{
-			"c_file":"src/srpt_grant_queue.cc",
+			"c_file":"src/srptmgmt.cc",
 			"cflag":""
 		}
 	],

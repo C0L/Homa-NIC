@@ -82,7 +82,8 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
 struct integral_t {
-  unsigned char data[64];
+  //unsigned char data[64];
+  ap_uint<512> data;
 };
 
 typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
@@ -104,43 +105,55 @@ struct dbuff_notif_t {
 typedef hls::axis<integral_t, 1, 1, 1> raw_stream_t;
 
 /* homa structures */
-enum homa_packet_type {
-  DATA               = 0x10,
-  GRANT              = 0x11,
-  RESEND             = 0x12,
-  UNKNOWN            = 0x13,
-  BUSY               = 0x14,
-  CUTOFFS            = 0x15,
-  FREEZE             = 0x16,
-  NEED_ACK           = 0x17,
-  ACK                = 0x18,
-};
+//enum homa_packet_type {
+//  DATA               = 0x10,
+//  GRANT              = 0x11,
+//  RESEND             = 0x12,
+//  UNKNOWN            = 0x13,
+//  BUSY               = 0x14,
+//  CUTOFFS            = 0x15,
+//  FREEZE             = 0x16,
+//  NEED_ACK           = 0x17,
+//  ACK                = 0x18,
+//};
+
+#define DATA     0x10
+#define GRANT    0x11
+#define RESEND   0x12
+#define UNKNOWN  0x13
+#define BUSY     0x14
+#define CUTOFFS  0x15
+#define FREEZE   0x16
+#define NEED_ACK 0x17
+#define ACK      0x18
+
+typedef ap_uint<8> homa_packet_type;
 
 /**
  * struct homa - Overall information about the Homa protocol implementation.
  */
 struct homa_t {
-  int mtu;
-  uint32_t rtt_bytes;
-  int link_mbps;
-  int num_priorities;
-  int priority_map[HOMA_MAX_PRIORITIES];
-  int max_sched_prio;
-  int unsched_cutoffs[HOMA_MAX_PRIORITIES];
-  int cutoff_version;
-  int duty_cycle;
-  int grant_threshold;
-  int max_overcommit;
-  int max_incoming;
-  int resend_ticks;
-  int resend_interval;
-  int timeout_resends;
-  int request_ack_ticks;
-  int reap_limit;
-  int dead_buffs_limit;
-  int max_dead_buffs;
+  ap_int<32> mtu;
+  ap_uint<32> rtt_bytes;
+  ap_int<32> link_mbps;
+  ap_int<32> num_priorities;
+  ap_int<32> priority_map[HOMA_MAX_PRIORITIES];
+  ap_int<32> max_sched_prio;
+  ap_int<32> unsched_cutoffs[HOMA_MAX_PRIORITIES];
+  ap_int<32> cutoff_version;
+  ap_int<32> duty_cycle;
+  ap_int<32> grant_threshold;
+  ap_int<32> max_overcommit;
+  ap_int<32> max_incoming;
+  ap_int<32> resend_ticks;
+  ap_int<32> resend_interval;
+  ap_int<32> timeout_resends;
+  ap_int<32> request_ack_ticks;
+  ap_int<32> reap_limit;
+  ap_int<32> dead_buffs_limit;
+  ap_int<32> max_dead_buffs;
   ap_uint<32> timer_ticks;
-  int flags;
+  ap_int<32> flags;
 };
 
 /**
@@ -148,10 +161,10 @@ struct homa_t {
  * for which this machine is the sender.
  */
 struct homa_message_out_t {
-  int length;
+  ap_int<32> length;
   dbuff_id_t dbuff_id;
-  int unscheduled;
-  int granted;
+  ap_int<32> unscheduled;
+  ap_int<32> granted;
   //ap_uint<8> sched_priority;
   //ap_uint<64> init_cycles;
 };
@@ -161,13 +174,13 @@ struct homa_message_out_t {
  * this machine; used for both requests and responses.
  */
 struct homa_message_in_t {
-  int total_length;
-  int bytes_remaining;
-  int incoming;
-  int priority;
+  ap_int<32> total_length;
+  ap_int<32> bytes_remaining;
+  ap_int<32> incoming;
+  ap_int<32> priority;
   bool scheduled;
   ap_uint<64> birth;
-  int copied_out;
+  ap_int<64> copied_out;
 };
 
 /**
@@ -176,8 +189,8 @@ struct homa_message_in_t {
  * clients and incoming RPCs on servers.
  */
 struct homa_rpc_t {
-  uint32_t buffout;
-  uint32_t buffin;
+  ap_uint<32> buffout;
+  ap_uint<32> buffin;
 
   enum {
     RPC_OUTGOING            = 5,
@@ -190,100 +203,100 @@ struct homa_rpc_t {
   //int grants_in_progress;
   ap_uint<128> saddr;
   ap_uint<128> daddr;
-  uint16_t dport;
-  uint16_t sport;
+  ap_uint<16> dport;
+  ap_uint<16> sport;
   peer_id_t peer_id;
   rpc_id_t rpc_id; 
   ap_uint<64> completion_cookie;
   homa_message_in_t msgin;
   homa_message_out_t msgout;
 
-  uint32_t rtt_bytes;
+  //uint32_t rtt_bytes;
   //int silent_ticks;
   //ap_uint<32> resend_timer_ticks;
   //ap_uint<32> done_timer_ticks;
 };
 
 struct sendmsg_t {
-  uint32_t buffin; // Offset in DMA space for input
-  uint32_t length; // Total length of message
+  ap_uint<32> buffin; // Offset in DMA space for input
+  ap_uint<32> length; // Total length of message
   
   ap_uint<128> saddr; // Sender address
   ap_uint<128> daddr; // Destination address
 
-  uint16_t sport; // Sender port
-  uint16_t dport; // Destination port
+  ap_uint<16> sport; // Sender port
+  ap_uint<16> dport; // Destination port
 
-  uint64_t id; // RPC specified by caller
-  uint64_t completion_cookie;
+  ap_uint<64> id; // RPC specified by caller
+  ap_uint<64> completion_cookie;
 
   ap_uint<1> valid;
 
   // Internal use
-  uint32_t  granted;
+  ap_uint<32> granted;
   rpc_id_t local_id; // Local RPC ID 
   dbuff_id_t dbuff_id; // Data buffer ID for outgoing data
   peer_id_t peer_id; // Local ID for this destination address
 };
 
 struct recvmsg_t {
-  uint32_t buffout; // Offset in DMA space for output
+  ap_uint<32> buffout; // Offset in DMA space for output
 
   ap_uint<128> saddr; // Sender address
   ap_uint<128> daddr; // Destination address
 
-  uint16_t sport; // Sender port
-  uint16_t dport; // Destination port
+  ap_uint<16> sport; // Sender port
+  ap_uint<16> dport; // Destination port
 
-  uint64_t id; // RPC specified by caller
+  ap_uint<64> id; // RPC specified by caller
 
   ap_uint<1> valid;
 
   // Internal use
   rpc_id_t local_id; // Local RPC ID 
   peer_id_t peer_id; // Local ID for this peer
-  //uint32_t rtt_bytes;
 };
 
 /* continuation structures */
 
+// TODO switch all of these to ap_uints (big endian). Perform conversion on head.
 struct header_t {
   // Local Values
   rpc_id_t local_id;
   peer_id_t peer_id;
   dbuff_id_t dbuff_id;
-  uint32_t dma_offset;
-  uint32_t processed_bytes;
-  uint32_t packet_bytes;
-  uint32_t rtt_bytes;
+  ap_uint<32> dma_offset;
+  ap_uint<32> processed_bytes;
+  ap_uint<32> packet_bytes;
+  ap_uint<32> rtt_bytes;
 
   // IPv6 + Common Header
-  uint16_t payload_length;
+  ap_uint<16> payload_length;
   ap_uint<128> saddr;
   ap_uint<128> daddr;
-  uint16_t sport;
-  uint16_t dport;
+  ap_uint<16> sport;
+  ap_uint<16> dport;
   homa_packet_type type;
-  uint64_t sender_id;
+  ap_uint<64> sender_id;
 
   // Data Header
-  uint32_t message_length; 
-  uint32_t incoming;
-  uint16_t cutoff_version;
-  uint8_t retransmit;
+  ap_uint<32> message_length; 
+  ap_uint<32> incoming;
+  ap_uint<16> cutoff_version;
+  ap_uint<8> retransmit;
 
   // Data Segment
-  uint32_t data_offset;
-  uint32_t segment_length;
+  ap_uint<32> data_offset;
+  ap_uint<32> segment_length;
 
   // Ack Header
-  uint64_t client_id;
-  uint16_t client_port;
-  uint16_t server_port;
+  ap_uint<64> client_id;
+  ap_uint<16> client_port;
+  ap_uint<16> server_port;
 
   // Grant Header
-  uint32_t grant_offset;
-  uint8_t priority;
+  ap_uint<32> grant_offset;
+  ap_uint<8> priority;
 
   ap_uint<1> valid;
 };
@@ -291,15 +304,15 @@ struct header_t {
 struct ready_grant_pkt_t {
   peer_id_t peer_id;
   rpc_id_t rpc_id;
-  uint32_t grantable;
+  ap_uint<32> grantable;
 };
 
 struct ready_data_pkt_t {
   rpc_id_t rpc_id;
   dbuff_id_t dbuff_id;
-  uint32_t remaining;
-  uint32_t total;
-  uint32_t granted;
+  ap_uint<32> remaining;
+  ap_uint<32> total;
+  ap_uint<32> granted;
 };
 
 enum data_bytes_e {
@@ -310,27 +323,27 @@ enum data_bytes_e {
 
 struct in_chunk_t {
   integral_t buff;
-  uint32_t offset;
+  ap_uint<32> offset;
   ap_uint<1> last;
 };
 
 struct out_chunk_t {
   homa_packet_type type;
   dbuff_id_t dbuff_id;     // Which data buffer is the RPC message stored in
-  uint32_t offset;         // Offset in data message
+  ap_uint<32> offset;      // Offset in data message
   data_bytes_e data_bytes; // How many data bytes to add to this block
   ap_uint<1> last;
   integral_t buff;
 };
 
 struct dma_r_req_t {
-  uint32_t offset;
-  uint32_t length;
+  ap_uint<32> offset;
+  ap_uint<32> length;
   dbuff_id_t dbuff_id;
 };
 
 struct dma_w_req_t {
-  uint32_t offset;
+  ap_uint<32> offset;
   integral_t block;
 };
 
@@ -344,13 +357,14 @@ const ap_uint<8> IPPROTO_HOMA = 0xFD;
 const ap_uint<8> HOP_LIMIT = 0x00;
 const ap_uint<8> DOFF = 10 << 4;
 const ap_uint<8> DATA_TYPE = DATA;
+const ap_uint<32> HOMA_PAYLOAD_SIZE = 1386;
 
 
 struct srpt_data_t {
   rpc_id_t rpc_id;
   dbuff_id_t dbuff_id;
-  uint32_t remaining;
-  uint32_t total;
+  ap_uint<32> remaining;
+  ap_uint<32> total;
 
   srpt_data_t() {
     rpc_id = 0;
@@ -359,7 +373,7 @@ struct srpt_data_t {
     total = 0;
   }
 
-  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, uint32_t remaining, uint32_t total) {
+  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, ap_uint<32> remaining, ap_uint<32> total) {
     this->rpc_id = rpc_id;
     this->dbuff_id = dbuff_id;
     this->remaining = remaining;
@@ -387,7 +401,7 @@ struct srpt_data_t {
 struct srpt_grant_t {
   peer_id_t peer_id;
   rpc_id_t rpc_id;
-  uint32_t grantable;
+  ap_uint<32> grantable;
   ap_uint<3> priority;
 
   srpt_grant_t() {
@@ -397,7 +411,7 @@ struct srpt_grant_t {
     priority = SRPT_EMPTY;
   }
 
-  srpt_grant_t(peer_id_t peer_id, rpc_id_t rpc_id, uint32_t grantable, ap_uint<3> priority) {
+  srpt_grant_t(peer_id_t peer_id, rpc_id_t rpc_id, ap_uint<32> grantable, ap_uint<3> priority) {
     this->peer_id = peer_id;
     this->rpc_id = rpc_id;
     this->grantable = grantable;
@@ -536,6 +550,17 @@ struct fifo_id_t {
     return read_head == -1;
   }
 };
+
+template<int W>
+void htno_set(ap_uint<W*8> & out, const ap_uint<W*8> & in) {
+#pragma HLS inline 
+  for (int i = 0; i < W; ++i) {
+#pragma HLS unroll
+    out((W * 8) - 1 - (i * 8), (W*8) - 8 - (i * 8)) = in(7 + (i * 8), 0 + (i * 8));
+  }
+}
+
+
 
 void homa(homa_t * homa,
 	  sendmsg_t * sendmsg,

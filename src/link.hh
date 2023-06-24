@@ -7,8 +7,10 @@
 #include "dma.hh"
 #include "timer.hh"
 
+void byte_swap(ap_uint<512> & in, ap_uint<512> & out);
+
 void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
-		     hls::stream<ready_grant_pkt_t> & grant_pkt_i,
+		     hls::stream<ap_uint<95>> & grant_pkt_i,
 		     hls::stream<rexmit_t> & rexmit_pkt_i,
 		     hls::stream<header_t> & out_pkt_o);
 
