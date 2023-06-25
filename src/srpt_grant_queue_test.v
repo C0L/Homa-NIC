@@ -28,7 +28,7 @@ wire grant_pkt_write_en_o;
 // incoming       63:32
 // data_offset    31:0
 
-srpt_grant_queue srpt_queue(.ap_clk(ap_clk), .ap_rst(ap_rst), .ap_ce(ap_ce), .ap_start(ap_start), .ap_continue(ap_continue), 
+srpt_grant_pkts srpt_queue(.ap_clk(ap_clk), .ap_rst(ap_rst), .ap_ce(ap_ce), .ap_start(ap_start), .ap_continue(ap_continue), 
     .header_in_empty_i(header_in_empty_i), .header_in_read_en_o(header_in_read_en_o), .header_in_data_i(header_in_data_i), 
     .grant_pkt_full_o(grant_pkt_full_o), .grant_pkt_write_en_o(grant_pkt_write_en_o), .grant_pkt_data_o(grant_pkt_data_o),
     .ap_idle(ap_idle), .ap_done(ap_done), .ap_ready(ap_ready));
@@ -42,11 +42,9 @@ forever begin
 end end
 
     initial begin
-        #5;
         header_in_data_i = {124'b0};
         header_in_empty_i = 1;
-        grant_pkt_full_o = 0;
-
+        grant_pkt_full_o = 1;
         // Send reset signal
         ap_ce = 1; 
         ap_rst = 1; 
@@ -54,31 +52,31 @@ end end
         #5;
         ap_rst = 0;
         
-        #5;
+        //#5;
         ap_start = 1;
-        //header_in_data_i = {14'b11111111111111, 14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
-        header_in_data_i = {14'b1, 14'b1, 14'b1, 32'b10000, 32'b100, 32'b0};
+        header_in_data_i = {14'bb1110111011101110, 14'b1100110011001100, 32'b10000, 32'b100, 32'b0};
         header_in_empty_i = 0;
         grant_pkt_full_o = 0;
 
-        #5;
-        //header_in_data_i = {14'b00000001111111, 14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
-        header_in_data_i = {14'b11111111111111, 14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
-        header_in_empty_i = 0;
-        grant_pkt_full_o = 0;
+        //#5;
+        //header_in_data_i = {14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
+        //header_in_empty_i = 0;
+        //grant_pkt_full_o = 0;
         
-        #5;
+        //#5;
         //header_in_data_i = {14'b1, 14'b1, 14'b1, 32'b10000, 32'b100, 32'b0};
-        header_in_data_i = {14'b00000001111111, 14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
-        header_in_empty_i = 0;
-        grant_pkt_full_o = 0;
+        //header_in_data_i = {14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
+        //header_in_empty_i = 0;
+        //grant_pkt_full_o = 0;
         
         #5;
     
         header_in_empty_i = 1;
-        grant_pkt_full_o = 1;
+        grant_pkt_full_o = 0;
         
-        #100;
+        #5;
+        header_in_empty_i = 1;
+        grant_pkt_full_o = 1;
     end
 
 endmodule

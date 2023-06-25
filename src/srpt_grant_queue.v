@@ -11,13 +11,22 @@
 `define SRPT_ACTIVE 3'b110
 
 /* Indicies into grant entry (elements stored in SRPT) */
-`define ENTRY_SIZE 95
-`define MSG_LEN 94:63
-`define PEER_ID 62:49
-`define RPC_ID 48:35
-`define GRANTABLE 34:3
+//`define ENTRY_SIZE 95
+// `define MSG_LEN 94:63
+// log2(1000000/1386)
+//`define ENTRY_SIZE 63 
+//`define PEER_ID 62:49
+//`define RPC_ID 48:35
+//`define GRANTABLE 34:3
+//`define PRIORITY 2:0
+//`define PRIORITY_SIZE 3
+`define ENTRY_SIZE 41
+`define PEER_ID 40:27
+`define RPC_ID 26:13
+`define GRANTABLE 12:3
 `define PRIORITY 2:0
 `define PRIORITY_SIZE 3
+
 
 /* Indicies into header input */
 `define HEADER_SIZE 124
@@ -48,8 +57,8 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
    reg [`ENTRY_SIZE-1:0]		   srpt_queue[MAX_SRPT-1:0];
 
    // This is reg type but should not create a register. Like "logic" in SV.
-   reg [`ENTRY_SIZE-1:0]		   srpt_swap_even[MAX_SRPT-1:0];
-   reg [`ENTRY_SIZE-1:0]		   srpt_swap_odd[MAX_SRPT-1:0];
+   reg [`ENTRY_SIZE-1:0]		   srpt_swap_even[MAX_SRPT:0];
+   reg [`ENTRY_SIZE-1:0]		   srpt_swap_odd[MAX_SRPT:0];
 
    integer				   entry;
 
@@ -63,16 +72,54 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
     * every value at once, we could destroy data.
     */
    always @* begin
-      if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) ? 
-	  (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) : 
-	  (write[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
-	 srpt_swap_even[0] = srpt_queue[0];
-	 srpt_swap_even[1] = write;
-      end else begin
-	 srpt_swap_even[0] = write;
-	 srpt_swap_even[1] = srpt_queue[0];
-      end
 
+	 // TODO replace srpt entry-1 with write replace srpt_queue[entry] with 0
+
+      // If the priority differs or grantable bytes
+      if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
+	  ? (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
+	  : (write[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
+	 
+	 //srpt_swap_even[0][`MSG_LEN] = srpt_queue[0][`MSG_LEN];
+	 srpt_swap_even[0][`PEER_ID] = srpt_queue[0][`PEER_ID];
+	 srpt_swap_even[0][`RPC_ID] = srpt_queue[0][`RPC_ID];
+	 
+	 srpt_swap_even[1] = write;
+	 
+	 if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+	     (write[`RPC_ID] == srpt_queue[0][`RPC_ID]) &&
+	     (write[`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
+	    
+	    srpt_swap_even[0][`GRANTABLE] = write[`GRANTABLE];
+	    srpt_swap_even[0][`PRIORITY] = `SRPT_BLOCKED;
+	    
+	 end else if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+	    	      (write[`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
+	    srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+	    srpt_swap_even[0][`PRIORITY] = `SRPT_BLOCKED;
+	    
+	 end else if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+	    	      (write[`PRIORITY] == `SRPT_UNBLOCK)) begin
+	    srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+	    srpt_swap_even[0][`PRIORITY] = `SRPT_ACTIVE;
+	    
+	 end else if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+	    	      (write[`RPC_ID] == srpt_queue[0][`RPC_ID]) &&
+	    	      (write[`PRIORITY] == `SRPT_INVALIDATE)) begin
+	    srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+	    srpt_swap_even[0][`PRIORITY] = `SRPT_EMPTY;
+	 end else begin
+	    srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+	    srpt_swap_even[0][`PRIORITY] = srpt_queue[0][`PRIORITY];
+	 end
+	 
+      end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+	 srpt_swap_even[1] = srpt_queue[0];
+	 srpt_swap_even[0] = write;
+      end // else: !if((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+
+      srpt_swap_even[MAX_SRPT] = srpt_queue[MAX_SRPT-1];
+      
       /* 
        * This performs a swap and shift operation for two entries in the SRPT queue: srpt_queue[entry-1], srpt_queue[entry]
        * if the priority of srpt_queue[entry-1] is less then that of srpt_queue[entry] then we need to perform a swap
@@ -80,17 +127,17 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
        * if the priority does not differ, then use the number of grantable bytes instead
        * We use the same relation but the opposite result for srpt_swap[entry+1]
        */
-      for (entry = 2; entry < MAX_SRPT-2; entry=entry+2) begin
+      for (entry = 2; entry < MAX_SRPT; entry=entry+2) begin
 	 // If the priority differs or grantable bytes
-
 	 if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
 	   ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
 	   : (srpt_queue[entry-1][`GRANTABLE] > srpt_queue[entry][`GRANTABLE])) begin
 	    
-	    srpt_swap_even[entry][`MSG_LEN] = srpt_queue[entry][`MSG_LEN];
+	    //srpt_swap_even[entry][`MSG_LEN] = srpt_queue[entry][`MSG_LEN];
 	    srpt_swap_even[entry][`PEER_ID] = srpt_queue[entry][`PEER_ID];
 	    srpt_swap_even[entry][`RPC_ID] = srpt_queue[entry][`RPC_ID];
-
+	    
+	    //srpt_swap_even[entry] = srpt_queue[entry];
 	    srpt_swap_even[entry+1] = srpt_queue[entry-1];
 
 	    if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
@@ -102,22 +149,22 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 	       
 	    end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
 	    		 (srpt_queue[entry-1][`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
-	       
 	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
 	       srpt_swap_even[entry][`PRIORITY] = `SRPT_BLOCKED;
 	       
 	    end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
 	    		 (srpt_queue[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
-	        
 	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
 	       srpt_swap_even[entry][`PRIORITY] = `SRPT_ACTIVE;
 	       
 	    end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
 	    		 (srpt_queue[entry-1][`RPC_ID] == srpt_queue[entry][`RPC_ID]) &&
 	    		 (srpt_queue[entry-1][`PRIORITY] == `SRPT_INVALIDATE)) begin
-	       
 	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
 	       srpt_swap_even[entry][`PRIORITY] = `SRPT_EMPTY;
+	    end else begin
+	       srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
+	       srpt_swap_even[entry][`PRIORITY] = srpt_queue[entry][`PRIORITY];
 	    end
 
 	 end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
@@ -127,23 +174,26 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
       end
 
       srpt_swap_odd[0] = srpt_swap_even[0];
-      
-      for (entry = 2; entry < MAX_SRPT-2; entry=entry+2) begin
+      //srpt_swap_odd[0] = srpt_swap_even[MAX_SRPT];
+
+      //$display("ODD\n");
+
+      for (entry = 2; entry < MAX_SRPT+1; entry=entry+2) begin
 	 // If the priority differs or grantable bytes
 	 if ((srpt_swap_even[entry-1][`PRIORITY] != srpt_swap_even[entry][`PRIORITY]) 
 	   ? (srpt_swap_even[entry-1][`PRIORITY] < srpt_swap_even[entry][`PRIORITY]) 
 	   : (srpt_swap_even[entry-1][`GRANTABLE] > srpt_swap_even[entry][`GRANTABLE])) begin
 
 	    srpt_swap_odd[entry] = srpt_swap_even[entry-1];
-	    
-	    srpt_swap_odd[entry-1][`MSG_LEN] = srpt_swap_even[entry][`MSG_LEN];
+	    //srpt_swap_odd[entry-1] = srpt_swap_even[entry];
+	    //srpt_swap_odd[entry-1][`MSG_LEN] = srpt_swap_even[entry][`MSG_LEN];
 	    srpt_swap_odd[entry-1][`PEER_ID] = srpt_swap_even[entry][`PEER_ID];
 	    srpt_swap_odd[entry-1][`RPC_ID] = srpt_swap_even[entry][`RPC_ID];
 
 	    if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
 	    	(srpt_swap_even[entry-1][`RPC_ID] == srpt_swap_even[entry][`RPC_ID]) &&
 	    	(srpt_swap_even[entry-1][`PRIORITY] == `SRPT_UPDATE_BLOCK)) begin
-	        
+	       
 	       srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
 	       srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_BLOCKED;
 	       
@@ -165,7 +215,11 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 	       
 	       srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
 	       srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_EMPTY;
+	    end else begin
+	       srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
+	       srpt_swap_odd[entry-1][`PRIORITY] = srpt_swap_even[entry][`PRIORITY];
 	    end
+
 	 end else begin // if ((srpt_swap_even[entry-1][2:0] != srpt_swap_even[entry][2:0])...
 	    srpt_swap_odd[entry] = srpt_swap_even[entry];
 	    srpt_swap_odd[entry-1] = srpt_swap_even[entry-1];
@@ -181,10 +235,16 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 	 end
       end else if (ap_ce && ap_start) begin
 	 if (we) begin
-	    for (entry = 0; entry < MAX_SRPT-2; entry=entry+1) begin
+	    for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
 	       // If the priority differs or grantable bytes
 	       srpt_queue[entry] <= srpt_swap_odd[entry];
 	    end
+	 end else begin
+	    for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
+	       // If the priority differs or grantable bytes
+	       srpt_queue[entry] <= srpt_swap_odd[entry+1];
+	    end
+
 	 end
       end
    end // always @ (posedge ap_clk)
@@ -196,20 +256,20 @@ endmodule
  * 
  * TODO this needs to handle OOO packets (how does that effect SRPT entry creation?).
  * TODO this needs to consider duplicate packets (can't just increment recv bytes?).
+ * TODO need upper bound on number of grantable bytes at any given point
  * The packet map core may need to be involved somehow
  */
-module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
-		       input			    header_in_empty_i,
-		       output reg		    header_in_read_en_o,
-		       input [`HEADER_SIZE-1:0]	    header_in_data_i,
-		       input			    grant_pkt_full_o,
-		       output reg		    grant_pkt_write_en_o,
-		       output reg [`ENTRY_SIZE-1:0] grant_pkt_data_o,
-		       output			    ap_idle, ap_done, ap_ready);
+module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
+			  parameter MAX_OVERCOMMIT_LOG2 = 3)
+   (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
+    input			 header_in_empty_i,
+    output reg			 header_in_read_en_o,
+    input [`HEADER_SIZE-1:0]	 header_in_data_i,
+    input			 grant_pkt_full_o,
+    output reg			 grant_pkt_write_en_o,
+    output reg [`ENTRY_SIZE-1:0] grant_pkt_data_o, 
+    output			 ap_idle, ap_done, ap_ready);
    
-   parameter			 MAX_OVERCOMMIT = 8;
-   parameter			 MAX_OVERCOMMIT_LOG2 = 3;
-
    reg [`ENTRY_SIZE-1:0]			    active_set[MAX_OVERCOMMIT-1:0];
 
    reg						    we;
@@ -294,9 +354,10 @@ module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
 	    rpc_match = rpc_match;
 	 end
 	
+	// TODO also check whether the queue head is SRPT_ACTIVE
 	 // Is the entry in the active set empty, and so, should it be filled and a GRANT packet sent?
-	 if (active_set[j][`PRIORITY] == `SRPT_EMPTY && next_active_en == 1'b0) begin
-	    next_active = j[MAX_OVERCOMMIT_LOG2-1:0];
+	 if (active_set[i][`PRIORITY] == `SRPT_EMPTY && read[i][`PRIORITY] == `SRPT_ACTIVE && next_active_en == 1'b0) begin
+	    next_active = i[MAX_OVERCOMMIT_LOG2-1:0];
 	    next_active_en = 1'b1;
 	 end else begin
 	    next_active = next_active;
@@ -309,16 +370,18 @@ module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
 
       // Is there new incoming DATA packets we should process?
       if (!header_in_empty_i) begin
-	 
+	 $display("READ HEADER");
 	 // If the message length is less than or equal to the incoming bytes, we would have nothing to do here
-	 if (header_in_data_i[`HDR_MSG_LEN] <= header_in_data_i[`HDR_INCOMING]) begin
-	    
+	 if (header_in_data_i[`HDR_MSG_LEN] > header_in_data_i[`HDR_INCOMING]) begin
+	    $display("NEEDS GRANTS");
+
 	    // It is the first unscheduled packet that creates the entry in the SRPT queue.
 	    if (header_in_data_i[`HDR_OFFSET] == 0) begin
+	       $display("PACKET 0");
 	       
 	       // Is the new header's peer already in the active set?
 	       if (peer_match != {MAX_OVERCOMMIT_LOG2{1'b1}}) begin
-
+		  $display("PEER MATCH");
 		  /*
 		   * If the new header's peer is in the active set:
 		   *   1) Insert the entry in a blocked state into all queues associated with active set entries that did not match
@@ -329,6 +392,8 @@ module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
 		     priorities[i] = (peer_match == i[MAX_OVERCOMMIT_LOG2-1:0]) ? `SRPT_ACTIVE : `SRPT_BLOCKED;
 		  end
 	       end else begin // if (peer_match != {MAX_OVERCOMMIT{1'b1}})
+		  $display("NO PEER MATCH");
+		  
 		  // If the peer is not actively granted to that means the incoming header immediately eligible on all slots
 		  for (i = 0; i < MAX_OVERCOMMIT; i=i+1) begin
 		     // TODO is there a type issue here?
@@ -341,7 +406,8 @@ module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
 	    // A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
 	    end else begin // if (header_in_data_i[HDR_OFFSET] == 0)
 	       // TODO increment the recv bytes by segment length (or really set a flag so it can be done at posedge)
-
+	       $display("GENERAL DATA PACKET");
+	       
 	       // Did we just receive data from an RPC within our active set? If so, bump it to the queues.
 	       if (peer_match != -1 && rpc_match != -1) begin
 		  // If the message has no more bytes to grant, then remove it from this core entirely
@@ -367,7 +433,7 @@ module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
 
 	 // This configures pure messages as well as actual entries
 	 for (i = 0; i < MAX_OVERCOMMIT; i = i + 1) begin
-	    write[i] = {header_in_data_i[`HDR_MSG_LEN], 
+	    write[i] = {// header_in_data_i[`HDR_MSG_LEN], 
 			header_in_data_i[`HDR_PEER_ID], 
 			header_in_data_i[`HDR_RPC_ID], 
 			header_in_data_i[`HDR_MSG_LEN] - header_in_data_i[`HDR_INCOMING], 
@@ -377,13 +443,19 @@ module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
 	 // We want to write this new data to the SRPT queue
 	 we = 1'b1;
       // Is there room on our output FIFO for data, and do we have space to send another grant?
-      end else if (!grant_pkt_full_o && next_active_en == 1'b1) begin // if (!header_in_empty_i)
+      end else if (!grant_pkt_full_o && next_active_en == 1'b1) begin
+	 $display("LAUNCHING PACKET");
+	 $display($time);
+
+      
 	 // Is the queue empty/stable
-	 if (read[next_active][`PRIORITY] != `SRPT_ACTIVE) begin
+	 if (read[next_active][`PRIORITY] == `SRPT_ACTIVE) begin
+	       $display("SLOT IS OPEN");
+
 	    priorities[next_active] = `SRPT_UPDATE;
 
 	    for (i = 0; i < MAX_OVERCOMMIT; i=i+1) begin
-	       if (next_active == i[MAX_OVERCOMMIT_LOG2-1:0]) begin 
+	       if (next_active != i[MAX_OVERCOMMIT_LOG2-1:0]) begin 
 		  priorities[i] = `SRPT_UPDATE_BLOCK;
 	       end
 	    end
@@ -392,10 +464,11 @@ module srpt_grant_pkts(input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
 	 // Configure messages for every queue 
 	 for (i = 0; i < MAX_OVERCOMMIT; i = i + 1) begin
 	    // Send updates or update block requests with new grantable value
-	    write[i] = {read[next_active][`MSG_LEN],
+	    write[i] = {// read[next_active][`MSG_LEN],
 			read[next_active][`PEER_ID],
 			read[next_active][`RPC_ID],
-			read[next_active][`GRANTABLE] - 1000,// TODO minus RECV BYTES, which should be stored alongside? Ideally not in a BRAM..
+			read[next_active][`GRANTABLE],// TODO minus RECV BYTES, which should be stored alongside? Ideally not in a BRAM..
+			//read[next_active][`GRANTABLE] - 1000,// TODO minus RECV BYTES, which should be stored alongside? Ideally not in a BRAM..
 			priorities[i]};
 	 end
 

@@ -1,9 +1,9 @@
 {
-	"c_function_name":"srpt_grant_queue_test",
-	"rtl_top_module_name":"srpt_grant_queue",
+	"c_function_name":"srpt_grant_pkts",
+	"rtl_top_module_name":"srpt_grant_pkts",
 	"c_files":[
 		{
-			"c_file":"src/srpt_grant_queue.cc",
+			"c_file":"src/srptmgmt.hh",
 			"cflag":""
 		}
 	],
@@ -12,7 +12,7 @@
 	],
 	"c_parameters":[
 		{
-			"c_name":"in",
+			"c_name":"header_in_i",
 			"c_port_direction":"in",
 			"rtl_ports":{
 				"FIFO_empty_flag":"header_in_empty_i",
@@ -21,7 +21,7 @@
 			}
 		},
 		{
-			"c_name":"out",
+			"c_name":"grant_pkt_o",
 			"c_port_direction":"out",
 			"rtl_ports":{
 				"FIFO_full_flag":"grant_pkt_full_o",
