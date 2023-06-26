@@ -29,22 +29,20 @@
 
 
 /* Indicies into header input */
-`define HEADER_SIZE 124
-`define HDR_PEER_ID 123:110
-`define HDR_RPC_ID 109:96
-`define HDR_MSG_LEN 95:64
-`define HDR_INCOMING 63:32
+//`define HEADER_SIZE 124
+`define HEADER_SIZE 80
+`define HDR_PEER_ID 79:66
+`define HDR_RPC_ID 65:52
+`define HDR_MSG_LEN 51:42
+`define HDR_INCOMING 41:32
 `define HDR_OFFSET 31:0
-
-// TODO maybe allow stealing of entries so long as the peers of those stolen entries are not in the active set?
-// TODO need some general ordering operations that can be done when idle (or does not have room to write)
 
 /**
  * 
  * 
  * 
  */
-module srpt_queue #(parameter MAX_SRPT = 1024)
+module srpt_queue #(parameter MAX_SRPT = 128)
    (input ap_clk,
     input		     ap_rst,
     input		     ap_ce,
@@ -79,6 +77,10 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
       if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
 	  ? (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
 	  : (write[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
+
+	 // simple swap
+	 //srpt_swap_even[0] = srpt_queue[0];
+	 //srpt_swap_even[1] = write;
 	 
 	 //srpt_swap_even[0][`MSG_LEN] = srpt_queue[0][`MSG_LEN];
 	 srpt_swap_even[0][`PEER_ID] = srpt_queue[0][`PEER_ID];
@@ -132,6 +134,10 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 	 if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
 	   ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
 	   : (srpt_queue[entry-1][`GRANTABLE] > srpt_queue[entry][`GRANTABLE])) begin
+
+	    // Simple swap
+	    //srpt_swap_even[entry] = srpt_queue[entry];
+	    //srpt_swap_even[entry+1] = srpt_queue[entry-1];
 	    
 	    //srpt_swap_even[entry][`MSG_LEN] = srpt_queue[entry][`MSG_LEN];
 	    srpt_swap_even[entry][`PEER_ID] = srpt_queue[entry][`PEER_ID];
@@ -184,6 +190,10 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 	   ? (srpt_swap_even[entry-1][`PRIORITY] < srpt_swap_even[entry][`PRIORITY]) 
 	   : (srpt_swap_even[entry-1][`GRANTABLE] > srpt_swap_even[entry][`GRANTABLE])) begin
 
+	    // simple swap
+	    //srpt_swap_odd[entry] = srpt_swap_even[entry-1];
+	    //srpt_swap_odd[entry-1] = srpt_swap_even[entry];
+	    
 	    srpt_swap_odd[entry] = srpt_swap_even[entry-1];
 	    //srpt_swap_odd[entry-1] = srpt_swap_even[entry];
 	    //srpt_swap_odd[entry-1][`MSG_LEN] = srpt_swap_even[entry][`MSG_LEN];
@@ -260,7 +270,7 @@ endmodule
  * The packet map core may need to be involved somehow
  */
 module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
-			  parameter MAX_OVERCOMMIT_LOG2 = 3)
+			 parameter MAX_OVERCOMMIT_LOG2 = 3)
    (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
     input			 header_in_empty_i,
     output reg			 header_in_read_en_o,
@@ -289,10 +299,10 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 			 .write(write[queue]),
 			 .we(we),
 			 .read(read[queue]));
-	 end
+      end
    endgenerate
   
-   // TODO move this information to the RPC STATE????
+   // TODO This needs to be local 
    //reg [31:0]			      recv_bytes[NUM_RPCS];
 
    // These are reg types and NOT actual registers
