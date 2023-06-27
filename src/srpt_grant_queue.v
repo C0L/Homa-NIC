@@ -37,13 +37,25 @@
 `define HDR_INCOMING 41:32
 `define HDR_OFFSET 31:0
 
+/*
+ * 2D systolic array
+ * Each entry can either pull from the upper, lower, or horizontal entry
+ * 
+ * Two arrays, of 1024 elements
+ * 
+ * Only pull new elements to send from the head of the left queue
+ * 
+ * When a peer becomes in use, we broadcast that to all the elements, causing all
+ * RPCs of the same peer to be shifted to the right queue
+ */
+
 /**
  * 
  * 
  * 
  */
-module srpt_queue #(parameter MAX_SRPT = 128)
-   (input ap_clk,
+module srpt_queue #(parameter MAX_SRPT = 1024)
+   (input                    ap_clk,
     input		     ap_rst,
     input		     ap_ce,
     input		     ap_start,
@@ -70,8 +82,6 @@ module srpt_queue #(parameter MAX_SRPT = 128)
     * every value at once, we could destroy data.
     */
    always @* begin
-
-	 // TODO replace srpt entry-1 with write replace srpt_queue[entry] with 0
 
       // If the priority differs or grantable bytes
       if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
