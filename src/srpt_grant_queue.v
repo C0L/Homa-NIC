@@ -58,66 +58,223 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
     input                    ap_ce,
     input                    ap_start,
     input [`ENTRY_SIZE-1:0]  write,
+    input                    write_en,
     input [`ENTRY_SIZE-1:0]  forward,
     input                    forward_en,
-    input                    we,
     output [`ENTRY_SIZE-1:0] read);
 
    // These will be actual registers
    reg [`ENTRY_SIZE-1:0]     srpt_queue[MAX_SRPT-1:0];
 
    // This is reg type but should not create a register. Like "logic" in SV.
-   reg [`ENTRY_SIZE-1:0]     srpt_swap_even[MAX_SRPT:0];
-   reg [`ENTRY_SIZE-1:0]     srpt_swap_odd[MAX_SRPT:0];
+   reg [`ENTRY_SIZE-1:0]     swap_odd[MAX_SRPT:0]; // swap_even
+   reg [`ENTRY_SIZE-1:0]     swap_even[MAX_SRPT:0]; // swap_odd
+
+   reg                       swap_type;
 
    integer                   entry;
 
    assign read = srpt_queue[0];
 
-   /* 
-    * This will create a bus of wires, srpt_swap, which is what the SRPT queue 
-    * will look like if we were to perform a swap with the even entries. 
-    * The even entries means we compare and swap 0 <-> 1, 2<->3, 4<->5. These 
-    * values will not actually modify the state of the queue. They are 
-    * just used for the next swap operation, which compares the odd entries. 
-    * We have to do this as a two step process because it is possible there 
-    * is an entry which has a lower priority entry below it, and a higher priority 
-    * entry above it. If swaps were happened at the same time between 
-    * every value at once, we could destroy data.
-    */
-   always @* begin
 
-      // TODO need to replace comparator, and need to alternative between even
-      // and odd swaperations
+   /* Cases:
+    * write_en and forward_en are low so we just SRPT on the existing data in
+    * the core, alternating between even and odd swaps.
+    *
+    * write_en is enabled, so we do an even swap/push and restore the data
+    *
+    * forward_en is enabled, so we perform an odd swap bridging the boundary
+    * between the two cores. We can just set the 0th entry in this queue
+    * directly with the forward value, as the active queue will be taking the
+    * value coming from read
+    */
+
+   /*
+    * Active queue -> Main queue
+    * SRPT_QUEUE:               6 : 7 : 8 : 0 : 1 : 2 : 3 :
+    * write_en/forward_en = 0:  6 : 7 : 8 | 0 : 1 | 2 : 3 |       {(bottom_even), (srpt_even)}
+    *                           6 : 7 : 8 : 0 | 1 : 2 | 3 :       {(srpt_queue[0]), (srpt_odd)}
+    * write_en = 1:             6 : 7 : 8 | N : 0 | 1 : 2 |       {(srpt_odd)}
+    * forward_en = 1:           6 : 7 | 8 : 0 | 1 : 2 | 3 :       {(forward), (srpt_odd)}
+    * write_en/forward_en = 1:  6 : 7 | 8 : (N) : 0 | 1 : 2 | 3 : {(write), (forward) (srpt_odd)}
+   */
+
+   always @* begin
+   
+      if (write_en) begin
+         if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
+            ? (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
+            : (write[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
+
+            srpt_odd[0] = srpt_queue[0];
+            srpt_odd[1] = write;
+
+         end else begin
+            srpt_odd[1] = srpt_queue[0];
+            srpt_odd[0] = write;
+         end 
+
+      else begin
+         srpt_odd[1] = srpt_queue[0];
+      end
+
+      // Compute srpt_odd
+      for (entry = 2; entry < MAX_SRPT; entry=entry+2) begin
+
+         // If the priority differs or grantable bytes
+         if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
+             ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
+             : (srpt_queue[entry-1][`GRANTABLE] > srpt_queue[entry][`GRANTABLE])) begin
+
+            //srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
+            //srpt_swap_even[entry][`PEER_ID] = srpt_queue[entry][`PEER_ID];
+            //srpt_swap_even[entry][`RPC_ID] = srpt_queue[entry][`RPC_ID];
+
+            srpt_odd[entry] = srpt_queue[entry];
+            srpt_odd[entry+1] = srpt_queue[entry-1];
+
+            //if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+            //    (srpt_queue[entry-1][`PRIORITY] == `SRPT_BLOCK)) begin
+
+            //   srpt_swap_even[entry][`PRIORITY] = `SRPT_BLOCKED;
+
+            //end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+            //             (srpt_queue[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
+
+            //   srpt_swap_even[entry][`PRIORITY] = `SRPT_ACTIVE;
+
+            //end 
+         end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+            swap_odd[entry+1] = srpt_queue[entry];
+            swap_odd[entry] = srpt_queue[entry-1];
+         end // else: !if((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+      end
+
+
+      // Compute srpt_even
+      for (entry = 1; entry < MAX_SRPT; entry=entry+2) begin
+
+         // If the priority differs or grantable bytes
+         if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
+             ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
+             : (srpt_queue[entry-1][`GRANTABLE] > srpt_queue[entry][`GRANTABLE])) begin
+
+            //srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
+            //srpt_swap_even[entry][`PEER_ID] = srpt_queue[entry][`PEER_ID];
+            //srpt_swap_even[entry][`RPC_ID] = srpt_queue[entry][`RPC_ID];
+
+            srpt_even[entry] = srpt_queue[entry];
+            srpt_even[entry+1] = srpt_queue[entry-1];
+
+            //if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+            //    (srpt_queue[entry-1][`PRIORITY] == `SRPT_BLOCK)) begin
+
+            //   srpt_swap_even[entry][`PRIORITY] = `SRPT_BLOCKED;
+
+            //end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
+            //             (srpt_queue[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
+
+            //   srpt_swap_even[entry][`PRIORITY] = `SRPT_ACTIVE;
+
+            //end 
+         end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+            swap_even[entry+1] = srpt_queue[entry];
+            swap_even[entry] = srpt_queue[entry-1];
+         end // else: !if((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+      end
+
+
+      // TODO need to replace comparator, and need to alternate between even
+      // and odd swaps (unless we are pushing an element?)
+     
+
+      // Compute the lower elements in the case of insert only
+      //if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
+      //   ? (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
+      //   : (write[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
+
+      //   //srpt_swap_even[0][`PEER_ID] = srpt_queue[0][`PEER_ID];
+      //   //srpt_swap_even[0][`RPC_ID] = srpt_queue[0][`RPC_ID];
+      //   //srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+   
+      //   bottom_insert[0] = srpt_queue[0];
+      //   bottom_insert[1] = write;
+
+      //   //if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+      //   //    (write[`PRIORITY] == `SRPT_BLOCK)) begin
+
+      //   //   srpt_swap_even[0][`PRIORITY] = `SRPT_BLOCKED;
+
+      //   //end else if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+      //   //             (write[`PRIORITY] == `SRPT_UNBLOCK)) begin
+
+      //   //   srpt_swap_even[0][`PRIORITY] = `SRPT_ACTIVE;
+
+      //   //end 
+      //end else begin
+      //   bottom_insert[1] = srpt_queue[0];
+      //   bottom_insert[0] = write;
+      //end 
+
+      //if ((forward[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
+      //  ? (forward[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
+      //  : (forward[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
+
+      //   //srpt_swap_even[0][`PEER_ID] = srpt_queue[0][`PEER_ID];
+      //   //srpt_swap_even[0][`RPC_ID] = srpt_queue[0][`RPC_ID];
+      //   //srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+   
+      //   bottom_forward[0] = srpt_queue[0];
+      //   bottom_forward[1] = forward;
+
+      //   //if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+      //   //    (write[`PRIORITY] == `SRPT_BLOCK)) begin
+
+      //   //   srpt_swap_even[0][`PRIORITY] = `SRPT_BLOCKED;
+
+      //   //end else if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+      //   //             (write[`PRIORITY] == `SRPT_UNBLOCK)) begin
+
+      //   //   srpt_swap_even[0][`PRIORITY] = `SRPT_ACTIVE;
+
+      //   //end 
+      //end else begin
+      //   bottom_forward[1] = srpt_queue[0];
+      //   bottom_forward[0] = write;
+      //end 
+
+
+
       
       // If the priority differs or grantable bytes
-      if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
-          ? (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
-          : (write[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
+      //if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
+      //  ? (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
+      //  : (write[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
 
-         srpt_swap_even[0][`PEER_ID] = srpt_queue[0][`PEER_ID];
-         srpt_swap_even[0][`RPC_ID] = srpt_queue[0][`RPC_ID];
-         srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+      //   //srpt_swap_even[0][`PEER_ID] = srpt_queue[0][`PEER_ID];
+      //   //srpt_swap_even[0][`RPC_ID] = srpt_queue[0][`RPC_ID];
+      //   //srpt_swap_even[0][`GRANTABLE] = srpt_queue[0][`GRANTABLE];
+      //   
+      //   srpt_insert[0] = srpt_queue[0];
+      //   srpt_insert[1] = write;
 
-         srpt_swap_even[1] = write;
+      //   //if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+      //   //    (write[`PRIORITY] == `SRPT_BLOCK)) begin
 
-         if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
-             (write[`PRIORITY] == `SRPT_BLOCK)) begin
+      //   //   srpt_swap_even[0][`PRIORITY] = `SRPT_BLOCKED;
 
-            srpt_swap_even[0][`PRIORITY] = `SRPT_BLOCKED;
+      //   //end else if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
+      //   //             (write[`PRIORITY] == `SRPT_UNBLOCK)) begin
 
-         end else if ((write[`PEER_ID] == srpt_queue[0][`PEER_ID]) && 
-                      (write[`PRIORITY] == `SRPT_UNBLOCK)) begin
+      //   //   srpt_swap_even[0][`PRIORITY] = `SRPT_ACTIVE;
 
-            srpt_swap_even[0][`PRIORITY] = `SRPT_ACTIVE;
+      //   //end 
+      //end else begin
+      //   srpt_insert[1] = srpt_queue[0];
+      //   srpt_insert[0] = write;
+      //end 
 
-         end 
-      end else begin
-         srpt_swap_even[1] = srpt_queue[0];
-         srpt_swap_even[0] = write;
-      end 
-
-      srpt_swap_even[MAX_SRPT] = srpt_queue[MAX_SRPT-1];
+      //srpt_insert[MAX_SRPT] = srpt_queue[MAX_SRPT-1];
 
       /* 
        * This performs a swap and shift operation for two entries in the 
@@ -129,85 +286,99 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
        * of grantable bytes instead. We use the same relation but the opposite 
        * result for srpt_swap[entry+1].
        */
-      for (entry = 2; entry < MAX_SRPT; entry=entry+2) begin
 
-         // If the priority differs or grantable bytes
-         if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
-             ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
-             : (srpt_queue[entry-1][`GRANTABLE] > srpt_queue[entry][`GRANTABLE])) begin
 
-            srpt_swap_even[entry][`GRANTABLE] = srpt_queue[entry][`GRANTABLE];
-            srpt_swap_even[entry][`PEER_ID] = srpt_queue[entry][`PEER_ID];
-            srpt_swap_even[entry][`RPC_ID] = srpt_queue[entry][`RPC_ID];
+      // If the priority differs or grantable bytes
+      //if ((forward[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
+      //    ? (forward[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
+      //    : (forward[`GRANTABLE] > srpt_queue[0][`GRANTABLE])) begin
+      //   srpt_bridge[0] = srpt_queue[0];
+      //end else begin
+      //   srpt_bridge[0] = write;
+      //end 
 
-            srpt_swap_even[entry+1] = srpt_queue[entry-1];
+      // srpt_bridge[0] is replaced by forward in the case of forward_en being
+      // high
 
-            if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
-                (srpt_queue[entry-1][`PRIORITY] == `SRPT_BLOCK)) begin
+      //for (entry = 2; entry < MAX_SRPT+1; entry=entry+2) begin
+      //   // If the priority differs or grantable bytes
+      //   if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
+      //     ? (srpt_queue[entry-1][`PRIORITY] <  srpt_queue[entry][`PRIORITY]) 
+      //     : (srpt_queue[entry-1][`GRANTABLE] > srpt_queue[entry][`GRANTABLE])) begin
 
-               srpt_swap_even[entry][`PRIORITY] = `SRPT_BLOCKED;
+      //      srpt_bridge[entry-1] = srpt_queue[entry];
+      //      srpt_bridge[entry] = srpt_queue[entry-1];
 
-            end else if ((srpt_queue[entry-1][`PEER_ID] == srpt_queue[entry][`PEER_ID]) && 
-                         (srpt_queue[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
+      //      //srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
+      //      //srpt_swap_odd[entry-1][`PEER_ID] = srpt_swap_even[entry][`PEER_ID];
+      //      //srpt_swap_odd[entry-1][`RPC_ID] = srpt_swap_even[entry][`RPC_ID];
 
-               srpt_swap_even[entry][`PRIORITY] = `SRPT_ACTIVE;
+      //      //if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
+      //      //    (srpt_swap_even[entry-1][`PRIORITY] == `SRPT_BLOCK)) begin
 
-            end 
-         end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
-            srpt_swap_even[entry+1] = srpt_queue[entry];
-            srpt_swap_even[entry] = srpt_queue[entry-1];
-         end // else: !if((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
-      end
+      //      //   srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_BLOCKED;
 
-      srpt_swap_odd[0] = srpt_swap_even[0];
+      //      //end else if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
+      //      //             (srpt_swap_even[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
 
-      for (entry = 2; entry < MAX_SRPT+1; entry=entry+2) begin
-         // If the priority differs or grantable bytes
-         if ((srpt_swap_even[entry-1][`PRIORITY] != srpt_swap_even[entry][`PRIORITY]) 
-             ? (srpt_swap_even[entry-1][`PRIORITY] < srpt_swap_even[entry][`PRIORITY]) 
-             : (srpt_swap_even[entry-1][`GRANTABLE] > srpt_swap_even[entry][`GRANTABLE])) begin
+      //      //   srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_ACTIVE;
 
-            srpt_swap_odd[entry] = srpt_swap_even[entry-1];
-
-            srpt_swap_odd[entry-1][`GRANTABLE] = srpt_swap_even[entry][`GRANTABLE];
-            srpt_swap_odd[entry-1][`PEER_ID] = srpt_swap_even[entry][`PEER_ID];
-            srpt_swap_odd[entry-1][`RPC_ID] = srpt_swap_even[entry][`RPC_ID];
-
-            if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
-                (srpt_swap_even[entry-1][`PRIORITY] == `SRPT_BLOCK)) begin
-
-               srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_BLOCKED;
-
-            end else if ((srpt_swap_even[entry-1][`PEER_ID] == srpt_swap_even[entry][`PEER_ID]) && 
-                         (srpt_swap_even[entry-1][`PRIORITY] == `SRPT_UNBLOCK)) begin
-
-               srpt_swap_odd[entry-1][`PRIORITY] = `SRPT_ACTIVE;
-
-            end 
-         end else begin // if ((srpt_swap_even[entry-1][`PRIORITY] != srpt_swap_even[entry][`PRIORITY])...
-            srpt_swap_odd[entry] = srpt_swap_even[entry];
-            srpt_swap_odd[entry-1] = srpt_swap_even[entry-1];
-         end
-      end
+      //      //end 
+      //   end else begin // if ((srpt_swap_even[entry-1][`PRIORITY] != srpt_swap_even[entry][`PRIORITY])...
+      //      srpt_bridge[entry] = srpt_queue[entry];
+      //      srpt_bridge[entry-1] = srpt_queue[entry-1];
+      //   end
+      //end
    end
 
    integer                       rst_entry;
    always @(posedge ap_clk) begin
       if (ap_rst) begin
+         swap_type = 1'b0;
          for (rst_entry = 0; rst_entry < MAX_SRPT; rst_entry=rst_entry+1) begin
             srpt_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
          end
       end else if (ap_ce && ap_start) begin
-         if (we) begin
-            // Push and order
-            for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
-               srpt_queue[entry] <= srpt_swap_odd[entry];
+
+
+   /*
+    * Active queue -> Main queue
+    * SRPT_QUEUE:               6 : 7 : 8 : 0 : 1 : 2 : 3 :
+    * write_en/forward_en = 0:  6 : 7 : 8 | 0 : 1 | 2 : 3 |       {(srpt_even)}
+    *                           6 : 7 : 8 : 0 | 1 : 2 | 3 :       {(srpt_queue[0]), (srpt_odd)}
+    * write_en = 1:             6 : 7 : 8 | N : 0 | 1 : 2 |       {(srpt_odd)}
+    * forward_en = 1:           6 : 7 | 8 : 0 | 1 : 2 | 3 :       {(forward), (srpt_odd)}
+    * write_en/forward_en = 1:  6 : 7 | 8 : (N) : 0 | 1 : 2 | 3 : {(write), (forward) (srpt_odd)}
+   */
+   
+         if (write_en == 1'b0 && forward_en == 1'b0) begin
+            if (swap_type == 1'b0) begin
+               // Assumes that write does not keep data around
+               for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
+                  srpt_queue[entry] <= srpt_even[entry+1];
+               end
+              
+               swap_type <= 1'b1;
+            end else begin
+               for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
+                  srpt_queue[entry] <= srpt_odd[entry-1];
+               end
+               swap_type <= 1'b0;
             end
-         end else begin
-            // Order only
+         end else if (write_en == 1'b1 && forward_en == 1'b0) begin
             for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
-               // If the priority differs or grantable bytes
-               srpt_queue[entry] <= srpt_swap_odd[entry+1];
+               srpt_queue[entry] <= srpt_odd[entry];
+            end
+         end else if (write_en == 1'b0 && forward_en == 1'b1) begin
+            srpt_queue[0] = forward;
+            for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
+               srpt_queue[entry] <= srpt_odd[entry-1];
+            end
+         end else if (write_en == 1'b1 && forward_en == 1'b1) begin
+            srpt_queue[0] = write;
+            srpt_queue[1] = forward;
+            for (entry = 2; entry < MAX_SRPT; entry=entry+1) begin
+               srpt_queue[entry] <= srpt_odd[entry-1];
             end
          end
       end
@@ -232,27 +403,32 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
     output reg [`ENTRY_SIZE-1:0] grant_pkt_data_o, 
     output                       ap_idle, ap_done, ap_ready);
 
-   reg                           main_queue_we;
-   reg                           active_queue_we;
+   reg                           main_queue_en;
+   reg                           active_queue_en;
+
+   reg                           forward_en;
 
    wire [`ENTRY_SIZE-1:0]        main_queue_read;
    reg [`ENTRY_SIZE-1:0]         main_queue_write;
    reg [`ENTRY_SIZE-1:0]         active_queue_write; 
+   wire [`ENTRY_SIZE-1:0]        active_queue_forward; 
 
-   // TODO need an input port for the head of the active queue in the case
-   // where we are not inserting a new element
-   
    /* Main queue */
    srpt_queue main_queue(.ap_clk(ap_clk), 
                          .ap_rst(ap_rst), 
                          .ap_ce(ap_ce), 
                          .ap_start(ap_start), 
-                         .write(write),
-                         .we(we),
-                         .read(read));
+                         .write(main_queue_write),
+                         .write_en(main_queue_we),
+                         .forward_en(forward_en),
+                         .read(main_queue_read));
 
    /* Active entries */
    reg [`ENTRY_SIZE-1:0]         active_queue[MAX_OVERCOMMIT-1:0];
+
+   reg                           swap_type;
+
+   assign active_queue_forward = active_queue[MAX_OVERCOMMIT-1];
 
    // These are reg types and NOT actual registers
    reg [MAX_OVERCOMMIT_LOG2-1:0] peer_match;   // Does the incoming header match on an entry in active set
@@ -263,7 +439,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    reg                           peer_match_en;
    reg                           rpc_match_en;
    // reg                           next_active_en;
-   / /reg                           clear_active_en;
+   //reg                           clear_active_en;
 
    integer                       i;
 
@@ -293,7 +469,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       // Check every entry in the active set
       for (i = 0; i < MAX_OVERCOMMIT; i=i+1) begin
          // Does the new header have the same peer as the entry in the active set
-         if (header_in_data_i[`HDR_PEER_ID] == active_set[i][`PEER_ID] && peer_match_en == 1'b0) begin
+         if (header_in_data_i[`HDR_PEER_ID] == active_queue[i][`PEER_ID] && peer_match_en == 1'b0) begin
             peer_match = i[MAX_OVERCOMMIT_LOG2-1:0];
             peer_match_en = 1'b1;
          end else begin
@@ -301,7 +477,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
          end 
          
          // Does the new header have the same RPC ID as the entry in the active set
-         if (header_in_data_i[`HDR_RPC_ID] == active_set[i][`RPC_ID] && rpc_match_en == 1'b0) begin
+         if (header_in_data_i[`HDR_RPC_ID] == active_queue[i][`RPC_ID] && rpc_match_en == 1'b0) begin
             rpc_match = i[MAX_OVERCOMMIT_LOG2-1:0];
             rpc_match_en = 1'b1;
          end else begin
@@ -412,37 +588,41 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       //end
    end
 
+   integer rst_entry;
+
    always @(posedge ap_clk) begin
       if (ap_rst) begin
          grant_pkt_data_o <= {`ENTRY_SIZE{1'b0}};
          grant_pkt_write_en_o <= 1'b0;
          header_in_read_en_o <= 1'b0;
 
-      for (i = 0; i < MAX_OVERCOMMIT; i=i+1) begin
-         active_set[i] = {{(`ENTRY_SIZE - 3){1'b0}}, `SRPT_EMPTY};
-      end
-   end else if (ap_ce && ap_start) begin // if (ap_rst)
-      // Is there data on the input stream, and is there room on the output stream
-      if (!header_in_empty_i) begin
-         // Read the data into the first stage, and acknowledge the data was read
-         header_in_read_en_o <= 1;
-
-         if (clear_active_en) begin
-            active_set[clear_active][`PRIORITY] = `SRPT_EMPTY;
+         swap_type = 1'b0;
+         for (rst_entry = 0; rst_entry < MAX_SRPT; rst_entry=rst_entry+1) begin
+            active_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
          end
 
-         // We did NOT write a grant packet header this cycle
-         grant_pkt_write_en_o <= 0;
-         // Is there an open active set entry, does that entry's queue have a value ready
-      end else if (!grant_pkt_full_o && next_active_en == 1'b1) begin // if (!header_in_empty_i)
-         grant_pkt_data_o <= read[next_active];
-         active_set[next_active] <= read[next_active];
-         grant_pkt_write_en_o <= 1;
+      end else if (ap_ce && ap_start) begin // if (ap_rst)
+      // Is there data on the input stream, and is there room on the output stream
+      //if (!header_in_empty_i) begin
+      //   // Read the data into the first stage, and acknowledge the data was read
+      //   header_in_read_en_o <= 1;
 
-         // We did NOT read a input header this cycle
-         header_in_read_en_o <= 0;
-      end
-   end // if (ap_ce && ap_start)
+      //   if (clear_active_en) begin
+      //      active_set[clear_active][`PRIORITY] = `SRPT_EMPTY;
+      //   end
+
+      //   // We did NOT write a grant packet header this cycle
+      //   grant_pkt_write_en_o <= 0;
+      //   // Is there an open active set entry, does that entry's queue have a value ready
+      //end else if (!grant_pkt_full_o && next_active_en == 1'b1) begin // if (!header_in_empty_i)
+      //   grant_pkt_data_o <= read[next_active];
+      //   active_set[next_active] <= read[next_active];
+      //   grant_pkt_write_en_o <= 1;
+
+      //   // We did NOT read a input header this cycle
+      //   header_in_read_en_o <= 0;
+      //end
+      end // if (ap_ce && ap_start)
    end // always @ (posedge ap_clk)
 
    assign ap_ready = 1;
