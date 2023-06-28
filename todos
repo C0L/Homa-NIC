@@ -25,8 +25,11 @@ How does ethernet mac subsytem handle the empty chunks in the last packet chunk?
 
 Timer core needs to be looped in
 
-Grant packets need to feed to SRPT queue
-
 ACKs need to be sent
 
-Where do unscheduled data bytes go? Where should we place data in DMA that we did not request?
+Defficiencies of the SRPT queue:
+  - Large 1024 cycle recovery time in the event of a wakeup
+  - Is based on grantable bytes rather than the remaining bytes to grant. Basing off of remaining bytes to grant would require updating the elements as they are in the queue
+    The problem here is that the best options coming from the queue will not reflect the changing desirability of granting to packets based on whether we have recieved data
+
+The grant srpt queue should update its recv bytes based on NEW data. Not duplicates. This probably requires visiting the timer core.

@@ -1,2 +1,4 @@
 vitis_hls.log
 homa
+.*
+!.gitignore
