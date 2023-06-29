@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module srpt_grant_queue_test ();
+module srpt_grant_queue_tb();
 
 reg ap_clk=0;
 reg ap_rst;
