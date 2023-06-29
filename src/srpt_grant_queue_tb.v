@@ -2,7 +2,6 @@
 
 /* verilator lint_off STMTDLY */
 
-
 `define HEADER_SIZE 58
 `define HDR_PEER_ID 57:44
 `define HDR_RPC_ID 43:30
@@ -17,7 +16,6 @@ module srpt_grant_queue_tb();
    reg ap_ce;
    reg ap_start;
    reg ap_continue;
-
 
    wire	ap_idle;
    wire	ap_done;
@@ -66,8 +64,10 @@ module srpt_grant_queue_tb();
 	 #5;
 	 
 	 header_in_empty_i = 1;
+   
+	 // #5;
 
-	 #5;
+    //header_in_empty_i = 0;
       end
       
    endtask
@@ -94,10 +94,10 @@ module srpt_grant_queue_tb();
       ap_rst = 0;
       ap_start = 1;
       
-      new_entry(5, 5, 5, 0);
-      new_entry(4, 4, 4, 0);
-      new_entry(3, 3, 3, 0);
-      new_entry(2, 2, 2, 0);
+      //new_entry(5, 5, 5, 0);
+      //new_entry(4, 4, 4, 0);
+      //new_entry(3, 3, 3, 0);
+      //new_entry(2, 2, 2, 0);
       new_entry(1, 1, 1, 0);
 
       
