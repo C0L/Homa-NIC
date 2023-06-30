@@ -97,9 +97,8 @@ module srpt_grant_queue_tb();
       //new_entry(5, 5, 5, 0);
       //new_entry(4, 4, 4, 0);
       //new_entry(3, 3, 3, 0);
-      //new_entry(2, 2, 2, 0);
       new_entry(1, 1, 1, 0);
-
+      new_entry(2, 2, 2, 0);
       
       //header_in_data_i = {14'b11101110111011, 14'b00110011001100, 10'b10000, 10'b100, 32'b0};
       //header_in_empty_i = 0;

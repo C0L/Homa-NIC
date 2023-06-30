@@ -72,7 +72,17 @@ all: vlint xsim
 #
 #link_test:
 #       vitis_hls tcl/link_test.tcl
-#
+
+
+############ Verilog Synthesis ############ 
+
+vsynth:
+	# TODO generalize this tcl script
+	vivado -mode tcl -source tcl/srpt_grant_synth.tcl
+
+############ Verilog Simulation ############ 
+
+#TODO generalize this section
 
 waves: xsim
 	xsim --gui srpt_grant_queue_tb_snapshot.wdb
