@@ -27,6 +27,9 @@
 `define HDR_INCOMING 19:10
 `define HDR_OFFSET 9:0
 
+`define CORE_IDLE 0
+`define CORE_NEW_HDR 1
+`define CORE_QUEUE_SWAP 2
 
 /**
  * 
@@ -57,63 +60,40 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
 
    assign read = srpt_queue[0];
 
-
-   /* Cases:
-    * write_en and forward_en are low so we just SRPT on the existing data in
-    * the core, alternating between even and odd swaps.
-    *
-    * write_en is enabled, so we do an even swap/push and restore the data
-    *
-    * forward_en is enabled, so we perform an odd swap bridging the boundary
-    * between the two cores. We can just set the 0th entry in this queue
-    * directly with the forward value, as the active queue will be taking the
-    * value coming from read
-    */
-
-   /*
-    * Active queue -> Main queue
-    * SRPT_QUEUE:               6 : 7 : 8 : 0 : 1 : 2 : 3 :
-    * write_en/forward_en = 0:  6 : 7 : 8 | 0 : 1 | 2 : 3 |       {(bottom_even), (srpt_even)}
-    *                           6 : 7 : 8 : 0 | 1 : 2 | 3 :       {(srpt_queue[0]), (srpt_odd)}
-    * write_en = 1:             6 : 7 : 8 | N : 0 | 1 : 2 |       {(srpt_odd)}
-    * forward_en = 1:           6 : 7 | 8 : 0 | 1 : 2 | 3 :       {(forward), (srpt_odd)}
-    * write_en/forward_en = 1:  6 : 7 | 8 : (N) : 0 | 1 : 2 | 3 : {(write), (forward) (srpt_odd)}
-   */
-
    always @* begin
-      // Compute srpt_odd
+      srpt_odd[0] = srpt_queue[0];
+      // Compute srpt_odd 
       for (entry = 2; entry < MAX_SRPT; entry=entry+2) begin
-
          // If the priority differs or grantable bytes
          if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
              ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
              : (srpt_queue[entry-1][`GRNTBLE_PKTS] > srpt_queue[entry][`GRNTBLE_PKTS])) begin
-            srpt_odd[entry] = srpt_queue[entry];
-            srpt_odd[entry+1] = srpt_queue[entry-1];
-         end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
-            srpt_odd[entry+1] = srpt_queue[entry];
+            srpt_odd[entry-1] = srpt_queue[entry];
             srpt_odd[entry] = srpt_queue[entry-1];
-         end // else: !if((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+         end else begin 
+            srpt_odd[entry-1] = srpt_queue[entry-1];
+            srpt_odd[entry] = srpt_queue[entry];
+         end 
       end
 
-
+      
       // Compute srpt_even
       for (entry = 1; entry < MAX_SRPT; entry=entry+2) begin
-
          // If the priority differs or grantable bytes
          if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
              ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
              : (srpt_queue[entry-1][`GRNTBLE_PKTS] > srpt_queue[entry][`GRNTBLE_PKTS])) begin
             srpt_even[entry]   = srpt_queue[entry-1];
             srpt_even[entry-1] = srpt_queue[entry];
-         end else begin // if ((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+         end else begin 
             srpt_even[entry]   = srpt_queue[entry];
             srpt_even[entry-1] = srpt_queue[entry-1];
-         end // else: !if((srpt_queue[entry-1][2:0] != srpt_queue[entry][2:0])...
+         end 
       end
    end
 
    integer                       rst_entry;
+
    always @(posedge ap_clk) begin
       if (ap_rst) begin
          swap_type <= 1'b0;
@@ -122,17 +102,28 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
          end
       end else if (ap_ce && ap_start) begin
 
-         /*
-          * Active queue -> Main queue
-          * SRPT_QUEUE:               6 : 7 : 8 : 0 : 1 : 2 : 3 :
-          * write_en/forward_en = 0:  6 : 7 : 8 | 0 : 1 | 2 : 3 |       {(srpt_even)}
-          *                           6 : 7 : 8 : 0 | 1 : 2 | 3 :       {(srpt_queue[0]), (srpt_odd)}
-          * write_en = 1:             6 : 7 : 8 | N : 0 | 1 : 2 |       {(srpt_odd)}
-          * forward_en = 1:           6 : 7 | 8 : 0 | 1 : 2 | 3 :       {(forward), (srpt_odd)}
-          * write_en/forward_en = 1:  6 : 7 | 8 : (N) : 0 | 1 : 2 | 3 : {(write), (forward) (srpt_odd)}
-          */
+         // TODO do we need to force an SRPT odd after we insert a new element?
+         // Or is this taken care of because we will send a grant packet nxt
+         // cycle
 
-         if (write_en == 1'b0 && forward_en == 1'b0) begin
+         // Write enable frees the lowest entry in the queue and inserts the new entry
+         if (write_en == 1'b1) begin
+            for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
+               srpt_queue[entry] <= srpt_queue[entry-1];
+            end
+
+            srpt_queue[0] = write;
+
+         // Forward enable takes the top entry from the active queue
+         end else if (forward_en == 1'b1) begin
+            for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
+               srpt_queue[entry] <= srpt_odd[entry];
+            end
+
+            srpt_queue[0] = forward;
+
+         // Default behavior SRPT on entries
+         end else if begin
             if (swap_type == 1'b0) begin
                // Assumes that write does not keep data around
                for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
@@ -141,33 +132,10 @@ module srpt_queue #(parameter MAX_SRPT = 1024)
               
                swap_type <= 1'b1;
             end else begin
-               srpt_queue[0] <= srpt_queue[0];
-               for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
-                  srpt_queue[entry] <= srpt_odd[entry+1];
+               for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
+                  srpt_queue[entry] <= srpt_odd[entry];
                end
                swap_type <= 1'b0;
-            end
-         end else if (write_en == 1'b1 && forward_en == 1'b0) begin // if (write_en == 1'b0 && forward_en == 1'b0)
-            if ((write[`PRIORITY] != srpt_queue[0][`PRIORITY]) 
-               ? (write[`PRIORITY] < srpt_queue[0][`PRIORITY]) 
-               : (write[`GRNTBLE_PKTS] > srpt_queue[0][`GRNTBLE_PKTS])) begin
-   
-               srpt_queue[0] <= srpt_queue[0];
-               srpt_queue[1] <= write;
-   
-            end else begin
-               srpt_queue[1] <= srpt_queue[0];
-               srpt_queue[0] <= write;
-            end 
-
-            for (entry = 2; entry < MAX_SRPT; entry=entry+1) begin
-               srpt_queue[entry] <= srpt_odd[entry];
-            end
-         end else if (write_en == 1'b1 && forward_en == 1'b1) begin
-            srpt_queue[0] <= forward;
-            srpt_queue[1] <= write;
-            for (entry = 2; entry < MAX_SRPT; entry=entry+1) begin
-               srpt_queue[entry] <= srpt_odd[entry];
             end
          end
       end
@@ -232,17 +200,12 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
    assign active_queue_forward = srpt_active[MAX_OVERCOMMIT-1];
 
+   reg [1:0] state; 
 
    integer                       i;
    
    integer                       entry;
 
-   /*
-    * Whenever the header data is updating
-    *   1) Determine if the header's peer is in the active set, and if so, what index
-    *   2) Determine if the header's rpc is in the active set, and if so, what index
-    *   3) Determine the next open entry in the active set, if any
-    */
    always @* begin
       
       // Init all values so that no latches are inferred. All control paths assign a value.
@@ -285,118 +248,125 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	      end
       end // for (i = 0; i < MAX_OVERCOMMIT; i=i+1)
 
+
       srpt_odd[0] = srpt_active[0];
-      srpt_odd[MAX_OVERCOMMIT-1] = srpt_active[MAX_OVERCOMMIT-1]; // TODO and or?
+      srpt_odd[MAX_OVERCOMMIT-1] = srpt_active[MAX_OVERCOMMIT-1];
 
       // Compute srpt_odd
-      for (entry = 2; entry < MAX_OVERCOMMIT; entry=entry+2) begin
+      for (entry = 2; entry < MAX_OVERCOMMIT-1; entry=entry+2) begin
          // If the priority differs or grantable bytes
          if ((srpt_active[entry-1][`PRIORITY] != srpt_active[entry][`PRIORITY]) 
              ? (srpt_active[entry-1][`PRIORITY] < srpt_active[entry][`PRIORITY]) 
              : (srpt_active[entry-1][`GRNTBLE_PKTS] > srpt_active[entry][`GRNTBLE_PKTS])) begin
-   
             srpt_odd[entry-1] = srpt_active[entry];
             srpt_odd[entry] = srpt_active[entry-1];
-
-         end else begin // if ((srpt_active[entry-1][2:0] != srpt_active[entry][2:0])...
+         end else begin 
             srpt_odd[entry] = srpt_active[entry];
             srpt_odd[entry-1] = srpt_active[entry-1];
-         end // else: !if((srpt_active[entry-1][2:0] != srpt_active[entry][2:0])...
+         end 
       end
 
 
       // Compute srpt_even
       for (entry = 1; entry < MAX_OVERCOMMIT; entry=entry+2) begin
-
          // If the priority differs or grantable bytes
          if ((srpt_active[entry-1][`PRIORITY] != srpt_active[entry][`PRIORITY]) 
              ? (srpt_active[entry-1][`PRIORITY] < srpt_active[entry][`PRIORITY]) 
              : (srpt_active[entry-1][`GRNTBLE_PKTS] > srpt_active[entry][`GRNTBLE_PKTS])) begin
-
             srpt_even[entry]   = srpt_active[entry-1];
             srpt_even[entry-1] = srpt_active[entry];
-
-         end else begin // if ((srpt_active[entry-1][2:0] != srpt_active[entry][2:0])...
+         end else begin 
             srpt_even[entry]   = srpt_active[entry];
             srpt_even[entry-1] = srpt_active[entry-1];
-         end // else: !if((srpt_active[entry-1][2:0] != srpt_active[entry][2:0])...
+         end 
       end
 
-      
+      case (state) begin
+         // TODO the sync should be based on main_queue_en
+         `CORE_IDLE: begin
+            // Is there new incoming DATA packets we should process?
+            if (!header_in_empty_i) begin
+               // If the message length is less than or equal to the incoming bytes, we would have nothing to do here
+               if (header_in_data_i[`HDR_MSG_LEN] > header_in_data_i[`HDR_INCOMING]) begin
+                  
+                  // It is the first unscheduled packet that creates the entry in the SRPT queue.
+                  if (header_in_data_i[`HDR_OFFSET] == 0) begin
+                     
+                     // Is the new header's peer one of the active entries
+                     if (peer_match != {MAX_OVERCOMMIT_LOG2{1'b1}}) begin
 
-      // Is there new incoming DATA packets we should process?
-      if (!header_in_empty_i) begin
-         // If the message length is less than or equal to the incoming bytes, we would have nothing to do here
-         if (header_in_data_i[`HDR_MSG_LEN] > header_in_data_i[`HDR_INCOMING]) begin
-            
-            // It is the first unscheduled packet that creates the entry in the SRPT queue.
-            if (header_in_data_i[`HDR_OFFSET] == 0) begin
-               
-               // Is the new header's peer one of the active entries
-               if (peer_match != {MAX_OVERCOMMIT_LOG2{1'b1}}) begin
+                        // Insert the entry into the primary queue
+                        main_queue_write = {header_in_data_i[`HDR_PEER_ID], 
+                                            header_in_data_i[`HDR_RPC_ID],
+                                            {9'b0, 1'b1},                          // recieved packets
+                                            header_in_data_i[`HDR_MSG_LEN] - 1'b1, // grantable packets
+                                            `SRPT_BLOCKED};
 
-                  // Insert the entry into the primary queue
-                  main_queue_write = {header_in_data_i[`HDR_PEER_ID], 
-                                      header_in_data_i[`HDR_RPC_ID],
-                                      {9'b0, 1'b1},                          // recieved packets
-                                      header_in_data_i[`HDR_MSG_LEN] - 1'b1, // grantable packets
-                                      `SRPT_BLOCKED};
-                  $display("ACTIVE INSERT");
-                  main_queue_en = 1'b1;
-               // The header's peer is not one of the active entries
-               end else begin // if (peer_match != {MAX_OVERCOMMIT_LOG2{1'b1}})
-                   
-                  // Is the grantable packets of the new RPC better than that of the active entry?
-                  if ((header_in_data_i[`HDR_MSG_LEN]-1) < srpt_active[peer_match][`GRNTBLE_PKTS]) begin
+                        main_queue_en = 1'b1;
 
-                     /* 
-                      * We effectively want to implement a swap operation here
-                      * between the new (better) entry and the previous entry
-                      * that matched on the same peer. To do this, we just
-                      * mark the old entry as blocked and submit the new entry
-                      * to the head of the big queue
+                     // The header's peer is not one of the active entries
+                     end else begin 
+                         
+                        // Is the grantable packets of the new RPC better than that of the active entry?
+                        if ((header_in_data_i[`HDR_MSG_LEN]-1) < srpt_active[peer_match][`GRNTBLE_PKTS]) begin
+
+                           /* 
+                            * We effectively want to implement a swap operation here
+                            * between the new (better) entry and the previous entry
+                            * that matched on the same peer. To do this, we just
+                            * mark the old entry as blocked and submit the new entry
+                            * to the head of the big queue
+                            */
+                           //srpt_active_block[peer_match] = `SRPT_BLOCKED;
+
+                           //main_queue_write = {header_in_data_i[`HDR_PEER_ID], 
+                           //                  header_in_data_i[`HDR_RPC_ID],
+                           //                  {9'b0, 1'b1},                          // recieved packets
+                           //                  header_in_data_i[`HDR_MSG_LEN] - 1'b1, // grantable packets
+                           //                  `SRPT_ACTIVE};
+
+                           //main_queue_en = 1'b1;
+                          
+                        // The grantable packets of the new RPC is worse than that of the active entry
+                        end else begin
+                           // Insert the new RPC into the big queue
+                           main_queue_write = {header_in_data_i[`HDR_PEER_ID],
+                                               header_in_data_i[`HDR_RPC_ID],
+                                               {9'b0, 1'b1},                          // recieved packets
+                                               header_in_data_i[`HDR_MSG_LEN] - 1'b1, // grantable packets
+                                               `SRPT_ACTIVE};
+
+                           main_queue_en = 1'b1;
+                        end
+                     end // else: !if(peer_match != {MAX_OVERCOMMIT{1'b1}})
+                     
+                  // A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
+                  end else begin // if (header_in_data_i[HDR_OFFSET] == 0)
+                     /*
+                      * When an entry is encountered in the queue that matches on
+                      * peer and rpc, it will update the recv packets value of that
+                      * entry. 
                       */
-                     //srpt_active_block[peer_match] = `SRPT_BLOCKED;
 
-                     //main_queue_write = {header_in_data_i[`HDR_PEER_ID], 
-                     //                  header_in_data_i[`HDR_RPC_ID],
-                     //                  {9'b0, 1'b1},                          // recieved packets
-                     //                  header_in_data_i[`HDR_MSG_LEN] - 1'b1, // grantable packets
-                     //                  `SRPT_ACTIVE};
+                     // TODO maybe best to do this manually on the lower 8 entries and submit to the big queue
+                     //active_write = {header_in_data_i[`HDR_PEER_ID],
+                     //                header_in_data_i[`HDR_RPC_ID],
+                     //                1, // received packets
+                     //                0, // Unused
+                     //                `SRPT_UPDATE};
 
-                     //main_queue_en = 1'b1;
-                    
-                  // The grantable packets of the new RPC is worse than that of the active entry
-                  end else begin
-                     // Insert the new RPC into the big queue
-                     main_queue_write = {header_in_data_i[`HDR_PEER_ID],
-                                         header_in_data_i[`HDR_RPC_ID],
-                                         {9'b0, 1'b1},                          // recieved packets
-                                         header_in_data_i[`HDR_MSG_LEN] - 1'b1, // grantable packets
-                                         `SRPT_ACTIVE};
-
-                     main_queue_en = 1'b1;
+                     //active_queue_we = 1'b1;
                   end
-               end // else: !if(peer_match != {MAX_OVERCOMMIT{1'b1}})
-               
-            // A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
-            end else begin // if (header_in_data_i[HDR_OFFSET] == 0)
-               /*
-                * When an entry is encountered in the queue that matches on
-                * peer and rpc, it will update the recv packets value of that
-                * entry. 
-                */
 
-               // TODO maybe best to do this manually on the lower 8 entries and submit to the big queue
-               //active_write = {header_in_data_i[`HDR_PEER_ID],
-               //                header_in_data_i[`HDR_RPC_ID],
-               //                1, // received packets
-               //                0, // Unused
-               //                `SRPT_UPDATE};
-
-               //active_queue_we = 1'b1;
-            end
-         end // if (header_in_data_i[HDR_MSG_LEN] <= header_in_data_i[HDR_INCOMING])
+             // No new headers to process
+             end else if ((srpt_active[MAX_OVERCOMMIT-1][`PRIORITY] != main_queue_read[entry][`PRIORITY]) 
+                  ? (srpt_active[MAX_OVERCOMMIT-1][`PRIORITY] < main_queue_read[entry][`PRIORITY]) 
+                  : (srpt_active[MAX_OVERCOMMIT-1][`GRNTBLE_PKTS] > main_queue_read[entry][`GRNTBLE_PKTS])) begin
+               forward_en = 1'b1; 
+               srpt_odd[MAX_OVERCOMMIT-1] = main_queue_read;
+             end 
+         end
+      endcase 
 
       // Is there room on our output FIFO for data, and do we have space to send another grant?
       // end else if (!grant_pkt_full_o && next_active_en == 1'b1) begin // if (!header_in_empty_i)
@@ -407,27 +377,27 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
           * If the new grantable value is 0, convert to an UNBLOCK
           */
       // Need to compute swap results
-      end else if (main_queue_read[`PRIORITY] == `SRPT_ACTIVE) begin // if (!header_in_empty_i)
-         // TODO This does NOT need to send out a grant, just a block.
-         /*
-          * SRPT the queues together, if the bottom entry of the big queue is
-          * better than the tail of the small queue, and active then 
-          * swap, but also push a block request for the peer that we 
-          * just loaded into the active queue.
-          */
+      //end else if (main_queue_read[`PRIORITY] == `SRPT_ACTIVE) begin // if (!header_in_empty_i)
+      //   // TODO This does NOT need to send out a grant, just a block.
+      //   /*
+      //    * SRPT the queues together, if the bottom entry of the big queue is
+      //    * better than the tail of the small queue, and active then 
+      //    * swap, but also push a block request for the peer that we 
+      //    * just loaded into the active queue.
+      //    */
 
-         srpt_odd[MAX_OVERCOMMIT-1] = main_queue_read;
-         
-         forward_en = 1'b1;
-         main_queue_en = 1'b1;
+      //   srpt_odd[MAX_OVERCOMMIT-1] = main_queue_read;
+      //   
+      //   forward_en = 1'b1;
+      //   main_queue_en = 1'b1;
 
-         // Block the entry we just moved into the small queue
-         main_queue_write = {main_queue_read[`PEER_ID],
-                             14'b0, 
-                             10'b0,
-                             10'b0,
-                             `SRPT_BLOCK};
-      end
+      //   // Block the entry we just moved into the small queue
+      //   main_queue_write = {main_queue_read[`PEER_ID],
+      //                       14'b0, 
+      //                       10'b0,
+      //                       10'b0,
+      //                       `SRPT_BLOCK};
+      //end
    end
 
    integer rst_entry;
@@ -437,6 +407,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
          grant_pkt_data_o <= {`ENTRY_SIZE{1'b0}};
          grant_pkt_write_en_o <= 1'b0;
          header_in_read_en_o <= 1'b0;
+         state <= 1'b0
 
          swap_type <= 1'b0;
          for (rst_entry = 0; rst_entry < MAX_OVERCOMMIT; rst_entry=rst_entry+1) begin
@@ -444,51 +415,105 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
          end
 
       end else if (ap_ce && ap_start) begin // if (ap_rst)
-         if (!grant_pkt_full_o && ready_match_en == 1'b1) begin // if (!header_in_empty_i)
-            grant_pkt_data_o <= srpt_active[ready_match];
-            grant_pkt_write_en_o <= 1;
+         case (state) 
+            `SRPT_IDLE: begin
+               // Are there new RPCs we should consider grants on
+               if (header_in_empty_i) begin
+                  // A new header 
+                  state <= `SRPT_NEW_HDR;
+                 
+                  // Acknoledge that we read the data 
+                  header_in_read_en_o <= 1;
+                  
+                  // We did not write a grant packet
+                  grant_pkt_write_en_o <= 0;
 
-            // We did NOT read a input header this cycle
-            header_in_read_en_o <= 0;
+               // Should we pull an item from the main queue
+               end else if (forward_en) begin
+                  state <= `SRPT_QUEUE_SWAP;
 
+                  // We did not read the data 
+                  header_in_read_en_o <= 0;
+                  
+                  // We did not write a grant packet
+                  grant_pkt_write_en_o <= 0;
 
-         // Is there data on the input stream?
-         end else if (!header_in_empty_i) begin
-            // TODO this needs to be reset somewhere
-            // Read the data into the first stage, and acknowledge the data was read
-            header_in_read_en_o <= 1;
-            
-            // We did NOT write a grant packet header this cycle
-            grant_pkt_write_en_o <= 0;
-         end else if (main_queue_en == 1'b1 && forward_en == 1'b1) begin
-            for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
-               srpt_active[entry] <= srpt_odd[entry];
-            end
-         end
-         // Is there an open active set entry, does that entry's queue have a value ready
-         // end else if (!grant_pkt_full_o && next_active_en == 1'b1) begin // if (!header_in_empty_i)
-      //   grant_pkt_data_o <= read[next_active];
-      //   active_set[next_active] <= read[next_active];
-      //   grant_pkt_write_en_o <= 1;
+                  for (entry = 0; entry < MAX_OVERCOMMIT-1; entry=entry+1) begin
+                     srpt_active[entry] <= srpt_odd[entry];
+                  end
 
-      //   // We did NOT read a input header this cycle
-      //   header_in_read_en_o <= 0;
-         // end
-         else begin 
-            if (swap_type == 1'b0) begin
-               // Assumes that write does not keep data around
-               for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
-                  srpt_active[entry] <= srpt_even[entry];
+                  srpt_active[MAX_OVERCOMMIT-1] <= main_queue_read;
+
+               // Are there new grants we should send
+               end else if (!grant_pkt_full_o && ready_match_en == 1'b1) begin 
+
+               // Otherwise just sort
+               end else begin
+                  if (swap_type == 1'b0) begin
+                     // Assumes that write does not keep data around
+                     for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
+                        srpt_active[entry] <= srpt_even[entry];
+                     end
+                    
+                     swap_type <= 1'b1;
+                  end else begin
+                     for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
+                        srpt_active[entry] <= srpt_odd[entry];
+                     end
+                     swap_type <= 1'b0;
+                  end
                end
-              
-               swap_type <= 1'b1;
-            end else begin
-               for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
-                  srpt_active[entry] <= srpt_odd[entry];
-               end
-               swap_type <= 1'b0;
             end
-         end
+
+            `SRPT_QUEUE_SWAP: begin
+               // TODO implement the second operation of the QUEUE swap (the block msg)
+               // Doesnt need to do anything?
+            end
+
+            `SRPT_NEW_HDR: begin
+               // TODO this should just block a swap operation for a bit
+               // TODO implement the second operation of the new header op (let the main queue SRPT??)
+               // TODO should insist on a srpt odd? This requires some global
+               // coordination again though.
+            end
+
+         endcase
+
+         //if (!grant_pkt_full_o && ready_match_en == 1'b1) begin // if (!header_in_empty_i)
+         //   grant_pkt_data_o <= srpt_active[ready_match];
+         //   grant_pkt_write_en_o <= 1;
+
+         //   // We did NOT read a input header this cycle
+         //   header_in_read_en_o <= 0;
+
+
+         //// Is there data on the input stream?
+         //end else if (!header_in_empty_i) begin
+         //   // TODO this needs to be reset somewhere
+         //   // Read the data into the first stage, and acknowledge the data was read
+         //   header_in_read_en_o <= 1;
+         //   
+         //   // We did NOT write a grant packet header this cycle
+         //   grant_pkt_write_en_o <= 0;
+         //end else if (main_queue_en == 1'b1 && forward_en == 1'b1) begin
+         //   for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
+         //      srpt_active[entry] <= srpt_odd[entry];
+         //   end
+         //end else begin 
+         //   if (swap_type == 1'b0) begin
+         //      // Assumes that write does not keep data around
+         //      for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
+         //         srpt_active[entry] <= srpt_even[entry];
+         //      end
+         //     
+         //      swap_type <= 1'b1;
+         //   end else begin
+         //      for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
+         //         srpt_active[entry] <= srpt_odd[entry];
+         //      end
+         //      swap_type <= 1'b0;
+         //   end
+         //end
       end
    end // always @ (posedge ap_clk)
 
