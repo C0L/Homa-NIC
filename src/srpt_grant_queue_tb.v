@@ -29,13 +29,6 @@ module srpt_grant_queue_tb();
    wire [51-1:0] grant_pkt_data_o;
    wire	       grant_pkt_write_en_o;
 
-   // header_in
-   // peer_id        124:110
-   // local_id       109:96
-   // message_length 95:64
-   // incoming       63:32
-   // data_offset    31:0
-
    srpt_grant_pkts srpt_queue(.ap_clk(ap_clk), 
 			      .ap_rst(ap_rst), 
 			      .ap_ce(ap_ce), 
@@ -71,6 +64,8 @@ module srpt_grant_queue_tb();
       end
       
    endtask
+
+   /* verilator lint_off INFINITELOOP */
    
    initial begin
       ap_clk = 0;
@@ -93,11 +88,25 @@ module srpt_grant_queue_tb();
       #5;
       ap_rst = 0;
       ap_start = 1;
+
+      #5;
       
-      //new_entry(5, 5, 5, 0);
-      //new_entry(4, 4, 4, 0);
-      //new_entry(3, 3, 3, 0);
+      new_entry(5, 5, 5, 0);
+
+      #15;
+
+      new_entry(4, 4, 4, 0);
+
+      #15;
+
+      new_entry(3, 3, 3, 0);
+
+      #15;
+
       new_entry(1, 1, 1, 0);
+
+      #15;
+
       new_entry(2, 2, 2, 0);
       
       //header_in_data_i = {14'b11101110111011, 14'b00110011001100, 10'b10000, 10'b100, 32'b0};
