@@ -28,11 +28,14 @@
 `define CORE_QUEUE_SWAP 2
 `define CORE_GRANT 3
 
-// 60K byte RTT_Bytes * 8 (MAX_OVERCOMMIT)
+// 60K byte (RTT_Bytes) * 8 (MAX_OVERCOMMIT)
+`define RTT_PKTS 44
 `define OVERCOMMIT_PKTS 352
 `define OVERCOMMIT_BITS 10
 
 /*
+ * TODO INCOMING is not used any longer? Maybe use that as a replacement for
+ * RTT PKTS?
  * TODO this needs to handle OOO packets (how does that effect SRPT entry creation?).
  * TODO this needs to consider duplicate packets (can't just increment recv bytes?).
  * TODO need upper bound on number of grantable bytes at any given point
@@ -334,7 +337,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                /* verilator lint_off WIDTH */
 
                // Do we want to send more packets than 8 * MAX_OVERCOMMIT PKTS?
-               if (srpt_queue[ready_match_latch][`RECV_PKTS] >= avail_pkts) begin
+               if (srpt_queue[ready_match_latch][`RECV_PKTS] > avail_pkts) begin
                   // Just send avail_pkts of data
                   grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
                                        srpt_queue[ready_match_latch][`RPC_ID],
@@ -354,6 +357,12 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
                   srpt_queue[ready_match_latch][`RECV_PKTS] <= 0;
                   srpt_queue[ready_match_latch][`GRNTBLE_PKTS] <= srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - srpt_queue[ready_match_latch][`RECV_PKTS];
+
+                  grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
+                                       srpt_queue[ready_match_latch][`RPC_ID],
+                                       srpt_queue[ready_match_latch][`RECV_BYTES],
+                                       10'b0,
+                                       3'b0};
 
                end
                /* verilator lint_on WIDTH */
@@ -384,12 +393,11 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
             `CORE_NEW_HDR: begin
 
                // If the message length is less than or equal to the incoming bytes, we would have nothing to do here
-               if (header_in_data_latch[`HDR_MSG_LEN] > header_in_data_latch[`HDR_INCOMING]) begin
+               if (header_in_data_latch[`HDR_MSG_LEN] > `RTT_PKTS) begin
 
                   // It is the first unscheduled packet that creates the entry in the SRPT queue.
                   if (header_in_data_latch[`HDR_OFFSET] == 0) begin
  
-                     // TODO move all of this to the second cycle?
                      // Is the new header's peer one of the active entries?
                      if (peer_match_en_latch) begin
 
@@ -397,7 +405,6 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                         
                         /* verilator lint_off WIDTH */
                         if ((header_in_data_latch[`HDR_MSG_LEN]-1) < srpt_queue[peer_match_latch][`GRNTBLE_PKTS]) begin
-                           // TODO  
                            srpt_queue[peer_match_latch][`PRIORITY] <= `SRPT_BLOCKED;
 
                            /* verilator lint_on WIDTH */
@@ -428,7 +435,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                            `SRPT_ACTIVE};
                      end
 
-                  //A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
+                  // A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
                   end else begin
                      /*
                       * When an entry is encountered in the queue that matches on
