@@ -28,11 +28,15 @@
 `define CORE_QUEUE_SWAP 2
 `define CORE_GRANT 3
 
+// 60K byte RTT_Bytes * 8 (MAX_OVERCOMMIT)
+`define OVERCOMMIT_PKTS 352
+`define OVERCOMMIT_BITS 10
 
 /*
  * TODO this needs to handle OOO packets (how does that effect SRPT entry creation?).
  * TODO this needs to consider duplicate packets (can't just increment recv bytes?).
  * TODO need upper bound on number of grantable bytes at any given point
+ * TODO rtt bytes is hardcoded into this design
  * The packet map core may need to be involved somehow
  */
 module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
@@ -71,7 +75,9 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    reg                           rpc_match_en_latch;
    reg                           ready_match_en_latch;
 
-   reg [`HEADER_SIZE-1:0]     header_in_data_latch;
+   reg [`HEADER_SIZE-1:0]        header_in_data_latch;
+
+   reg [`OVERCOMMIT_BITS-1:0]    avail_pkts;
 
    reg [1:0]                     state; 
 
@@ -107,7 +113,10 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
          end
 
          // Is the entry in the active set empty, and so, should it be filled and a GRANT packet sent?
-         if (srpt_queue[entry][`PRIORITY] == `SRPT_ACTIVE && srpt_queue[entry][`RECV_PKTS] != 0 && ready_match_en == 1'b0) begin
+         if (srpt_queue[entry][`PRIORITY] == `SRPT_ACTIVE 
+            && srpt_queue[entry][`RECV_PKTS] != 0 
+            && ready_match_en == 1'b0
+            && avail_pkts != 0) begin
             ready_match = entry[MAX_OVERCOMMIT_LOG2-1:0];
             ready_match_en = 1'b1;
          end else begin
@@ -204,6 +213,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
          header_in_data_latch <= 0;
 
+         avail_pkts <= `OVERCOMMIT_PKTS;
+
          for (rst_entry = 0; rst_entry < MAX_SRPT; rst_entry=rst_entry+1) begin
             srpt_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
          end
@@ -243,8 +254,6 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
                // Are there new grants we should send
                end else if (!grant_pkt_full_o && ready_match_en == 1'b1) begin 
-                  // TODO any risk to relying on the old entry here?
-                  // TODO can we guarentee that nothing has changed? 
 
                   state <= `CORE_GRANT;
 
@@ -254,7 +263,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                   // We did not write a grant packet
                   grant_pkt_write_en_o <= 0;
 
-                  // TODO Can still SRPT on the top and bottom
+                  // TODO Can still SRPT on the top
 
                // Do we need to send any block operations?
                end else if (((srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] != srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) 
@@ -316,20 +325,37 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                // We did not write a grant packet
                grant_pkt_write_en_o <= 0;
 
-               // Send a new grant packet
+               /*
+                * If we have reached this state:
+                *   1) There are some recv pkts 
+                *   2) There are some avail pkts
+                */
+
                /* verilator lint_off WIDTH */
-               grant_pkt_data_o <= srpt_queue[ready_match_latch];
 
-               // TODO but really sub the amount we can ACTUALLY send
-               
-               if ((srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - srpt_queue[ready_match_latch][`RECV_PKTS]) == 0) begin
-                  srpt_queue[ready_match_latch][`PRIORITY] <= `SRPT_EMPTY;
+               // Do we want to send more packets than 8 * MAX_OVERCOMMIT PKTS?
+               if (srpt_queue[ready_match_latch][`RECV_PKTS] >= avail_pkts) begin
+                  // Just send avail_pkts of data
+                  grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
+                                       srpt_queue[ready_match_latch][`RPC_ID],
+                                       avail_pkts,
+                                       10'b0,
+                                       3'b0};
+
+                  srpt_queue[ready_match_latch][`RECV_PKTS] <= srpt_queue[ready_match_latch][`RECV_PKTS] - avail_pkts;
+                  srpt_queue[ready_match_latch][`GRNTBLE_PKTS] <= srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - avail_pkts;
+
+                  avail_pkts <= 0;  
+               end else begin 
+                  // Is this going to result in a fully granted message?
+                  if ((srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - srpt_queue[ready_match_latch][`RECV_PKTS]) == 0) begin
+                     srpt_queue[ready_match_latch][`PRIORITY] <= `SRPT_EMPTY;
+                  end
+
+                  srpt_queue[ready_match_latch][`RECV_PKTS] <= 0;
+                  srpt_queue[ready_match_latch][`GRNTBLE_PKTS] <= srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - srpt_queue[ready_match_latch][`RECV_PKTS];
+
                end
-
-               // TODO this will eventually depend on whether we were able
-               // to send the full amount (8 * rtt_bytes)
-               srpt_queue[ready_match_latch][`RECV_PKTS] <= 0;
-
                /* verilator lint_on WIDTH */
             end
 
@@ -409,8 +435,6 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                       * peer and rpc, it will update the recv packets value of that
                       * entry. 
                       */
-
-                     // TODO reintroduce
                      if (rpc_match_en_latch == 1'b1) begin
 
                         /* verilator lint_off WIDTH */
