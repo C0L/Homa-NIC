@@ -11,7 +11,7 @@ void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
 
   static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
-  if (!sendmsg_i.empty()) {
+  if (sendmsg_i.size() > 0 && sendmsg_o.size() <= 1 && dma_read_o.size() <= 1) {
     sendmsg_t sendmsg = sendmsg_i.read();
 
     sendmsg.dbuff_id = dbuff_stack.pop();
@@ -46,7 +46,7 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
 
   static header_t header_in;
 
-  if (header_in.valid && !rebuff.empty()) {
+  if (header_in.valid && !rebuff.empty() && dma_w_req_o.size() <= 1) {
     in_chunk_t in_chunk = rebuff.remove();
     // Place chunk in DMA space at global offset + packet offset
     dma_w_req_o.write({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
@@ -54,12 +54,12 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
     if (in_chunk.last) header_in.valid = 0;
   }
 
-  if (!chunk_in_o.empty()) {
+  if (chunk_in_o.size() > 0) {
     in_chunk_t in_chunk = chunk_in_o.read();
     rebuff.insert(in_chunk);
   }
 
-  if (!header_in.valid && !header_in_i.empty()) {
+  if (!header_in.valid && header_in_i.size() > 0) {
     header_in = header_in_i.read();
   }
 }
@@ -89,15 +89,19 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
   static dbuff_t dbuff[NUM_DBUFF];
 #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
+  // dbuff_in_t dbuff_in;
   // Do we need to add any data to data buffer 
-  if (!dbuff_egress_i.empty()) {
-    dbuff_in_t dbuff_in = dbuff_egress_i.read();
+  if (dbuff_egress_i.size() > 0 && dbuff_notif_o.size() <= 1) {
+   dbuff_in_t dbuff_in = dbuff_egress_i.read();
     dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk] = dbuff_in.block;
+
+
+    //std::cerr << "DATA BUFFER IN " << (dbuff_in.dbuff_chunk + 1) * DBUFF_CHUNK_SIZE << " " << dbuff_in.dbuff_id << std::endl;
     dbuff_notif_o.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
   }
 
   // Do we need to process any packet chunks?
-  if (!out_chunk_i.empty()) {
+  if (out_chunk_i.size() > 0 && link_egress.size() <= 1) {
     out_chunk_t out_chunk = out_chunk_i.read();
 
     raw_stream_t raw_stream;

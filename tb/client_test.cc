@@ -141,6 +141,7 @@ bool test_simple_send_recv(homa_t * homa_cfg,
   homa_cfg->rtt_bytes = 60000;
   strcpy(maxi_in, data.c_str());
 
+  //std::cerr << "DATA IN\n";
   //for (int i = 0; i < 5500; ++i) std::cerr << maxi_in[i];
   //std::cerr << std::endl;
 
@@ -148,7 +149,7 @@ bool test_simple_send_recv(homa_t * homa_cfg,
   //  printf("%02x", (unsigned char) maxi_in[i]);
   // }
 
- std::cerr << std::endl;
+ //std::cerr << std::endl;
 
   ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
   ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -198,14 +199,16 @@ bool test_simple_send_recv(homa_t * homa_cfg,
   }
 
   std::this_thread::sleep_for(dura);
+
   // Cycle DMA transfers
   for (int i = 0; i < data.length()/64*2; ++i) {
     homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
   }
 
-
-  //for (int i = 0; i < 5500; ++i) std::cerr << maxi_out[i];
-  //std::cerr << std::endl;
+   
+  std::cerr << "RECEIVED DATA\n";
+  for (int i = 0; i < 5500; ++i) std::cerr << maxi_out[i];
+  std::cerr << std::endl;
 
   return memcmp(maxi_in, maxi_out, data.length());
 }

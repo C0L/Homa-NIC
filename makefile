@@ -1,5 +1,5 @@
-LINTER = verilator --lint-only +1364-2001ext+v --unroll-count 1024 
-VITIS = vitis-hls
+LINTER = verilator -lint-only +1364-2001ext+v --unroll-count 1024 
+VITIS = vitis_hls
 VIVADO = vivado
 
 C_SRC_DIR = ./src
@@ -15,40 +15,43 @@ SRC_V = \
 TB_V = \
         $(V_SRC_DIR)/srpt_grant_queue_tb.v
 
-SOURCES_JSON = \
-        $(V_SRC_DIR)/srpt_grant_queue.json
+SRC_JSON = \
+        $(V_SRC_DIR)/srpt_grant_pkts.json
 
-SOURCES_C =                      \
-        $(C_SRC_DIR)/cam.hh      \
-        $(C_SRC_DIR)/databuff.cc \
-        $(C_SRC_DIR)/databuff.hh \
-        $(C_SRC_DIR)/dma.cc      \
-        $(C_SRC_DIR)/dma.hh      \
-        $(C_SRC_DIR)/hashmap.hh  \
-        $(C_SRC_DIR)/homa.cc     \
-        $(C_SRC_DIR)/homa.hh     \
-        $(C_SRC_DIR)/link.cc     \
-        $(C_SRC_DIR)/link.hh     \
-        $(C_SRC_DIR)/net.hh      \
-        $(C_SRC_DIR)/peer.cc     \
-        $(C_SRC_DIR)/peer.hh     \
-        $(C_SRC_DIR)/rpcmgmt.cc  \
-        $(C_SRC_DIR)/rpcmgmt.hh  \
-        $(C_SRC_DIR)/srptmgmt.cc \
-        $(C_SRC_DIR)/srptmgmt.hh \
-        $(C_SRC_DIR)/stack.hh    \
-        $(C_SRC_DIR)/timer.cc    \
-        $(C_SRC_DIR)/timer.hh
+SRC_C =                      \
+    $(C_SRC_DIR)/cam.hh      \
+    $(C_SRC_DIR)/databuff.cc \
+    $(C_SRC_DIR)/databuff.hh \
+    $(C_SRC_DIR)/dma.cc      \
+    $(C_SRC_DIR)/dma.hh      \
+    $(C_SRC_DIR)/hashmap.hh  \
+    $(C_SRC_DIR)/homa.cc     \
+    $(C_SRC_DIR)/homa.hh     \
+    $(C_SRC_DIR)/link.cc     \
+    $(C_SRC_DIR)/link.hh     \
+    $(C_SRC_DIR)/net.hh      \
+    $(C_SRC_DIR)/peer.cc     \
+    $(C_SRC_DIR)/peer.hh     \
+    $(C_SRC_DIR)/rpcmgmt.cc  \
+    $(C_SRC_DIR)/rpcmgmt.hh  \
+    $(C_SRC_DIR)/srptmgmt.cc \
+    $(C_SRC_DIR)/srptmgmt.hh \
+    $(C_SRC_DIR)/stack.hh    \
+    $(C_SRC_DIR)/timer.cc    \
+    $(C_SRC_DIR)/timer.hh
 
-SOURCES_XDC = \
-        $(XDC_DIR)/clocks.xdc
+TB_C = $(C_TB_DIR)/client_test.cc
+
+XDC = \
+   $(XDC_DIR)/clocks.xdc
 
 PART = xcvu9p-flgb2104-2-i
 
-# .PHONY: all lint test
-.PHONY: all vlint
+CSIM = 0
 
-all: vlint xsim
+# .PHONY: all vlint vtest clean
+
+# all: vlint xsim synth
 
 #homa:
 #       vitis_hls tcl/synth.tcl
@@ -73,12 +76,16 @@ all: vlint xsim
 #link_test:
 #       vitis_hls tcl/link_test.tcl
 
+############ Vitis Synthesis ############ 
+
+csim:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
 
 ############ Verilog Synthesis ############ 
 
 vsynth:
 	# TODO generalize this tcl script
-	vivado -mode tcl -source tcl/srpt_grant_synth.tcl
+	$(VIVADO) -mode tcl -source tcl/srpt_grant_synth.tcl
 
 ############ Verilog Simulation ############ 
 
@@ -93,11 +100,11 @@ xsim: xsim_elaborate
 xsim_elaborate: xsim_compile
 	xelab -debug all -top srpt_grant_queue_tb --snapshot srpt_grant_queue_tb_snapshot
 
-xsim_compile: $(SRC_V) $(TB_V) 
-	xvlog $^
+xsim_compile: 
+	xvlog $(SRC_V) $(TB_V)
 
-vlint: $(SRC_V) $(TB_V) 
-	$(LINTER) $^
+vlint:
+	$(LINTER) $(SRC_V) $(TB_V)
 
 clean:
 	rm vitis_hls.log

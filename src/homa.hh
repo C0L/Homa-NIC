@@ -44,6 +44,21 @@ struct user_output_t;
 #define SRPT_BLOCKED 5
 #define SRPT_ACTIVE 6
 
+#define ENTRY_SIZE 51
+#define PEER_ID 50,37
+#define RPC_ID 36,23
+#define RECV_PKTS 22,13
+#define GRNTBLE_PKTS 12,3
+#define PRIORITY 2,0
+#define PRIORITY_SIZE 3
+
+#define HEADER_SIZE 58
+#define HDR_PEER_ID 57,44
+#define HDR_RPC_ID 43,30
+#define HDR_MSG_LEN 29,20
+#define HDR_INCOMING 19,10
+#define HDR_OFFSET 9,0
+
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
 
@@ -56,8 +71,8 @@ struct user_output_t;
 
 #define HOMA_MAX_PRIORITIES 8
 
-// How many bytes need to be accumulated before another GRANT pkt is sent
-#define GRANT_REFRESH 10000
+#define RTT_PKTS 44
+#define OVERCOMMIT_PKTS 352
 
 #define MAX_PEERS_LOG2 14
 
@@ -304,7 +319,7 @@ struct header_t {
 struct ready_grant_pkt_t {
   peer_id_t peer_id;
   rpc_id_t rpc_id;
-  ap_uint<32> grantable;
+  ap_uint<10> grant_increment;
 };
 
 struct ready_data_pkt_t {
@@ -399,57 +414,64 @@ struct srpt_data_t {
 };
 
 struct srpt_grant_t {
-  peer_id_t peer_id;
-  rpc_id_t rpc_id;
-  ap_uint<32> grantable;
-  ap_uint<3> priority;
-
-  srpt_grant_t() {
-    peer_id = 0;
-    rpc_id = 0;
-    grantable = 0xFFFFFFFF;
-    priority = SRPT_EMPTY;
-  }
-
-  srpt_grant_t(peer_id_t peer_id, rpc_id_t rpc_id, ap_uint<32> grantable, ap_uint<3> priority) {
-    this->peer_id = peer_id;
-    this->rpc_id = rpc_id;
-    this->grantable = grantable;
-    this->priority = priority;
-  }
-
-  bool operator==(const srpt_grant_t & other) const {
-    return (peer_id == other.peer_id &&
-  	    rpc_id == other.rpc_id &&
-  	    grantable == other.grantable &&
-  	    priority == other.priority);
-  }
-
-  // Ordering operator
-  bool operator>(srpt_grant_t & other) {
-    return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
-  }
-
-  void update_priority(srpt_grant_t & other) {
-
-    if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE_BLOCK) {
-      other.grantable = grantable;
-      other.priority = SRPT_BLOCKED;
-    } else if (other.peer_id == peer_id && priority == SRPT_UPDATE_BLOCK) {
-      other.priority = SRPT_BLOCKED;
-    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE) {
-      other.grantable = grantable;
-    } else if (other.peer_id == peer_id && priority == SRPT_UNBLOCK) {
-      other.priority = SRPT_ACTIVE;
-    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_INVALIDATE) {
-      other.priority = SRPT_INVALIDATE;
-    }
-  }
-
-  void print() {
-    std::cerr << peer_id << " " << grantable << " " << priority << " " << rpc_id << std::endl;
-  }
+   ap_uint<14> peer_id;
+   ap_uint<14> rpc_id;
+   ap_uint<10> recv_pkts;
+   ap_uint<10> grantable_pkts;
 };
+
+//struct srpt_grant_t {
+//  peer_id_t peer_id;
+//  rpc_id_t rpc_id;
+//  ap_uint<32> grantable;
+//  ap_uint<3> priority;
+//
+//  srpt_grant_t() {
+//    peer_id = 0;
+//    rpc_id = 0;
+//    grantable = 0xFFFFFFFF;
+//    priority = SRPT_EMPTY;
+//  }
+//
+//  srpt_grant_t(peer_id_t peer_id, rpc_id_t rpc_id, ap_uint<32> grantable, ap_uint<3> priority) {
+//    this->peer_id = peer_id;
+//    this->rpc_id = rpc_id;
+//    this->grantable = grantable;
+//    this->priority = priority;
+//  }
+//
+//  bool operator==(const srpt_grant_t & other) const {
+//    return (peer_id == other.peer_id &&
+//  	    rpc_id == other.rpc_id &&
+//  	    grantable == other.grantable &&
+//  	    priority == other.priority);
+//  }
+//
+//  // Ordering operator
+//  bool operator>(srpt_grant_t & other) {
+//    return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
+//  }
+//
+//  void update_priority(srpt_grant_t & other) {
+//
+//    if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE_BLOCK) {
+//      other.grantable = grantable;
+//      other.priority = SRPT_BLOCKED;
+//    } else if (other.peer_id == peer_id && priority == SRPT_UPDATE_BLOCK) {
+//      other.priority = SRPT_BLOCKED;
+//    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE) {
+//      other.grantable = grantable;
+//    } else if (other.peer_id == peer_id && priority == SRPT_UNBLOCK) {
+//      other.priority = SRPT_ACTIVE;
+//    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_INVALIDATE) {
+//      other.priority = SRPT_INVALIDATE;
+//    }
+//  }
+//
+//  void print() {
+//    std::cerr << peer_id << " " << grantable << " " << priority << " " << rpc_id << std::endl;
+//  }
+//};
 
 
 template<typename T, int FIFO_SIZE>

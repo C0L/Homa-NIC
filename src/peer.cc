@@ -30,7 +30,7 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
   //  //std::cerr << "header out " << peer_id << std::endl;
   //  header_in_o.write(header_in);
   //} else
-  if (!sendmsg_i.empty()) {
+  if (sendmsg_i.size() > 0 && sendmsg_o.size() <= 1) {
     sendmsg_t sendmsg = sendmsg_i.read();
 
     peer_hashpack_t query = {sendmsg.daddr};
@@ -44,7 +44,7 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
     }
 
     sendmsg_o.write(sendmsg);
-  } else if (!recvmsg_i.empty()) {
+  } else if (recvmsg_i.size() > 0 && recvmsg_o.size() <= 1) {
     recvmsg_t recvmsg = recvmsg_i.read();
 
     peer_hashpack_t query = {recvmsg.daddr};

@@ -8,7 +8,7 @@
 		}
 	],
 	"rtl_files":[
-		"src/srpt_grant_queue.v"
+		"src/srpt_grant_pkts.v"
 	],
 	"c_parameters":[
 		{

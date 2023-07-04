@@ -15,11 +15,6 @@
 
 using namespace std;
 
-void tmp(hls::stream<ap_uint<125>> & i, hls::stream<ap_uint<1>> & o) {
-  i.write(1);
-  ap_uint<1> o_in = o.read();
-}
-
 /**
  * homa() - Top level homa packet processor
  * @homa:
@@ -52,7 +47,7 @@ void homa(homa_t * homa,
 #pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=1 num_write_outstanding=80 
 
   hls_thread_local hls::stream<dbuff_id_t> freed_dbuffs;
-  hls_thread_local hls::stream<dbuff_in_t> dma_read__dbuff_ingress;
+  hls_thread_local hls::stream<dbuff_in_t> dma_read__dbuff_egress;
 
   hls_thread_local hls::stream<sendmsg_t> homa_sendmsg__dbuff_stack;
   hls_thread_local hls::stream<sendmsg_t> dbuff_stack__peer_map;
@@ -60,7 +55,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<sendmsg_t> rpc_state__srpt_data;
 
   hls_thread_local hls::stream<ready_data_pkt_t> srpt_data__egress_sel;
-  hls_thread_local hls::stream<ap_uint<95>> srpt_grant__egress_sel;
+  hls_thread_local hls::stream<ap_uint<51>> srpt_grant__egress_sel;
   hls_thread_local hls::stream<rexmit_t> rexmit__egress_sel;
 
   hls_thread_local hls::stream<header_t> egress_sel__rpc_state; // header_out
@@ -74,7 +69,7 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<in_chunk_t> chunk_ingress__dbuff_ingress;
   hls_thread_local hls::stream<dma_w_req_t> dbuff_ingress__dma_write;
   hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress;
-  hls_thread_local hls::stream<ap_uint<124>> rpc_state__srpt_grant;
+  hls_thread_local hls::stream<ap_uint<58>> rpc_state__srpt_grant;
   hls_thread_local hls::stream<header_t> header_in__rpc_state__srpt_data;
   hls_thread_local hls::stream<header_t> chunk_ingress__rpc_map;
   
@@ -124,11 +119,11 @@ void homa(homa_t * homa,
       header_in__rpc_state__srpt_data
   );
 
-  hls_thread_local hls::task srpt_grant_pkts_task(
-      srpt_grant_pkts,
-      rpc_state__srpt_grant,
-      srpt_grant__egress_sel
-  );
+  //hls_thread_local hls::task srpt_grant_pkts_task(
+  //    srpt_grant_pkts,
+  //    rpc_state__srpt_grant,
+  //    srpt_grant__egress_sel
+  //);
 
   hls_thread_local hls::task egress_selector_task(
       egress_selector,
@@ -160,7 +155,7 @@ void homa(homa_t * homa,
 
   hls_thread_local hls::task dbuff_egress_task(
       dbuff_egress,
-      dma_read__dbuff_ingress,
+      dma_read__dbuff_egress,
       dbuff_ingress__srpt_data,
       chunk_egress__dbuff_ingress,
       link_egress
@@ -179,7 +174,7 @@ void homa(homa_t * homa,
 
   homa_recvmsg(homa, recvmsg, recvmsg__peer_map);
 
-  dma_read(maxi_in, dbuff_stack__dma_read, dma_read__dbuff_ingress);
+  dma_read(maxi_in, dbuff_stack__dma_read, dma_read__dbuff_egress);
 
   dma_write(maxi_out, dbuff_ingress__dma_write);
 }

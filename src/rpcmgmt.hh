@@ -40,7 +40,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 	       hls::stream<header_t> & header_out_o,
 	       hls::stream<header_t> & header_in_i,
 	       hls::stream<header_t> & header_in_dbuff_o,
-	       hls::stream<ap_uint<124>> & header_in_grant_o,
+	       hls::stream<ap_uint<58>> & header_in_grant_o,
 	       hls::stream<header_t> & header_in_srpt_o);
 
 
