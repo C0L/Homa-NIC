@@ -9,10 +9,14 @@
 #include "stack.hh"
 
 
-#define MAX_RPCS 16384
+//#define MAX_RPCS 16384
+//
+#define RPC_SUB_TABLE_SIZE 2
+#define RPC_SUB_TABLE_INDEX 1
+#define MAX_RPCS 2
 
-#define RPC_SUB_TABLE_SIZE 16384
-#define RPC_SUB_TABLE_INDEX 14
+//#define RPC_SUB_TABLE_SIZE 16384
+//#define RPC_SUB_TABLE_INDEX 14
 
 #define MAX_OPS 64
 

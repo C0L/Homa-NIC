@@ -5,10 +5,14 @@
 #include "net.hh"
 #include "databuff.hh"
 
-#define PEER_SUB_TABLE_SIZE 16384
-#define PEER_SUB_TABLE_INDEX 14
+// #define PEER_SUB_TABLE_SIZE 16384
+// #define PEER_SUB_TABLE_INDEX 14
 
-#define MAX_PEERS 16384
+#define PEER_SUB_TABLE_SIZE 2
+#define PEER_SUB_TABLE_INDEX 1
+#define MAX_PEERS 2
+
+//#define MAX_PEERS 16384
 
 #define NUM_PEER_UNACKED_IDS 5
 

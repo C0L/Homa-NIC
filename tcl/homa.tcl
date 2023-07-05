@@ -30,8 +30,6 @@ if {$job_type == 0} {
 
 add_files -blackbox $json_src
 
-# add_files -blackbox ./src/srpt_grant_pkts.json
-
 open_solution -reset "solution" -flow_target vivado 
 set_part $part
 #set_part {xcvu9p-flgb2104-2-i}
@@ -42,8 +40,8 @@ if {$job_type == 0} {
    csim_design
 
 } elseif {$job_type == 1} {
-	# Csynth only
-	csynth_design
+   # Csynth only
+   csynth_design
 	
 } 
 

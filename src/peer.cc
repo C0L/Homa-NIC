@@ -30,8 +30,9 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
   //  //std::cerr << "header out " << peer_id << std::endl;
   //  header_in_o.write(header_in);
   //} else
-  if (sendmsg_i.size() > 0 && sendmsg_o.size() <= 1) {
-    sendmsg_t sendmsg = sendmsg_i.read();
+  sendmsg_t sendmsg;
+  recvmsg_t recvmsg;
+  if (sendmsg_i.read_nb(sendmsg)) {
 
     peer_hashpack_t query = {sendmsg.daddr};
     sendmsg.peer_id = hashmap.search(query);
@@ -42,10 +43,9 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
       entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
       hashmap.queue(entry);
     }
-
+    std::cerr << "sendmsg_o" << std::endl;
     sendmsg_o.write(sendmsg);
-  } else if (recvmsg_i.size() > 0 && recvmsg_o.size() <= 1) {
-    recvmsg_t recvmsg = recvmsg_i.read();
+  } else if (recvmsg_i.read_nb(recvmsg)) {
 
     peer_hashpack_t query = {recvmsg.daddr};
     recvmsg.peer_id = hashmap.search(query);
@@ -57,6 +57,7 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
       hashmap.queue(entry);
     }
 
+    std::cerr << "recvmsg_o" << std::endl;
     recvmsg_o.write(recvmsg);
   } else {
     hashmap.process();

@@ -58,20 +58,20 @@ void homa(homa_t * homa,
   hls_thread_local hls::stream<ap_uint<51>> srpt_grant__egress_sel;
   hls_thread_local hls::stream<rexmit_t> rexmit__egress_sel;
 
-  hls_thread_local hls::stream<header_t> egress_sel__rpc_state; // header_out
-  hls_thread_local hls::stream<header_t> rpc_state__chunk_egress; // header_out
-  hls_thread_local hls::stream<header_t> peer_map__rpc_map; // header_in
-  hls_thread_local hls::stream<header_t> rpc_map__rpc_state; //header_in
+  hls_thread_local hls::stream<header_t> egress_sel__rpc_state("egress_sel__rpc_state"); // header_out
+  hls_thread_local hls::stream<header_t> rpc_state__chunk_egress("rpc_state__chunk_egress"); // header_out
+  hls_thread_local hls::stream<header_t> peer_map__rpc_map("peer_map__rpc_map"); // header_in
+  hls_thread_local hls::stream<header_t> rpc_map__rpc_state("rpc_map__rpc_state"); //header_in
 
-  hls_thread_local hls::stream<out_chunk_t> chunk_egress__dbuff_ingress;
+  hls_thread_local hls::stream<out_chunk_t> chunk_egress__dbuff_ingress("chunk_egress__dbuff_ingress");
   hls_thread_local hls::stream<dbuff_notif_t> dbuff_ingress__srpt_data;
   hls_thread_local hls::stream<dma_r_req_t> dbuff_stack__dma_read;
-  hls_thread_local hls::stream<in_chunk_t> chunk_ingress__dbuff_ingress;
+  hls_thread_local hls::stream<in_chunk_t> chunk_ingress__dbuff_ingress("chunk_ingress__dbuff_ingress");
   hls_thread_local hls::stream<dma_w_req_t> dbuff_ingress__dma_write;
-  hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress;
+  hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress("rpc_state__dbuff_ingress");
   hls_thread_local hls::stream<ap_uint<58>> rpc_state__srpt_grant;
-  hls_thread_local hls::stream<header_t> header_in__rpc_state__srpt_data;
-  hls_thread_local hls::stream<header_t> chunk_ingress__rpc_map;
+  hls_thread_local hls::stream<header_t> header_in__rpc_state__srpt_data("header_in__rpc_date__srpt_data");
+  hls_thread_local hls::stream<header_t> chunk_ingress__rpc_map("chunk_ingress__rpc_map");
   
   hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map__rpc_state;
   hls_thread_local hls::stream<recvmsg_t> recvmsg__rpc_state__rpc_map;
@@ -119,11 +119,11 @@ void homa(homa_t * homa,
       header_in__rpc_state__srpt_data
   );
 
-  //hls_thread_local hls::task srpt_grant_pkts_task(
-  //    srpt_grant_pkts,
-  //    rpc_state__srpt_grant,
-  //    srpt_grant__egress_sel
-  //);
+  hls_thread_local hls::task srpt_grant_pkts_task(
+      srpt_grant_pkts,
+      rpc_state__srpt_grant,
+      srpt_grant__egress_sel
+  );
 
   hls_thread_local hls::task egress_selector_task(
       egress_selector,

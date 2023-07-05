@@ -19,10 +19,10 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 #pragma HLS pipeline II=1
 #pragma HLS dependence variable=rpcs inter WAR false
 #pragma HLS dependence variable=rpcs inter RAW false
-
+   
+   header_t header_out;
    /* Read only process */
-   if (header_out_i.size() > 0 && header_out_o.size() <= 1) {
-      header_t header_out = header_out_i.read();
+   if (header_out_i.read_nb(header_out)) {
       homa_rpc_t homa_rpc = rpcs[(header_out.local_id >> 1)-1];
 
       header_out.dbuff_id = homa_rpc.msgout.dbuff_id;
@@ -33,17 +33,13 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 
       // The grant offset as it comes out of the SRPT grant core is an increment of pkts
       header_out.grant_offset = homa_rpc.msgin.incoming + (header_out.grant_offset * HOMA_PAYLOAD_SIZE);
-
+   
+      std::cerr << "header_out_o" << std::endl;
       header_out_o.write(header_out);
    }
 
-   if (header_in_i.size() > 0 && 
-       header_in_grant_o.size() <= 1 && 
-       header_in_srpt_o.size() <= 1 && 
-       header_in_dbuff_o.size() <= 1) {
-      //std::cerr << "PEER IN HEADER IN\n";
-      header_t header_in = header_in_i.read();
-
+   header_t header_in;
+   if (header_in_i.read_nb(header_in)) {
       homa_rpc_t homa_rpc = rpcs[(header_in.local_id >> 1)-1];
 
       switch (header_in.type) {
@@ -53,6 +49,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
             // TODO maybe other data needs to be accumulated
             header_in.dma_offset = homa_rpc.buffout;
 
+            std::cerr << "header_in_dbuff_o" << std::endl;
             header_in_dbuff_o.write(header_in); // Write to data buffer
 
             //ap_uint<124> header_in_raw;
@@ -71,23 +68,24 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
             //header_in_raw(HDR_RPC_ID) = header_in.local_id;
             //header_in_raw(HDR_PEER_ID) = header_in.peer_id;
 
-            //header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
+            // header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
             break;
          }
 
          case GRANT: {
             // TODO maybe other data needs to be accumulated
 
-            header_in_srpt_o.write(header_in); // Write to SRPT data queue
+            // header_in_srpt_o.write(header_in); // Write to SRPT data queue
             break;
          }
       }
    }
 
+
+   sendmsg_t sendmsg;
+   recvmsg_t recvmsg;
    /* R/W Processes */
-   if (sendmsg_i.size() > 0 && sendmsg_o.size() <= 1) {
-      //std::cerr << "SEND MSG IN\n";
-      sendmsg_t sendmsg = sendmsg_i.read();
+   if (sendmsg_i.read_nb(sendmsg)) {
 
       if (sendmsg.id == 0) { // Is this a request message?
          sendmsg.local_id = rpc_stack.pop();
@@ -111,9 +109,9 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
          rpcs[(sendmsg.local_id >> 1)-1] = homa_rpc;
       }
 
+      std::cerr << "sendmsg_o" << std::endl;
       sendmsg_o.write(sendmsg);
-   } else if (recvmsg_i.size() > 0 && recvmsg_o.size() <= 1) {
-      recvmsg_t recvmsg = recvmsg_i.read();
+   } else if (recvmsg_i.read_nb(recvmsg)) {
 
       // If the caller ID determines if this machine is client or server
       recvmsg.local_id = (recvmsg.id == 0) ? rpc_stack.pop() : (rpc_id_t) recvmsg.id;
@@ -129,6 +127,8 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
       //homa_rpc.rtt_bytes = recvmsg.rtt_bytes;
 
       rpcs[(recvmsg.local_id >> 1)-1] = homa_rpc;
+
+      std::cerr << "recvmsg_o" << std::endl;
       recvmsg_o.write(recvmsg);
    }
 }
@@ -145,8 +145,9 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
 #pragma HLS pipeline II=1
 
-   if (header_in_i.size() > 0 && header_in_o.size() <= 1) {
-      header_t header_in = header_in_i.read();
+   header_t header_in;
+   recvmsg_t recvmsg;
+   if (header_in_i.read_nb(header_in)) {
 
       /* The incoming message is a request */
       if (!IS_CLIENT(header_in.sender_id)) {
@@ -173,9 +174,9 @@ void rpc_map(hls::stream<header_t> & header_in_i,
       }
 
       // If the incoming message is a response, the RPC ID is already valid in the local store
+      std::cerr << "header_in_o" << std::endl;
       header_in_o.write(header_in);
-   } else if (recvmsg_i.size() > 0) {
-      recvmsg_t recvmsg = recvmsg_i.read();
+   } else if (recvmsg_i.read_nb(recvmsg)) {
 
       // Create a mapping for incoming data
       rpc_hashpack_t query = {recvmsg.daddr, recvmsg.id, recvmsg.dport, 0};

@@ -10,16 +10,15 @@ TCL_DIR   = ./tcl
 XDC_DIR   = ./xdc
 
 SRC_V = \
-        $(V_SRC_DIR)/srpt_grant_queue.v
+        $(V_SRC_DIR)/srpt_grant_pkts.v
 
 TB_V = \
-        $(V_SRC_DIR)/srpt_grant_queue_tb.v
+        $(V_SRC_DIR)/srpt_grant_pkts.v
 
 SRC_JSON = \
         $(V_SRC_DIR)/srpt_grant_pkts.json
 
 SRC_C =                      \
-    $(C_SRC_DIR)/cam.hh      \
     $(C_SRC_DIR)/databuff.cc \
     $(C_SRC_DIR)/databuff.hh \
     $(C_SRC_DIR)/dma.cc      \
@@ -75,8 +74,15 @@ CSIM = 0
 #
 #link_test:
 #       vitis_hls tcl/link_test.tcl
+#
+#
+############ Vitis C Synth ############ 
 
-############ Vitis Synthesis ############ 
+synth:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) 1 "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
+
+
+############ Vitis C Simulation ############ 
 
 csim:
 	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
@@ -98,7 +104,7 @@ xsim: xsim_elaborate
 	xsim srpt_grant_queue_tb_snapshot --tclbatch ./tcl/xsim_cfg.tcl
 
 xsim_elaborate: xsim_compile
-	xelab -debug all -top srpt_grant_queue_tb --snapshot srpt_grant_queue_tb_snapshot
+	xelab -debug all -top srpt_grant_pkst--snapshot srpt_grant_queue_tb_snapshot
 
 xsim_compile: 
 	xvlog $(SRC_V) $(TB_V)

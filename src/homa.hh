@@ -73,7 +73,6 @@ struct user_output_t;
 
 #define RTT_PKTS 44
 #define OVERCOMMIT_PKTS 352
-
 #define MAX_PEERS_LOG2 14
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
@@ -84,7 +83,9 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 
 /* data buffer */
 
-#define NUM_DBUFF 1024 // Number of data buffers (max outgoing RPCs)
+// #define NUM_DBUFF 1024 // Number of data buffers (max outgoing RPCs)
+
+#define NUM_DBUFF 2// Number of data buffers (max outgoing RPCs)
 #define DBUFF_INDEX 10 // Index into the data buffers
 
 #define DBUFF_CHUNK_SIZE 64   // Size of a "chunk" of a data buffer
@@ -374,44 +375,51 @@ const ap_uint<8> DOFF = 10 << 4;
 const ap_uint<8> DATA_TYPE = DATA;
 const ap_uint<32> HOMA_PAYLOAD_SIZE = 1386;
 
-
 struct srpt_data_t {
   rpc_id_t rpc_id;
   dbuff_id_t dbuff_id;
   ap_uint<32> remaining;
   ap_uint<32> total;
-
-  srpt_data_t() {
-    rpc_id = 0;
-    dbuff_id = 0;
-    remaining = 0xFFFFFFFF;
-    total = 0;
-  }
-
-  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, ap_uint<32> remaining, ap_uint<32> total) {
-    this->rpc_id = rpc_id;
-    this->dbuff_id = dbuff_id;
-    this->remaining = remaining;
-    this->total = total;
-  }
-
-  bool operator==(const srpt_data_t & other) const {
-    return (rpc_id == other.rpc_id &&
-  	    remaining == other.remaining &&
-  	    total == other.total);
-  }
-
-  // Ordering operator
-  bool operator>(srpt_data_t & other) {
-    return remaining > other.remaining;
-  }
-
-  void update_priority(srpt_data_t & other) {}
-
-  void print() {
-    std::cerr << rpc_id << " " << remaining << std::endl;
-  }
 };
+
+
+//struct srpt_data_t {
+//  rpc_id_t rpc_id;
+//  dbuff_id_t dbuff_id;
+//  ap_uint<32> remaining;
+//  ap_uint<32> total;
+//
+//  srpt_data_t() {
+//    rpc_id = 0;
+//    dbuff_id = 0;
+//    remaining = 0xFFFFFFFF;
+//    total = 0;
+//  }
+//
+//  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, ap_uint<32> remaining, ap_uint<32> total) {
+//    this->rpc_id = rpc_id;
+//    this->dbuff_id = dbuff_id;
+//    this->remaining = remaining;
+//    this->total = total;
+//  }
+//
+//  bool operator==(const srpt_data_t & other) const {
+//    return (rpc_id == other.rpc_id &&
+//  	    remaining == other.remaining &&
+//  	    total == other.total);
+//  }
+//
+//  // Ordering operator
+//  bool operator>(srpt_data_t & other) {
+//    return remaining > other.remaining;
+//  }
+//
+//  void update_priority(srpt_data_t & other) {}
+//
+//  void print() {
+//    std::cerr << rpc_id << " " << remaining << std::endl;
+//  }
+//};
 
 struct srpt_grant_t {
    ap_uint<14> peer_id;
