@@ -17,10 +17,10 @@ void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
       uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
       if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
    
-      std::cerr << "dma_read_o" << std::endl;
+      // std::cerr << "dma_read_o" << std::endl;
       dma_read_o.write({sendmsg.buffin, num_chunks, sendmsg.dbuff_id});
 
-      std::cerr << "sendmsg_o" << std::endl;
+      // std::cerr << "sendmsg_o" << std::endl;
       sendmsg_o.write(sendmsg);
    }
 }
@@ -49,7 +49,6 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
    if (header_in.valid && !rebuff.empty()) {
       in_chunk_t in_chunk = rebuff.remove();
       // Place chunk in DMA space at global offset + packet offset
-      std::cerr << "dma_w_req_o" << std::endl;
       dma_w_req_o.write({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
 
       if (in_chunk.last) header_in.valid = 0;
@@ -95,8 +94,13 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
     if (dbuff_egress_i.read_nb(dbuff_in)) {
        dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk].data = dbuff_in.block.data; 
    
-       std::cerr << "dbuff_notif_o" << std::endl;
-      dbuff_notif_o.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
+       dbuff_notif_o.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
+
+      //std::cerr << "READ BLOCK\n";
+      //for (int i = 0; i < 64; ++i) {
+      //   printf("%02x", (unsigned char) dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk].data((i+1)*8 - 1,i*8));
+      //}
+      //std::cerr << std::endl;
    }
 
    out_chunk_t out_chunk; 
@@ -143,8 +147,13 @@ void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
       raw_stream.last = out_chunk.last;
 
       raw_stream.data.data = out_chunk.buff.data;
-   
-      std::cerr << "link_egress" << std::endl;
+
+      // std::cerr << "WRITE BLOCK\n";
+      //for (int i = 0; i < 64; ++i) {
+      //   printf("%02x", (unsigned char) out_chunk.buff.data((i+1)*8 - 1,i*8));
+      //}
+      //std::cerr << std::endl;
+
       link_egress.write(raw_stream);
    }
 }

@@ -3,7 +3,8 @@ VITIS = vitis_hls
 VIVADO = vivado
 
 C_SRC_DIR = ./src
-C_TB_DIR  = ./tb
+C_TB_DIR  = ./src
+# C_TB_DIR  = ./tb
 V_SRC_DIR = ./src
 V_TB_DIR  = ./src
 TCL_DIR   = ./tcl
@@ -37,7 +38,9 @@ SRC_C =                      \
     $(C_SRC_DIR)/srptmgmt.hh \
     $(C_SRC_DIR)/stack.hh    \
     $(C_SRC_DIR)/timer.cc    \
-    $(C_SRC_DIR)/timer.hh
+    $(C_SRC_DIR)/timer.hh   
+    
+#$(C_TB_DIR)/client_test.hh \
 
 TB_C = $(C_TB_DIR)/client_test.cc
 
@@ -47,6 +50,8 @@ XDC = \
 PART = xcvu9p-flgb2104-2-i
 
 CSIM = 0
+SYNTH = 1
+COSIM = 2
 
 # .PHONY: all vlint vtest clean
 
@@ -79,13 +84,17 @@ CSIM = 0
 ############ Vitis C Synth ############ 
 
 synth:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) 1 "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
-
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
 
 ############ Vitis C Simulation ############ 
 
 csim:
 	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
+
+############ Vitis Cosim ############ 
+
+cosim:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
 
 ############ Verilog Synthesis ############ 
 

@@ -14,17 +14,9 @@ set test_bench [lindex $argv 4]
 open_project -reset homa
 set_top homa
 
-#add_files ./src/rpcmgmt.cc
-#add_files ./src/srptmgmt.cc
-#add_files ./src/homa.cc
-#add_files ./src/dma.cc
-#add_files ./src/link.cc
-#add_files ./src/peer.cc
-#add_files ./src/databuff.cc
-#add_files ./src/timer.cc
 add_files $c_src
 
-if {$job_type == 0} {
+if {$job_type == 0 || $job_type == 2 } {
    add_files -tb $test_bench
 }
 
@@ -43,14 +35,12 @@ if {$job_type == 0} {
    # Csynth only
    csynth_design
 	
+} elseif {$job_type == 2} {
+	# Run Synthesis, RTL Simulation and Exit
+	csynth_design
+	cosim_design
 } 
-
-#elseif {$hls_exec == 2} {
-#	# Run Synthesis, RTL Simulation and Exit
-#	csynth_design
-#	
-#	cosim_design
-#} elseif {$hls_exec == 3} { 
+# elseif {$hls_exec == 3} { 
 #	# Run Synthesis, RTL Simulation, RTL implementation and Exit
 #	csynth_design
 #	

@@ -43,7 +43,6 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
       entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
       hashmap.queue(entry);
     }
-    std::cerr << "sendmsg_o" << std::endl;
     sendmsg_o.write(sendmsg);
   } else if (recvmsg_i.read_nb(recvmsg)) {
 
@@ -57,7 +56,6 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
       hashmap.queue(entry);
     }
 
-    std::cerr << "recvmsg_o" << std::endl;
     recvmsg_o.write(recvmsg);
   } else {
     hashmap.process();

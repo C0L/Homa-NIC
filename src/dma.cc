@@ -7,14 +7,13 @@
 #include "srptmgmt.hh"
 
 void homa_recvmsg(const homa_t * homa,
-		  recvmsg_t * recvmsg,
-		  hls::stream<recvmsg_t> & recvmsg_o) {
-  if (recvmsg->valid) {
-    recvmsg_t new_recvmsg = *recvmsg;
-    //new_recvmsg.rtt_bytes = homa->rtt_bytes;
-    std::cerr << "recvmsg_o" << std::endl;
-    recvmsg_o.write(new_recvmsg);
-  }
+      recvmsg_t * recvmsg,
+      hls::stream<recvmsg_t> & recvmsg_o) {
+   if (recvmsg->valid) {
+      recvmsg_t new_recvmsg = *recvmsg;
+      //new_recvmsg.rtt_bytes = homa->rtt_bytes;
+      recvmsg_o.write(new_recvmsg);
+   }
 }
 
 /**
@@ -30,18 +29,16 @@ void homa_recvmsg(const homa_t * homa,
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
 void homa_sendmsg(const homa_t * homa,
-	     sendmsg_t * sendmsg,
-	     hls::stream<sendmsg_t> & sendmsg_o) {
+      sendmsg_t * sendmsg,
+      hls::stream<sendmsg_t> & sendmsg_o) {
 
-  if (sendmsg->valid)  {
-    //std::cerr << "HOMA SENDMSG\n";
-    sendmsg_t new_sendmsg = *sendmsg;
-    
-    new_sendmsg.granted = (homa->rtt_bytes > new_sendmsg.length) ? new_sendmsg.length : homa->rtt_bytes;
+   if (sendmsg->valid)  {
+      sendmsg_t new_sendmsg = *sendmsg;
 
-    std::cerr << "sendmsg_o" << std::endl;
-    sendmsg_o.write(new_sendmsg);
-  }
+      new_sendmsg.granted = (homa->rtt_bytes > new_sendmsg.length) ? new_sendmsg.length : homa->rtt_bytes;
+
+      sendmsg_o.write(new_sendmsg);
+   }
 }
 
 /**
@@ -50,27 +47,18 @@ void homa_sendmsg(const homa_t * homa,
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 void dma_read(char * maxi,
-	      hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
-	      hls::stream<dbuff_in_t> & dma_requests__dbuff) {
+      hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
+      hls::stream<dbuff_in_t> & dma_requests__dbuff) {
 
    dma_r_req_t dma_req;
    if (rpc_ingress__dma_read.read_nb(dma_req)) {
-   
-    for (int i = 0; i < dma_req.length; ++i) {
-      //std::cerr << dma_req.length << std::endl;
+
+      for (int i = 0; i < dma_req.length; ++i) {
 #pragma HLS pipeline II=1
-      //for (int i = 0; i < 64; ++i) {
-        //printf("%02x", big_order.data((i+1)*8 - 1,i*8));
-	//std::cerr << (char) big_order.data((i+1)*8 - 1,i*8);
-      //}
-      //std::cerr << std::endl;
-      // TOOD improve me
-      // integral_t big_order = *((integral_t*) (maxi + dma_req.offset + (i * 64)));
-      integral_t big_order;
-      std::cerr << "dma_requests__dbuff" << std::endl;
-      dma_requests__dbuff.write({big_order, dma_req.dbuff_id, dma_req.offset + i});
-    }
-  }
+         integral_t big_order = *((integral_t*) (maxi + dma_req.offset + (i * 64)));
+         dma_requests__dbuff.write({big_order, dma_req.dbuff_id, dma_req.offset + i});
+      }
+   }
 }
 
 /**
@@ -79,11 +67,11 @@ void dma_read(char * maxi,
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 void dma_write(char * maxi,
-	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
-  //TODO this is not really pipelined. 70 cycle layency per req
+      hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
+   //TODO this is not really pipelined. 70 cycle layency per req
 #pragma HLS pipeline II=1
-  dma_w_req_t dma_req;
-  //if (dbuff_ingress__dma_write.read_nb(dma_req)) {
-  //  *((integral_t*) (maxi + dma_req.offset)) = dma_req.block;
-  //}
+   dma_w_req_t dma_req;
+   if (dbuff_ingress__dma_write.read_nb(dma_req)) {
+      *((integral_t*) (maxi + dma_req.offset)) = dma_req.block;
+   }
 }

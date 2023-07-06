@@ -22,17 +22,17 @@ using namespace std;
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  * @dma:   DMA memory space pointer
  */
-void homa(homa_t * homa,
+void homa(homa_t * homa_cfg,
 	  sendmsg_t * sendmsg,
 	  recvmsg_t * recvmsg,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress,
 	  char * maxi_in,
 	  char * maxi_out) {
+// TODO return this at the end? Disabled for cosim
+// #pragma HLS interface mode=ap_ctrl_none port=return
 
-#pragma HLS interface mode=ap_ctrl_none port=return
-
-#pragma HLS interface s_axilite port=homa bundle=homa
+#pragma HLS interface s_axilite port=homa_cfg bundle=homa_cfg
 
 #pragma HLS interface s_axilite port=sendmsg bundle=sendmsg
 #pragma HLS interface mode=ap_vld port=sendmsg
@@ -43,8 +43,11 @@ void homa(homa_t * homa,
 #pragma HLS interface axis port=link_ingress
 #pragma HLS interface axis port=link_egress
 
-#pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=60 num_write_outstanding=1 
-#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=1 num_write_outstanding=80 
+   /* TODO depth is used for cosim and indicates num outstanding reqs for verif adapter 
+    * This value may need to change
+    */
+#pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=60 num_write_outstanding=1 depth=1000
+#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=1 num_write_outstanding=80 depth=1000
 
   hls_thread_local hls::stream<dbuff_id_t> freed_dbuffs;
   hls_thread_local hls::stream<dbuff_in_t> dma_read__dbuff_egress;
@@ -170,12 +173,11 @@ void homa(homa_t * homa,
 
   /* Control Driven Region */
 
-  homa_sendmsg(homa, sendmsg, homa_sendmsg__dbuff_stack);
+  homa_sendmsg(homa_cfg, sendmsg, homa_sendmsg__dbuff_stack);
 
-  homa_recvmsg(homa, recvmsg, recvmsg__peer_map);
+  homa_recvmsg(homa_cfg, recvmsg, recvmsg__peer_map);
 
   dma_read(maxi_in, dbuff_stack__dma_read, dma_read__dbuff_egress);
 
   dma_write(maxi_out, dbuff_ingress__dma_write);
 }
-

@@ -37,7 +37,6 @@ void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
 
       header_out.valid = 1;
    
-      std::cerr << "header_out_o" << std::endl;
       header_out_o.write(header_out);
 
    } else if (data_pkt_i.read_nb(ready_data_pkt)) {
@@ -57,7 +56,6 @@ void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
       header_out.incoming = ready_data_pkt.granted;
       header_out.valid = 1;
 
-      std::cerr << "header_out_o" << std::endl;
       header_out_o.write(header_out);
    } 
 }
@@ -85,7 +83,6 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
 
    // Need to decouple reading from input stream and reading from current packet
    if (doublebuff[w_pkt].valid == 0 && header_out_i.read_nb(doublebuff[w_pkt])) {
-      std::cerr << "SELECTED A HEADER\n";
       w_pkt++;
    }
 
@@ -279,7 +276,6 @@ void pkt_chunk_egress(hls::stream<header_t> & header_out_i,
          out_chunk.buff.data(512 - (i*8) - 1, 512 - 8 - (i*8)) = natural_chunk(7 + (i*8), (i*8));
       }
       
-      std::cerr << "WROTE PACKET CHUNK\n";
       //out_chunk.buff.data = natural_chunk;
       chunk_out_o.write(out_chunk);
    }
@@ -317,18 +313,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
          natural_chunk(512 - (i*8) - 1, 512 - 8 - (i*8)) = raw_stream.data.data(7 + (i*8), (i*8));
       }
 
-      //chunk_byte_swap(raw_stream.data.data, natural_chunk);
-
-      //std::cerr << "READ BLOCK\n";
-      //for (int i = 0; i < 64; ++i) {
-      //  printf("%02x", (unsigned char) natural_chunk((i+1)*8 - 1,i*8));
-      //  //std::cerr << raw_stream.data.data((i+1)*8 - 1,i*8);
-      //  //std::cerr << (char) raw_stream.data.data((i+1)*8 - 1,i*8);
-      //}
-      //std::cerr << std::endl;
-
-
-      //std::cerr << "DATA CHUNK IN\n";
       // For every type of homa packet we need to read at least two blocks
       if (header_in.processed_bytes == 0) {
 
@@ -382,8 +366,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
                header_in.segment_length(4*8-1,0) = (8*64 - 34*8-1,8*64 - 38*8)  ;
 
 
-               std::cerr << "NEW PACKET IN " << header_in.data_offset << "\n";
-
                //header_in.message_length = raw_stream.data.data(175, 144); // Message Length (entire message)
                //header_in.incoming = raw_stream.data.data(207, 176); // Expected Incoming Bytes
                //header_in.data_offset = raw_stream.data.data(263, 232); // Offset in message of segment
@@ -408,7 +390,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
                //std::cerr << std::endl;
 
                data_block.last = raw_stream.last;
-               std::cerr << "WROTE PARTIAL\n";
                chunk_in_o.write(data_block);
 
                data_block.offset += 14;
@@ -416,19 +397,12 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
                break;
             }
          }
-         std::cerr << "WROTE HEADER\n";
-         //header_in_o.write(header_in);
+
+         header_in_o.write(header_in);
       } else {
 
          data_block.buff = raw_stream.data;
 
-         //std::cerr << "READ WHOLE BLOCK\n";
-         //for (int i = 0; i < 64; ++i) {
-         //  printf("%02x", (unsigned char) raw_stream.data.data((i+1)*8 - 1,i*8));
-         //}
-         //std::cerr << std::endl;
-
-         std::cerr << "WROTE FULL\n";
          data_block.last = raw_stream.last;
          chunk_in_o.write(data_block);
 
