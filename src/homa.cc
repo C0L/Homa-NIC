@@ -46,39 +46,39 @@ void homa(homa_t * homa_cfg,
    /* TODO depth is used for cosim and indicates num outstanding reqs for verif adapter 
     * This value may need to change
     */
-#pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=60 num_write_outstanding=1 depth=1000
-#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=1 num_write_outstanding=80 depth=1000
+#pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=60 num_write_outstanding=1 depth=64
+#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=1 num_write_outstanding=80 depth=64
 
-  hls_thread_local hls::stream<dbuff_id_t> freed_dbuffs;
-  hls_thread_local hls::stream<dbuff_in_t> dma_read__dbuff_egress;
+  hls_thread_local hls::stream<dbuff_id_t, VERIF_DEPTH> freed_dbuffs;
+  hls_thread_local hls::stream<dbuff_in_t, VERIF_DEPTH> dma_read__dbuff_egress;
 
-  hls_thread_local hls::stream<sendmsg_t> homa_sendmsg__dbuff_stack;
-  hls_thread_local hls::stream<sendmsg_t> dbuff_stack__peer_map;
-  hls_thread_local hls::stream<sendmsg_t> peer_map__rpc_state;
-  hls_thread_local hls::stream<sendmsg_t> rpc_state__srpt_data;
+  hls_thread_local hls::stream<sendmsg_t, VERIF_DEPTH> homa_sendmsg__dbuff_stack;
+  hls_thread_local hls::stream<sendmsg_t, VERIF_DEPTH> dbuff_stack__peer_map;
+  hls_thread_local hls::stream<sendmsg_t, VERIF_DEPTH> peer_map__rpc_state;
+  hls_thread_local hls::stream<sendmsg_t, VERIF_DEPTH> rpc_state__srpt_data;
 
-  hls_thread_local hls::stream<ready_data_pkt_t> srpt_data__egress_sel;
-  hls_thread_local hls::stream<ap_uint<51>> srpt_grant__egress_sel;
-  hls_thread_local hls::stream<rexmit_t> rexmit__egress_sel;
+  hls_thread_local hls::stream<ready_data_pkt_t, VERIF_DEPTH> srpt_data__egress_sel;
+  hls_thread_local hls::stream<ap_uint<51>, VERIF_DEPTH> srpt_grant__egress_sel;
+  hls_thread_local hls::stream<rexmit_t, VERIF_DEPTH> rexmit__egress_sel;
 
-  hls_thread_local hls::stream<header_t> egress_sel__rpc_state("egress_sel__rpc_state"); // header_out
-  hls_thread_local hls::stream<header_t> rpc_state__chunk_egress("rpc_state__chunk_egress"); // header_out
-  hls_thread_local hls::stream<header_t> peer_map__rpc_map("peer_map__rpc_map"); // header_in
-  hls_thread_local hls::stream<header_t> rpc_map__rpc_state("rpc_map__rpc_state"); //header_in
+  hls_thread_local hls::stream<header_t, VERIF_DEPTH> egress_sel__rpc_state("egress_sel__rpc_state"); // header_out
+  hls_thread_local hls::stream<header_t, VERIF_DEPTH> rpc_state__chunk_egress("rpc_state__chunk_egress"); // header_out
+  hls_thread_local hls::stream<header_t, VERIF_DEPTH> peer_map__rpc_map("peer_map__rpc_map"); // header_in
+  hls_thread_local hls::stream<header_t, VERIF_DEPTH> rpc_map__rpc_state("rpc_map__rpc_state"); //header_in
 
-  hls_thread_local hls::stream<out_chunk_t> chunk_egress__dbuff_ingress("chunk_egress__dbuff_ingress");
-  hls_thread_local hls::stream<dbuff_notif_t> dbuff_ingress__srpt_data;
-  hls_thread_local hls::stream<dma_r_req_t> dbuff_stack__dma_read;
-  hls_thread_local hls::stream<in_chunk_t> chunk_ingress__dbuff_ingress("chunk_ingress__dbuff_ingress");
-  hls_thread_local hls::stream<dma_w_req_t> dbuff_ingress__dma_write;
-  hls_thread_local hls::stream<header_t> rpc_state__dbuff_ingress("rpc_state__dbuff_ingress");
-  hls_thread_local hls::stream<ap_uint<58>> rpc_state__srpt_grant;
-  hls_thread_local hls::stream<header_t> header_in__rpc_state__srpt_data("header_in__rpc_date__srpt_data");
-  hls_thread_local hls::stream<header_t> chunk_ingress__rpc_map("chunk_ingress__rpc_map");
+  hls_thread_local hls::stream<out_chunk_t, VERIF_DEPTH> chunk_egress__dbuff_ingress("chunk_egress__dbuff_ingress");
+  hls_thread_local hls::stream<dbuff_notif_t, VERIF_DEPTH> dbuff_ingress__srpt_data;
+  hls_thread_local hls::stream<dma_r_req_t, VERIF_DEPTH> dbuff_stack__dma_read;
+  hls_thread_local hls::stream<in_chunk_t, VERIF_DEPTH> chunk_ingress__dbuff_ingress("chunk_ingress__dbuff_ingress");
+  hls_thread_local hls::stream<dma_w_req_t, VERIF_DEPTH> dbuff_ingress__dma_write;
+  hls_thread_local hls::stream<header_t, VERIF_DEPTH> rpc_state__dbuff_ingress("rpc_state__dbuff_ingress");
+  hls_thread_local hls::stream<ap_uint<58>, VERIF_DEPTH> rpc_state__srpt_grant;
+  hls_thread_local hls::stream<header_t, VERIF_DEPTH> header_in__rpc_state__srpt_data("header_in__rpc_date__srpt_data");
+  hls_thread_local hls::stream<header_t, VERIF_DEPTH> chunk_ingress__rpc_map("chunk_ingress__rpc_map");
   
-  hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map__rpc_state;
-  hls_thread_local hls::stream<recvmsg_t> recvmsg__rpc_state__rpc_map;
-  hls_thread_local hls::stream<recvmsg_t> recvmsg__peer_map;
+  hls_thread_local hls::stream<recvmsg_t, VERIF_DEPTH> recvmsg__peer_map__rpc_state;
+  hls_thread_local hls::stream<recvmsg_t, VERIF_DEPTH> recvmsg__rpc_state__rpc_map;
+  hls_thread_local hls::stream<recvmsg_t, VERIF_DEPTH> recvmsg__peer_map;
 
 #pragma HLS dataflow
 

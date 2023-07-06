@@ -8,7 +8,7 @@
 
 void homa_recvmsg(const homa_t * homa,
       recvmsg_t * recvmsg,
-      hls::stream<recvmsg_t> & recvmsg_o) {
+      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o) {
    if (recvmsg->valid) {
       recvmsg_t new_recvmsg = *recvmsg;
       //new_recvmsg.rtt_bytes = homa->rtt_bytes;
@@ -30,7 +30,7 @@ void homa_recvmsg(const homa_t * homa,
  */
 void homa_sendmsg(const homa_t * homa,
       sendmsg_t * sendmsg,
-      hls::stream<sendmsg_t> & sendmsg_o) {
+      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o) {
 
    if (sendmsg->valid)  {
       sendmsg_t new_sendmsg = *sendmsg;
@@ -47,8 +47,8 @@ void homa_sendmsg(const homa_t * homa,
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 void dma_read(char * maxi,
-      hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
-      hls::stream<dbuff_in_t> & dma_requests__dbuff) {
+      hls::stream<dma_r_req_t, VERIF_DEPTH> & rpc_ingress__dma_read,
+      hls::stream<dbuff_in_t, VERIF_DEPTH> & dma_requests__dbuff) {
 
    dma_r_req_t dma_req;
    if (rpc_ingress__dma_read.read_nb(dma_req)) {
@@ -67,7 +67,7 @@ void dma_read(char * maxi,
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 void dma_write(char * maxi,
-      hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
+      hls::stream<dma_w_req_t, VERIF_DEPTH> & dbuff_ingress__dma_write) {
    //TODO this is not really pipelined. 70 cycle layency per req
 #pragma HLS pipeline II=1
    dma_w_req_t dma_req;

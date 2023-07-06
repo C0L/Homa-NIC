@@ -8,10 +8,10 @@
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
-void srpt_data_pkts(hls::stream<sendmsg_t> & sendmsg_i,
-      hls::stream<dbuff_notif_t> & dbuff_notif_i,
-      hls::stream<ready_data_pkt_t> & data_pkt_o,
-      hls::stream<header_t> & header_in_i) {
+void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
+      hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_i,
+      hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_o,
+      hls::stream<header_t, VERIF_DEPTH> & header_in_i) {
    
    static srpt_data_t entries[MAX_RPCS];
    static ap_uint<32> grants[MAX_RPCS]; 
@@ -160,8 +160,8 @@ void srpt_data_pkts(hls::stream<sendmsg_t> & sendmsg_i,
  * @grant_pkt_o: The next rpc that should be granted to. Goes to packet egress process.
  *
  */
-void srpt_grant_pkts(hls::stream<ap_uint<58>> & header_in_i,
-                     hls::stream<ap_uint<51>> & grant_pkt_o) {
+void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
+                     hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_o) {
 
    // Because this is only used for sim we brute force grants
    static srpt_grant_t entries[MAX_RPCS];
@@ -179,7 +179,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>> & header_in_i,
       header_in.incoming = header_in_raw(19, 10);
       header_in.data_offset = header_in_raw(9, 0);
 
-      std::cerr << "HEADER IN: " << header_in.local_id << std::endl;
+      // std::cerr << "HEADER IN: " << header_in.local_id << std::endl;
 
       if (header_in.message_length > RTT_PKTS) {
 
@@ -265,87 +265,4 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>> & header_in_i,
          } 
       }
    }
-
-      // All slots begin empty
-      //for (int i = 0; i < 8; ++i)  {
-      //   best[i] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
-      //}
-
-      // Check all the RPCs we need to grant to 
-      //for (int i = 0; i < MAX_RPCS; ++i) { 
-      //  // Is this peer already in our best list?
-      //   int match = -1;
-      //   int max_entry = 0;
-      //   for (int l = 0; l < 8; ++l) {
-      //      // Is any entry in 8 best 
-      //      if (best[max_entry].grantable_pkts > best[l].grantable_pkts) {
-      //         max_entry = l;
-      //      }
-
-      //      if (best[l].rpc_id == entries[i].rpc_id) {
-      //         match = l;
-      //      }
-      //   }
-
-      //   // If we matched, should we unseat the matched entry?
-      //   if (match != -1) {
-      //      std::cerr << "FOUND MATCH\n";
-      //      if (best[match].grantable_pkts > entries[i].grantable_pkts) {
-      //         best[match] = entries[i];
-      //      }
-      //   } else {
-      //      if (best[max_entry].grantable_pkts > entries[i].grantable_pkts) {
-      //         best[max_entry] = entries[i]; 
-      //      }
-      //   }
-      //}
-
-      //int min_entry = 0;
-      //for (int l = 0; l < 8; ++l) {
-      //   if (best[min_entry].grantable_pkts < best[l].grantable_pkts 
-      //      && best[l].recv_pkts > 0) {
-      //      min_entry = l;
-      //   }
-      //}
-//      int min_entry = 0;
-//   std::cerr << best[min_entry].rpc_id << std::endl;
-//   if (best[min_entry].recv_pkts > 0
-//         && best[min_entry].rpc_id != 0xFFFFFFFF) {
-//         std::cerr << "HERE\n";
-//         ap_uint<51> grant_pkt;
-//
-//         if (best[min_entry].recv_pkts > avail_pkts) {
-//            // Just send avail_pkts of data
-// 
-//            entries[(best[min_entry].rpc_id >> 1) - 1].recv_pkts -= avail_pkts;
-//            entries[(best[min_entry].rpc_id >> 1) - 1].grantable_pkts -= avail_pkts;
-//
-//            grant_pkt(2, 0)   = 0;
-//            grant_pkt(12, 3)  = 0;
-//            grant_pkt(22, 13) = avail_pkts;
-//            grant_pkt(36, 23) = best[min_entry].rpc_id;
-//            grant_pkt(50, 37) = best[min_entry].peer_id;
-//
-//            grant_pkt_o.write(grant_pkt);
-//
-//         } else { 
-//            // Is this going to result in a fully granted message?
-//            if ((best[min_entry].grantable_pkts - best[min_entry].recv_pkts) == 0) { 
-//               entries[best[min_entry].rpc_id] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}; 
-//            }
-//            
-//            entries[(best[min_entry].rpc_id >> 1) - 1].recv_pkts = 0;
-//            entries[(best[min_entry].rpc_id >> 1) - 1].grantable_pkts -= best[min_entry].recv_pkts;
-//
-//            grant_pkt(2, 0)   = 0;
-//            grant_pkt(12, 3)  = 0;
-//            grant_pkt(22, 13) = best[min_entry].recv_pkts;
-//            grant_pkt(36, 23) = best[min_entry].rpc_id;
-//            grant_pkt(50, 37) = best[min_entry].peer_id;
-//
-//            std::cerr << "DISPATCH GRANT\n";
-//            grant_pkt_o.write(grant_pkt);
-//         } 
-//      }
-//   }
 }

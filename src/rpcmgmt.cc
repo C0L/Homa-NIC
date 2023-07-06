@@ -2,24 +2,24 @@
 #include "hashmap.hh"
 #include <iostream>
 
-void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
-      hls::stream<sendmsg_t> & sendmsg_o,
-      hls::stream<recvmsg_t> & recvmsg_i,
-      hls::stream<recvmsg_t> & recvmsg_o,
-      hls::stream<header_t> & header_out_i, 
-      hls::stream<header_t> & header_out_o,
-      hls::stream<header_t> & header_in_i,
-      hls::stream<header_t> & header_in_dbuff_o,
-      hls::stream<ap_uint<58>> & header_in_grant_o,
-      hls::stream<header_t> & header_in_srpt_o) {
+void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
+      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
+      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
+      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o,
+      hls::stream<header_t, VERIF_DEPTH> & header_out_i, 
+      hls::stream<header_t, VERIF_DEPTH> & header_out_o,
+      hls::stream<header_t, VERIF_DEPTH> & header_in_i,
+      hls::stream<header_t, VERIF_DEPTH> & header_in_dbuff_o,
+      hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_grant_o,
+      hls::stream<header_t, VERIF_DEPTH> & header_in_srpt_o) {
 
    static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
    static homa_rpc_t rpcs[MAX_RPCS];
 
-#pragma HLS pipeline II=1
+#pragma HLS pipeline II=1 tpye=frp
 #pragma HLS dependence variable=rpcs inter WAR false
 #pragma HLS dependence variable=rpcs inter RAW false
-   
+
    header_t header_out;
    /* Read only process */
    if (header_out_i.read_nb(header_out)) {
@@ -33,7 +33,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 
       // The grant offset as it comes out of the SRPT grant core is an increment of pkts
       header_out.grant_offset = homa_rpc.msgin.incoming + (header_out.grant_offset * HOMA_PAYLOAD_SIZE);
-   
+
       header_out_o.write(header_out);
    }
 
@@ -43,31 +43,31 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
 
       switch (header_in.type) {
          case DATA: {
-            homa_rpc.msgin.incoming = header_in.incoming;
+                       homa_rpc.msgin.incoming = header_in.incoming;
 
-            // TODO maybe other data needs to be accumulated
-            header_in.dma_offset = homa_rpc.buffout;
+                       // TODO maybe other data needs to be accumulated
+                       header_in.dma_offset = homa_rpc.buffout;
 
-            header_in_dbuff_o.write(header_in); // Write to data buffer
+                       header_in_dbuff_o.write(header_in); // Write to data buffer
 
-            // The SRPT grant core operates in the packet space
-            ap_uint<HEADER_SIZE> header_in_raw;
-            header_in_raw(HDR_OFFSET) = (header_in.data_offset / HOMA_PAYLOAD_SIZE);
-            header_in_raw(HDR_INCOMING) = (header_in.incoming / HOMA_PAYLOAD_SIZE); // TODO no longer used 
-            header_in_raw(HDR_MSG_LEN) = (header_in.message_length / HOMA_PAYLOAD_SIZE);
-            header_in_raw(HDR_RPC_ID) = header_in.local_id;
-            header_in_raw(HDR_PEER_ID) = header_in.peer_id;
+                       // The SRPT grant core operates in the packet space
+                       ap_uint<HEADER_SIZE> header_in_raw;
+                       header_in_raw(HDR_OFFSET) = (header_in.data_offset / HOMA_PAYLOAD_SIZE);
+                       header_in_raw(HDR_INCOMING) = (header_in.incoming / HOMA_PAYLOAD_SIZE); // TODO no longer used 
+                       header_in_raw(HDR_MSG_LEN) = (header_in.message_length / HOMA_PAYLOAD_SIZE);
+                       header_in_raw(HDR_RPC_ID) = header_in.local_id;
+                       header_in_raw(HDR_PEER_ID) = header_in.peer_id;
 
-             header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
-            break;
-         }
+                       header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
+                       break;
+                    }
 
          case GRANT: {
-            // TODO maybe other data needs to be accumulated
+                        // TODO maybe other data needs to be accumulated
 
-             header_in_srpt_o.write(header_in); // Write to SRPT data queue
-            break;
-         }
+                        header_in_srpt_o.write(header_in); // Write to SRPT data queue
+                        break;
+                     }
       }
    }
 
@@ -78,7 +78,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
    if (sendmsg_i.read_nb(sendmsg)) {
 
       if (sendmsg.id == 0) { // Is this a request message?
-         // TODO define macro for this translation (and back)
+                             // TODO define macro for this translation (and back)
          sendmsg.local_id = ((rpc_stack.pop() + 1) << 1);
 
          homa_rpc_t homa_rpc;
@@ -115,16 +115,16 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
       homa_rpc.sport = recvmsg.sport;
       homa_rpc.buffout = recvmsg.buffout;
       //homa_rpc.rtt_bytes = recvmsg.rtt_bytes;
-   
+
       rpcs[(recvmsg.local_id >> 1)-1] = homa_rpc;
 
       recvmsg_o.write(recvmsg);
    }
 }
 
-void rpc_map(hls::stream<header_t> & header_in_i,
-      hls::stream<header_t> & header_in_o,
-      hls::stream<recvmsg_t> & recvmsg_i) {
+void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
+      hls::stream<header_t, VERIF_DEPTH> & header_in_o,
+      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i) {
 
    static hashmap_t<rpc_hashpack_t, rpc_id_t, RPC_SUB_TABLE_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE, MAX_OPS> hashmap;
 
@@ -132,7 +132,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 #pragma HLS dependence variable=hashmap inter WAR false
 #pragma HLS dependence variable=hashmap inter RAW false
 
-#pragma HLS pipeline II=1
+#pragma HLS pipeline II=1 type=frp
 
    header_t header_in;
    recvmsg_t recvmsg;

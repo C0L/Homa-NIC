@@ -3,10 +3,10 @@
 #include "hashmap.hh"
 #include <iostream>
 
-void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
-	      hls::stream<sendmsg_t> & sendmsg_o,
-	      hls::stream<recvmsg_t> & recvmsg_i,
-	      hls::stream<recvmsg_t> & recvmsg_o) {
+void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
+	      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
+	      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
+	      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o) {
 
   static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
   static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
@@ -15,7 +15,7 @@ void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
 #pragma HLS dependence variable=hashmap inter WAR false
 #pragma HLS dependence variable=hashmap inter RAW false
 
-#pragma HLS pipeline II=1
+#pragma HLS pipeline II=1 type=frp
 
   //if (!header_in_i.empty()) {
   //  std::cerr << "header in peer map\n";

@@ -3,10 +3,10 @@
 #include "rpcmgmt.hh"
 #include "hls_math.h"
 
-void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
-      hls::stream<sendmsg_t> & sendmsg_o,
-      hls::stream<dma_r_req_t> & dma_read_o) {
-#pragma HLS pipeline II=1
+void dbuff_stack(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
+      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
+      hls::stream<dma_r_req_t, VERIF_DEPTH> & dma_read_o) {
+#pragma HLS pipeline II=1 type=frp
 
    static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
@@ -32,10 +32,10 @@ void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
  * @dma_w_req_o - Outgoing requests for data to be placed in DMA
  * @header_in_i - Incoming headers that determine DMA placement
  */
-void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
-      hls::stream<dma_w_req_t> & dma_w_req_o,
-      hls::stream<header_t> & header_in_i) {
-#pragma HLS pipeline II=1
+void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
+      hls::stream<dma_w_req_t, VERIF_DEPTH> & dma_w_req_o,
+      hls::stream<header_t, VERIF_DEPTH> & header_in_i) {
+#pragma HLS pipeline II=1 type=frp
 
 
    static fifo_t<in_chunk_t,16> rebuff;
@@ -78,12 +78,12 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
  * set, indicating a completiton of packet transmission.
  * TODO Needs to request data from DMA to keep the RB saturated with pkt data
  */
-void dbuff_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
-      hls::stream<dbuff_notif_t> & dbuff_notif_o,
-      hls::stream<out_chunk_t> & out_chunk_i,
+void dbuff_egress(hls::stream<dbuff_in_t, VERIF_DEPTH> & dbuff_egress_i,
+      hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_o,
+      hls::stream<out_chunk_t, VERIF_DEPTH> & out_chunk_i,
       hls::stream<raw_stream_t> & link_egress) {
 
-#pragma HLS pipeline II=1
+#pragma HLS pipeline II=1 type=frp
 
    // 1024 x 2^14 byte buffers
    static dbuff_t dbuff[NUM_DBUFF];

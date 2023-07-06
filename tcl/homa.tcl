@@ -24,7 +24,6 @@ add_files -blackbox $json_src
 
 open_solution -reset "solution" -flow_target vivado 
 set_part $part
-#set_part {xcvu9p-flgb2104-2-i}
 create_clock -period 3.1 -name default
 
 if {$job_type == 0} {

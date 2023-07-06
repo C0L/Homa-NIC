@@ -10,6 +10,8 @@
 #include "hls_burst_maxi.h"
 #include "ap_axi_sdata.h"
 
+#define VERIF_DEPTH 2
+
 struct args_t;
 struct user_output_t;
 
@@ -589,8 +591,6 @@ void htno_set(ap_uint<W*8> & out, const ap_uint<W*8> & in) {
     out((W * 8) - 1 - (i * 8), (W*8) - 8 - (i * 8)) = in(7 + (i * 8), 0 + (i * 8));
   }
 }
-
-
 
 void homa(homa_t * homa,
 	  sendmsg_t * sendmsg,

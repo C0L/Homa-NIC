@@ -14,19 +14,19 @@ struct homa_t;
 
 void homa_sendmsg(const homa_t * homa,
 		  sendmsg_t * params,
-		  hls::stream<sendmsg_t> & sendmsg_o);
+		  hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o);
 
 void homa_recvmsg(const homa_t * homa,
 		  recvmsg_t * recvmsg,
-		  hls::stream<recvmsg_t> & recvmsg_o);
+		  hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o);
 
 // void byte_order_flip(dbuff_chunk_t & in, dbuff_chunk_t & out);
 
 void dma_read(char * maxi,
-	      hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
-	      hls::stream<dbuff_in_t> & dma_requests__dbuff);
+	      hls::stream<dma_r_req_t, VERIF_DEPTH> & rpc_ingress__dma_read,
+	      hls::stream<dbuff_in_t, VERIF_DEPTH> & dma_requests__dbuff);
 
 void dma_write(char * maxi,
-	       hls::stream<dma_w_req_t> & dbuff_ingress__dma_write);
+	       hls::stream<dma_w_req_t, VERIF_DEPTH> & dbuff_ingress__dma_write);
 
 #endif

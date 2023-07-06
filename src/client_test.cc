@@ -288,10 +288,6 @@ bool test_partial_grant_send_recv(homa_t * homa_cfg,
 int main() {
   std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-  //hls::stream<raw_stream_t> link_ingress;
-  //hls::stream<raw_stream_t> link_egress;
-
-
   hls::stream<raw_stream_t> loopback;
 
   homa_t homa_cfg;
