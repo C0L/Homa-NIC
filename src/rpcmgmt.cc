@@ -16,13 +16,15 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
    static homa_rpc_t rpcs[MAX_RPCS];
 
-#pragma HLS pipeline II=1 tpye=frp
+#pragma HLS pipeline II=1 style=flp
 #pragma HLS dependence variable=rpcs inter WAR false
 #pragma HLS dependence variable=rpcs inter RAW false
 
    header_t header_out;
    /* Read only process */
-   if (header_out_i.read_nb(header_out)) {
+   if (!header_out_i.empty() && header_out_o.size() < VERIF_DEPTH) {
+      header_out = header_out_i.read();
+
       homa_rpc_t homa_rpc = rpcs[(header_out.local_id >> 1)-1];
 
       header_out.dbuff_id = homa_rpc.msgout.dbuff_id;
@@ -38,36 +40,41 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    }
 
    header_t header_in;
-   if (header_in_i.read_nb(header_in)) {
+   if (!header_in_i.empty() 
+         && header_in_dbuff_o.size() < VERIF_DEPTH 
+         && header_in_grant_o.size() < VERIF_DEPTH
+         && header_in_srpt_o.size() < VERIF_DEPTH) {
+      header_in = header_in_i.read();
+
       homa_rpc_t homa_rpc = rpcs[(header_in.local_id >> 1)-1];
 
       switch (header_in.type) {
          case DATA: {
-                       homa_rpc.msgin.incoming = header_in.incoming;
+            homa_rpc.msgin.incoming = header_in.incoming;
 
-                       // TODO maybe other data needs to be accumulated
-                       header_in.dma_offset = homa_rpc.buffout;
+            // TODO maybe other data needs to be accumulated
+            header_in.dma_offset = homa_rpc.buffout;
 
-                       header_in_dbuff_o.write(header_in); // Write to data buffer
+            header_in_dbuff_o.write(header_in); // Write to data buffer
 
-                       // The SRPT grant core operates in the packet space
-                       ap_uint<HEADER_SIZE> header_in_raw;
-                       header_in_raw(HDR_OFFSET) = (header_in.data_offset / HOMA_PAYLOAD_SIZE);
-                       header_in_raw(HDR_INCOMING) = (header_in.incoming / HOMA_PAYLOAD_SIZE); // TODO no longer used 
-                       header_in_raw(HDR_MSG_LEN) = (header_in.message_length / HOMA_PAYLOAD_SIZE);
-                       header_in_raw(HDR_RPC_ID) = header_in.local_id;
-                       header_in_raw(HDR_PEER_ID) = header_in.peer_id;
+            // The SRPT grant core operates in the packet space
+            ap_uint<HEADER_SIZE> header_in_raw;
+            header_in_raw(HDR_OFFSET) = (header_in.data_offset / HOMA_PAYLOAD_SIZE);
+            header_in_raw(HDR_INCOMING) = (header_in.incoming / HOMA_PAYLOAD_SIZE); // TODO no longer used 
+            header_in_raw(HDR_MSG_LEN) = (header_in.message_length / HOMA_PAYLOAD_SIZE);
+            header_in_raw(HDR_RPC_ID) = header_in.local_id;
+            header_in_raw(HDR_PEER_ID) = header_in.peer_id;
 
-                       header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
-                       break;
-                    }
+            header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
+            break;
+         }
 
          case GRANT: {
-                        // TODO maybe other data needs to be accumulated
+            // TODO maybe other data needs to be accumulated
 
-                        header_in_srpt_o.write(header_in); // Write to SRPT data queue
-                        break;
-                     }
+            header_in_srpt_o.write(header_in); // Write to SRPT data queue
+            break;
+         }
       }
    }
 
@@ -75,7 +82,8 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    sendmsg_t sendmsg;
    recvmsg_t recvmsg;
    /* R/W Processes */
-   if (sendmsg_i.read_nb(sendmsg)) {
+   if (!sendmsg_i.empty() && sendmsg_o.size() < VERIF_DEPTH) {
+      sendmsg = sendmsg_i.read();
 
       if (sendmsg.id == 0) { // Is this a request message?
                              // TODO define macro for this translation (and back)
@@ -101,7 +109,8 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       }
 
       sendmsg_o.write(sendmsg);
-   } else if (recvmsg_i.read_nb(recvmsg)) {
+   } else if (!recvmsg_i.empty() && recvmsg_o.size() < VERIF_DEPTH) {
+      recvmsg = recvmsg_i.read();
 
       // If the caller ID determines if this machine is client or server
       recvmsg.local_id = (recvmsg.id == 0) ? (rpc_id_t) ((rpc_stack.pop() + 1) << 1) : (rpc_id_t) recvmsg.id;
@@ -132,11 +141,12 @@ void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
 #pragma HLS dependence variable=hashmap inter WAR false
 #pragma HLS dependence variable=hashmap inter RAW false
 
-#pragma HLS pipeline II=1 type=frp
+#pragma HLS pipeline II=1 style=flp
 
    header_t header_in;
    recvmsg_t recvmsg;
-   if (header_in_i.read_nb(header_in)) {
+   if (!header_in_i.empty() && header_in_o.size() < VERIF_DEPTH) {
+      header_in = header_in_i.read();
 
       /* The incoming message is a request */
       if (!IS_CLIENT(header_in.sender_id)) {
@@ -165,7 +175,8 @@ void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
 
       // If the incoming message is a response, the RPC ID is already valid in the local store
       header_in_o.write(header_in);
-   } else if (recvmsg_i.read_nb(recvmsg)) {
+   } else if (!recvmsg_i.empty()) {
+      recvmsg = recvmsg_i.read();
 
       // Create a mapping for incoming data
       rpc_hashpack_t query = {recvmsg.daddr, recvmsg.id, recvmsg.dport, 0};

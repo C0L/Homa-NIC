@@ -15,7 +15,7 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 #pragma HLS dependence variable=hashmap inter WAR false
 #pragma HLS dependence variable=hashmap inter RAW false
 
-#pragma HLS pipeline II=1 type=frp
+#pragma HLS pipeline II=1 style=flp
 
   //if (!header_in_i.empty()) {
   //  std::cerr << "header in peer map\n";
@@ -32,33 +32,35 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
   //} else
   sendmsg_t sendmsg;
   recvmsg_t recvmsg;
-  if (sendmsg_i.read_nb(sendmsg)) {
+  if (!sendmsg_i.empty() && sendmsg_o.size() < VERIF_DEPTH) {
+     sendmsg = sendmsg_i.read();
 
-    peer_hashpack_t query = {sendmsg.daddr};
-    sendmsg.peer_id = hashmap.search(query);
+     peer_hashpack_t query = {sendmsg.daddr};
+     sendmsg.peer_id = hashmap.search(query);
 
-    if (sendmsg.peer_id == 0) {
-      sendmsg.peer_id = peer_stack.pop();
+     if (sendmsg.peer_id == 0) {
+        sendmsg.peer_id = peer_stack.pop();
 
-      entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
-      hashmap.queue(entry);
-    }
-    sendmsg_o.write(sendmsg);
-  } else if (recvmsg_i.read_nb(recvmsg)) {
+        entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
+        hashmap.queue(entry);
+     }
+     sendmsg_o.write(sendmsg);
+  } else if (!recvmsg_i.empty() && recvmsg_o.size() < VERIF_DEPTH) {
+     recvmsg = recvmsg_i.read();
 
-    peer_hashpack_t query = {recvmsg.daddr};
-    recvmsg.peer_id = hashmap.search(query);
+     peer_hashpack_t query = {recvmsg.daddr};
+     recvmsg.peer_id = hashmap.search(query);
 
-    if (recvmsg.peer_id == 0) {
-      recvmsg.peer_id = peer_stack.pop();
+     if (recvmsg.peer_id == 0) {
+        recvmsg.peer_id = peer_stack.pop();
 
-      entry_t<peer_hashpack_t, peer_id_t> entry = {query, recvmsg.peer_id};
-      hashmap.queue(entry);
-    }
+        entry_t<peer_hashpack_t, peer_id_t> entry = {query, recvmsg.peer_id};
+        hashmap.queue(entry);
+     }
 
-    recvmsg_o.write(recvmsg);
+     recvmsg_o.write(recvmsg);
   } else {
-    hashmap.process();
+     hashmap.process();
   }
 }
 

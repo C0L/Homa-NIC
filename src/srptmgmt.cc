@@ -18,17 +18,22 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    static dbuff_notif_t dbuff_notifs[NUM_DBUFF];
 
    dbuff_notif_t dbuff_notif;
-   if (dbuff_notif_i.read_nb(dbuff_notif)) {
+   if (!dbuff_notif_i.empty()) {
+      dbuff_notif = dbuff_notif_i.read();
       dbuff_notifs[dbuff_notif.dbuff_id] = dbuff_notif;
+
+      //std::cerr << "GRANT UP TO: " << (dbuff_notif.dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
    }
 
    header_t header_in;
-   if (header_in_i.read_nb(header_in)) {
+   if (!header_in_i.empty()) {
+      header_in = header_in_i.read();
       grants[header_in.local_id] = header_in.grant_offset;
    }
 
    sendmsg_t sendmsg;
-   if (sendmsg_i.read_nb(sendmsg)) {
+   if (!sendmsg_i.empty()) {
+      sendmsg = sendmsg_i.read();
       srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
       grants[((sendmsg.local_id >> 1)-1)] = sendmsg.granted;
 
@@ -41,7 +46,7 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
        
       if (entries[i].remaining < head.remaining && entries[i].rpc_id != 0) {
          // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
-         bool unblocked = (((dbuff_notifs[entries[i].dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE)) >= MIN((entries[i].remaining + HOMA_PAYLOAD_SIZE)(31,0), entries[i].total(31,0));
+         bool unblocked = (((dbuff_notifs[entries[i].dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE)) >= MIN((entries[i].total - entries[i].remaining + HOMA_PAYLOAD_SIZE)(31,0), entries[i].total(31,0));
          bool granted = !(head.total - head.remaining > grants[i]);
 
          if (unblocked && granted) { 
@@ -51,7 +56,9 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    }
 
    if (head.rpc_id != 0) {
-      if (data_pkt_o.size() <= 1) {
+      if (data_pkt_o.size() < VERIF_DEPTH) {
+
+         std::cerr << (dbuff_notifs[head.dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
 
          ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
 
@@ -64,90 +71,6 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
          }
       } 
    }
-
-//   static srpt_queue_t<srpt_data_t, MAX_SRPT> srpt_queue;
-//   static uint32_t grants[MAX_RPCS];
-//   static dbuff_notif_t dbuff_notifs[NUM_DBUFF];
-//   // static blocked rpcs...
-//   static fifo_t<srpt_data_t, MAX_SRPT> exhausted;
-//
-//#pragma HLS pipeline II=1
-//
-//   dbuff_notif_t dbuff_notif;
-//   //if (!dbuff_notif_i.empty()) {
-//   if (dbuff_notif_i.read_nb(dbuff_notif)) {
-//      dbuff_notifs[dbuff_notif.dbuff_id] = dbuff_notif;
-//   }
-//
-//
-//   header_t header_in;
-//   sendmsg_t sendmsg;
-//   if (!srpt_queue.empty()) {
-//      srpt_data_t & head = srpt_queue.head();
-//
-//      ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
-//
-//      // Check if the offset of the highest byte needed has been received
-//      dbuff_notif_t dbuff_notif = dbuff_notifs[head.dbuff_id];
-//      bool blocked = ((dbuff_notif.dbuff_chunk + 1) * DBUFF_CHUNK_SIZE < (head.total - remaining));
-//
-//      if (blocked) {
-//         exhausted.insert(head);
-//         srpt_queue.pop();
-//      } else {
-//         ap_uint<32> grant = grants[head.rpc_id];
-//         data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grant});
-//
-//         std::cerr << "DATA PACKET OUT " << head.remaining << " " << head.total << " " << grant << std::endl;
-//         head.remaining = remaining;
-//
-//         /* grant is the byte up to which we are eligable to send head.total 
-//          * - grant determines the maximum number of remaining bytes we can 
-//          * send up to */
-//         bool ungranted = (head.total - head.remaining > grant);
-//         bool complete  = (head.remaining == 0);
-//
-//         if (!complete && ungranted) {
-//            exhausted.insert(head);
-//         }
-//
-//         // Are we done sending this message, or are we out of granted bytes?
-//         if (complete || ungranted) {
-//            // TODO also wipe the dbuff notifs (so that a future message does not pickup garbage data)
-//            srpt_queue.pop();
-//         }
-//      }
-//   } else if (header_in_i.read_nb(header_in)) {
-//      // Incoming grants
-//
-//      grants[header_in.local_id] = header_in.grant_offset;
-//
-//      // TODO maybe combine this process with the sendmsg somehow?? 
-//   } else if (sendmsg_i.read_nb(sendmsg)) {
-//      srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
-//      grants[new_entry.rpc_id] = sendmsg.granted;
-//      srpt_queue.push(new_entry);
-//   } else if (!exhausted.empty()) {
-//
-//      srpt_data_t exhausted_entry = exhausted.remove();
-//      ap_uint<32> grant = grants[exhausted_entry.rpc_id];
-//      dbuff_notif_t dbuff_notif = dbuff_notifs[exhausted_entry.dbuff_id];
-//      ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > exhausted_entry.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (exhausted_entry.remaining - HOMA_PAYLOAD_SIZE));
-//
-//      // Even a single byte more of grant will enable one more packet of data
-//      // bool granted = (grant >= (exhausted_entry.total - exhausted_entry.remaining));
-//
-//      bool granted = !(exhausted_entry.total - exhausted_entry.remaining > grant);
-//
-//      // Regardless, we need to have enough packet data on hand to send this message
-//      bool unblocked = (((dbuff_notif.dbuff_chunk+1) * DBUFF_CHUNK_SIZE) >= (exhausted_entry.total - remaining));
-//
-//      if (unblocked && granted) {
-//         srpt_queue.push(exhausted_entry);
-//      } else {
-//         exhausted.insert(exhausted_entry);
-//      }
-//   }
 }
 
 /**
@@ -163,6 +86,9 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
                      hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_o) {
 
+   // TODO testing to get rid of warning. Should have no effect
+#pragma HLS pipeline style=flp
+
    // Because this is only used for sim we brute force grants
    static srpt_grant_t entries[MAX_RPCS];
    static ap_uint<32> avail_pkts = OVERCOMMIT_PKTS; 
@@ -170,7 +96,8 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
    // Headers from incoming DATA packets
    ap_uint<58> header_in_raw;
 
-   if (header_in_i.read_nb(header_in_raw)) {
+   if (!header_in_i.empty()) {
+      header_in_raw = header_in_i.read();
       header_t header_in;
 
       header_in.peer_id = header_in_raw(57, 44);
@@ -231,7 +158,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
       if (next_grant.recv_pkts > 0 && next_grant.rpc_id != 0) {
          ap_uint<51> grant_pkt;
 
-         if (next_grant.recv_pkts > avail_pkts) {
+         if (next_grant.recv_pkts > avail_pkts && grant_pkt_o.size() < VERIF_DEPTH) {
             // Just send avail_pkts of data
  
             entries[(next_grant.rpc_id >> 1) - 1].recv_pkts -= avail_pkts;
@@ -245,7 +172,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
 
             grant_pkt_o.write(grant_pkt);
 
-         } else { 
+         } else if (grant_pkt_o.size() < VERIF_DEPTH) { 
             // Is this going to result in a fully granted message?
             if ((next_grant.grantable_pkts - next_grant.recv_pkts) == 0) { 
                entries[(next_grant.rpc_id >> 1) - 1] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF}; 

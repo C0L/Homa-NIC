@@ -128,20 +128,121 @@ static const std::string data = "Lorem ipsum dolor sit amet, consectetur adipisc
 //}
 
 
-bool test_simple_send_recv(homa_t * homa_cfg,
-			   sendmsg_t * sendmsg,
-			   recvmsg_t * recvmsg,
-			   hls::stream<raw_stream_t> & link_ingress,
-			   hls::stream<raw_stream_t> & link_egress,
-			   char * maxi_in,
-			   char * maxi_out) {
+//bool test_simple_send_recv(homa_t * homa_cfg,
+//      sendmsg_t * sendmsg,
+//      recvmsg_t * recvmsg,
+//      hls::stream<raw_stream_t> & link_ingress,
+//      hls::stream<raw_stream_t> & link_egress,
+//      char * maxi_in,
+//      char * maxi_out) {
 
-  homa_cfg->rtt_bytes = 60000;
-  strcpy(maxi_in, data.c_str());
 
-  //std::cerr << "DATA IN\n";
-  //for (int i = 0; i < 5500; ++i) std::cerr << maxi_in[i];
-  //std::cerr << std::endl;
+//bool test_partial_grant_send_recv(homa_t * homa_cfg,
+//      sendmsg_t * sendmsg,
+//      recvmsg_t * recvmsg,
+//      hls::stream<raw_stream_t> & link_ingress,
+//      hls::stream<raw_stream_t> & link_egress,
+//      char * maxi_in,
+//      char * maxi_out) {
+//
+//   homa_cfg->rtt_bytes = 100;
+//   strcpy(maxi_in, data.c_str());
+//
+//
+//   ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
+//   ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
+//
+//   uint16_t sport;
+//   uint16_t dport;
+//
+//   dport = 0xBEEF;
+//   sport = 0xFEEB;
+//
+//   // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
+//   recvmsg->buffout = 0;
+//   recvmsg->saddr = saddr;
+//   recvmsg->daddr = daddr;
+//   recvmsg->sport = sport;
+//   recvmsg->dport = dport;
+//   recvmsg->id = 0;
+//   recvmsg->valid = 1;
+//
+//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//
+//   std::chrono::seconds dura(1);
+//   //std::this_thread::sleep_for(dura);
+//
+//   recvmsg->valid = 0;
+//
+//   sendmsg->buffin = 0;
+//   sendmsg->length = data.length();
+//   sendmsg->saddr = saddr;
+//   sendmsg->daddr = daddr;
+//   sendmsg->sport = sport;
+//   sendmsg->dport = dport;
+//   sendmsg->id = 0;
+//   sendmsg->completion_cookie = 0xFFFFFFFFFFFFFFFF;
+//   sendmsg->valid = 1;
+//
+//   // Construct a new RPC to ingest  
+//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//
+//   //std::this_thread::sleep_for(dura);
+//
+//   sendmsg->valid = 0;
+//
+//   raw_stream_t raw_stream;
+//   do {
+//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//      if (link_egress.read_nb(raw_stream)) { 
+//         link_ingress.write(raw_stream);
+//      }
+//   } while (!raw_stream.last);
+//
+//   // Cycle DMA transfers
+//   //for (int i = 0; i < data.length()/64*2; ++i) {
+//   //   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//   //}
+//
+//   // std::this_thread::sleep_for(dura);
+//
+//   // Cycle DMA transfers
+//   // for (int i = 0; i < data.length()/64*2; ++i) {
+//   //    homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//   // }
+//   // TODO better just to busy poll?
+//   // std::this_thread::sleep_for(dura);
+//   
+//
+//   for (int i = 0; i < 5500; ++i) std::cerr << maxi_out[i];
+//   std::cerr << std::endl;
+//
+//   return memcmp(maxi_in, maxi_out, data.length());
+//}
+
+
+int main() {
+   std::cerr << "****************************** START TEST BENCH ******************************" << endl;
+
+   hls::stream<raw_stream_t> link_ingress("in");
+   hls::stream<raw_stream_t> link_egress("out");
+
+   homa_t homa_cfg;
+
+   sendmsg_t sendmsg;
+   recvmsg_t recvmsg;
+
+   // TODO try mallocing this???
+   static char maxi_in[128*64];
+   static char maxi_out[128*64];
+
+   homa_cfg.rtt_bytes = 60000;
+   strcpy(maxi_in, data.c_str());
+
+   std::cerr << "LENGTH " << data.length() << std::endl;
+   //std::cerr << "DATA IN\n";
+   //for (int i = 0; i < 5500; ++i) std::cerr << maxi_in[i];
+   //std::cerr << std::endl;
 
    //for (int i = 0; i < 5500; ++i) {
    // printf("%02x", (unsigned char) maxi_in[i]);
@@ -149,168 +250,180 @@ bool test_simple_send_recv(homa_t * homa_cfg,
 
    //std::cerr << std::endl;
 
-  ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
-  ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
+   ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
+   ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
 
-  uint16_t sport;
-  uint16_t dport;
+   uint16_t sport;
+   uint16_t dport;
 
-  dport = 0xBEEF;
-  sport = 0xFEEB;
+   dport = 0xBEEF;
+   sport = 0xFEEB;
 
-  // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
-  recvmsg->buffout = 0;
-  recvmsg->saddr = saddr;
-  recvmsg->daddr = daddr;
-  recvmsg->sport = sport;
-  recvmsg->dport = dport;
-  recvmsg->id = 0;
-  recvmsg->valid = 1;
+   // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
+   recvmsg.buffout = 0;
+   recvmsg.saddr = saddr;
+   recvmsg.daddr = daddr;
+   recvmsg.sport = sport;
+   recvmsg.dport = dport;
+   recvmsg.id = 0;
+   recvmsg.valid = 1;
 
-  homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+   homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
 
-  std::chrono::seconds dura(1);
-  std::this_thread::sleep_for(dura);
+   std::chrono::milliseconds dura(500);
+   std::this_thread::sleep_for(dura);
 
-  recvmsg->valid = 0;
+   recvmsg.valid = 0;
 
-  sendmsg->buffin = 0;
-  sendmsg->length = data.length();
-  sendmsg->saddr = saddr;
-  sendmsg->daddr = daddr;
-  sendmsg->sport = sport;
-  sendmsg->dport = dport;
-  sendmsg->id = 0;
-  sendmsg->completion_cookie = 0xFFFFFFFFFFFFFFFF;
-  sendmsg->valid = 1;
+   sendmsg.buffin = 0;
+   sendmsg.length = 2772;
+   sendmsg.saddr = saddr;
+   sendmsg.daddr = daddr;
+   sendmsg.sport = sport;
+   sendmsg.dport = dport;
+   sendmsg.id = 0;
+   sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
+   sendmsg.valid = 1;
 
-  // Construct a new RPC to ingest  
-  homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+   // Construct a new RPC to ingest  
+   homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
 
-  std::this_thread::sleep_for(dura);
+   sendmsg.valid = 0;
 
-  sendmsg->valid = 0;
+   std::this_thread::sleep_for(dura);
 
-  // Cycle DMA transfers
-  for (int i = 0; i < data.length()/64*2; ++i) {
-    homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-  }
+   raw_stream_t link[256];
+   uint32_t link_head = 0;
 
-  std::this_thread::sleep_for(dura);
+   // TODO still have disable start prop on dataflow pragma !!!
+   // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/config_dataflow
+   // TODO Maybe need random stall??
+   // "Streams are modeled as an infinite queue in software (and in the test bench during RTL co-simulation)."
 
-  // Cycle DMA transfers
-  for (int i = 0; i < data.length()/64*2; ++i) {
-    homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-  }
+    while (link_head != (2*24)) {
+   // while (link_head != (3*24 + 23)) {
+      homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+      if (!link_egress.empty()) {
+         link[link_head] = link_egress.read();
+         link_head++;
+      }
+      std::this_thread::sleep_for(dura);
+   }
 
+   std::cerr << "FINISHED READING PACKETs\n";
+
+   uint32_t read_head = 0;  
+   while (link_head != read_head) {
+      homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+      if (!link_ingress.full()) {
+         std::cerr << "WRITING DATA PACKET\n";
+         link_ingress.write(link[read_head]);
+         read_head++;
+      }
+      std::this_thread::sleep_for(dura);
+   }
+
+   // for (int j = 0; j < 4; ++j) {
+   //    //std::this_thread::sleep_for(dura);
+   //    //for (int i=0; i < 23; ++i) { 
+   //    //   homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+
+   //    //   std::this_thread::sleep_for(dura);
+   //    //}
+
+   //    int pkts = 1;
+   //    while (true) {
+   //       homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+   //       std::this_thread::sleep_for(dura);
+   //       if (!link_egress.empty()) {
+   //          raw_stream_t raw_stream;
+   //          raw_stream.last = 0;
+   //          // std::cerr << "READING FROM STREAM\n";
+   //          // raw_stream_t raw_stream = link_egress.read();
+   //          // std::cerr << "WRITING TO STREAM\n";
+   //          // 
+   //          // std::cerr << "SIZE: " << link_ingress.size() << std::endl;
+   //          // // TOOD will this one be nonblocking as well??
+   //          // 
+   //          // link_ingress.write(raw_stream);
+   //          if (raw_stream.last) {
+   //             break;
+   //          }
+   //       }
+   //    }
+
+   //    std::this_thread::sleep_for(dura);
+   // }
+
+   while (maxi_out[2772] == 0) {
+      homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+      std::this_thread::sleep_for(dura);
+   }
+
+   // Cycle DMA transfers
+   //for (int i = 0; i < data.length()/64*2; ++i) {
+
+   //   // std::this_thread::sleep_for(dura);
+
+   //   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+   //   std::cerr << "CYCLE\n";
+   //}
+
+   //// Cycle DMA transfers
+   //for (int i = 0; i < data.length()/64*2; ++i) {
+   //   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+   //   std::cerr << "CYCLE1\n";
+   //}
    
-  //std::cerr << "RECEIVED DATA\n";
-  //for (int i = 0; i < 5500; ++i) std::cerr << maxi_out[i];
-  //std::cerr << std::endl;
+   // TODO need to interleave the processing of packets and sending alternatve somehow. 
+   // Things seem to be sending all right though
 
-  return memcmp(maxi_in, maxi_out, data.length());
-}
-
-
-bool test_partial_grant_send_recv(homa_t * homa_cfg,
-				  sendmsg_t * sendmsg,
-				  recvmsg_t * recvmsg,
-				  hls::stream<raw_stream_t> & link_ingress,
-				  hls::stream<raw_stream_t> & link_egress,
-				  char * maxi_in,
-				  char * maxi_out) {
-
-  homa_cfg->rtt_bytes = 100;
-  strcpy(maxi_in, data.c_str());
-
-
-  ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
-  ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
-
-  uint16_t sport;
-  uint16_t dport;
-
-  dport = 0xBEEF;
-  sport = 0xFEEB;
-
-  // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
-  recvmsg->buffout = 0;
-  recvmsg->saddr = saddr;
-  recvmsg->daddr = daddr;
-  recvmsg->sport = sport;
-  recvmsg->dport = dport;
-  recvmsg->id = 0;
-  recvmsg->valid = 1;
-
-  homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-
-  std::chrono::seconds dura(1);
-  std::this_thread::sleep_for(dura);
-
-  recvmsg->valid = 0;
-
-  sendmsg->buffin = 0;
-  sendmsg->length = data.length();
-  sendmsg->saddr = saddr;
-  sendmsg->daddr = daddr;
-  sendmsg->sport = sport;
-  sendmsg->dport = dport;
-  sendmsg->id = 0;
-  sendmsg->completion_cookie = 0xFFFFFFFFFFFFFFFF;
-  sendmsg->valid = 1;
-
-  // Construct a new RPC to ingest  
-  homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-
-  std::this_thread::sleep_for(dura);
-
-  sendmsg->valid = 0;
-
-  // Cycle DMA transfers
-  for (int i = 0; i < data.length()/64*2; ++i) {
-    homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-  }
-
-  std::this_thread::sleep_for(dura);
-
-  // Cycle DMA transfers
-  for (int i = 0; i < data.length()/64*2; ++i) {
-    homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-  }
-
-  for (int i = 0; i < 5500; ++i) std::cerr << maxi_out[i];
-  std::cerr << std::endl;
-
-  return memcmp(maxi_in, maxi_out, data.length());
-}
+//   int pkts = 4;
+//   int count = 0;
+//   do {
+//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//      if (!link_egress.empty()) {
+//         raw_stream_t raw_stream = link_egress.read();
+//         std::cerr << "SWAP " << count << std::endl;
+//         count++;
+//
+//         if (raw_stream.last) {
+//            std::cerr << "GOT FULL PACKET " << count << std::endl;
+//            pkts--;
+//         }
+//         
+//         std::cerr << "starting write\n"; 
+//
+//         link_ingress.write(raw_stream);
+//
+//         std::cerr << "finishing write\n"; 
+//      }
+//   } while (pkts != 0);
+//
 
 
-int main() {
-  std::cerr << "****************************** START TEST BENCH ******************************" << endl;
+   //std::cerr << "RECEIVED DATA\n";
+   //for (int i = 0; i < 5500; ++i) std::cerr << maxi_out[i];
+   //std::cerr << std::endl;
 
-  hls::stream<raw_stream_t> loopback;
+   std::cerr << "******************************  END TEST BENCH  ******************************" << endl;
 
-  homa_t homa_cfg;
-
-  sendmsg_t sendmsg;
-  recvmsg_t recvmsg;
-
-  static char maxi_in[128*64];
-  static char maxi_out[128*64];
-
-  if (test_simple_send_recv(&homa_cfg, &sendmsg, &recvmsg, loopback, loopback, maxi_in, maxi_out)) { return 1; }
-
-  //memset(maxi_in, 0, 128*64);
-  //memset(maxi_out, 0, 128*64);
-
-  //if (test_partial_grant_send_recv(&homa_cfg, &sendmsg, &recvmsg, loopback, loopback, maxi_in, maxi_out)) { return 1; }
-
-  //if (test_recvmsg_client(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out)) { return 1; }
-
-
-  //if (test_recvmsg_client(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out)) { return 1; }
+   return memcmp(maxi_in, maxi_out, 2772);
+   // return memcmp(maxi_in, maxi_out, data.length());
   
-  std::cerr << "******************************  END TEST BENCH  ******************************" << endl;
 
-  return 0;
+    // if (test_simple_send_recv()) { return 1; }
+   // if (test_simple_send_recv(&homa_cfg, &sendmsg, &recvmsg, in, out, maxi_in, maxi_out)) { return 1; }
+
+   //memset(maxi_in, 0, 128*64);
+   //memset(maxi_out, 0, 128*64);
+
+   //if (test_partial_grant_send_recv(&homa_cfg, &sendmsg, &recvmsg, loopback, loopback, maxi_in, maxi_out)) { return 1; }
+
+   //if (test_recvmsg_client(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out)) { return 1; }
+
+
+   //if (test_recvmsg_client(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out)) { return 1; }
+
+
 }

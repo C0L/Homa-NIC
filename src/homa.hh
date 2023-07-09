@@ -10,12 +10,14 @@
 #include "hls_burst_maxi.h"
 #include "ap_axi_sdata.h"
 
-#define VERIF_DEPTH 2
+// TODO 
+#define VERIF_DEPTH 4
 
 struct args_t;
 struct user_output_t;
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 // Client RPC IDs are even, servers are odd 
 #define IS_CLIENT(id) ((id & 1) == 0)
@@ -120,7 +122,7 @@ struct dbuff_notif_t {
   dbuff_coffset_t dbuff_chunk; 
 };
 
-typedef hls::axis<integral_t, 1, 1, 1> raw_stream_t;
+typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
 
 /* homa structures */
 //enum homa_packet_type {
@@ -529,6 +531,10 @@ struct fifo_t {
     return read_head == FIFO_SIZE-1;
   }
 
+  int size() {
+   return read_head;
+  }
+
   bool empty() {
     return read_head == -1;
   }
@@ -595,8 +601,8 @@ void htno_set(ap_uint<W*8> & out, const ap_uint<W*8> & in) {
 void homa(homa_t * homa,
 	  sendmsg_t * sendmsg,
 	  recvmsg_t * recvmsg,
-	  hls::stream<raw_stream_t> & link_ingress_in, 
-	  hls::stream<raw_stream_t> & link_egress_out,
+	  hls::stream<raw_stream_t> & link_ingress, 
+	  hls::stream<raw_stream_t> & link_egress,
 	  char * maxi_in,
 	  char * maxi_out);
 

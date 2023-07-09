@@ -32,25 +32,40 @@ void homa(homa_t * homa_cfg,
 // TODO return this at the end? Disabled for cosim
 // #pragma HLS interface mode=ap_ctrl_none port=return
 
-#pragma HLS interface s_axilite port=homa_cfg bundle=homa_cfg
+#pragma HLS interface mode=ap_ctrl_hs port=return
 
-#pragma HLS interface s_axilite port=sendmsg bundle=sendmsg
-#pragma HLS interface mode=ap_vld port=sendmsg
+#pragma HLS interface s_axilite port=homa_cfg bundle=homa_cfg 
+
+
+#pragma HLS interface s_axilite port=sendmsg bundle=sendmsg 
+#pragma HLS interface mode=ap_vld port=sendmsg depth=1
 
 #pragma HLS interface s_axilite port=recvmsg bundle=recvmsg
-#pragma HLS interface mode=ap_vld port=recvmsg
+#pragma HLS interface mode=ap_vld port=recvmsg depth=1
 
-#pragma HLS interface axis port=link_ingress
-#pragma HLS interface axis port=link_egress
+// Depth specifies the maximum number of values are are streaming in/out for simulation
+#pragma HLS interface axis port=link_ingress depth=128
+#pragma HLS interface axis port=link_egress depth=128
+
+
+// #pragma HLS interface axis port=link_ingress depth=26
+// #pragma HLS interface axis port=link_egress depth=26
 
    /* TODO depth is used for cosim and indicates num outstanding reqs for verif adapter 
     * This value may need to change
     */
-#pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=60 num_write_outstanding=1 depth=64
-#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=1 num_write_outstanding=80 depth=64
+// #pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=1 num_read_outstanding=60 num_write_outstanding=1 depth=512
+// #pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=1 num_read_outstanding=1 num_write_outstanding=80 depth=512
+#pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=1 num_read_outstanding=80 num_write_outstanding=1 depth=256
+#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=1 num_read_outstanding=1 num_write_outstanding=80 depth=256
+
+
+
+// #pragma HLS interface mode=m_axi port=maxi_in bundle=maxi_0 latency=60 num_read_outstanding=60 num_write_outstanding=1 depth=512
+// #pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=60 num_read_outstanding=1 num_write_outstanding=80 depth=512
 
   hls_thread_local hls::stream<dbuff_id_t, VERIF_DEPTH> freed_dbuffs;
-  hls_thread_local hls::stream<dbuff_in_t, VERIF_DEPTH> dma_read__dbuff_egress;
+  hls_thread_local hls::stream<dbuff_in_t, VERIF_DEPTH> dma_read__dbuff_egress("dma_read__dbuff_egress");
 
   hls_thread_local hls::stream<sendmsg_t, VERIF_DEPTH> homa_sendmsg__dbuff_stack;
   hls_thread_local hls::stream<sendmsg_t, VERIF_DEPTH> dbuff_stack__peer_map;
@@ -80,7 +95,24 @@ void homa(homa_t * homa_cfg,
   hls_thread_local hls::stream<recvmsg_t, VERIF_DEPTH> recvmsg__rpc_state__rpc_map;
   hls_thread_local hls::stream<recvmsg_t, VERIF_DEPTH> recvmsg__peer_map;
 
-#pragma HLS dataflow
+// #pragma HLS stream variable=dbuff_stack__dma_read depth=2
+
+// #pragma HLS dataflow 
+
+/* The stable pragma can be used to mark input or output variables of a
+ * dataflow region. Its effect is to remove their corresponding task-level
+ * synchronizations, assuming that the user guarantees this removal is indeed
+ * correct. 
+ */
+#pragma HLS stable variable=homa_cfg
+
+/*
+ * If an unbounded slack between producer and consumer is needed, and internal
+ * processes can run forever, fully and safely driven by their inputs or
+ * outputs (FIFOs or PIPOs), these start FIFOs can be removed, at user's risk,
+ * locally for a given dataflow region with the pragma 
+ */
+#pragma HLS dataflow disable_start_propagation
 
   /* Data Driven Region */
 

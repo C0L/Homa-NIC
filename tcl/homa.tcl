@@ -26,6 +26,8 @@ open_solution -reset "solution" -flow_target vivado
 set_part $part
 create_clock -period 3.1 -name default
 
+# config_dataflow -default_channel fifo -fifo_depth 4 -start_fifo_depth 4 -scalar_fifo_depth 4 -task_level_fifo_depth 4
+
 if {$job_type == 0} {
    # Csim only
    csim_design

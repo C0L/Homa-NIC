@@ -33,3 +33,5 @@ Defficiencies of the SRPT queue:
     The problem here is that the best options coming from the queue will not reflect the changing desirability of granting to packets based on whether we have recieved data
 
 The grant srpt queue should update its recv bytes based on NEW data. Not duplicates. This probably requires visiting the timer core.
+
+Need to test the data buffer buffering feature to fetch host memory
