@@ -6,16 +6,17 @@
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 
-void homa_recvmsg(const homa_t * homa,
-      recvmsg_t * recvmsg,
+void homa_recvmsg(const homa_t homa,
+      const recvmsg_t recvmsg,
       hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o) {
-   if (recvmsg->valid && recvmsg_o.size() < VERIF_DEPTH) {
-      recvmsg_t new_recvmsg = *recvmsg;
+   if (recvmsg.valid && recvmsg_o.size() < VERIF_DEPTH) {
+      std::cerr << "RECV MESSAGE\n";
+      recvmsg_t new_recvmsg = recvmsg;
       //new_recvmsg.rtt_bytes = homa->rtt_bytes;
       recvmsg_o.write(new_recvmsg);
    }
 }
-
+ 
 /**
  * sendmsg() - Injests new RPCs and homa configurations into the
  * homa processor. Manages the databuffer IDs, as those must be generated before
@@ -28,14 +29,15 @@ void homa_recvmsg(const homa_t * homa,
  * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
-void homa_sendmsg(const homa_t * homa,
-      sendmsg_t * sendmsg,
+void homa_sendmsg(const homa_t homa,
+      const sendmsg_t sendmsg,
       hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o) {
 
-   if (sendmsg->valid && sendmsg_o.size() < VERIF_DEPTH)  {
-      sendmsg_t new_sendmsg = *sendmsg;
+   if (sendmsg.valid && sendmsg_o.size() < VERIF_DEPTH)  {
+      sendmsg_t new_sendmsg = sendmsg;
 
-      new_sendmsg.granted = (homa->rtt_bytes > new_sendmsg.length) ? new_sendmsg.length : homa->rtt_bytes;
+      std::cerr << "SEND MESSAGE\n";
+      new_sendmsg.granted = (homa.rtt_bytes > new_sendmsg.length) ? new_sendmsg.length : homa.rtt_bytes;
 
       sendmsg_o.write(new_sendmsg);
    }
@@ -56,6 +58,7 @@ void dma_read(char * maxi,
 #pragma HLS pipeline II=1
 
    if (!rpc_ingress__dma_read.empty() && dma_req.length == 0) {
+      std::cerr << "DMA READ REQ\n";
       dma_req = rpc_ingress__dma_read.read();
       chunk = 0;
    }

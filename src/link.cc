@@ -2,7 +2,6 @@
 
 #include "homa.hh"
 #include "link.hh"
-#include "dma.hh"
 
 // https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Typical-Operation
 

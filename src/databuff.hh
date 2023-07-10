@@ -3,7 +3,6 @@
 
 #include "homa.hh"
 #include "net.hh"
-#include "dma.hh"
 
 void dbuff_stack(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 		 hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,

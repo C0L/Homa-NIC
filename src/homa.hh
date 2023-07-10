@@ -3,18 +3,25 @@
 
 #include <iostream>
 
-#define DEBUG
-
 #include "ap_int.h"
 #include "hls_stream.h"
 #include "hls_burst_maxi.h"
 #include "ap_axi_sdata.h"
 
-// TODO 
-#define VERIF_DEPTH 4
+/* HLS Configuration */ 
 
-struct args_t;
-struct user_output_t;
+/* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
+ * verification depth controls the size of the "RTL verification adapter" This
+ * needs to be configured to be the maximum size of any stream encountered
+ * through the execution of the testbench. This should not effect the actual
+ * generation of the RTL however 
+ */
+#define VERIF_DEPTH 2
+
+/* Reduces the size of some parameters for faster compilation/testing */
+#define DEBUG
+
+/* Helper Macros */
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -25,8 +32,9 @@ struct user_output_t;
 // Sender->Client and Client->Sender rpc ID conversion
 #define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
 
-// #define DEBUG_MSG(a) std::cerr << "DEBUG: " << a << std::endl;
-#define DEBUG_MSG(a)
+
+
+/* SRPT Configuration */
 
 #ifndef DEBUG 
 #define MAX_SRPT 1024
@@ -35,11 +43,12 @@ struct user_output_t;
 #endif
 
 #ifndef DEBUG 
-#define MAX_OVERCOMMIT 1
+#define MAX_OVERCOMMIT 8
 #else
 #define MAX_OVERCOMMIT 1
 #endif
 
+// 
 #define SRPT_UPDATE 0
 #define SRPT_UPDATE_BLOCK 1
 #define SRPT_INVALIDATE 2
@@ -56,6 +65,7 @@ struct user_output_t;
 #define PRIORITY 2,0
 #define PRIORITY_SIZE 3
 
+// Bit indexes for input "headers" to srpt_grant
 #define HEADER_SIZE 58
 #define HDR_PEER_ID 57,44
 #define HDR_RPC_ID 43,30
@@ -63,52 +73,83 @@ struct user_output_t;
 #define HDR_INCOMING 19,10
 #define HDR_OFFSET 9,0
 
-// Maximum Homa message size
-#define HOMA_MAX_MESSAGE_LENGTH 1000000
 
-#define IPV6_HEADER_LENGTH 40
-
-#define HOMA_ETH_OVERHEAD 24
-#define HOMA_MIN_PKT_LENGTH 26
-#define HOMA_MAX_HEADER 90
-#define ETHERNET_MAX_PAYLOAD 1500
-
-#define HOMA_MAX_PRIORITIES 8
-
-#define RTT_PKTS 44
-#define OVERCOMMIT_PKTS 352
+/* Peer Tab Configuration */
 #define MAX_PEERS_LOG2 14
-
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
+
+/* RPC Store Configuration */
 // To index all the RPCs, we need LOG2 of the max number of RPCs
 #define MAX_RPCS_LOG2 14
 typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 
-/* data buffer */
+/* Link Configuration */
+/* 
+ * This defines an actual axi stream type, in contrast to the internal streams
+ * which are all ap_fifo types. The actual data that will be passed by this
+ * stream is 512 bit chunks.
+ * TODO currently no side-channels are used
+ */
+typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
 
-// #define NUM_DBUFF 1024 // Number of data buffers (max outgoing RPCs)
+/* Homa Kernel Configuration */
 
-#define NUM_DBUFF 2// Number of data buffers (max outgoing RPCs)
-#define DBUFF_INDEX 10 // Index into the data buffers
+// TODO organize this and make some of this runtime configurable
+// Maximum Homa message size
+#define HOMA_MAX_MESSAGE_LENGTH 1000000
+#define IPV6_HEADER_LENGTH 40
+#define HOMA_ETH_OVERHEAD 24
+#define HOMA_MIN_PKT_LENGTH 26
+#define HOMA_MAX_HEADER 90
+#define ETHERNET_MAX_PAYLOAD 1500
+#define HOMA_MAX_PRIORITIES 8
+#define RTT_PKTS 44
+#define OVERCOMMIT_PKTS 352
 
-#define DBUFF_CHUNK_SIZE 64   // Size of a "chunk" of a data buffer
-#define DBUFF_NUM_CHUNKS 256  // Number of "chunks" in one buffer
-#define DBUFF_CHUNK_INDEX 8   // Index into 256 chunks
+/* Homa packet types */
+#define DATA     0x10
+#define GRANT    0x11
+#define RESEND   0x12
+#define UNKNOWN  0x13
+#define BUSY     0x14
+#define CUTOFFS  0x15
+#define FREEZE   0x16
+#define NEED_ACK 0x17
+#define ACK      0x18
 
+// Central internal 64B chunk of data (for streams in, out, storing data internally...etc)
+struct integral_t {
+  ap_uint<512> data;
+};
+
+
+
+/* Data Buffer Configuration */
+
+// Number of data buffers (max outgoing RPCs)
+#define NUM_DBUFF 1024 
+// Index into the data buffers
+#define DBUFF_INDEX 10 
+// Size of a "chunk" of a data buffer
+#define DBUFF_CHUNK_SIZE 64  
+// Number of "chunks" in one buffer
+#define DBUFF_NUM_CHUNKS 256  
+// Index into 256 chunks
+#define DBUFF_CHUNK_INDEX 8   
+// Byte index within data buffer (NUM_DBUFF * DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)
 #define DBUFF_BYTE_INDEX 14
 
 // Index into data buffers
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
-struct integral_t {
-  //unsigned char data[64];
-  ap_uint<512> data;
-};
-
+// One data buffer stores 2^14 bytes
 typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
 
+// Pointer to a byte in the data buffer
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
+
+// Pointer to a 64B chunk in the data buffer
 typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 struct dbuff_in_t {
@@ -121,31 +162,6 @@ struct dbuff_notif_t {
   dbuff_id_t dbuff_id;
   dbuff_coffset_t dbuff_chunk; 
 };
-
-typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
-
-/* homa structures */
-//enum homa_packet_type {
-//  DATA               = 0x10,
-//  GRANT              = 0x11,
-//  RESEND             = 0x12,
-//  UNKNOWN            = 0x13,
-//  BUSY               = 0x14,
-//  CUTOFFS            = 0x15,
-//  FREEZE             = 0x16,
-//  NEED_ACK           = 0x17,
-//  ACK                = 0x18,
-//};
-
-#define DATA     0x10
-#define GRANT    0x11
-#define RESEND   0x12
-#define UNKNOWN  0x13
-#define BUSY     0x14
-#define CUTOFFS  0x15
-#define FREEZE   0x16
-#define NEED_ACK 0x17
-#define ACK      0x18
 
 typedef ap_uint<8> homa_packet_type;
 
@@ -189,8 +205,7 @@ struct homa_message_out_t {
   //ap_uint<64> init_cycles;
 };
 
-/**
- * struct homa_message_in - Holds the state of a message received by
+/* struct homa_message_in - Holds the state of a message received by
  * this machine; used for both requests and responses.
  */
 struct homa_message_in_t {
@@ -203,8 +218,7 @@ struct homa_message_in_t {
   ap_int<64> copied_out;
 };
 
-/**
- * struct homa_rpc - One of these structures exists for each active
+/* struct homa_rpc - One of these structures exists for each active
  * RPC. The same structure is used to manage both outgoing RPCs on
  * clients and incoming RPCs on servers.
  */
@@ -212,6 +226,7 @@ struct homa_rpc_t {
   ap_uint<32> buffout;
   ap_uint<32> buffin;
 
+  // TODO not sure if this will be utilized
   enum {
     RPC_OUTGOING            = 5,
     RPC_INCOMING            = 6,
@@ -219,8 +234,6 @@ struct homa_rpc_t {
     RPC_DEAD                = 9
   } state;
 
-  //int flags;
-  //int grants_in_progress;
   ap_uint<128> saddr;
   ap_uint<128> daddr;
   ap_uint<16> dport;
@@ -230,13 +243,9 @@ struct homa_rpc_t {
   ap_uint<64> completion_cookie;
   homa_message_in_t msgin;
   homa_message_out_t msgout;
-
-  //uint32_t rtt_bytes;
-  //int silent_ticks;
-  //ap_uint<32> resend_timer_ticks;
-  //ap_uint<32> done_timer_ticks;
 };
 
+/* */
 struct sendmsg_t {
   ap_uint<32> buffin; // Offset in DMA space for input
   ap_uint<32> length; // Total length of message
@@ -386,105 +395,12 @@ struct srpt_data_t {
   ap_uint<32> total;
 };
 
-
-//struct srpt_data_t {
-//  rpc_id_t rpc_id;
-//  dbuff_id_t dbuff_id;
-//  ap_uint<32> remaining;
-//  ap_uint<32> total;
-//
-//  srpt_data_t() {
-//    rpc_id = 0;
-//    dbuff_id = 0;
-//    remaining = 0xFFFFFFFF;
-//    total = 0;
-//  }
-//
-//  srpt_data_t(rpc_id_t rpc_id, dbuff_id_t dbuff_id, ap_uint<32> remaining, ap_uint<32> total) {
-//    this->rpc_id = rpc_id;
-//    this->dbuff_id = dbuff_id;
-//    this->remaining = remaining;
-//    this->total = total;
-//  }
-//
-//  bool operator==(const srpt_data_t & other) const {
-//    return (rpc_id == other.rpc_id &&
-//  	    remaining == other.remaining &&
-//  	    total == other.total);
-//  }
-//
-//  // Ordering operator
-//  bool operator>(srpt_data_t & other) {
-//    return remaining > other.remaining;
-//  }
-//
-//  void update_priority(srpt_data_t & other) {}
-//
-//  void print() {
-//    std::cerr << rpc_id << " " << remaining << std::endl;
-//  }
-//};
-
 struct srpt_grant_t {
    ap_uint<14> peer_id;
    ap_uint<14> rpc_id;
    ap_uint<10> recv_pkts;
    ap_uint<10> grantable_pkts;
 };
-
-//struct srpt_grant_t {
-//  peer_id_t peer_id;
-//  rpc_id_t rpc_id;
-//  ap_uint<32> grantable;
-//  ap_uint<3> priority;
-//
-//  srpt_grant_t() {
-//    peer_id = 0;
-//    rpc_id = 0;
-//    grantable = 0xFFFFFFFF;
-//    priority = SRPT_EMPTY;
-//  }
-//
-//  srpt_grant_t(peer_id_t peer_id, rpc_id_t rpc_id, ap_uint<32> grantable, ap_uint<3> priority) {
-//    this->peer_id = peer_id;
-//    this->rpc_id = rpc_id;
-//    this->grantable = grantable;
-//    this->priority = priority;
-//  }
-//
-//  bool operator==(const srpt_grant_t & other) const {
-//    return (peer_id == other.peer_id &&
-//  	    rpc_id == other.rpc_id &&
-//  	    grantable == other.grantable &&
-//  	    priority == other.priority);
-//  }
-//
-//  // Ordering operator
-//  bool operator>(srpt_grant_t & other) {
-//    return (priority != other.priority) ? (priority < other.priority) : grantable > other.grantable;
-//  }
-//
-//  void update_priority(srpt_grant_t & other) {
-//
-//    if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE_BLOCK) {
-//      other.grantable = grantable;
-//      other.priority = SRPT_BLOCKED;
-//    } else if (other.peer_id == peer_id && priority == SRPT_UPDATE_BLOCK) {
-//      other.priority = SRPT_BLOCKED;
-//    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_UPDATE) {
-//      other.grantable = grantable;
-//    } else if (other.peer_id == peer_id && priority == SRPT_UNBLOCK) {
-//      other.priority = SRPT_ACTIVE;
-//    } else if (other.peer_id == peer_id && other.rpc_id == rpc_id && priority == SRPT_INVALIDATE) {
-//      other.priority = SRPT_INVALIDATE;
-//    }
-//  }
-//
-//  void print() {
-//    std::cerr << peer_id << " " << grantable << " " << priority << " " << rpc_id << std::endl;
-//  }
-//};
-
 
 template<typename T, int FIFO_SIZE>
 struct fifo_t {
@@ -540,67 +456,9 @@ struct fifo_t {
   }
 };
 
-
-template<typename T, int FIFO_SIZE>
-struct fifo_id_t {
-  T buffer[FIFO_SIZE];
-
-  int read_head;
-
-  fifo_id_t(bool init) {
-    if (init) {
-      // Each RPC id begins as available 
-      for (int id = 0; id < FIFO_SIZE; ++id) {
-	buffer[id] = id;
-      }
-      read_head = FIFO_SIZE-1;
-    } else {
-      read_head = -1;
-    }
-  }
-
-  void insert(T value) {
-#pragma HLS array_partition variable=buffer type=complete
-
-    for (int i = FIFO_SIZE-2; i >= 0; --i) {
-#pragma HLS unroll
-      buffer[i+1] = buffer[i];
-    }
-    
-    buffer[0] = value;
-    
-    read_head++;
-  }
-
-  T remove() {
-#pragma HLS array_partition variable=buffer type=complete
-    T val = buffer[read_head];
-
-    read_head--;
-    return val;
-  }
-
-  T & head() {
-    return buffer[read_head];
-  }
-
-  bool empty() {
-    return read_head == -1;
-  }
-};
-
-template<int W>
-void htno_set(ap_uint<W*8> & out, const ap_uint<W*8> & in) {
-#pragma HLS inline 
-  for (int i = 0; i < W; ++i) {
-#pragma HLS unroll
-    out((W * 8) - 1 - (i * 8), (W*8) - 8 - (i * 8)) = in(7 + (i * 8), 0 + (i * 8));
-  }
-}
-
-void homa(homa_t * homa,
-	  sendmsg_t * sendmsg,
-	  recvmsg_t * recvmsg,
+void homa(const homa_t homa,
+	  const sendmsg_t sendmsg,
+	  const recvmsg_t recvmsg,
 	  hls::stream<raw_stream_t> & link_ingress, 
 	  hls::stream<raw_stream_t> & link_egress,
 	  char * maxi_in,

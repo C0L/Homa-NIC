@@ -37,8 +37,6 @@ SRC_C =                      \
     $(C_SRC_DIR)/srptmgmt.cc \
     $(C_SRC_DIR)/srptmgmt.hh \
     $(C_SRC_DIR)/stack.hh    \
-    $(C_SRC_DIR)/timer.cc    \
-    $(C_SRC_DIR)/timer.hh   
     
 #$(C_TB_DIR)/client_test.hh \
 

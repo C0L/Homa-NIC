@@ -4,20 +4,20 @@
 #include <hls_stream.h>
 #include <stdint.h>
 
-#include "net.hh"
+// #include "net.hh"
 #include "homa.hh"
-#include "databuff.hh"
-#include "rpcmgmt.hh"
-#include "srptmgmt.hh"
+// #include "databuff.hh"
+// #include "rpcmgmt.hh"
+// #include "srptmgmt.hh"
 
-struct homa_t;
+// struct homa_t;
 
-void homa_sendmsg(const homa_t * homa,
-		  sendmsg_t * params,
+void homa_sendmsg(const homa_t homa,
+		  const sendmsg_t params,
 		  hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o);
 
-void homa_recvmsg(const homa_t * homa,
-		  recvmsg_t * recvmsg,
+void homa_recvmsg(const homa_t homa,
+		  const recvmsg_t recvmsg,
 		  hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o);
 
 // void byte_order_flip(dbuff_chunk_t & in, dbuff_chunk_t & out);

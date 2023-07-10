@@ -26,7 +26,10 @@ open_solution -reset "solution" -flow_target vivado
 set_part $part
 create_clock -period 3.1 -name default
 
-# config_dataflow -default_channel fifo -fifo_depth 4 -start_fifo_depth 4 -scalar_fifo_depth 4 -task_level_fifo_depth 4
+# config_dataflow -default_channel fifo -disable_fifo_sizing_opt -override_user_fifo_depth 128 -fifo_depth 2
+# config_dataflow -default_channel fifo -fifo_depth 4 -disable_fifo_sizing_opt -override_user_fifo_depth 128 -start_fifo_depth 4 -scalar_fifo_depth 4 -task_level_fifo_depth 4
+# config_dataflow -default_channel fifo -fifo_depth 2
+# config_compile -pipeline_style flp
 
 if {$job_type == 0} {
    # Csim only
@@ -39,7 +42,8 @@ if {$job_type == 0} {
 } elseif {$job_type == 2} {
 	# Run Synthesis, RTL Simulation and Exit
 	csynth_design
-	cosim_design
+	cosim_design 
+   #-disable_deadlock_detection
 } 
 # elseif {$hls_exec == 3} { 
 #	# Run Synthesis, RTL Simulation, RTL implementation and Exit

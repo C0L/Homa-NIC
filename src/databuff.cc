@@ -57,7 +57,7 @@ void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
       //std::cerr << "data offset " << header_in.data_offset << std::endl;
       //std::cerr << "rebuffer write " << in_chunk.offset + header_in.dma_offset + header_in.data_offset << std::endl;
       //std::cerr << "last? " << in_chunk.last << std::endl;
-      std::cerr << "DMA WRITE REQUEST" << std::endl;
+      std::cerr << "DMA WRITE REQUEST"  << std::endl;
       dma_w_req_o.write({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
       std::cerr << "DMA WRITE REQUEST COMPLETE" << std::endl;
       if (in_chunk.last) header_in.valid = 0;

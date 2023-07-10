@@ -4,7 +4,6 @@
 #include "homa.hh"
 #include "srptmgmt.hh"
 #include "rpcmgmt.hh"
-#include "dma.hh"
 #include "timer.hh"
 
 void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
