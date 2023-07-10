@@ -9,11 +9,12 @@
 void homa_recvmsg(const homa_t homa,
       const recvmsg_t recvmsg,
       hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o) {
-   if (recvmsg.valid && recvmsg_o.size() < VERIF_DEPTH) {
+   // if (recvmsg.valid && recvmsg_o.size() < VERIF_DEPTH) {
+   if (recvmsg.valid) {
       std::cerr << "RECV MESSAGE\n";
       recvmsg_t new_recvmsg = recvmsg;
       //new_recvmsg.rtt_bytes = homa->rtt_bytes;
-      recvmsg_o.write(new_recvmsg);
+      recvmsg_o.write_nb(new_recvmsg);
    }
 }
  
@@ -33,13 +34,14 @@ void homa_sendmsg(const homa_t homa,
       const sendmsg_t sendmsg,
       hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o) {
 
-   if (sendmsg.valid && sendmsg_o.size() < VERIF_DEPTH)  {
+   // if (sendmsg.valid && sendmsg_o.size() < VERIF_DEPTH)  {
+   if (sendmsg.valid) {
       sendmsg_t new_sendmsg = sendmsg;
 
       std::cerr << "SEND MESSAGE\n";
       new_sendmsg.granted = (homa.rtt_bytes > new_sendmsg.length) ? new_sendmsg.length : homa.rtt_bytes;
 
-      sendmsg_o.write(new_sendmsg);
+      sendmsg_o.write_nb(new_sendmsg);
    }
 }
 
@@ -49,31 +51,33 @@ void homa_sendmsg(const homa_t homa,
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 void dma_read(char * maxi,
+      homa_t homa_cfg,
       hls::stream<dma_r_req_t, VERIF_DEPTH> & rpc_ingress__dma_read,
       hls::stream<dbuff_in_t, VERIF_DEPTH> & dma_requests__dbuff) {
 
    static dma_r_req_t dma_req;
    static uint32_t chunk = 0;
 
-#pragma HLS pipeline II=1
+   static uint32_t dma_count = 0;
+   while (dma_count < homa_cfg.dma_count) {
 
-   if (!rpc_ingress__dma_read.empty() && dma_req.length == 0) {
-      std::cerr << "DMA READ REQ\n";
-      dma_req = rpc_ingress__dma_read.read();
-      chunk = 0;
-   }
+#pragma HLS pipeline II=1 style=flp
 
-   // TODO this may be better in a loop. Harder to test though.
+      if (dma_req.length == 0 && rpc_ingress__dma_read.read_nb(dma_req)) {
+      // if (rpc_ingress__dma_read.read_nb(dma_req) && dma_req.length == 0) {
+         dma_count++;
+         chunk = 0;
+      }
 
-   if (dma_req.length != 0 && dma_requests__dbuff.size() < VERIF_DEPTH) {
-      std::cerr << "offset " << dma_req.offset << std::endl;
-      std::cerr << "length " << dma_req.length << std::endl;
-      std::cerr << "chunk " << chunk << std::endl;
-      integral_t big_order = *((integral_t*) (maxi + dma_req.offset + chunk * 64));
-      dma_requests__dbuff.write({big_order, dma_req.dbuff_id, dma_req.offset + chunk});
-      // dma_req.length = MAX((ap_uint<32>) (dma_req.length - 64), (ap_uint<32>) 0);
-      dma_req.length = (dma_req.length < 1) ? (ap_uint<32>) 0 : (ap_uint<32>) (dma_req.length - 1);
-      chunk++;
+      if (dma_req.length != 0) {
+         std::cerr << "offset " << dma_req.offset << std::endl;
+         std::cerr << "length " << dma_req.length << std::endl;
+         std::cerr << "chunk " << chunk << std::endl;
+         integral_t big_order = *((integral_t*) (maxi + dma_req.offset + chunk * 64));
+         dma_requests__dbuff.write_nb({big_order, dma_req.dbuff_id, dma_req.offset + chunk});
+         dma_req.length = (dma_req.length < 1) ? (ap_uint<32>) 0 : (ap_uint<32>) (dma_req.length - 1);
+         chunk++;
+      }
    }
 }
 
@@ -83,15 +87,21 @@ void dma_read(char * maxi,
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 void dma_write(char * maxi,
+      homa_t homa_cfg,
       hls::stream<dma_w_req_t, VERIF_DEPTH> & dbuff_ingress__dma_write) {
    //TODO this is not really pipelined? 70 cycle layency per req
-#pragma HLS pipeline II=1
-   dma_w_req_t dma_req;
-   if (!dbuff_ingress__dma_write.empty()) {
-      dma_req = dbuff_ingress__dma_write.read();
 
-      std::cerr << "DMA WRITE: " << dma_req.offset << std::endl;
-      *((integral_t*) (maxi + dma_req.offset)) = dma_req.block;
-      std::cerr << "DMA WRITE COMPLETE " << dma_req.offset << std::endl;
+   static uint32_t dma_count = 0;
+
+   while (dma_count < homa_cfg.dma_count) {
+#pragma HLS pipeline II=1 style=flp
+      dma_w_req_t dma_req;
+      if (dbuff_ingress__dma_write.read_nb(dma_req)) {
+
+         std::cerr << "DMA WRITE: " << dma_req.offset << std::endl;
+         *((integral_t*) (maxi + dma_req.offset)) = dma_req.block;
+         std::cerr << "DMA WRITE COMPLETE " << dma_req.offset << std::endl;
+         dma_count++;
+      }
    }
 }

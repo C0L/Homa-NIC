@@ -11,10 +11,24 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
   static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
   static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
 
-  // TODO Can this be problematic?
-#pragma HLS dependence variable=hashmap inter WAR false
-#pragma HLS dependence variable=hashmap inter RAW false
+//#pragma HLS dependence variable=peer_stack inter WAR false
+//#pragma HLS dependence variable=peer_stack inter RAW false
+//#pragma HLS dependence variable=peer_stack intra WAR false
+//#pragma HLS dependence variable=peer_stack intra RAW false
+//
+//
+//#pragma HLS dependence variable=hashmap inter WAR false
+//#pragma HLS dependence variable=hashmap inter RAW false
+//#pragma HLS dependence variable=hashmap intra WAR false
+//#pragma HLS dependence variable=hashmap intra RAW false
 
+// #pragma HLS dependence variable=hashmap inter WAR false
+
+  // TODO Can this be problematic?
+// #pragma HLS dependence variable=hashmap inter WAR false
+// #pragma HLS dependence variable=hashmap inter RAW false
+
+// #pragma HLS pipeline style=flp
 #pragma HLS pipeline II=1 style=flp
 
   //if (!header_in_i.empty()) {
@@ -32,8 +46,7 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
   //} else
   sendmsg_t sendmsg;
   recvmsg_t recvmsg;
-  if (!sendmsg_i.empty() && sendmsg_o.size() < VERIF_DEPTH) {
-     sendmsg = sendmsg_i.read();
+  if (sendmsg_i.read_nb(sendmsg)) {
 
      peer_hashpack_t query = {sendmsg.daddr};
      sendmsg.peer_id = hashmap.search(query);
@@ -44,9 +57,8 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
         entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
         hashmap.queue(entry);
      }
-     sendmsg_o.write(sendmsg);
-  } else if (!recvmsg_i.empty() && recvmsg_o.size() < VERIF_DEPTH) {
-     recvmsg = recvmsg_i.read();
+     sendmsg_o.write_nb(sendmsg);
+  } else if (recvmsg_i.read_nb(recvmsg)) {
 
      peer_hashpack_t query = {recvmsg.daddr};
      recvmsg.peer_id = hashmap.search(query);
@@ -58,7 +70,7 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
         hashmap.queue(entry);
      }
 
-     recvmsg_o.write(recvmsg);
+     recvmsg_o.write_nb(recvmsg);
   } else {
      hashmap.process();
   }

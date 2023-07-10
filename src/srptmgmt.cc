@@ -18,22 +18,28 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    static dbuff_notif_t dbuff_notifs[NUM_DBUFF];
 
    dbuff_notif_t dbuff_notif;
-   if (!dbuff_notif_i.empty()) {
-      dbuff_notif = dbuff_notif_i.read();
+   // if (!dbuff_notif_i.empty()) {
+   //    dbuff_notif = dbuff_notif_i.read();
+   if (dbuff_notif_i.read_nb(dbuff_notif)) {
+
       dbuff_notifs[dbuff_notif.dbuff_id] = dbuff_notif;
 
       //std::cerr << "GRANT UP TO: " << (dbuff_notif.dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
    }
 
    header_t header_in;
-   if (!header_in_i.empty()) {
-      header_in = header_in_i.read();
+   // if (!header_in_i.empty()) {
+   //    header_in = header_in_i.read();
+   if (header_in_i.read_nb(header_in)) {
+
       grants[header_in.local_id] = header_in.grant_offset;
    }
 
    sendmsg_t sendmsg;
-   if (!sendmsg_i.empty()) {
-      sendmsg = sendmsg_i.read();
+   //if (!sendmsg_i.empty()) {
+   //   sendmsg = sendmsg_i.read();
+   if (sendmsg_i.read_nb(sendmsg)) {
+
       srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
       grants[((sendmsg.local_id >> 1)-1)] = sendmsg.granted;
 
@@ -56,20 +62,20 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    }
 
    if (head.rpc_id != 0) {
-      if (data_pkt_o.size() < VERIF_DEPTH) {
+      // if (data_pkt_o.size() < VERIF_DEPTH) {
 
          std::cerr << (dbuff_notifs[head.dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
 
          ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
 
-         data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[head.rpc_id]});
+         data_pkt_o.write_nb({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[head.rpc_id]});
 
          entries[((head.rpc_id >> 1) - 1)].remaining = remaining;
 
          if (remaining == 0) {
             entries[((head.rpc_id >> 1) - 1)] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
          }
-      } 
+      // } 
    }
 }
 
@@ -96,8 +102,10 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
    // Headers from incoming DATA packets
    ap_uint<58> header_in_raw;
 
-   if (!header_in_i.empty()) {
-      header_in_raw = header_in_i.read();
+   // if (!header_in_i.empty()) {
+   //    header_in_raw = header_in_i.read();
+   if (header_in_i.read_nb(header_in_raw)) {
+
       header_t header_in;
 
       header_in.peer_id = header_in_raw(57, 44);
@@ -122,7 +130,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
             entries[((header_in.local_id >> 1) - 1)].grantable_pkts -= 1;
          } 
       }
-   } else if (!grant_pkt_o.full()) {
+   } else {
 
       ap_uint<51> grant_pkt;
    
@@ -170,7 +178,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
             grant_pkt(36, 23) = next_grant.rpc_id;
             grant_pkt(50, 37) = next_grant.peer_id;
 
-            grant_pkt_o.write(grant_pkt);
+            grant_pkt_o.write_nb(grant_pkt);
 
          } else if (grant_pkt_o.size() < VERIF_DEPTH) { 
             // Is this going to result in a fully granted message?
@@ -188,7 +196,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
             grant_pkt(50, 37) = next_grant.peer_id;
 
             std::cerr << "DISPATCH GRANT\n";
-            grant_pkt_o.write(grant_pkt);
+            grant_pkt_o.write_nb(grant_pkt);
          } 
       }
    }

@@ -26,8 +26,9 @@ void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
    ap_uint<51> ready_grant_pkt_raw;
    ready_data_pkt_t ready_data_pkt;
 
-   if (!grant_pkt_i.empty() && header_out_o.size() < VERIF_DEPTH) {
-      ready_grant_pkt_raw = grant_pkt_i.read();
+   // if (!grant_pkt_i.empty() && header_out_o.size() < VERIF_DEPTH) {
+     // ready_grant_pkt_raw = grant_pkt_i.read();
+   if (grant_pkt_i.read_nb(ready_grant_pkt_raw)) {
       ready_grant_pkt_t ready_grant_pkt = {ready_grant_pkt_raw(PEER_ID), ready_grant_pkt_raw(RPC_ID), ready_grant_pkt_raw(RECV_PKTS)};
 
       header_t header_out;
@@ -37,10 +38,10 @@ void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
 
       header_out.valid = 1;
    
-      header_out_o.write(header_out);
-
-   } else if (!data_pkt_i.empty() && header_out_o.size() < VERIF_DEPTH) {
-      ready_data_pkt = data_pkt_i.read();
+      header_out_o.write_nb(header_out);
+   } else if (data_pkt_i.read_nb(ready_data_pkt)) {
+   // } else if (!data_pkt_i.empty() && header_out_o.size() < VERIF_DEPTH) {
+      // ready_data_pkt = data_pkt_i.read();
 
       ap_uint<32> data_bytes = MIN(ready_data_pkt.remaining, (ap_uint<32>) HOMA_PAYLOAD_SIZE);
 
@@ -57,7 +58,7 @@ void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
       header_out.incoming = ready_data_pkt.granted;
       header_out.valid = 1;
 
-      header_out_o.write(header_out);
+      header_out_o.write_nb(header_out);
    } 
 }
 
@@ -76,22 +77,24 @@ void pkt_chunk_egress(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
 
    static header_t doublebuff[2];
 #pragma HLS array_partition variable=doublebuff type=complete
-#pragma HLS dependence variable=doublebuff intra RAW false
-#pragma HLS dependence variable=doublebuff intra WAR false
+// #pragma HLS dependence variable=doublebuff intra RAW false
+// #pragma HLS dependence variable=doublebuff intra WAR false
 
    static ap_uint<1> w_pkt = 0;
    static ap_uint<1> r_pkt = 0;
 
    // Need to decouple reading from input stream and reading from current packet
-   if (doublebuff[w_pkt].valid == 0 && !header_out_i.empty()) {
-      doublebuff[w_pkt] = header_out_i.read();
+   if (doublebuff[w_pkt].valid == 0 && header_out_i.read_nb(doublebuff[w_pkt])) {
+   // if (doublebuff[w_pkt].valid == 0 && !header_out_i.empty()) {
+      // doublebuff[w_pkt] = header_out_i.read();
       w_pkt++;
    }
 
 #pragma HLS pipeline II=1 style=flp
 
    // We have data to send
-   if (doublebuff[r_pkt].valid == 1 && chunk_out_o.size() < VERIF_DEPTH) {
+   if (doublebuff[r_pkt].valid == 1) {
+   // if (doublebuff[r_pkt].valid == 1 && chunk_out_o.size() < VERIF_DEPTH) {
       header_t & header_out = doublebuff[r_pkt];
 
       out_chunk_t out_chunk;
@@ -284,7 +287,7 @@ void pkt_chunk_egress(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
       
       //out_chunk.buff.data = natural_chunk;
       std::cerr << header_out.processed_bytes << std::endl;
-      chunk_out_o.write(out_chunk);
+      chunk_out_o.write_nb(out_chunk);
    }
 }
 
@@ -311,9 +314,10 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
    static in_chunk_t data_block;
 
    raw_stream_t raw_stream;
-   if (!link_ingress.empty() && chunk_in_o.size() < VERIF_DEPTH && header_in_o.size() < VERIF_DEPTH) {
+   //if (!link_ingress.empty() && chunk_in_o.size() < VERIF_DEPTH && header_in_o.size() < VERIF_DEPTH) {
+   if (link_ingress.read_nb(raw_stream)) {
       std::cerr << "PROCESSED BYTES: " << header_in.processed_bytes << std::endl;
-      raw_stream = link_ingress.read();
+      // raw_stream = link_ingress.read();
 
       ap_uint<512> natural_chunk;
 
@@ -402,7 +406,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
                //std::cerr << std::endl;
 
                data_block.last = raw_stream.last;
-               chunk_in_o.write(data_block);
+               chunk_in_o.write_nb(data_block);
 
                // std::cerr << "PARTIAL BLOCK IN\n";
 
@@ -412,7 +416,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
             }
          }
 
-         header_in_o.write(header_in);
+         header_in_o.write_nb(header_in);
       } else {
    
          // TODO need to test TKEEP and change raw_stream def
@@ -421,7 +425,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
          data_block.last = raw_stream.last;
 
          //std::cerr << "FULL BLOCK IN \n";
-         chunk_in_o.write(data_block);
+         chunk_in_o.write_nb(data_block);
 
          data_block.offset += 64;
       }

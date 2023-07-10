@@ -11,17 +11,17 @@ void dbuff_stack(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
    sendmsg_t sendmsg;
-   if (!sendmsg_i.empty() && dma_read_o.size() < VERIF_DEPTH && sendmsg_o.size() < VERIF_DEPTH) {
-      sendmsg = sendmsg_i.read();
+   // if (!sendmsg_i.empty() && dma_read_o.size() < VERIF_DEPTH && sendmsg_o.size() < VERIF_DEPTH) {
+   if (sendmsg_i.read_nb(sendmsg)) {
       sendmsg.dbuff_id = dbuff_stack.pop();
 
       uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
       if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
 
-      dma_read_o.write({sendmsg.buffin, num_chunks, sendmsg.dbuff_id});
+      dma_read_o.write_nb({sendmsg.buffin, num_chunks, sendmsg.dbuff_id});
 
       // std::cerr << "sendmsg_o" << std::endl;
-      sendmsg_o.write(sendmsg);
+      sendmsg_o.write_nb(sendmsg);
    }
 }
 
@@ -48,7 +48,8 @@ void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
    static header_t header_in;
 
    // std::cerr << "dma_w_req_o.size() " << dma_w_req_o.size() << std::endl;
-   if (header_in.valid && !rebuff.empty() && dma_w_req_o.size() < VERIF_DEPTH) {
+   if (header_in.valid && !rebuff.empty()) {
+   //if (header_in.valid && !rebuff.empty() && dma_w_req_o.size() < VERIF_DEPTH) {
       in_chunk_t in_chunk = rebuff.remove();
 
       // Place chunk in DMA space at global offset + packet offset
@@ -58,20 +59,23 @@ void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
       //std::cerr << "rebuffer write " << in_chunk.offset + header_in.dma_offset + header_in.data_offset << std::endl;
       //std::cerr << "last? " << in_chunk.last << std::endl;
       std::cerr << "DMA WRITE REQUEST"  << std::endl;
-      dma_w_req_o.write({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
+      dma_w_req_o.write_nb({in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff});
       std::cerr << "DMA WRITE REQUEST COMPLETE" << std::endl;
       if (in_chunk.last) header_in.valid = 0;
    }
 
    in_chunk_t in_chunk;
-   if (!chunk_in_o.empty()) {
-      in_chunk = chunk_in_o.read();
+   // if (!chunk_in_o.empty()) {
+   //    in_chunk = chunk_in_o.read();
+   if (chunk_in_o.read_nb(in_chunk)) {
       rebuff.insert(in_chunk);
       std::cerr << "rebuffering input chunk " << rebuff.size() << std::endl;
    }
 
-   if (!header_in.valid && !header_in_i.empty()) {
-      header_in = header_in_i.read();
+   // if (!header_in.valid && !header_in_i.empty()) {
+   //    header_in = header_in_i.read();
+   if (!header_in.valid && header_in_i.read_nb(header_in)) {
+      // header_in = header_in_i.read();
       std::cerr << "rebuffering input header\n";
    } 
 }
@@ -103,11 +107,13 @@ void dbuff_egress(hls::stream<dbuff_in_t, VERIF_DEPTH> & dbuff_egress_i,
 
    dbuff_in_t dbuff_in;
    // Do we need to add any data to data buffer 
-   if (!dbuff_egress_i.empty() && dbuff_notif_o.size() < VERIF_DEPTH) {
-      dbuff_in = dbuff_egress_i.read();
+   // if (!dbuff_egress_i.empty() && dbuff_notif_o.size() < VERIF_DEPTH) {
+   //    dbuff_in = dbuff_egress_i.read();
+   if (dbuff_egress_i.read_nb(dbuff_in)) {
+
       dbuff[dbuff_in.dbuff_id][dbuff_in.dbuff_chunk].data = dbuff_in.block.data; 
    
-      dbuff_notif_o.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
+      dbuff_notif_o.write_nb({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
 
       //std::cerr << "READ BLOCK\n";
       //for (int i = 0; i < 64; ++i) {
@@ -119,8 +125,12 @@ void dbuff_egress(hls::stream<dbuff_in_t, VERIF_DEPTH> & dbuff_egress_i,
    out_chunk_t out_chunk; 
    // Do we need to process any packet chunks?
    // if (!out_chunk_i.empty()) {
-   if (!out_chunk_i.empty()) {
-      out_chunk = out_chunk_i.read();
+   //if (!out_chunk_i.empty()) {
+   //   out_chunk = out_chunk_i.read();
+
+   // if (!out_chunk_i.empty()) {
+   //    out_chunk = out_chunk_i.read();
+   if (out_chunk_i.read_nb(out_chunk)) {
 
       raw_stream_t raw_stream;
       // Is this a data type packet?
@@ -170,7 +180,7 @@ void dbuff_egress(hls::stream<dbuff_in_t, VERIF_DEPTH> & dbuff_egress_i,
       //std::cerr << std::endl;
       //
 
-      std::cerr << "SIZE: " << link_egress.full() << std::endl;
+      // std::cerr << "SIZE: " << link_egress.full() << std::endl;
       
       link_egress.write(raw_stream);
    }

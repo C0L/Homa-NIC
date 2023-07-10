@@ -32,7 +32,7 @@ struct hashmap_t {
    cam_t<H,table_op_t<E>,CAM_SIZE> ops;
 
    I search(H query) {
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
 
       I result = 0;
 
@@ -53,13 +53,13 @@ struct hashmap_t {
    }
 
    void queue(E insert) {
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
       ops.push((table_op_t<E>) {0, insert});
    }
 
    void process() {
 
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
       if (!ops.empty()) {
 
          E out_entry;
@@ -114,7 +114,7 @@ struct hashmap_t {
    }
 
    uint32_t murmur_32_scramble(uint32_t k) {
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
       k *= 0xcc9e2d51;
       k = (k << 15) | (k >> 17);
       k *= 0x1b873593;
@@ -122,13 +122,13 @@ struct hashmap_t {
    }
 
    uint32_t murmur3_32(H hashpack, int len, uint32_t seed) {
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
       uint32_t * key = (uint32_t*) &hashpack;
       uint32_t h = seed;
       uint32_t k;
 
       for (int i = len; i; i--) {
-#pragma HLS unroll
+// #pragma HLS unroll
          k = *key;
          key += 1;
          h ^= murmur_32_scramble(k);

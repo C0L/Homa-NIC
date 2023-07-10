@@ -29,8 +29,10 @@ void homa(const homa_t homa_cfg,
       hls::stream<raw_stream_t> & link_egress,
       char * maxi_in,
       char * maxi_out) {
+   std::cerr << "TOP LEVEL CALL\n";
 
-#pragma HLS interface mode=ap_ctrl_chain port=return
+   // TODO RM?
+// #pragma HLS interface mode=ap_ctrl_hs port=return
    // #pragma HLS interface mode=ap_ctrl_none port=return TODO 
 
 #pragma HLS interface s_axilite port=homa_cfg bundle=homa_cfg 
@@ -42,11 +44,23 @@ void homa(const homa_t homa_cfg,
    // #pragma HLS interface mode=ap_vld port=recvmsg depth=128
 
    // Depth specifies the maximum number of values streaming in/out for simulation
-#pragma HLS interface axis port=link_ingress depth=128
-#pragma HLS interface axis port=link_egress  depth=128
+   //
+// TODO depth here seems to be ignored??
+#pragma HLS interface axis port=link_ingress depth=512
+#pragma HLS interface axis port=link_egress  depth=512
 
-#pragma HLS interface mode=m_axi port=maxi_in  bundle=maxi_0 latency=1 num_read_outstanding=80  num_write_outstanding=1 max_write_burst_length=2 max_read_burst_length=2  depth=4096
-#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=1 num_write_outstanding=80 num_read_outstanding=1  max_read_burst_length=2  max_write_burst_length=2 depth=4096
+//#pragma HLS stream variable=link_egress depth=512
+//#pragma HLS stream variable=link_ingress depth=512
+
+// #pragma HLS interface mode=m_axi port=maxi_in  bundle=maxi_0 latency=70 num_read_outstanding=256  num_write_outstanding=1 max_write_burst_length=2 max_read_burst_length=8  depth=4096
+// #pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=70 num_write_outstanding=256 num_read_outstanding=1  max_read_burst_length=2  max_write_burst_length=8 depth=4096
+//
+// #pragma HLS interface mode=m_axi port=maxi_in  bundle=maxi_0 latency=70 num_read_outstanding=256  num_write_outstanding=1 max_write_burst_length=2 max_read_burst_length=8  depth=16000
+// #pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=70 num_write_outstanding=256 num_read_outstanding=1  max_read_burst_length=2  max_write_burst_length=8 depth=16000
+
+#pragma HLS interface mode=m_axi port=maxi_in  bundle=maxi_0 latency=70 num_read_outstanding=256  num_write_outstanding=1 max_write_burst_length=2 max_read_burst_length=1  depth=16000
+
+#pragma HLS interface mode=m_axi port=maxi_out bundle=maxi_1 latency=70 num_write_outstanding=256 num_read_outstanding=1  max_read_burst_length=2  max_write_burst_length=1 depth=16000
 
    hls_thread_local hls::stream<dbuff_in_t,       VERIF_DEPTH> dma_read__dbuff_egress          ("dma_read__dbuff_egress");
    hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> homa_sendmsg__dbuff_stack       ("homa_sendmsg__dbuff_stack");
@@ -85,6 +99,7 @@ void homa(const homa_t homa_cfg,
    //  * outputs (FIFOs or PIPOs), these start FIFOs can be removed, at user's risk,
    //  * locally for a given dataflow region with the pragma"
    //  */
+// #pragma HLS dataflow disable_start_propagation
 #pragma HLS dataflow
 
    /* Data Driven Region */
@@ -176,13 +191,11 @@ void homa(const homa_t homa_cfg,
          rpc_state__dbuff_ingress
          );
 
-
+   // TODO need to make sure these are totaly independent
+   // Does not need to execute as 1 unit
    /* Control Driven Region */
-   homa_sendmsg(homa_cfg, sendmsg, homa_sendmsg__dbuff_stack);
-
    homa_recvmsg(homa_cfg, recvmsg, recvmsg__peer_map);
-
-   dma_read(maxi_in, dbuff_stack__dma_read, dma_read__dbuff_egress);
-
-   dma_write(maxi_out, dbuff_ingress__dma_write);
+   homa_sendmsg(homa_cfg, sendmsg, homa_sendmsg__dbuff_stack);
+   dma_read(maxi_in, homa_cfg, dbuff_stack__dma_read, dma_read__dbuff_egress);
+   dma_write(maxi_out, homa_cfg, dbuff_ingress__dma_write);
 }

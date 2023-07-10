@@ -224,31 +224,21 @@ const std::string data = "Lorem ipsum dolor sit amet, consectetur adipiscing eli
 int main() {
    std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-   hls::stream<raw_stream_t> link_ingress("in");
-   hls::stream<raw_stream_t> link_egress("out");
+   hls::stream<raw_stream_t, 256> link("in");
+   // hls::stream<raw_stream_t, 256> link_ingress("in");
+   // hls::stream<raw_stream_t, 256> link_egress("out");
 
    homa_t homa_cfg;
+   homa_cfg.dma_count = 2*23;
 
    sendmsg_t sendmsg;
    recvmsg_t recvmsg;
 
-   // TODO try mallocing this???
-   static char maxi_in[128*64];
-   static char maxi_out[128*64];
+   char maxi_in[128*64];
+   char maxi_out[128*64];
 
    homa_cfg.rtt_bytes = 60000;
    strcpy(maxi_in, data.c_str());
-
-   std::cerr << "LENGTH " << data.length() << std::endl;
-   //std::cerr << "DATA IN\n";
-   //for (int i = 0; i < 5500; ++i) std::cerr << maxi_in[i];
-   //std::cerr << std::endl;
-
-   //for (int i = 0; i < 5500; ++i) {
-   // printf("%02x", (unsigned char) maxi_in[i]);
-   //}
-
-   //std::cerr << std::endl;
 
    ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
    ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -268,15 +258,6 @@ int main() {
    recvmsg.id = 0;
    recvmsg.valid = 1;
 
-   int ccount = 0;
-   std::cerr << "CALL " << ccount++ << std::endl;
-   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-
-   std::chrono::milliseconds dura(500);
-   std::this_thread::sleep_for(dura);
-
-   recvmsg.valid = 0;
-
    sendmsg.buffin = 0;
    sendmsg.length = 2772;
    sendmsg.saddr = saddr;
@@ -288,134 +269,147 @@ int main() {
    sendmsg.valid = 1;
 
    // Construct a new RPC to ingest  
-   std::cerr << "CALL " << ccount++ << std::endl;
-   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-
-   sendmsg.valid = 0;
-
-   std::this_thread::sleep_for(dura);
-
-   raw_stream_t link[256];
-   uint32_t link_head = 0;
-
-   // TODO still have disable start prop on dataflow pragma !!!
-   // https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/config_dataflow
-   // TODO Maybe need random stall??
-   // "Streams are modeled as an infinite queue in software (and in the test bench during RTL co-simulation)."
-
-    while (link_head != (2*24)) {
-   std::cerr << "CALL " << ccount++ << std::endl;
-      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-      if (!link_egress.empty()) {
-         link[link_head] = link_egress.read();
-         link_head++;
-      }
-      std::this_thread::sleep_for(dura);
-   }
-
-   std::cerr << "FINISHED READING PACKETs\n";
-
-   uint32_t read_head = 0;  
-   while (link_head != read_head) {
-   std::cerr << "CALL " << ccount++ << std::endl;
-      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-      if (!link_ingress.full()) {
-         std::cerr << "WRITING DATA PACKET\n";
-         link_ingress.write(link[read_head]);
-         std::cerr << "WROTE DATA PACKET\n";
-         read_head++;
-      }
-      std::this_thread::sleep_for(dura);
-   }
-
-   // for (int j = 0; j < 4; ++j) {
-   //    //std::this_thread::sleep_for(dura);
-   //    //for (int i=0; i < 23; ++i) { 
-   //    //   homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-
-   //    //   std::this_thread::sleep_for(dura);
-   //    //}
-
-   //    int pkts = 1;
-   //    while (true) {
-   //       homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-   //       std::this_thread::sleep_for(dura);
-   //       if (!link_egress.empty()) {
-   //          raw_stream_t raw_stream;
-   //          raw_stream.last = 0;
-   //          // std::cerr << "READING FROM STREAM\n";
-   //          // raw_stream_t raw_stream = link_egress.read();
-   //          // std::cerr << "WRITING TO STREAM\n";
-   //          // 
-   //          // std::cerr << "SIZE: " << link_ingress.size() << std::endl;
-   //          // // TOOD will this one be nonblocking as well??
-   //          // 
-   //          // link_ingress.write(raw_stream);
-   //          if (raw_stream.last) {
-   //             break;
-   //          }
-   //       }
-   //    }
-
-   //    std::this_thread::sleep_for(dura);
-   // }
-
-   while (maxi_out[2772] == 0) {
-      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-      std::this_thread::sleep_for(dura);
-   }
-
-   // Cycle DMA transfers
-   //for (int i = 0; i < data.length()/64*2; ++i) {
-
-   //   // std::this_thread::sleep_for(dura);
-
-   //   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-   //   std::cerr << "CYCLE\n";
-   //}
-
-   //// Cycle DMA transfers
-   //for (int i = 0; i < data.length()/64*2; ++i) {
-   //   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-   //   std::cerr << "CYCLE1\n";
-   //}
-   
-   // TODO need to interleave the processing of packets and sending alternatve somehow. 
-   // Things seem to be sending all right though
-
-//   int pkts = 4;
-//   int count = 0;
-//   do {
-//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//      if (!link_egress.empty()) {
-//         raw_stream_t raw_stream = link_egress.read();
-//         std::cerr << "SWAP " << count << std::endl;
-//         count++;
-//
-//         if (raw_stream.last) {
-//            std::cerr << "GOT FULL PACKET " << count << std::endl;
-//            pkts--;
-//         }
-//         
-//         std::cerr << "starting write\n"; 
-//
-//         link_ingress.write(raw_stream);
-//
-//         std::cerr << "finishing write\n"; 
-//      }
-//   } while (pkts != 0);
-//
-
-
-   std::cerr << "RECEIVED DATA\n";
-   for (int i = 0; i < 2772; ++i) std::cerr << maxi_out[i];
-   std::cerr << std::endl;
-
-   std::cerr << "******************************  END TEST BENCH  ******************************" << endl;
-
-   // TODO should free memory if malloc ends up being the solution
+   homa(homa_cfg, sendmsg, recvmsg, link, link, maxi_in, maxi_out);
 
    return memcmp(maxi_in, maxi_out, 2772);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//   // std::cerr << "LENGTH " << data.length() << std::endl;
+//   std::cerr << "DATA IN\n";
+//   for (int i = 0; i < 2772; ++i) std::cerr << maxi_in[i];
+//   std::cerr << std::endl;
+//
+//   //for (int i = 0; i < 5500; ++i) {
+//   // printf("%02x", (unsigned char) maxi_in[i]);
+//   //}
+//
+//   //std::cerr << std::endl;
+//
+//   ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
+//   ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
+//
+//   uint16_t sport;
+//   uint16_t dport;
+//
+//   dport = 0xBEEF;
+//   sport = 0xFEEB;
+//
+//   // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
+//   recvmsg.buffout = 0;
+//   recvmsg.saddr = saddr;
+//   recvmsg.daddr = daddr;
+//   recvmsg.sport = sport;
+//   recvmsg.dport = dport;
+//   recvmsg.id = 0;
+//   recvmsg.valid = 1;
+//
+//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//
+//   std::chrono::milliseconds dura(100);
+//   // std::this_thread::sleep_for(dura);
+//
+//   recvmsg.valid = 0;
+//
+//   sendmsg.buffin = 0;
+//   sendmsg.length = 2772;
+//   sendmsg.saddr = saddr;
+//   sendmsg.daddr = daddr;
+//   sendmsg.sport = sport;
+//   sendmsg.dport = dport;
+//   sendmsg.id = 0;
+//   sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
+//   sendmsg.valid = 1;
+//
+//   // Construct a new RPC to ingest  
+//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//
+//   sendmsg.valid = 0;
+//
+//   std::this_thread::sleep_for(dura);
+//
+//   raw_stream_t link[256];
+//   uint32_t link_head = 0;
+//
+//   for (int i = 0; i < 2*24; ++i) {
+//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//      std::this_thread::sleep_for(dura);
+//   }
+//
+//   std::this_thread::sleep_for(dura);
+//
+//   while (link_head != (2*24)) {
+//      link_egress.read(link[link_head]);
+//      link_head++;
+//      std::this_thread::sleep_for(dura);
+//   }
+//
+//   std::cerr << "FINISHED READING PACKETs\n";
+//
+//   uint32_t read_head = 0;  
+//   while (link_head != read_head) {
+//      // homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//      link_ingress.write(link[read_head]);
+//      read_head++;
+//   }
+//
+//   // for (int j = 0; j < 4; ++j) {
+//   //    //std::this_thread::sleep_for(dura);
+//   //    //for (int i=0; i < 23; ++i) { 
+//   //    //   homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//
+//   //    //   std::this_thread::sleep_for(dura);
+//   //    //}
+//
+//   //    int pkts = 1;
+//   //    while (true) {
+//   //       homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//   //       std::this_thread::sleep_for(dura);
+//   //       if (!link_egress.empty()) {
+//   //          raw_stream_t raw_stream;
+//   //          raw_stream.last = 0;
+//   //          // std::cerr << "READING FROM STREAM\n";
+//   //          // raw_stream_t raw_stream = link_egress.read();
+//   //          // std::cerr << "WRITING TO STREAM\n";
+//   //          // 
+//   //          // std::cerr << "SIZE: " << link_ingress.size() << std::endl;
+//   //          // // TOOD will this one be nonblocking as well??
+//   //          // 
+//   //          // link_ingress.write(raw_stream);
+//   //          if (raw_stream.last) {
+//   //             break;
+//   //          }
+//   //       }
+//   //    }
+//
+//   //    std::this_thread::sleep_for(dura);
+//   // }
+//
+//   while (maxi_out[2772] == 0) {
+//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
+//      std::this_thread::sleep_for(dura);
+//   }
+//
+//   std::cerr << "RECEIVED DATA\n";
+//   for (int i = 0; i < 2772; ++i) std::cerr << maxi_out[i];
+//   std::cerr << std::endl;
+//
+//   std::cerr << "******************************  END TEST BENCH  ******************************" << endl;
+//
+//   // TODO should free memory if malloc ends up being the solution
+//
+//   return memcmp(maxi_in, maxi_out, 2772);
    // return memcmp(maxi_in, maxi_out, data.length());
   
 
@@ -431,6 +425,4 @@ int main() {
 
 
    //if (test_recvmsg_client(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out)) { return 1; }
-
-
 }

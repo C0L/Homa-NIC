@@ -20,14 +20,14 @@ struct stack_t {
 
   void push(T value) {
     /* This must be pipelined for a caller function to be pipelined */
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
     size++;
     buffer[size] = value;
   }
 
   T pop() {
     /* This must be pipelined for a caller function to be pipelined */
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
     T head = buffer[size];
     size--;
     return head;
