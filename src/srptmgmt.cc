@@ -8,6 +8,7 @@
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
+// extern "C"{
 void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_i,
       hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_o,
@@ -71,7 +72,7 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       }
    }
 }
-
+// }
 /**
  * WARNING: For C simulation only
  * srpt_grant_pkts() - Determines what message to grant to next. Messages are ordered by
@@ -82,6 +83,7 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
  * @grant_pkt_o: The next rpc that should be granted to. Goes to packet egress process.
  *
  */
+//extern "C"{
 void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
       hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_o) {
 
@@ -191,3 +193,4 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
       }
    }
 }
+// }

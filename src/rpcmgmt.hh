@@ -31,10 +31,11 @@ struct rpc_hashpack_t {
   }
 };
 
-
+extern "C"{
 void rpc_stack(hls::stream<rpc_id_t, VERIF_DEPTH> & new_rpc_id_0_o,
 	       hls::stream<rpc_id_t, VERIF_DEPTH> & new_rpc_id_1_o);
-
+}
+extern "C"{
 void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 	       hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
 	       hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
@@ -45,9 +46,10 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 	       hls::stream<header_t, VERIF_DEPTH> & header_in_dbuff_o,
 	       hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_grant_o,
 	       hls::stream<header_t, VERIF_DEPTH> & header_in_srpt_o);
-
+}
+extern "C"{
 void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
 	     hls::stream<header_t, VERIF_DEPTH> & header_in_o,
 	     hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i);
-
+}
 #endif

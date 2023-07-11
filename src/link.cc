@@ -9,6 +9,7 @@
  * @header_out_o - Output stream to the RPC store to get info
  * about the RPC before the packet can be sent
  */
+extern "C"{
 void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
       hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_i,
       hls::stream<header_t, VERIF_DEPTH> & header_out_o) {
@@ -51,7 +52,7 @@ void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
       header_out_o.write(header_out);
    } 
 }
-
+}
 /**
  * pkt_chunk_egress() - Take in the packet header data and output
  * structured 64 byte chunks of that packet. Chunks requiring message
@@ -60,6 +61,7 @@ void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
  * @chunk_out_o - 64 byte structured packet chunks output to
  * this stream to be augmented with data from the data buffer
  */
+extern "C"{
 void pkt_chunk_egress(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
       hls::stream<out_chunk_t, VERIF_DEPTH> & chunk_out_o) {
 
@@ -279,6 +281,7 @@ void pkt_chunk_egress(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
       chunk_out_o.write(out_chunk);
    }
 }
+}
 
 /**
  * pkt_chunk_ingress() - Take packet chunks from the link, reconstruct packets,
@@ -294,6 +297,7 @@ void pkt_chunk_egress(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
+extern "C"{
 void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
       hls::stream<header_t, VERIF_DEPTH> & header_in_o,
       hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o) {
@@ -425,4 +429,5 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
          header_in.processed_bytes = 0;
       }
    }
+}
 }

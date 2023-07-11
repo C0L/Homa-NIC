@@ -127,13 +127,14 @@
 //     return (size == 0);
 //   }
 // };
-
+//extern "C"{
 void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & new_rpc_i,
 		    hls::stream<dbuff_notif_t, VERIF_DEPTH> & data_notif_i,
 		    hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_o,
 		    hls::stream<header_t, VERIF_DEPTH> & header_in_i);
-
+// }
+//extern "C"{
 void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
 		     hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_o);
-
+//}
 #endif

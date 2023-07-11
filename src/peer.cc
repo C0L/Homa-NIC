@@ -1,7 +1,7 @@
 #include "peer.hh"
 #include "stack.hh"
 #include "hashmap.hh"
-
+extern "C"{
 void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 	      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
 	      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
@@ -75,6 +75,7 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
   } else {
      hashmap.process();
   }
+}
 }
 
 //void peer_state(stream_t<new_rpc_t, new_rpc_t> & new_rpc_t) {

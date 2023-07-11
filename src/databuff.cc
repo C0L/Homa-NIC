@@ -1,6 +1,7 @@
 #include "databuff.hh"
 #include "stack.hh"
 
+extern "C"{
 void dbuff_stack(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
       hls::stream<hls::axis<dma_r_req_t,0,0,0>> & dma_read_o) {
@@ -25,6 +26,7 @@ dma_r_req_r.data = dma_r_req;
       sendmsg_o.write(sendmsg);
    }
 }
+}
 
 /**
  * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
@@ -33,6 +35,7 @@ dma_r_req_r.data = dma_r_req;
  * @dma_w_req_o - Outgoing requests for data to be placed in DMA
  * @header_in_i - Incoming headers that determine DMA placement
  */
+extern "C"{
 void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
       hls::stream<hls::axis<dma_w_req_t,0,0,0>> & dma_w_req_o,
       hls::stream<header_t, VERIF_DEPTH> & header_in_i) {
@@ -74,7 +77,7 @@ void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
       std::cerr << "rebuffering input header\n";
    } 
 }
-
+}
 /**
  * dbuff_egress() - Augment outgoing packet chunks with packet data
  * @dbuff_egress_i - Input stream of data that needs to be inserted into the on-chip
@@ -89,6 +92,7 @@ void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
  * set, indicating a completiton of packet transmission.
  * TODO Needs to request data from DMA to keep the RB saturated with pkt data
  */
+extern "C"{
 void dbuff_egress(hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dbuff_egress_i,
       hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_o,
       hls::stream<out_chunk_t, VERIF_DEPTH> & out_chunk_i,
@@ -165,4 +169,5 @@ void dbuff_egress(hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dbuff_egress_i,
 
       link_egress.write(raw_stream);
    }
+}
 }

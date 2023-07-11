@@ -4,6 +4,7 @@
  * homa_recvmsg() - Primes the core to accept data from an RPC
  * ...
  */
+extern "C" {
 void homa_recvmsg(hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
                   hls::stream<recvmsg_t> & recvmsg_o) {
    // TODO this used to perform some actual functions. Will keep this here
@@ -13,7 +14,7 @@ void homa_recvmsg(hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
       recvmsg_o.write(recvmsg.data);
    }
 }
-
+}
 /* TODO This is not outdated
  * sendmsg() - Injests new RPCs and homa configurations into the
  * homa processor. Manages the databuffer IDs, as those must be generated before
@@ -26,6 +27,7 @@ void homa_recvmsg(hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
  * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
+extern "C"{
 void homa_sendmsg(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
                   hls::stream<sendmsg_t> & sendmsg_o) {
    if (!sendmsg_i.empty()) {
@@ -34,7 +36,7 @@ void homa_sendmsg(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
       sendmsg_o.write(sendmsg.data);
    }
 }
-
+}
 
 // TODO MOVING TO A SEPERATE CORE
 /*

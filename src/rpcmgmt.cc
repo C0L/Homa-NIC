@@ -1,7 +1,7 @@
 #include "rpcmgmt.hh"
 #include "hashmap.hh"
 #include <iostream>
-
+extern "C"{
 void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
       hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
@@ -126,7 +126,9 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       recvmsg_o.write(recvmsg);
    }
 }
+}
 
+extern "C"{
 void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
       hls::stream<header_t, VERIF_DEPTH> & header_in_o,
       hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i) {
@@ -180,4 +182,5 @@ void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
    } else {
       hashmap.process();
    }
+}
 }
