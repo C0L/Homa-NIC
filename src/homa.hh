@@ -472,11 +472,11 @@ struct fifo_t {
 };
 
 extern "C"{
-void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
-      hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
-      hls::stream<hls::axis<dma_r_req_t,0,0,0>> & dma_r_req_o,
-      hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dma_r_resp_i,
-      hls::stream<hls::axis<dma_w_req_t,0,0,0>> & dma_w_req_o,
+void homa(hls::stream<raw_stream_t> & sendmsg_i,
+      hls::stream<raw_stream_t> & recvmsg_i,
+      hls::stream<raw_stream_t> & dma_r_req_o,
+      hls::stream<raw_stream_t> & dma_r_resp_i,
+      hls::stream<raw_stream_t> & dma_w_req_o,
       hls::stream<raw_stream_t> & link_ingress,
       hls::stream<raw_stream_t> & link_egress);
 }

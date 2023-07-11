@@ -5,13 +5,13 @@
  * ...
  */
 extern "C" {
-void homa_recvmsg(hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
+void homa_recvmsg(hls::stream<recvmsg_t> & recvmsg_i,
                   hls::stream<recvmsg_t> & recvmsg_o) {
    // TODO this used to perform some actual functions. Will keep this here
    // until it for sure is no longer needed
    if (!recvmsg_i.empty()) {
-      hls::axis<recvmsg_t,0,0,0> recvmsg = recvmsg_i.read();
-      recvmsg_o.write(recvmsg.data);
+      recvmsg_t recvmsg = recvmsg_i.read();
+      recvmsg_o.write(recvmsg);
    }
 }
 }
@@ -28,12 +28,12 @@ void homa_recvmsg(hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
 extern "C"{
-void homa_sendmsg(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
+void homa_sendmsg(hls::stream<sendmsg_t> & sendmsg_i,
                   hls::stream<sendmsg_t> & sendmsg_o) {
    if (!sendmsg_i.empty()) {
-      hls::axis<sendmsg_t,0,0,0> sendmsg = sendmsg_i.read(); 
-      sendmsg.data.granted = (sendmsg.data.rtt_bytes > sendmsg.data.length) ? sendmsg.data.length : sendmsg.data.rtt_bytes;
-      sendmsg_o.write(sendmsg.data);
+      sendmsg_t sendmsg = sendmsg_i.read(); 
+      sendmsg.granted = (sendmsg.rtt_bytes > sendmsg.length) ? sendmsg.length : sendmsg.rtt_bytes;
+      sendmsg_o.write(sendmsg);
    }
 }
 }

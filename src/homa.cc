@@ -22,13 +22,35 @@ using namespace std;
 //      *maxi = d.rtt_bytes;
 //   }
 //}
-// void adapter(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
-//       	hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
-//       	hls::stream<hls::axis<dma_r_req_t,0,0,0>> & dma_r_req_o,
-//       	hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dma_r_resp_i,
-//       	hls::stream<hls::axis<dma_w_req_t,0,0,0>> & dma_w_req_o) {
-// 	sendmsg_i
-// }
+void adapter(hls::stream<raw_stream_t> & sendmsg_i,
+      	hls::stream<raw_stream_t> & recvmsg_i,
+      	hls::stream<raw_stream_t> & dma_r_req_o,
+      	hls::stream<raw_stream_t> & dma_r_resp_i,
+      	hls::stream<raw_stream_t> & dma_w_req_o,
+         hls::stream<sendmsg_t> & sendmsg_i_o,
+      	hls::stream<recvmsg_t> & recvmsg_i_o,
+      	hls::stream<dma_r_req_t> & dma_r_req_o_o,
+      	hls::stream<dbuff_in_t> & dma_r_resp_i_o,
+      	hls::stream<dma_w_req_t> & dma_w_req_o_o) {
+   sendmsg_t sendmsg_convert;
+   recvmsg_t recvmsg_convert;
+   dma_r_req_t dma_r_req_convert;
+   dbuff_in_t dma_r_resp_convert;
+   dma_w_req_t dma_w_req_convert;
+   
+   raw_stream_t recvmsg_raw = recvmsg_i.read();
+	raw_stream_t sendmsg_raw = sendmsg_i.read();
+   raw_stream_t dma_r_req_raw = dma_r_req_o.read();
+	raw_stream_t dma_r_resp_raw = dma_r_resp_i.read();
+	raw_stream_t dma_q_req_raw = dma_w_req_o.read();
+
+  // TRY ONLY USING RAW BITS ON THE INTERFACE? 
+	sendmsg_i_o.write(sendmsg_convert);
+	recvmsg_i_o.write(recvmsg_convert);
+	dma_r_req_o_o.write(dma_r_req_convert);
+	dma_r_resp_i_o.write(dma_r_resp_convert);
+	dma_w_req_o_o.write(dma_w_req_convert);
+}
 
 /**
  * homa() - Top level homa packet processor
@@ -38,11 +60,11 @@ using namespace std;
  * @dma:   DMA memory space pointer
  */
 extern "C"{
-void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
-      hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
-      hls::stream<hls::axis<dma_r_req_t,0,0,0>> & dma_r_req_o,
-      hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dma_r_resp_i,
-      hls::stream<hls::axis<dma_w_req_t,0,0,0>> & dma_w_req_o,
+void homa(hls::stream<raw_stream_t> & sendmsg_i,
+      hls::stream<raw_stream_t> & recvmsg_i,
+      hls::stream<raw_stream_t> & dma_r_req_o,
+      hls::stream<raw_stream_t> & dma_r_resp_i,
+      hls::stream<raw_stream_t> & dma_w_req_o,
       hls::stream<raw_stream_t> & link_ingress,
       hls::stream<raw_stream_t> & link_egress) {
 
@@ -82,13 +104,13 @@ void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
 
 
 
-// #pragma HLS interface axis port=sendmsg_i depth=512
-// #pragma HLS interface axis port=recvmsg_i depth=512
-// #pragma HLS interface axis port=dma_r_req_o depth=512
-// #pragma HLS interface axis port=dma_r_resp_i depth=512
-// #pragma HLS interface axis port=dma_w_req_o depth=512
-// #pragma HLS interface axis port=link_ingress depth=512
-// #pragma HLS interface axis port=link_egress depth=512
+#pragma HLS interface axis port=sendmsg_i depth=512
+#pragma HLS interface axis port=recvmsg_i depth=512
+#pragma HLS interface axis port=dma_r_req_o depth=512
+#pragma HLS interface axis port=dma_r_resp_i depth=512
+#pragma HLS interface axis port=dma_w_req_o depth=512
+#pragma HLS interface axis port=link_ingress depth=512
+#pragma HLS interface axis port=link_egress depth=512
 
 
 //#pragma HLS interface axis port=sendmsg_i register_mode=reverse register depth=512
@@ -124,8 +146,27 @@ void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
    hls_thread_local hls::stream<recvmsg_t,        VERIF_DEPTH> recvmsg__rpc_state__rpc_map     ("recvmsg__rpc_state__rpc_map");
    hls_thread_local hls::stream<recvmsg_t,        VERIF_DEPTH> recvmsg__peer_map               ("recvmsg__peer_map");
 
+   hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> sendmsg_a;
+   hls_thread_local hls::stream<recvmsg_t,        VERIF_DEPTH> recvmsg_a;
+   hls_thread_local hls::stream<dma_r_req_t,        VERIF_DEPTH> dma_r_req_a;
+   hls_thread_local hls::stream<dbuff_in_t,        VERIF_DEPTH> dma_r_resp_a;
+   hls_thread_local hls::stream<dma_w_req_t,        VERIF_DEPTH> dma_w_req_a;
 
-   
+    hls_thread_local hls::task adapter_task(
+         adapter,
+         sendmsg_i,
+         recvmsg_i,
+         dma_r_req_o,
+         dma_r_resp_i,
+         dma_w_req_o,
+         sendmsg_a,
+         recvmsg_a,
+         dma_r_req_a,
+         dma_r_resp_a,
+         dma_w_req_a
+         );
+
+  
 
 
    /* Data Driven Region */
@@ -197,12 +238,12 @@ void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
          dbuff_stack,
          homa_sendmsg__dbuff_stack,
          dbuff_stack__peer_map,
-         dma_r_req_o 
+         dma_r_req_a 
          ); 
 
    hls_thread_local hls::task dbuff_egress_task(
          dbuff_egress,
-         dma_r_resp_i,
+         dma_r_resp_a,
          dbuff_ingress__srpt_data,
          chunk_egress__dbuff_ingress,
          link_egress
@@ -211,19 +252,19 @@ void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
    hls_thread_local hls::task dbuff_ingress_task(
          dbuff_ingress,
          chunk_ingress__dbuff_ingress,
-         dma_w_req_o,
+         dma_w_req_a,
          rpc_state__dbuff_ingress
          );
 
    hls_thread_local hls::task homa_recvmsg_task(
          homa_recvmsg, 
-         recvmsg_i, 
+         recvmsg_a, 
          recvmsg__peer_map
          );
 
    hls_thread_local hls::task homa_sendmsg_task(
          homa_sendmsg, 
-         sendmsg_i,
+         sendmsg_a,
          homa_sendmsg__dbuff_stack);
          // dummy);
 }

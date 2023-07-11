@@ -307,7 +307,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
    static in_chunk_t data_block;
 
    raw_stream_t raw_stream;
-   if (!link_ingress.empty()) {
+   // if (!link_ingress.empty()) {
       raw_stream = link_ingress.read();
    // raw_stream_t raw_stream = link_ingress.read();
       std::cerr << "PROCESSED BYTES: " << header_in.processed_bytes << std::endl;
@@ -428,6 +428,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
          data_block.offset = 0;
          header_in.processed_bytes = 0;
       }
-   }
+   //}
 }
 }
