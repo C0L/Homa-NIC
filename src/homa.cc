@@ -22,6 +22,13 @@ using namespace std;
 //      *maxi = d.rtt_bytes;
 //   }
 //}
+// void adapter(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
+//       	hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
+//       	hls::stream<hls::axis<dma_r_req_t,0,0,0>> & dma_r_req_o,
+//       	hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dma_r_resp_i,
+//       	hls::stream<hls::axis<dma_w_req_t,0,0,0>> & dma_w_req_o) {
+// 	sendmsg_i
+// }
 
 /**
  * homa() - Top level homa packet processor
@@ -38,11 +45,16 @@ void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
       hls::stream<raw_stream_t> & link_ingress,
       hls::stream<raw_stream_t> & link_egress) {
 
+// TODO try 2022.2??
+
+// #pragma HLS s_axilite mode=ap_ctrl_chain port=return 
 //#pragma HLS interface ap_fifo port=sendmsg_i depth=512
 //#pragma HLS interface ap_fifo port=recvmsg_i depth=512
 //#pragma HLS interface ap_fifo port=dma_r_req_o depth=512
 //#pragma HLS interface ap_fifo port=dma_r_resp_i depth=512
 //#pragma HLS interface ap_fifo port=dma_w_req_o depth=512
+//
+// TODO try creating an adapter so that only non-blocking operations occur on top level ports?
 
 #pragma HLS interface axis port=sendmsg_i depth=512
 #pragma HLS interface axis port=recvmsg_i depth=512
@@ -51,6 +63,23 @@ void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
 #pragma HLS interface axis port=dma_w_req_o depth=512
 #pragma HLS interface axis port=link_ingress depth=512
 #pragma HLS interface axis port=link_egress depth=512
+// #pragma HLS interface axis port=sendmsg_i
+// #pragma HLS interface axis port=recvmsg_i
+// #pragma HLS interface axis port=dma_r_req_o
+// #pragma HLS interface axis port=dma_r_resp_i
+// #pragma HLS interface axis port=dma_w_req_o
+// #pragma HLS interface axis port=link_ingress
+// #pragma HLS interface axis port=link_egress
+
+
+
+// #pragma HLS interface axis port=sendmsg_i depth=512
+// #pragma HLS interface axis port=recvmsg_i depth=512
+// #pragma HLS interface axis port=dma_r_req_o depth=512
+// #pragma HLS interface axis port=dma_r_resp_i depth=512
+// #pragma HLS interface axis port=dma_w_req_o depth=512
+// #pragma HLS interface axis port=link_ingress depth=512
+// #pragma HLS interface axis port=link_egress depth=512
 
 
 //#pragma HLS interface axis port=sendmsg_i register_mode=reverse register depth=512

@@ -1,19 +1,4 @@
-#include <cstdio>
-
-#include "ap_axi_sdata.h"
-#include "hls_task.h"
-#include "hls_stream.h"
-
-
-#include "ap_int.h"
-
 #include "homa.hh"
-#include "dma.hh"
-#include "link.hh"
-#include "peer.hh"
-#include "rpcmgmt.hh"
-#include "srptmgmt.hh"
-#include "databuff.hh"
 
 using namespace std;
 
@@ -25,14 +10,13 @@ const std::string data = "Lorem ipsum dolor sit amet, consectetur adipiscing eli
 int main() {
    std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-   // hls::stream<hls::axis<ap_uint<512>,0,0,0>> link;
-   hls::stream<raw_stream_t, 512> link_ingress;
-   hls::stream<raw_stream_t, 512> link_egress;
-   hls::stream<hls::axis<sendmsg_t,0,0,0>, 512> sendmsg_s;
-   hls::stream<hls::axis<recvmsg_t,0,0,0>, 512> recvmsg_s;
-   hls::stream<hls::axis<dma_r_req_t,0,0,0>, 512> dma_r_req_s;
-   hls::stream<hls::axis<dbuff_in_t,0,0,0>, 512> dma_resp_s;
-   hls::stream<hls::axis<dma_w_req_t,0,0,0>, 512> dma_w_req_s;
+   hls::stream<raw_stream_t> link_ingress;
+   hls::stream<raw_stream_t> link_egress;
+   hls::stream<hls::axis<sendmsg_t,0,0,0>> sendmsg_s;
+   hls::stream<hls::axis<recvmsg_t,0,0,0>> recvmsg_s;
+   hls::stream<hls::axis<dma_r_req_t,0,0,0>> dma_r_req_s;
+   hls::stream<hls::axis<dbuff_in_t,0,0,0>> dma_resp_s;
+   hls::stream<hls::axis<dma_w_req_t,0,0,0>> dma_w_req_s;
 
    sendmsg_t sendmsg;
    recvmsg_t recvmsg;
