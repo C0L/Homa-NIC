@@ -12,33 +12,28 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_i,
       hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_o,
       hls::stream<header_t, VERIF_DEPTH> & header_in_i) {
-   
+
    static srpt_data_t entries[MAX_RPCS];
    static ap_uint<32> grants[MAX_RPCS]; 
    static dbuff_notif_t dbuff_notifs[NUM_DBUFF];
 
    dbuff_notif_t dbuff_notif;
-   // if (!dbuff_notif_i.empty()) {
-   //    dbuff_notif = dbuff_notif_i.read();
-   if (dbuff_notif_i.read_nb(dbuff_notif)) {
+   if (!dbuff_notif_i.empty()) {
+      dbuff_notif = dbuff_notif_i.read();
 
       dbuff_notifs[dbuff_notif.dbuff_id] = dbuff_notif;
-
-      //std::cerr << "GRANT UP TO: " << (dbuff_notif.dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
    }
 
    header_t header_in;
-   // if (!header_in_i.empty()) {
-   //    header_in = header_in_i.read();
-   if (header_in_i.read_nb(header_in)) {
+   if (!header_in_i.empty()) {
+      header_in = header_in_i.read();
 
       grants[header_in.local_id] = header_in.grant_offset;
    }
 
    sendmsg_t sendmsg;
-   //if (!sendmsg_i.empty()) {
-   //   sendmsg = sendmsg_i.read();
-   if (sendmsg_i.read_nb(sendmsg)) {
+   if (!sendmsg_i.empty()) {
+      sendmsg = sendmsg_i.read();
 
       srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
       grants[((sendmsg.local_id >> 1)-1)] = sendmsg.granted;
@@ -49,7 +44,7 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 
    srpt_data_t head = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
    for (int i = 0; i < MAX_RPCS; ++i) {
-       
+
       if (entries[i].remaining < head.remaining && entries[i].rpc_id != 0) {
          // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
          bool unblocked = (((dbuff_notifs[entries[i].dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE)) >= MIN((entries[i].total - entries[i].remaining + HOMA_PAYLOAD_SIZE)(31,0), entries[i].total(31,0));
@@ -62,20 +57,18 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
    }
 
    if (head.rpc_id != 0) {
-      // if (data_pkt_o.size() < VERIF_DEPTH) {
 
-         std::cerr << (dbuff_notifs[head.dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
+      std::cerr << (dbuff_notifs[head.dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
 
-         ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
+      ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
 
-         data_pkt_o.write_nb({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[head.rpc_id]});
+      data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[head.rpc_id]});
 
-         entries[((head.rpc_id >> 1) - 1)].remaining = remaining;
+      entries[((head.rpc_id >> 1) - 1)].remaining = remaining;
 
-         if (remaining == 0) {
-            entries[((head.rpc_id >> 1) - 1)] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
-         }
-      // } 
+      if (remaining == 0) {
+         entries[((head.rpc_id >> 1) - 1)] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
+      }
    }
 }
 
@@ -90,7 +83,7 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
  *
  */
 void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
-                     hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_o) {
+      hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_o) {
 
    // TODO testing to get rid of warning. Should have no effect
 #pragma HLS pipeline style=flp
@@ -102,9 +95,8 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
    // Headers from incoming DATA packets
    ap_uint<58> header_in_raw;
 
-   // if (!header_in_i.empty()) {
-   //    header_in_raw = header_in_i.read();
-   if (header_in_i.read_nb(header_in_raw)) {
+   if (!header_in_i.empty()) {
+       header_in_raw = header_in_i.read();
 
       header_t header_in;
 
@@ -113,8 +105,6 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
       header_in.message_length = header_in_raw(29, 20);
       header_in.incoming = header_in_raw(19, 10);
       header_in.data_offset = header_in_raw(9, 0);
-
-      // std::cerr << "HEADER IN: " << header_in.local_id << std::endl;
 
       if (header_in.message_length > RTT_PKTS) {
 
@@ -133,7 +123,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
    } else {
 
       ap_uint<51> grant_pkt;
-   
+
       srpt_grant_t best[8];
 
       // Fill each entry in the best queue
@@ -168,7 +158,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
 
          if (next_grant.recv_pkts > avail_pkts && grant_pkt_o.size() < VERIF_DEPTH) {
             // Just send avail_pkts of data
- 
+
             entries[(next_grant.rpc_id >> 1) - 1].recv_pkts -= avail_pkts;
             entries[(next_grant.rpc_id >> 1) - 1].grantable_pkts -= avail_pkts;
 
@@ -178,14 +168,14 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
             grant_pkt(36, 23) = next_grant.rpc_id;
             grant_pkt(50, 37) = next_grant.peer_id;
 
-            grant_pkt_o.write_nb(grant_pkt);
+            grant_pkt_o.write(grant_pkt);
 
          } else if (grant_pkt_o.size() < VERIF_DEPTH) { 
             // Is this going to result in a fully granted message?
             if ((next_grant.grantable_pkts - next_grant.recv_pkts) == 0) { 
                entries[(next_grant.rpc_id >> 1) - 1] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF}; 
             }
-            
+
             entries[(next_grant.rpc_id >> 1) - 1].recv_pkts = 0;
             entries[(next_grant.rpc_id >> 1) - 1].grantable_pkts -= next_grant.recv_pkts;
 
@@ -196,7 +186,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
             grant_pkt(50, 37) = next_grant.peer_id;
 
             std::cerr << "DISPATCH GRANT\n";
-            grant_pkt_o.write_nb(grant_pkt);
+            grant_pkt_o.write(grant_pkt);
          } 
       }
    }

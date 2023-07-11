@@ -4,7 +4,6 @@
 #include "homa.hh"
 #include "srptmgmt.hh"
 #include "peer.hh"
-#include "net.hh"
 #include "databuff.hh"
 #include "stack.hh"
 
@@ -46,7 +45,6 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 	       hls::stream<header_t, VERIF_DEPTH> & header_in_dbuff_o,
 	       hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_grant_o,
 	       hls::stream<header_t, VERIF_DEPTH> & header_in_srpt_o);
-
 
 void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
 	     hls::stream<header_t, VERIF_DEPTH> & header_in_o,

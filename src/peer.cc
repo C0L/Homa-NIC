@@ -1,7 +1,6 @@
 #include "peer.hh"
 #include "stack.hh"
 #include "hashmap.hh"
-#include <iostream>
 
 void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 	      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
@@ -15,8 +14,8 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 //#pragma HLS dependence variable=peer_stack inter RAW false
 //#pragma HLS dependence variable=peer_stack intra WAR false
 //#pragma HLS dependence variable=peer_stack intra RAW false
-//
-//
+
+
 //#pragma HLS dependence variable=hashmap inter WAR false
 //#pragma HLS dependence variable=hashmap inter RAW false
 //#pragma HLS dependence variable=hashmap intra WAR false
@@ -46,7 +45,8 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
   //} else
   sendmsg_t sendmsg;
   recvmsg_t recvmsg;
-  if (sendmsg_i.read_nb(sendmsg)) {
+  if (!sendmsg_i.empty()) {
+      sendmsg = sendmsg_i.read();
 
      peer_hashpack_t query = {sendmsg.daddr};
      sendmsg.peer_id = hashmap.search(query);
@@ -57,8 +57,9 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
         entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
         hashmap.queue(entry);
      }
-     sendmsg_o.write_nb(sendmsg);
-  } else if (recvmsg_i.read_nb(recvmsg)) {
+     sendmsg_o.write(sendmsg);
+  } else if (!recvmsg_i.empty()) {
+     recvmsg = recvmsg_i.read();
 
      peer_hashpack_t query = {recvmsg.daddr};
      recvmsg.peer_id = hashmap.search(query);
@@ -70,7 +71,7 @@ void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
         hashmap.queue(entry);
      }
 
-     recvmsg_o.write_nb(recvmsg);
+     recvmsg_o.write(recvmsg);
   } else {
      hashmap.process();
   }

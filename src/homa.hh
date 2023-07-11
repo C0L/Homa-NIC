@@ -4,9 +4,8 @@
 #include <iostream>
 
 #include "ap_int.h"
-#include "hls_stream.h"
-#include "hls_burst_maxi.h"
 #include "ap_axi_sdata.h"
+#include "hls_stream.h"
 
 /* HLS Configuration */ 
 
@@ -16,7 +15,7 @@
  * through the execution of the testbench. This should not effect the actual
  * generation of the RTL however 
  */
-#define VERIF_DEPTH 256
+#define VERIF_DEPTH 64
 
 /* Reduces the size of some parameters for faster compilation/testing */
 #define DEBUG
@@ -48,7 +47,6 @@
 #define MAX_OVERCOMMIT 1
 #endif
 
-// 
 #define SRPT_UPDATE 0
 #define SRPT_UPDATE_BLOCK 1
 #define SRPT_INVALIDATE 2
@@ -106,6 +104,15 @@ typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
 #define HOMA_MAX_PRIORITIES 8
 #define RTT_PKTS 44
 #define OVERCOMMIT_PKTS 352
+
+// Number of bytes in ethernet + ipv6 + data header
+#define DATA_PKT_HEADER 114
+
+// Number of bytes in ethernet + ipv6 header
+#define PREFACE_HEADER 54
+
+// Number of bytes in homa data ethernet header
+#define HOMA_DATA_HEADER 60
 
 /* Homa packet types */
 #define DATA     0x10
@@ -267,6 +274,9 @@ struct sendmsg_t {
    rpc_id_t local_id; // Local RPC ID 
    dbuff_id_t dbuff_id; // Data buffer ID for outgoing data
    peer_id_t peer_id; // Local ID for this destination address
+
+   // Configuration
+   ap_uint<32> rtt_bytes;
 };
 
 struct recvmsg_t {
@@ -457,12 +467,13 @@ struct fifo_t {
    }
 };
 
-void homa(const homa_t homa,
-      const sendmsg_t sendmsg,
-      const recvmsg_t recvmsg,
-      hls::stream<raw_stream_t> & link_ingress, 
-      hls::stream<raw_stream_t> & link_egress,
-      char * maxi_in,
-      char * maxi_out);
+void homa(char * maxi,
+      hls::stream<hls::axis<sendmsg_t, 0, 0, 0>> & sendmsg_i_a,
+      hls::stream<hls::axis<recvmsg_t, 0, 0, 0>> & recvmsg_i_a,
+      hls::stream<hls::axis<dma_r_req_t, 0, 0, 0>> & dma_r_req_o,
+      hls::stream<hls::axis<dbuff_in_t, 0, 0 ,0>> & dma_r_resp_i,
+      hls::stream<hls::axis<dma_w_req_t, 0, 0, 0>> & dma_w_req_o,
+      hls::stream<raw_stream_t> & link_ingress,
+      hls::stream<raw_stream_t> & link_egress);
 
 #endif

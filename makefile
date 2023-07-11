@@ -29,7 +29,6 @@ SRC_C =                      \
     $(C_SRC_DIR)/homa.hh     \
     $(C_SRC_DIR)/link.cc     \
     $(C_SRC_DIR)/link.hh     \
-    $(C_SRC_DIR)/net.hh      \
     $(C_SRC_DIR)/peer.cc     \
     $(C_SRC_DIR)/peer.hh     \
     $(C_SRC_DIR)/rpcmgmt.cc  \

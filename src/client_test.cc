@@ -1,15 +1,15 @@
 #include <cstdio>
-#include <chrono>
-#include <thread>
 
-#include <sstream>
-#include <iomanip>
-
-#include "ap_axi_sdata.h"
 #include "hls_stream.h"
+#include "ap_axi_sdata.h"
 
 #include "homa.hh"
 #include "dma.hh"
+#include "link.hh"
+#include "peer.hh"
+#include "rpcmgmt.hh"
+#include "srptmgmt.hh"
+#include "databuff.hh"
 
 using namespace std;
 
@@ -18,227 +18,20 @@ using namespace std;
 
 const std::string data = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Velit aliquet sagittis id consectetur purus. Ut porttitor leo a diam sollicitudin. Tristique senectus et netus et malesuada fames ac turpis. Et ligula ullamcorper malesuada proin libero nunc. Sit amet tellus cras adipiscing enim eu turpis. Vel eros donec ac odio tempor orci dapibus. Quam viverra orci sagittis eu volutpat odio. Enim neque volutpat ac tincidunt vitae semper. Nunc sed velit dignissim sodales. Magna eget est lorem ipsum dolor sit amet consectetur adipiscing. Ut etiam sit amet nisl purus. Tristique senectus et netus et malesuada fames ac turpis. Viverra mauris in aliquam sem fringilla ut morbi tincidunt. Suspendisse interdum consectetur libero id faucibus nisl tincidunt eget. Ipsum a arcu cursus vitae.        At quis risus sed vulputate odio ut enim blandit volutpat. A erat nam at lectus urna duis convallis convallis. Gravida quis blandit turpis cursus in hac habitasse. Commodo elit at imperdiet dui accumsan sit amet nulla. Elit pellentesque habitant morbi tristique senectus et netus et. Vulputate eu scelerisque felis imperdiet proin fermentum. Mauris in aliquam sem fringilla ut. Morbi tincidunt ornare massa eget egestas purus. At tempor commodo ullamcorper a lacus vestibulum sed arcu. Sit amet nulla facilisi morbi tempus iaculis. Morbi tristique senectus et netus et malesuada fames ac turpis. Sagittis aliquam malesuada bibendum arcu. Vivamus arcu felis bibendum ut tristique et egestas quis. Cursus sit amet dictum sit amet justo donec. Porttitor rhoncus dolor purus non enim praesent elementum facilisis. Sagittis aliquam malesuada bibendum arcu vitae elementum.       Mattis vulputate enim nulla aliquet porttitor lacus luctus accumsan. Dictum varius duis at consectetur lorem donec massa sapien faucibus. Nisi quis eleifend quam adipiscing vitae. Suspendisse faucibus interdum posuere lorem ipsum dolor sit amet consectetur. Tincidunt arcu non sodales neque sodales ut etiam. Id volutpat lacus laoreet non curabitur gravida arcu ac. Nulla facilisi cras fermentum odio eu feugiat. Fames ac turpis egestas sed tempus urna. Tristique nulla aliquet enim tortor at auctor urna. Bibendum neque egestas congue quisque egestas diam in arcu. Pharetra diam sit amet nisl. Etiam non quam lacus suspendisse faucibus. Diam sit amet nisl suscipit adipiscing bibendum est. At ultrices mi tempus imperdiet nulla malesuada pellentesque. Auctor neque vitae tempus quam pellentesque. Facilisis leo vel fringilla est ullamcorper eget nulla facilisi etiam. Morbi tempus iaculis urna id volutpat lacus laoreet non. Id semper risus in hendrerit gravida. Tincidunt dui ut ornare lectus sit. Ac odio tempor orci     Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Velit aliquet sagittis id consectetur purus. Ut porttitor leo a diam sollicitudin. Tristique senectus et netus et malesuada fames ac turpis. Et ligula ullamcorper malesuada proin libero nunc. Sit amet tellus cras adipiscing enim eu turpis. Vel eros donec ac odio tempor orci dapibus. Quam viverra orci sagittis eu volutpat odio. Enim neque volutpat ac tincidunt vitae semper. Nunc sed velit dignissim sodales. Magna eget est lorem ipsum dolor sit amet consectetur adipiscing. Ut etiam sit amet nisl purus. Tristique senectus et netus et malesuada fames ac turpis. Viverra mauris in aliquam sem fringilla ut morbi tincidunt. Suspendisse interdum consectetur libero id faucibus nisl tincidunt eget. Ipsum a arcu cursus vitae.        At quis risus sed vulputate odio ut enim blandit volutpat. A erat nam at lectus urna duis convallis convallis. Gravida quis blandit turpis cursus in hac habitasse. Commodo elit at imperdiet dui accumsan sit amet nulla. Elit pellentesque habitant morbi tristique senectus et netus et. Vulputate eu scelerisque felis imperdiet proin fermentum. Mauris in aliquam sem fringilla ut. Morbi tincidunt ornare massa eget egestas purus. At tempor commodo ullamcorper a lacus vestibulum sed arcu. Sit amet nulla facilisi morbi tempus iaculis. Morbi tristique senectus et netus et malesuada fames ac turpis. Sagittis aliquam malesuada bibendum arcu. Vivamus arcu felis bibendum ut tristique et egestas quis. Cursus sit amet dictum sit amet justo donec. Porttitor rhoncus dolor purus non enim praesent elementum facilisis. Sagittis aliquam malesuada bibendum arcu vitae elementum.       Mattis vulputate enim nulla aliquet porttitor lacus luctus accumsan. Dictum varius duis at consectetur lorem donec massa sapien faucibus. Nisi quis eleifend quam adipiscing vitae. Suspendisse faucibus interdum posuere lorem ipsum dolor sit amet consectetur. Tincidunt arcu non sodales neque sodales ut etiam. Id volutpat lacus laoreet non curabitur gravida arcu ac. Nulla facilisi cras fermentum odio eu feugiat. Fames ac turpis egestas sed tempus urna. Tristique nulla aliquet enim tortor at auctor urna. Bibendum neque egestas congue quisque egestas diam in arcu. Pharetra diam sit amet nisl. Etiam non quam lacus suspendisse faucibus. Diam sit amet nisl suscipit adipiscing bibendum est. At ultrices mi tempus imperdiet nulla malesuada pellentesque. Auctor neque vitae tempus quam pellentesque. Facilisis leo vel fringilla est ullamcorper eget nulla facilisi etiam. Morbi tempus iaculis urna id volutpat lacus laoreet non. Id semper risus in hendrerit gravida. Tincidunt dui ut ornare lectus sit. Ac odio tempor orci";
 
-//void print_packet(hls::stream<raw_stream_t> & link_egress) {
-//  unsigned char packet[1600];
-//
-//  raw_stream_t block;
-//  block.last = 0;
-//
-//  int i = 0;
-//  while (!block.last) {
-//    link_egress.read(block);
-//
-//    memcpy(packet + i, block.data.data, 64);
-//
-//    i+=64;
-//  }
-//
-//  //for (int i = 0; i < 1500; ++i) {
-//  //  printf("%02x", packet[i]);
-//  ////  //std::cerr << packet[i];
-//  // }
-//  //std::cerr << std::endl;
-//
-//
-//  std::cout << std::endl;
-//}
-
-
-//bool test_recvmsg_client(homa_t * homa_cfg,
-//			 sendmsg_t * sendmsg,
-//			 recvmsg_t * recvmsg,
-//			 hls::stream<raw_stream_t> & link_ingress,
-//			 hls::stream<raw_stream_t> & link_egress,
-//			 char * maxi_in,
-//			 char * maxi_out) {
-//
-//  ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
-//  ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
-//
-//  uint16_t sport;
-//  uint16_t dport;
-//
-//  dport = 0xBEEF;
-//  sport = 0xFEEB;
-//
-//  // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
-//  recvmsg->buffout = 0;
-//  recvmsg->saddr = saddr;
-//  recvmsg->daddr = daddr;
-//  recvmsg->sport = sport;
-//  recvmsg->dport = dport;
-//  recvmsg->id = 0;
-//  recvmsg->valid = 1;
-//
-//  // On board the recvmsg command
-//  homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, (char *) maxi_out);
-//  
-//  // One extra char for null (not copied)
-//  const char packet_0[1501] = "\xaa\xaa\xaa\xaa\xaa\xaa\xbb\xbb\xbb\xbb\xbb\xbb\x86\xdd\x60\x0f\xff\xff\x05\xa6\xfd\x00\xdc\xba\xfe\xdc\xba\xfe\xdc\xba\xdc\xba\xfe\xdc\xba\xfe\xdc\xba\xab\xcd\xef\xab\xcd\xef\xab\xcd\xab\xcd\xef\xab\xcd\xef\xab\xcd\xfe\xeb\xbe\xef\x00\x00\x00\x00\x00\x00\x00\x00\xa0\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0a\xbc\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x6a\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x4c\x6f\x72\x65\x6d\x20\x69\x70\x73\x75\x6d\x20\x64\x6f\x6c\x6f\x72\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x2c\x20\x63\x6f\x6e\x73\x65\x63\x74\x65\x74\x75\x72\x20\x61\x64\x69\x70\x69\x73\x63\x69\x6e\x67\x20\x65\x6c\x69\x74\x2c\x20\x73\x65\x64\x20\x64\x6f\x20\x65\x69\x75\x73\x6d\x6f\x64\x20\x74\x65\x6d\x70\x6f\x72\x20\x69\x6e\x63\x69\x64\x69\x64\x75\x6e\x74\x20\x75\x74\x20\x6c\x61\x62\x6f\x72\x65\x20\x65\x74\x20\x64\x6f\x6c\x6f\x72\x65\x20\x6d\x61\x67\x6e\x61\x20\x61\x6c\x69\x71\x75\x61\x2e\x20\x56\x65\x6c\x69\x74\x20\x61\x6c\x69\x71\x75\x65\x74\x20\x73\x61\x67\x69\x74\x74\x69\x73\x20\x69\x64\x20\x63\x6f\x6e\x73\x65\x63\x74\x65\x74\x75\x72\x20\x70\x75\x72\x75\x73\x2e\x20\x55\x74\x20\x70\x6f\x72\x74\x74\x69\x74\x6f\x72\x20\x6c\x65\x6f\x20\x61\x20\x64\x69\x61\x6d\x20\x73\x6f\x6c\x6c\x69\x63\x69\x74\x75\x64\x69\x6e\x2e\x20\x54\x72\x69\x73\x74\x69\x71\x75\x65\x20\x73\x65\x6e\x65\x63\x74\x75\x73\x20\x65\x74\x20\x6e\x65\x74\x75\x73\x20\x65\x74\x20\x6d\x61\x6c\x65\x73\x75\x61\x64\x61\x20\x66\x61\x6d\x65\x73\x20\x61\x63\x20\x74\x75\x72\x70\x69\x73\x2e\x20\x45\x74\x20\x6c\x69\x67\x75\x6c\x61\x20\x75\x6c\x6c\x61\x6d\x63\x6f\x72\x70\x65\x72\x20\x6d\x61\x6c\x65\x73\x75\x61\x64\x61\x20\x70\x72\x6f\x69\x6e\x20\x6c\x69\x62\x65\x72\x6f\x20\x6e\x75\x6e\x63\x2e\x20\x53\x69\x74\x20\x61\x6d\x65\x74\x20\x74\x65\x6c\x6c\x75\x73\x20\x63\x72\x61\x73\x20\x61\x64\x69\x70\x69\x73\x63\x69\x6e\x67\x20\x65\x6e\x69\x6d\x20\x65\x75\x20\x74\x75\x72\x70\x69\x73\x2e\x20\x56\x65\x6c\x20\x65\x72\x6f\x73\x20\x64\x6f\x6e\x65\x63\x20\x61\x63\x20\x6f\x64\x69\x6f\x20\x74\x65\x6d\x70\x6f\x72\x20\x6f\x72\x63\x69\x20\x64\x61\x70\x69\x62\x75\x73\x2e\x20\x51\x75\x61\x6d\x20\x76\x69\x76\x65\x72\x72\x61\x20\x6f\x72\x63\x69\x20\x73\x61\x67\x69\x74\x74\x69\x73\x20\x65\x75\x20\x76\x6f\x6c\x75\x74\x70\x61\x74\x20\x6f\x64\x69\x6f\x2e\x20\x45\x6e\x69\x6d\x20\x6e\x65\x71\x75\x65\x20\x76\x6f\x6c\x75\x74\x70\x61\x74\x20\x61\x63\x20\x74\x69\x6e\x63\x69\x64\x75\x6e\x74\x20\x76\x69\x74\x61\x65\x20\x73\x65\x6d\x70\x65\x72\x2e\x20\x4e\x75\x6e\x63\x20\x73\x65\x64\x20\x76\x65\x6c\x69\x74\x20\x64\x69\x67\x6e\x69\x73\x73\x69\x6d\x20\x73\x6f\x64\x61\x6c\x65\x73\x2e\x20\x4d\x61\x67\x6e\x61\x20\x65\x67\x65\x74\x20\x65\x73\x74\x20\x6c\x6f\x72\x65\x6d\x20\x69\x70\x73\x75\x6d\x20\x64\x6f\x6c\x6f\x72\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x63\x6f\x6e\x73\x65\x63\x74\x65\x74\x75\x72\x20\x61\x64\x69\x70\x69\x73\x63\x69\x6e\x67\x2e\x20\x55\x74\x20\x65\x74\x69\x61\x6d\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x6e\x69\x73\x6c\x20\x70\x75\x72\x75\x73\x2e\x20\x54\x72\x69\x73\x74\x69\x71\x75\x65\x20\x73\x65\x6e\x65\x63\x74\x75\x73\x20\x65\x74\x20\x6e\x65\x74\x75\x73\x20\x65\x74\x20\x6d\x61\x6c\x65\x73\x75\x61\x64\x61\x20\x66\x61\x6d\x65\x73\x20\x61\x63\x20\x74\x75\x72\x70\x69\x73\x2e\x20\x56\x69\x76\x65\x72\x72\x61\x20\x6d\x61\x75\x72\x69\x73\x20\x69\x6e\x20\x61\x6c\x69\x71\x75\x61\x6d\x20\x73\x65\x6d\x20\x66\x72\x69\x6e\x67\x69\x6c\x6c\x61\x20\x75\x74\x20\x6d\x6f\x72\x62\x69\x20\x74\x69\x6e\x63\x69\x64\x75\x6e\x74\x2e\x20\x53\x75\x73\x70\x65\x6e\x64\x69\x73\x73\x65\x20\x69\x6e\x74\x65\x72\x64\x75\x6d\x20\x63\x6f\x6e\x73\x65\x63\x74\x65\x74\x75\x72\x20\x6c\x69\x62\x65\x72\x6f\x20\x69\x64\x20\x66\x61\x75\x63\x69\x62\x75\x73\x20\x6e\x69\x73\x6c\x20\x74\x69\x6e\x63\x69\x64\x75\x6e\x74\x20\x65\x67\x65\x74\x2e\x20\x49\x70\x73\x75\x6d\x20\x61\x20\x61\x72\x63\x75\x20\x63\x75\x72\x73\x75\x73\x20\x76\x69\x74\x61\x65\x2e\x20\x20\x20\x20\x20\x20\x20\x20\x41\x74\x20\x71\x75\x69\x73\x20\x72\x69\x73\x75\x73\x20\x73\x65\x64\x20\x76\x75\x6c\x70\x75\x74\x61\x74\x65\x20\x6f\x64\x69\x6f\x20\x75\x74\x20\x65\x6e\x69\x6d\x20\x62\x6c\x61\x6e\x64\x69\x74\x20\x76\x6f\x6c\x75\x74\x70\x61\x74\x2e\x20\x41\x20\x65\x72\x61\x74\x20\x6e\x61\x6d\x20\x61\x74\x20\x6c\x65\x63\x74\x75\x73\x20\x75\x72\x6e\x61\x20\x64\x75\x69\x73\x20\x63\x6f\x6e\x76\x61\x6c\x6c\x69\x73\x20\x63\x6f\x6e\x76\x61\x6c\x6c\x69\x73\x2e\x20\x47\x72\x61\x76\x69\x64\x61\x20\x71\x75\x69\x73\x20\x62\x6c\x61\x6e\x64\x69\x74\x20\x74\x75\x72\x70\x69\x73\x20\x63\x75\x72\x73\x75\x73\x20\x69\x6e\x20\x68\x61\x63\x20\x68\x61\x62\x69\x74\x61\x73\x73\x65\x2e\x20\x43\x6f\x6d\x6d\x6f\x64\x6f\x20\x65\x6c\x69\x74\x20\x61\x74\x20\x69\x6d\x70\x65\x72\x64\x69\x65\x74\x20\x64\x75\x69\x20\x61\x63\x63\x75\x6d\x73\x61\x6e\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x6e\x75\x6c\x6c\x61\x2e\x20\x45\x6c\x69\x74\x20\x70\x65\x6c\x6c\x65\x6e\x74\x65\x73\x71\x75\x65\x20\x68\x61\x62\x69\x74\x61\x6e\x74\x20\x6d\x6f\x72\x62\x69\x20\x74\x72\x69\x73\x74\x69\x71\x75\x65\x20\x73\x65\x6e\x65\x63\x74\x75\x73\x20\x65\x74\x20\x6e\x65\x74\x75\x73\x20\x65\x74\x2e\x20\x56\x75\x6c\x70\x75\x74\x61\x74\x65\x20\x65\x75\x20\x73\x63\x65\x6c\x65\x72\x69\x73\x71\x75\x65\x20\x66\x65\x6c\x69\x73\x20\x69\x6d\x70\x65\x72\x64\x69\x65\x74\x20\x70\x72\x6f\x69\x6e\x20\x66\x65\x72\x6d\x65\x6e\x74\x75\x6d\x2e\x20\x4d\x61\x75\x72\x69\x73\x20\x69\x6e\x20\x61\x6c\x69\x71\x75\x61\x6d\x20\x73\x65\x6d\x20\x66\x72\x69\x6e\x67\x69\x6c\x6c\x61\x20\x75\x74\x2e\x20\x4d\x6f\x72\x62\x69\x20\x74\x69\x6e\x63\x69\x64\x75\x6e\x74\x20\x6f\x72\x6e\x61\x72\x65\x20\x6d\x61\x73\x73\x61\x20\x65\x67\x65\x74\x20\x65\x67\x65\x73\x74\x61\x73\x20\x70\x75\x72\x75\x73\x2e\x20\x41\x74\x20\x74\x65\x6d\x70\x6f\x72\x20\x63\x6f\x6d\x6d\x6f\x64\x6f\x20\x75\x6c\x6c\x61\x6d\x63\x6f\x72\x70\x65\x72\x20\x61\x20\x6c\x61\x63\x75\x73\x20\x76\x65\x73\x74\x69\x62\x75\x6c\x75\x6d\x20\x73\x65\x64\x20\x61\x72\x63\x75\x2e\x20\x53\x69\x74\x20\x61\x6d\x65\x74\x20\x6e\x75\x6c\x6c\x61\x20\x66\x61\x63\x69\x6c\x69\x73\x69\x20\x6d\x6f\x72\x62\x69\x20\x74\x65\x6d\x70\x75\x73\x20\x69\x61\x63\x75\x6c\x69\x73\x2e";
-//
-//  const char packet_1[1501] = "\xaa\xaa\xaa\xaa\xaa\xaa\xbb\xbb\xbb\xbb\xbb\xbb\x86\xdd\x60\x0f\xff\xff\x05\x8e\xfd\x00\xdc\xba\xfe\xdc\xba\xfe\xdc\xba\xdc\xba\xfe\xdc\xba\xfe\xdc\xba\xab\xcd\xef\xab\xcd\xef\xab\xcd\xab\xcd\xef\xab\xcd\xef\xab\xcd\xfe\xeb\xbe\xef\x00\x00\x00\x00\x00\x00\x00\x00\xa0\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0a\xbc\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x6a\x00\x00\x05\x52\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x20\x4d\x6f\x72\x62\x69\x20\x74\x72\x69\x73\x74\x69\x71\x75\x65\x20\x73\x65\x6e\x65\x63\x74\x75\x73\x20\x65\x74\x20\x6e\x65\x74\x75\x73\x20\x65\x74\x20\x6d\x61\x6c\x65\x73\x75\x61\x64\x61\x20\x66\x61\x6d\x65\x73\x20\x61\x63\x20\x74\x75\x72\x70\x69\x73\x2e\x20\x53\x61\x67\x69\x74\x74\x69\x73\x20\x61\x6c\x69\x71\x75\x61\x6d\x20\x6d\x61\x6c\x65\x73\x75\x61\x64\x61\x20\x62\x69\x62\x65\x6e\x64\x75\x6d\x20\x61\x72\x63\x75\x2e\x20\x56\x69\x76\x61\x6d\x75\x73\x20\x61\x72\x63\x75\x20\x66\x65\x6c\x69\x73\x20\x62\x69\x62\x65\x6e\x64\x75\x6d\x20\x75\x74\x20\x74\x72\x69\x73\x74\x69\x71\x75\x65\x20\x65\x74\x20\x65\x67\x65\x73\x74\x61\x73\x20\x71\x75\x69\x73\x2e\x20\x43\x75\x72\x73\x75\x73\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x64\x69\x63\x74\x75\x6d\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x6a\x75\x73\x74\x6f\x20\x64\x6f\x6e\x65\x63\x2e\x20\x50\x6f\x72\x74\x74\x69\x74\x6f\x72\x20\x72\x68\x6f\x6e\x63\x75\x73\x20\x64\x6f\x6c\x6f\x72\x20\x70\x75\x72\x75\x73\x20\x6e\x6f\x6e\x20\x65\x6e\x69\x6d\x20\x70\x72\x61\x65\x73\x65\x6e\x74\x20\x65\x6c\x65\x6d\x65\x6e\x74\x75\x6d\x20\x66\x61\x63\x69\x6c\x69\x73\x69\x73\x2e\x20\x53\x61\x67\x69\x74\x74\x69\x73\x20\x61\x6c\x69\x71\x75\x61\x6d\x20\x6d\x61\x6c\x65\x73\x75\x61\x64\x61\x20\x62\x69\x62\x65\x6e\x64\x75\x6d\x20\x61\x72\x63\x75\x20\x76\x69\x74\x61\x65\x20\x65\x6c\x65\x6d\x65\x6e\x74\x75\x6d\x2e\x20\x20\x20\x20\x20\x20\x20\x4d\x61\x74\x74\x69\x73\x20\x76\x75\x6c\x70\x75\x74\x61\x74\x65\x20\x65\x6e\x69\x6d\x20\x6e\x75\x6c\x6c\x61\x20\x61\x6c\x69\x71\x75\x65\x74\x20\x70\x6f\x72\x74\x74\x69\x74\x6f\x72\x20\x6c\x61\x63\x75\x73\x20\x6c\x75\x63\x74\x75\x73\x20\x61\x63\x63\x75\x6d\x73\x61\x6e\x2e\x20\x44\x69\x63\x74\x75\x6d\x20\x76\x61\x72\x69\x75\x73\x20\x64\x75\x69\x73\x20\x61\x74\x20\x63\x6f\x6e\x73\x65\x63\x74\x65\x74\x75\x72\x20\x6c\x6f\x72\x65\x6d\x20\x64\x6f\x6e\x65\x63\x20\x6d\x61\x73\x73\x61\x20\x73\x61\x70\x69\x65\x6e\x20\x66\x61\x75\x63\x69\x62\x75\x73\x2e\x20\x4e\x69\x73\x69\x20\x71\x75\x69\x73\x20\x65\x6c\x65\x69\x66\x65\x6e\x64\x20\x71\x75\x61\x6d\x20\x61\x64\x69\x70\x69\x73\x63\x69\x6e\x67\x20\x76\x69\x74\x61\x65\x2e\x20\x53\x75\x73\x70\x65\x6e\x64\x69\x73\x73\x65\x20\x66\x61\x75\x63\x69\x62\x75\x73\x20\x69\x6e\x74\x65\x72\x64\x75\x6d\x20\x70\x6f\x73\x75\x65\x72\x65\x20\x6c\x6f\x72\x65\x6d\x20\x69\x70\x73\x75\x6d\x20\x64\x6f\x6c\x6f\x72\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x63\x6f\x6e\x73\x65\x63\x74\x65\x74\x75\x72\x2e\x20\x54\x69\x6e\x63\x69\x64\x75\x6e\x74\x20\x61\x72\x63\x75\x20\x6e\x6f\x6e\x20\x73\x6f\x64\x61\x6c\x65\x73\x20\x6e\x65\x71\x75\x65\x20\x73\x6f\x64\x61\x6c\x65\x73\x20\x75\x74\x20\x65\x74\x69\x61\x6d\x2e\x20\x49\x64\x20\x76\x6f\x6c\x75\x74\x70\x61\x74\x20\x6c\x61\x63\x75\x73\x20\x6c\x61\x6f\x72\x65\x65\x74\x20\x6e\x6f\x6e\x20\x63\x75\x72\x61\x62\x69\x74\x75\x72\x20\x67\x72\x61\x76\x69\x64\x61\x20\x61\x72\x63\x75\x20\x61\x63\x2e\x20\x4e\x75\x6c\x6c\x61\x20\x66\x61\x63\x69\x6c\x69\x73\x69\x20\x63\x72\x61\x73\x20\x66\x65\x72\x6d\x65\x6e\x74\x75\x6d\x20\x6f\x64\x69\x6f\x20\x65\x75\x20\x66\x65\x75\x67\x69\x61\x74\x2e\x20\x46\x61\x6d\x65\x73\x20\x61\x63\x20\x74\x75\x72\x70\x69\x73\x20\x65\x67\x65\x73\x74\x61\x73\x20\x73\x65\x64\x20\x74\x65\x6d\x70\x75\x73\x20\x75\x72\x6e\x61\x2e\x20\x54\x72\x69\x73\x74\x69\x71\x75\x65\x20\x6e\x75\x6c\x6c\x61\x20\x61\x6c\x69\x71\x75\x65\x74\x20\x65\x6e\x69\x6d\x20\x74\x6f\x72\x74\x6f\x72\x20\x61\x74\x20\x61\x75\x63\x74\x6f\x72\x20\x75\x72\x6e\x61\x2e\x20\x42\x69\x62\x65\x6e\x64\x75\x6d\x20\x6e\x65\x71\x75\x65\x20\x65\x67\x65\x73\x74\x61\x73\x20\x63\x6f\x6e\x67\x75\x65\x20\x71\x75\x69\x73\x71\x75\x65\x20\x65\x67\x65\x73\x74\x61\x73\x20\x64\x69\x61\x6d\x20\x69\x6e\x20\x61\x72\x63\x75\x2e\x20\x50\x68\x61\x72\x65\x74\x72\x61\x20\x64\x69\x61\x6d\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x6e\x69\x73\x6c\x2e\x20\x45\x74\x69\x61\x6d\x20\x6e\x6f\x6e\x20\x71\x75\x61\x6d\x20\x6c\x61\x63\x75\x73\x20\x73\x75\x73\x70\x65\x6e\x64\x69\x73\x73\x65\x20\x66\x61\x75\x63\x69\x62\x75\x73\x2e\x20\x44\x69\x61\x6d\x20\x73\x69\x74\x20\x61\x6d\x65\x74\x20\x6e\x69\x73\x6c\x20\x73\x75\x73\x63\x69\x70\x69\x74\x20\x61\x64\x69\x70\x69\x73\x63\x69\x6e\x67\x20\x62\x69\x62\x65\x6e\x64\x75\x6d\x20\x65\x73\x74\x2e\x20\x41\x74\x20\x75\x6c\x74\x72\x69\x63\x65\x73\x20\x6d\x69\x20\x74\x65\x6d\x70\x75\x73\x20\x69\x6d\x70\x65\x72\x64\x69\x65\x74\x20\x6e\x75\x6c\x6c\x61\x20\x6d\x61\x6c\x65\x73\x75\x61\x64\x61\x20\x70\x65\x6c\x6c\x65\x6e\x74\x65\x73\x71\x75\x65\x2e\x20\x41\x75\x63\x74\x6f\x72\x20\x6e\x65\x71\x75\x65\x20\x76\x69\x74\x61\x65\x20\x74\x65\x6d\x70\x75\x73\x20\x71\x75\x61\x6d\x20\x70\x65\x6c\x6c\x65\x6e\x74\x65\x73\x71\x75\x65\x2e\x20\x46\x61\x63\x69\x6c\x69\x73\x69\x73\x20\x6c\x65\x6f\x20\x76\x65\x6c\x20\x66\x72\x69\x6e\x67\x69\x6c\x6c\x61\x20\x65\x73\x74\x20\x75\x6c\x6c\x61\x6d\x63\x6f\x72\x70\x65\x72\x20\x65\x67\x65\x74\x20\x6e\x75\x6c\x6c\x61\x20\x66\x61\x63\x69\x6c\x69\x73\x69\x20\x65\x74\x69\x61\x6d\x2e\x20\x4d\x6f\x72\x62\x69\x20\x74\x65\x6d\x70\x75\x73\x20\x69\x61\x63\x75\x6c\x69\x73\x20\x75\x72\x6e\x61\x20\x69\x64\x20\x76\x6f\x6c\x75\x74\x70\x61\x74\x20\x6c\x61\x63\x75\x73\x20\x6c\x61\x6f\x72\x65\x65\x74\x20\x6e\x6f\x6e\x2e\x20\x49\x64\x20\x73\x65\x6d\x70\x65\x72\x20\x72\x69\x73\x75\x73\x20\x69\x6e\x20\x68\x65\x6e\x64\x72\x65\x72\x69\x74\x20\x67\x72\x61\x76\x69\x64\x61\x2e\x20\x54\x69\x6e\x63\x69\x64\x75\x6e\x74\x20\x64\x75\x69\x20\x75\x74\x20\x6f\x72\x6e\x61\x72\x65\x20\x6c\x65\x63\x74\x75\x73\x20\x73\x69\x74\x2e\x20\x41\x63\x20\x6f\x64\x69\x6f\x20\x74\x65\x6d\x70\x6f\x72\x20\x6f\x72\x63\x69\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-//
-//  for (int i = 0; i < 1500; ++i) {
-//    std::cerr << packet_0[i];
-//  }
-//
-//  std::cerr << std::endl;
-//
-//  for (int i = 0; i < 1500; ++i) {
-//    std::cerr << packet_1[i];
-//  }
-//
-//
-//  int num_chunks = 1500/64 + ((1500 % 64 != 0) ? 1 : 0);
-//
-//  recvmsg->valid = 0;
-//
-//  // Wait for recv call to settle
-//  std::chrono::seconds dura(1);
-//  std::this_thread::sleep_for(dura);
-//
-//  for (int i = 0; i < num_chunks; ++i) {
-//    raw_stream_t raw_stream;
-//    memcpy(raw_stream.data.data, packet_0 + (i * 64), 64);
-//
-//    raw_stream.last = (i == num_chunks - 1) ? 1 : 0;
-//
-//    link_ingress.write(raw_stream);
-//  }
-//
-//  for (int i = 0; i < num_chunks; ++i) {
-//    raw_stream_t raw_stream;
-//    memcpy(raw_stream.data.data, packet_1 + (i * 64), 64);
-//
-//    raw_stream.last = (i == num_chunks - 1) ? 1 : 0;
-//
-//    link_ingress.write(raw_stream);
-//  }
-//
-//  std::this_thread::sleep_for(dura);
-//
-//  for (int i = 0; i < 64; ++i) homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//
-//  for (int i = 0; i < 3000; ++i) {
-//    std::cerr << maxi_out[i];
-//  }
-//  std::cerr << std::endl;
-//  //std::cerr << maxi_out << std::endl;
-//  return 0;
-//}
-
-
-//bool test_simple_send_recv(homa_t * homa_cfg,
-//      sendmsg_t * sendmsg,
-//      recvmsg_t * recvmsg,
-//      hls::stream<raw_stream_t> & link_ingress,
-//      hls::stream<raw_stream_t> & link_egress,
-//      char * maxi_in,
-//      char * maxi_out) {
-
-
-//bool test_partial_grant_send_recv(homa_t * homa_cfg,
-//      sendmsg_t * sendmsg,
-//      recvmsg_t * recvmsg,
-//      hls::stream<raw_stream_t> & link_ingress,
-//      hls::stream<raw_stream_t> & link_egress,
-//      char * maxi_in,
-//      char * maxi_out) {
-//
-//   homa_cfg->rtt_bytes = 100;
-//   strcpy(maxi_in, data.c_str());
-//
-//
-//   ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
-//   ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
-//
-//   uint16_t sport;
-//   uint16_t dport;
-//
-//   dport = 0xBEEF;
-//   sport = 0xFEEB;
-//
-//   // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
-//   recvmsg->buffout = 0;
-//   recvmsg->saddr = saddr;
-//   recvmsg->daddr = daddr;
-//   recvmsg->sport = sport;
-//   recvmsg->dport = dport;
-//   recvmsg->id = 0;
-//   recvmsg->valid = 1;
-//
-//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//
-//   std::chrono::seconds dura(1);
-//   //std::this_thread::sleep_for(dura);
-//
-//   recvmsg->valid = 0;
-//
-//   sendmsg->buffin = 0;
-//   sendmsg->length = data.length();
-//   sendmsg->saddr = saddr;
-//   sendmsg->daddr = daddr;
-//   sendmsg->sport = sport;
-//   sendmsg->dport = dport;
-//   sendmsg->id = 0;
-//   sendmsg->completion_cookie = 0xFFFFFFFFFFFFFFFF;
-//   sendmsg->valid = 1;
-//
-//   // Construct a new RPC to ingest  
-//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//
-//   //std::this_thread::sleep_for(dura);
-//
-//   sendmsg->valid = 0;
-//
-//   raw_stream_t raw_stream;
-//   do {
-//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//      if (link_egress.read_nb(raw_stream)) { 
-//         link_ingress.write(raw_stream);
-//      }
-//   } while (!raw_stream.last);
-//
-//   // Cycle DMA transfers
-//   //for (int i = 0; i < data.length()/64*2; ++i) {
-//   //   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//   //}
-//
-//   // std::this_thread::sleep_for(dura);
-//
-//   // Cycle DMA transfers
-//   // for (int i = 0; i < data.length()/64*2; ++i) {
-//   //    homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//   // }
-//   // TODO better just to busy poll?
-//   // std::this_thread::sleep_for(dura);
-//   
-//
-//   for (int i = 0; i < 5500; ++i) std::cerr << maxi_out[i];
-//   std::cerr << std::endl;
-//
-//   return memcmp(maxi_in, maxi_out, data.length());
-//}
-
-
 int main() {
    std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-   hls::stream<raw_stream_t, 256> link("in");
-   // hls::stream<raw_stream_t, 256> link_ingress("in");
-   // hls::stream<raw_stream_t, 256> link_egress("out");
+   static hls::stream<raw_stream_t> link;
 
-   homa_t homa_cfg;
-   homa_cfg.dma_count = 2*23;
+   static hls::stream<hls::axis<sendmsg_t, 0, 0, 0>, 256> sendmsg_s;
+   static hls::stream<hls::axis<recvmsg_t, 0, 0, 0>, 256> recvmsg_s;
 
-   sendmsg_t sendmsg;
-   recvmsg_t recvmsg;
+   static hls::stream<hls::axis<dma_r_req_t, 0, 0, 0>, 256> dma_r_req_s;
+   static hls::stream<hls::axis<dbuff_in_t, 0, 0, 0>, 256> dma_resp_s;
+   static hls::stream<hls::axis<dma_w_req_t, 0, 0, 0>, 256> dma_w_req_s;
 
-   char maxi_in[128*64];
-   char maxi_out[128*64];
-
-   homa_cfg.rtt_bytes = 60000;
-   strcpy(maxi_in, data.c_str());
+   static hls::axis<sendmsg_t, 0, 0, 0> sendmsg;
+   static hls::axis<recvmsg_t, 0, 0, 0> recvmsg;
 
    ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
    ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -250,179 +43,52 @@ int main() {
    sport = 0xFEEB;
 
    // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
-   recvmsg.buffout = 0;
-   recvmsg.saddr = saddr;
-   recvmsg.daddr = daddr;
-   recvmsg.sport = sport;
-   recvmsg.dport = dport;
-   recvmsg.id = 0;
-   recvmsg.valid = 1;
+   recvmsg.data.buffout = 0;
+   recvmsg.data.saddr = saddr;
+   recvmsg.data.daddr = daddr;
+   recvmsg.data.sport = sport;
+   recvmsg.data.dport = dport;
+   recvmsg.data.id = 0;
+   recvmsg.data.valid = 1;
 
-   sendmsg.buffin = 0;
-   sendmsg.length = 2772;
-   sendmsg.saddr = saddr;
-   sendmsg.daddr = daddr;
-   sendmsg.sport = sport;
-   sendmsg.dport = dport;
-   sendmsg.id = 0;
-   sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
-   sendmsg.valid = 1;
+   sendmsg.data.buffin = 0;
+   sendmsg.data.length = 2772;
+   sendmsg.data.saddr = saddr;
+   sendmsg.data.daddr = daddr;
+   sendmsg.data.sport = sport;
+   sendmsg.data.dport = dport;
+   sendmsg.data.id = 0;
+   sendmsg.data.completion_cookie = 0xFFFFFFFFFFFFFFFF;
+   sendmsg.data.valid = 1;
+
+   sendmsg_s.write(sendmsg);
+   recvmsg_s.write(recvmsg);
+
+   char maxi_in[128*64];
+   char maxi_out[128*64];
 
    // Construct a new RPC to ingest  
-   homa(homa_cfg, sendmsg, recvmsg, link, link, maxi_in, maxi_out);
+   homa(maxi_in, sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link, link);
+
+   strcpy(maxi_in, data.c_str());
+
+   while (maxi_out[2772] == 0) {
+      if (!dma_r_req_s.empty()) {
+         hls::axis<dma_r_req_t, 0, 0, 0> dma_r_req = dma_r_req_s.read(); 
+
+         for (int i = 0; i < dma_r_req.data.length; ++i) {
+            integral_t chunk = *((integral_t*) (maxi_in + dma_r_req.data.offset + i * 64));
+            hls::axis<dbuff_in_t, 0, 0, 0> dbuff_in;
+            dbuff_in.data = {chunk, dma_r_req.data.dbuff_id, dma_r_req.data.offset + i};
+            dma_resp_s.write(dbuff_in);
+         }
+      }
+   
+      if (!dma_w_req_s.empty()) {
+         hls::axis<dma_w_req_t, 0, 0, 0> dma_w_req = dma_w_req_s.read();
+         *((integral_t*) (maxi_out + dma_w_req.data.offset)) = dma_w_req.data.block;
+      }
+   }
 
    return memcmp(maxi_in, maxi_out, 2772);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//   // std::cerr << "LENGTH " << data.length() << std::endl;
-//   std::cerr << "DATA IN\n";
-//   for (int i = 0; i < 2772; ++i) std::cerr << maxi_in[i];
-//   std::cerr << std::endl;
-//
-//   //for (int i = 0; i < 5500; ++i) {
-//   // printf("%02x", (unsigned char) maxi_in[i]);
-//   //}
-//
-//   //std::cerr << std::endl;
-//
-//   ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
-//   ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
-//
-//   uint16_t sport;
-//   uint16_t dport;
-//
-//   dport = 0xBEEF;
-//   sport = 0xFEEB;
-//
-//   // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
-//   recvmsg.buffout = 0;
-//   recvmsg.saddr = saddr;
-//   recvmsg.daddr = daddr;
-//   recvmsg.sport = sport;
-//   recvmsg.dport = dport;
-//   recvmsg.id = 0;
-//   recvmsg.valid = 1;
-//
-//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//
-//   std::chrono::milliseconds dura(100);
-//   // std::this_thread::sleep_for(dura);
-//
-//   recvmsg.valid = 0;
-//
-//   sendmsg.buffin = 0;
-//   sendmsg.length = 2772;
-//   sendmsg.saddr = saddr;
-//   sendmsg.daddr = daddr;
-//   sendmsg.sport = sport;
-//   sendmsg.dport = dport;
-//   sendmsg.id = 0;
-//   sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
-//   sendmsg.valid = 1;
-//
-//   // Construct a new RPC to ingest  
-//   homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//
-//   sendmsg.valid = 0;
-//
-//   std::this_thread::sleep_for(dura);
-//
-//   raw_stream_t link[256];
-//   uint32_t link_head = 0;
-//
-//   for (int i = 0; i < 2*24; ++i) {
-//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//      std::this_thread::sleep_for(dura);
-//   }
-//
-//   std::this_thread::sleep_for(dura);
-//
-//   while (link_head != (2*24)) {
-//      link_egress.read(link[link_head]);
-//      link_head++;
-//      std::this_thread::sleep_for(dura);
-//   }
-//
-//   std::cerr << "FINISHED READING PACKETs\n";
-//
-//   uint32_t read_head = 0;  
-//   while (link_head != read_head) {
-//      // homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//      link_ingress.write(link[read_head]);
-//      read_head++;
-//   }
-//
-//   // for (int j = 0; j < 4; ++j) {
-//   //    //std::this_thread::sleep_for(dura);
-//   //    //for (int i=0; i < 23; ++i) { 
-//   //    //   homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//
-//   //    //   std::this_thread::sleep_for(dura);
-//   //    //}
-//
-//   //    int pkts = 1;
-//   //    while (true) {
-//   //       homa(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//   //       std::this_thread::sleep_for(dura);
-//   //       if (!link_egress.empty()) {
-//   //          raw_stream_t raw_stream;
-//   //          raw_stream.last = 0;
-//   //          // std::cerr << "READING FROM STREAM\n";
-//   //          // raw_stream_t raw_stream = link_egress.read();
-//   //          // std::cerr << "WRITING TO STREAM\n";
-//   //          // 
-//   //          // std::cerr << "SIZE: " << link_ingress.size() << std::endl;
-//   //          // // TOOD will this one be nonblocking as well??
-//   //          // 
-//   //          // link_ingress.write(raw_stream);
-//   //          if (raw_stream.last) {
-//   //             break;
-//   //          }
-//   //       }
-//   //    }
-//
-//   //    std::this_thread::sleep_for(dura);
-//   // }
-//
-//   while (maxi_out[2772] == 0) {
-//      homa(homa_cfg, sendmsg, recvmsg, link_ingress, link_egress, maxi_in, maxi_out);
-//      std::this_thread::sleep_for(dura);
-//   }
-//
-//   std::cerr << "RECEIVED DATA\n";
-//   for (int i = 0; i < 2772; ++i) std::cerr << maxi_out[i];
-//   std::cerr << std::endl;
-//
-//   std::cerr << "******************************  END TEST BENCH  ******************************" << endl;
-//
-//   // TODO should free memory if malloc ends up being the solution
-//
-//   return memcmp(maxi_in, maxi_out, 2772);
-   // return memcmp(maxi_in, maxi_out, data.length());
-  
-
-    // if (test_simple_send_recv()) { return 1; }
-   // if (test_simple_send_recv(&homa_cfg, &sendmsg, &recvmsg, in, out, maxi_in, maxi_out)) { return 1; }
-
-   //memset(maxi_in, 0, 128*64);
-   //memset(maxi_out, 0, 128*64);
-
-   //if (test_partial_grant_send_recv(&homa_cfg, &sendmsg, &recvmsg, loopback, loopback, maxi_in, maxi_out)) { return 1; }
-
-   //if (test_recvmsg_client(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out)) { return 1; }
-
-
-   //if (test_recvmsg_client(&homa_cfg, &sendmsg, &recvmsg, link_ingress, link_egress, maxi_in, maxi_out)) { return 1; }
 }

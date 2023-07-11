@@ -2,7 +2,6 @@
 #define PEERMGMT_H
 
 #include "homa.hh"
-#include "net.hh"
 #include "databuff.hh"
 
 // #define PEER_SUB_TABLE_SIZE 16384
