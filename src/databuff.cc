@@ -1,11 +1,5 @@
-#include "homa.hh"
+#include "databuff.hh"
 #include "stack.hh"
-
-
-#include "ap_int.h"
-#include "ap_axi_sdata.h"
-#include "hls_stream.h"
-#include "hls_task.h"
 
 void dbuff_stack(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,

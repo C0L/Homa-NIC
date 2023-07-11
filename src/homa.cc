@@ -44,13 +44,13 @@ void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
 //#pragma HLS interface ap_fifo port=dma_r_resp_i depth=512
 //#pragma HLS interface ap_fifo port=dma_w_req_o depth=512
 
-#pragma HLS interface axis port=sendmsg_i register_mode=off depth=512
-#pragma HLS interface axis port=recvmsg_i register_mode=off depth=512
-#pragma HLS interface axis port=dma_r_req_o register_mode=off depth=512
-#pragma HLS interface axis port=dma_r_resp_i register_mode=off depth=512
-#pragma HLS interface axis port=dma_w_req_o register_mode=off depth=512
-#pragma HLS interface axis port=link_ingress register_mode=off depth=512
-#pragma HLS interface axis port=link_egress register_mode=off depth=512
+#pragma HLS interface axis port=sendmsg_i depth=512
+#pragma HLS interface axis port=recvmsg_i depth=512
+#pragma HLS interface axis port=dma_r_req_o depth=512
+#pragma HLS interface axis port=dma_r_resp_i depth=512
+#pragma HLS interface axis port=dma_w_req_o depth=512
+#pragma HLS interface axis port=link_ingress depth=512
+#pragma HLS interface axis port=link_egress depth=512
 
 
 //#pragma HLS interface axis port=sendmsg_i register_mode=reverse register depth=512

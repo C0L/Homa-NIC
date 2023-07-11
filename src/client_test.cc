@@ -1,8 +1,9 @@
 #include <cstdio>
 
 #include "ap_axi_sdata.h"
-#include "hls_stream.h"
 #include "hls_task.h"
+#include "hls_stream.h"
+
 
 #include "ap_int.h"
 

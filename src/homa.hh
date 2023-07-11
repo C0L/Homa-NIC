@@ -5,8 +5,9 @@
 
 #include "ap_int.h"
 #include "ap_axi_sdata.h"
-#include "hls_stream.h"
 #include "hls_task.h"
+#include "hls_stream.h"
+
 
 /* HLS Configuration */ 
 
