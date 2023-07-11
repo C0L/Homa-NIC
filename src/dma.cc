@@ -4,12 +4,14 @@
  * homa_recvmsg() - Primes the core to accept data from an RPC
  * ...
  */
-void homa_recvmsg(hls::stream<hls::axis<recvmsg_t, 0, 0, 0>> & recvmsg_i,
+void homa_recvmsg(hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
                   hls::stream<recvmsg_t> & recvmsg_o) {
    // TODO this used to perform some actual functions. Will keep this here
    // until it for sure is no longer needed
-   hls::axis<recvmsg_t,0 ,0 ,0> recvmsg = recvmsg_i.read();
-   recvmsg_o.write(recvmsg.data);
+   if (!recvmsg_i.empty()) {
+      hls::axis<recvmsg_t,0,0,0> recvmsg = recvmsg_i.read();
+      recvmsg_o.write(recvmsg.data);
+   }
 }
 
 /* TODO This is not outdated
@@ -24,13 +26,13 @@ void homa_recvmsg(hls::stream<hls::axis<recvmsg_t, 0, 0, 0>> & recvmsg_i,
  * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
-void homa_sendmsg(hls::stream<hls::axis<sendmsg_t, 0, 0, 0>> & sendmsg_i,
-                  hls::stream<sendmsg_t> & sendmsg_o,
-                  hls::stream<sendmsg_t> & dummy) {
-   hls::axis<sendmsg_t, 0, 0, 0> sendmsg = sendmsg_i.read(); 
-   sendmsg.data.granted = (sendmsg.data.rtt_bytes > sendmsg.data.length) ? sendmsg.data.length : sendmsg.data.rtt_bytes;
-   sendmsg_o.write(sendmsg.data);
-   dummy.write(sendmsg.data);
+void homa_sendmsg(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
+                  hls::stream<sendmsg_t> & sendmsg_o) {
+   if (!sendmsg_i.empty()) {
+      hls::axis<sendmsg_t,0,0,0> sendmsg = sendmsg_i.read(); 
+      sendmsg.data.granted = (sendmsg.data.rtt_bytes > sendmsg.data.length) ? sendmsg.data.length : sendmsg.data.rtt_bytes;
+      sendmsg_o.write(sendmsg.data);
+   }
 }
 
 

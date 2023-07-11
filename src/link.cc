@@ -1,5 +1,11 @@
 #include "link.hh"
 
+#include "ap_int.h"
+#include "ap_axi_sdata.h"
+#include "hls_stream.h"
+#include "hls_task.h"
+
+
 /**
  * egress_selector() - Chose which of data packets, grant packets, retransmission
  * packets, and control packets to send next.
@@ -11,7 +17,6 @@
  */
 void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
       hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_i,
-      hls::stream<rexmit_t, VERIF_DEPTH> & rexmit_pkt_i,
       hls::stream<header_t, VERIF_DEPTH> & header_out_o) {
 
 #pragma HLS pipeline II=1 style=flp
@@ -31,7 +36,7 @@ void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
       header_out.valid = 1;
    
       header_out_o.write(header_out);
-   } else if (data_pkt_i.empty()) {
+   } else if (!data_pkt_i.empty()) {
       ready_data_pkt = data_pkt_i.read();
 
       ap_uint<32> data_bytes = MIN(ready_data_pkt.remaining, (ap_uint<32>) HOMA_PAYLOAD_SIZE);
@@ -306,6 +311,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
    raw_stream_t raw_stream;
    if (!link_ingress.empty()) {
       raw_stream = link_ingress.read();
+   // raw_stream_t raw_stream = link_ingress.read();
       std::cerr << "PROCESSED BYTES: " << header_in.processed_bytes << std::endl;
 
       ap_uint<512> natural_chunk;

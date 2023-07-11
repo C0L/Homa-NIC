@@ -141,7 +141,7 @@ void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
 
    header_t header_in;
    recvmsg_t recvmsg;
-   if (!header_in_i.empty() && header_in_o.size() < VERIF_DEPTH) {
+   if (!header_in_i.empty()) {
       header_in = header_in_i.read();
       /* The incoming message is a request */
       if (!IS_CLIENT(header_in.sender_id)) {

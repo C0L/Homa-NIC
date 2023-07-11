@@ -1,7 +1,10 @@
 #include <cstdio>
 
-#include "hls_stream.h"
 #include "ap_axi_sdata.h"
+#include "hls_stream.h"
+#include "hls_task.h"
+
+#include "ap_int.h"
 
 #include "homa.hh"
 #include "dma.hh"
@@ -21,17 +24,17 @@ const std::string data = "Lorem ipsum dolor sit amet, consectetur adipiscing eli
 int main() {
    std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-   static hls::stream<raw_stream_t> link;
+   // hls::stream<hls::axis<ap_uint<512>,0,0,0>> link;
+   hls::stream<raw_stream_t, 512> link_ingress;
+   hls::stream<raw_stream_t, 512> link_egress;
+   hls::stream<hls::axis<sendmsg_t,0,0,0>, 512> sendmsg_s;
+   hls::stream<hls::axis<recvmsg_t,0,0,0>, 512> recvmsg_s;
+   hls::stream<hls::axis<dma_r_req_t,0,0,0>, 512> dma_r_req_s;
+   hls::stream<hls::axis<dbuff_in_t,0,0,0>, 512> dma_resp_s;
+   hls::stream<hls::axis<dma_w_req_t,0,0,0>, 512> dma_w_req_s;
 
-   static hls::stream<hls::axis<sendmsg_t, 0, 0, 0>, 256> sendmsg_s;
-   static hls::stream<hls::axis<recvmsg_t, 0, 0, 0>, 256> recvmsg_s;
-
-   static hls::stream<hls::axis<dma_r_req_t, 0, 0, 0>, 256> dma_r_req_s;
-   static hls::stream<hls::axis<dbuff_in_t, 0, 0, 0>, 256> dma_resp_s;
-   static hls::stream<hls::axis<dma_w_req_t, 0, 0, 0>, 256> dma_w_req_s;
-
-   static hls::axis<sendmsg_t, 0, 0, 0> sendmsg;
-   static hls::axis<recvmsg_t, 0, 0, 0> recvmsg;
+   sendmsg_t sendmsg;
+   recvmsg_t recvmsg;
 
    ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
    ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -43,49 +46,63 @@ int main() {
    sport = 0xFEEB;
 
    // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
-   recvmsg.data.buffout = 0;
-   recvmsg.data.saddr = saddr;
-   recvmsg.data.daddr = daddr;
-   recvmsg.data.sport = sport;
-   recvmsg.data.dport = dport;
-   recvmsg.data.id = 0;
-   recvmsg.data.valid = 1;
+   recvmsg.buffout = 0;
+   recvmsg.saddr = saddr;
+   recvmsg.daddr = daddr;
+   recvmsg.sport = sport;
+   recvmsg.dport = dport;
+   recvmsg.id = 0;
+   recvmsg.valid = 1;
 
-   sendmsg.data.buffin = 0;
-   sendmsg.data.length = 2772;
-   sendmsg.data.saddr = saddr;
-   sendmsg.data.daddr = daddr;
-   sendmsg.data.sport = sport;
-   sendmsg.data.dport = dport;
-   sendmsg.data.id = 0;
-   sendmsg.data.completion_cookie = 0xFFFFFFFFFFFFFFFF;
-   sendmsg.data.valid = 1;
+   sendmsg.buffin = 0;
+   sendmsg.length = 2772;
+   sendmsg.saddr = saddr;
+   sendmsg.daddr = daddr;
+   sendmsg.sport = sport;
+   sendmsg.dport = dport;
+   sendmsg.id = 0;
+   sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
+   sendmsg.valid = 1;
 
-   sendmsg_s.write(sendmsg);
-   recvmsg_s.write(recvmsg);
+   hls::axis<sendmsg_t,0,0,0> sendmsg_r;
+   sendmsg_r.data = sendmsg;
+
+   hls::axis<recvmsg_t,0,0,0> recvmsg_r;
+   recvmsg_r.data = recvmsg;
+
+
+
+   sendmsg_s.write(sendmsg_r);
+   recvmsg_s.write(recvmsg_r);
 
    char maxi_in[128*64];
    char maxi_out[128*64];
-
+   sendmsg_t send;
    // Construct a new RPC to ingest  
-   homa(maxi_in, sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link, link);
+   homa(sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link_ingress, link_egress);
 
    strcpy(maxi_in, data.c_str());
 
    while (maxi_out[2772] == 0) {
+      if (!link_egress.empty()) {
+	link_ingress.write(link_egress.read());
+      }
+
       if (!dma_r_req_s.empty()) {
-         hls::axis<dma_r_req_t, 0, 0, 0> dma_r_req = dma_r_req_s.read(); 
+         hls::axis<dma_r_req_t,0,0,0> dma_r_req = dma_r_req_s.read(); 
 
          for (int i = 0; i < dma_r_req.data.length; ++i) {
             integral_t chunk = *((integral_t*) (maxi_in + dma_r_req.data.offset + i * 64));
-            hls::axis<dbuff_in_t, 0, 0, 0> dbuff_in;
-            dbuff_in.data = {chunk, dma_r_req.data.dbuff_id, dma_r_req.data.offset + i};
-            dma_resp_s.write(dbuff_in);
+            dbuff_in_t dbuff_in;
+            dbuff_in = {chunk, dma_r_req.data.dbuff_id, dma_r_req.data.offset + i};
+	    hls::axis<dbuff_in_t,0,0,0> dbuff_in_r;
+	    dbuff_in_r.data = dbuff_in;
+            dma_resp_s.write(dbuff_in_r);
          }
       }
    
       if (!dma_w_req_s.empty()) {
-         hls::axis<dma_w_req_t, 0, 0, 0> dma_w_req = dma_w_req_s.read();
+         hls::axis<dma_w_req_t,0,0,0> dma_w_req = dma_w_req_s.read();
          *((integral_t*) (maxi_out + dma_w_req.data.offset)) = dma_w_req.data.block;
       }
    }

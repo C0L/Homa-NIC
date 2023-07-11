@@ -6,6 +6,7 @@
 #include "ap_int.h"
 #include "ap_axi_sdata.h"
 #include "hls_stream.h"
+#include "hls_task.h"
 
 /* HLS Configuration */ 
 
@@ -89,7 +90,8 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  * stream is 512 bit chunks.
  * TODO currently no side-channels are used
  */
-typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
+typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+// typedef ap_uint<512> raw_stream_t;
 
 /* Homa Kernel Configuration */
 
@@ -467,12 +469,11 @@ struct fifo_t {
    }
 };
 
-void homa(char * maxi,
-      hls::stream<hls::axis<sendmsg_t, 0, 0, 0>> & sendmsg_i_a,
-      hls::stream<hls::axis<recvmsg_t, 0, 0, 0>> & recvmsg_i_a,
-      hls::stream<hls::axis<dma_r_req_t, 0, 0, 0>> & dma_r_req_o,
-      hls::stream<hls::axis<dbuff_in_t, 0, 0 ,0>> & dma_r_resp_i,
-      hls::stream<hls::axis<dma_w_req_t, 0, 0, 0>> & dma_w_req_o,
+void homa(hls::stream<hls::axis<sendmsg_t,0,0,0>> & sendmsg_i,
+      hls::stream<hls::axis<recvmsg_t,0,0,0>> & recvmsg_i,
+      hls::stream<hls::axis<dma_r_req_t,0,0,0>> & dma_r_req_o,
+      hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dma_r_resp_i,
+      hls::stream<hls::axis<dma_w_req_t,0,0,0>> & dma_w_req_o,
       hls::stream<raw_stream_t> & link_ingress,
       hls::stream<raw_stream_t> & link_egress);
 

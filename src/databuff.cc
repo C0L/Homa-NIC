@@ -1,24 +1,32 @@
 #include "homa.hh"
 #include "stack.hh"
 
+
+#include "ap_int.h"
+#include "ap_axi_sdata.h"
+#include "hls_stream.h"
+#include "hls_task.h"
+
 void dbuff_stack(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
       hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
-      hls::stream<hls::axis<dma_r_req_t, 0, 0, 0>> & dma_read_o) {
+      hls::stream<hls::axis<dma_r_req_t,0,0,0>> & dma_read_o) {
 #pragma HLS pipeline II=1 style=flp
 
    static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
    sendmsg_t sendmsg;
-   if (sendmsg_i.empty()) {
+   if (!sendmsg_i.empty()) {
       sendmsg = sendmsg_i.read();
       sendmsg.dbuff_id = dbuff_stack.pop();
 
       uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
       if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
 
-      hls::axis<dma_r_req_t,0,0,0> dma_r_req;
-      dma_r_req.data = {sendmsg.buffin, num_chunks, sendmsg.dbuff_id};
-      dma_read_o.write(dma_r_req);
+      dma_r_req_t dma_r_req;
+      dma_r_req = {sendmsg.buffin, num_chunks, sendmsg.dbuff_id};
+      hls::axis<dma_r_req_t,0,0,0> dma_r_req_r;
+dma_r_req_r.data = dma_r_req;
+      dma_read_o.write(dma_r_req_r);
 
       sendmsg_o.write(sendmsg);
    }
@@ -32,7 +40,7 @@ void dbuff_stack(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
  * @header_in_i - Incoming headers that determine DMA placement
  */
 void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
-      hls::stream<hls::axis<dma_w_req_t, 0, 0, 0>> & dma_w_req_o,
+      hls::stream<hls::axis<dma_w_req_t,0,0,0>> & dma_w_req_o,
       hls::stream<header_t, VERIF_DEPTH> & header_in_i) {
 #pragma HLS pipeline II=1 style=flp
 
@@ -50,9 +58,11 @@ void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
 
       // Place chunk in DMA space at global offset + packet offset
       std::cerr << "DMA WRITE REQUEST"  << std::endl;
-      hls::axis<dma_w_req_t, 0, 0, 0> dma_w_req;
-      dma_w_req.data = {in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff};
-      dma_w_req_o.write(dma_w_req);
+      dma_w_req_t dma_w_req;
+      dma_w_req = {in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff};
+      hls::axis<dma_w_req_t,0,0,0> dma_w_req_r;
+      dma_w_req_r.data = dma_w_req;
+      dma_w_req_o.write(dma_w_req_r);
 
       std::cerr << "DMA WRITE REQUEST COMPLETE" << std::endl;
       if (in_chunk.last) header_in.valid = 0;
@@ -85,7 +95,7 @@ void dbuff_ingress(hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o,
  * set, indicating a completiton of packet transmission.
  * TODO Needs to request data from DMA to keep the RB saturated with pkt data
  */
-void dbuff_egress(hls::stream<hls::axis<dbuff_in_t, 0, 0 ,0>> & dbuff_egress_i,
+void dbuff_egress(hls::stream<hls::axis<dbuff_in_t,0,0,0>> & dbuff_egress_i,
       hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_o,
       hls::stream<out_chunk_t, VERIF_DEPTH> & out_chunk_i,
       hls::stream<raw_stream_t> & link_egress) {
@@ -96,7 +106,7 @@ void dbuff_egress(hls::stream<hls::axis<dbuff_in_t, 0, 0 ,0>> & dbuff_egress_i,
    static dbuff_t dbuff[NUM_DBUFF];
 #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
-   hls::axis<dbuff_in_t, 0, 0, 0> dbuff_in;
+   hls::axis<dbuff_in_t,0,0,0> dbuff_in;
    // Do we need to add any data to data buffer 
    if (!dbuff_egress_i.empty()) {
       dbuff_in = dbuff_egress_i.read();
@@ -104,7 +114,7 @@ void dbuff_egress(hls::stream<hls::axis<dbuff_in_t, 0, 0 ,0>> & dbuff_egress_i,
       dbuff[dbuff_in.data.dbuff_id][dbuff_in.data.dbuff_chunk].data = dbuff_in.data.block.data; 
 
       dbuff_notif_o.write({dbuff_in.data.dbuff_id, dbuff_in.data.dbuff_chunk});
-   }
+   } 
 
    out_chunk_t out_chunk; 
    // Do we need to process any packet chunks?
