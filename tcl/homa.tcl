@@ -46,8 +46,7 @@ if {$job_type == 0} {
 } elseif {$job_type == 2} {
 	# Run Synthesis, RTL Simulation and Exit
 	csynth_design
-	cosim_design 
-   #-disable_deadlock_detection
+	cosim_design -disable_deadlock_detection
 } 
 # elseif {$hls_exec == 3} { 
 #	# Run Synthesis, RTL Simulation, RTL implementation and Exit
