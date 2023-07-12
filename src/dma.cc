@@ -8,6 +8,7 @@ extern "C" {
 void homa_recvmsg(hls::stream<recvmsg_t,VERIF_DEPTH> & recvmsg_i,
                   hls::stream<recvmsg_t,VERIF_DEPTH> & recvmsg_o) {
    // TODO this used to perform some actual functions. Will keep this here
+   std::cerr << "DMA CHECK\n";
    // until it for sure is no longer needed
    if (!recvmsg_i.empty()) {
       recvmsg_t recvmsg = recvmsg_i.read();

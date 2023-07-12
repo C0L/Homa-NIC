@@ -11,13 +11,13 @@ extern "C"{
    int main() {
       std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-      hls::stream<raw_stream_t, 256> link_ingress;
-      hls::stream<raw_stream_t, 256> link_egress;
-      hls::stream<sendmsg_t, 256> sendmsg_s;
-      hls::stream<recvmsg_t, 256> recvmsg_s;
-      hls::stream<dma_r_req_t, 256> dma_r_req_s;
-      hls::stream<dbuff_in_t, 256> dma_resp_s;
-      hls::stream<dma_w_req_t, 256> dma_w_req_s;
+      hls::stream<raw_stream_t, VERIF_DEPTH> link_ingress;
+      hls::stream<raw_stream_t, VERIF_DEPTH> link_egress;
+      hls::stream<sendmsg_t, VERIF_DEPTH> sendmsg_s;
+      hls::stream<recvmsg_t, VERIF_DEPTH> recvmsg_s;
+      hls::stream<dma_r_req_t, VERIF_DEPTH> dma_r_req_s;
+      hls::stream<dbuff_in_t, VERIF_DEPTH> dma_resp_s;
+      hls::stream<dma_w_req_t, VERIF_DEPTH> dma_w_req_s;
 
       sendmsg_t sendmsg;
       recvmsg_t recvmsg;

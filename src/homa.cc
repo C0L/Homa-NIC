@@ -22,47 +22,44 @@ using namespace std;
 //      *maxi = d.rtt_bytes;
 //   }
 //}
-void adapter(hls::stream<sendmsg_t> & sendmsg_i,
-      hls::stream<recvmsg_t> & recvmsg_i,
-      hls::stream<dma_r_req_t> & dma_r_req_o,
-      hls::stream<dbuff_in_t> & dma_r_resp_i,
-      hls::stream<dma_w_req_t> & dma_w_req_o,
-      hls::stream<sendmsg_t> & sendmsg_i_o,
-      hls::stream<recvmsg_t> & recvmsg_i_o,
-      hls::stream<dma_r_req_t> & dma_r_req_o_o,
-      hls::stream<dbuff_in_t> & dma_r_resp_i_o,
-      hls::stream<dma_w_req_t> & dma_w_req_o_o) {
+//
+void adapter0(hls::stream<sendmsg_t> & sendmsg_i,
+      hls::stream<sendmsg_t> & sendmsg_i_o) {
+     
+   std::cerr << "INSTANTIATED\n";
+   sendmsg_t sendmsg_convert = sendmsg_i.read();
+   sendmsg_i_o.write(sendmsg_convert);
 
-   sendmsg_t sendmsg_convert;
-   if (sendmsg_i.read_nb(sendmsg_convert)) {
-      std::cerr << "SENDMSG\n";
-      sendmsg_i_o.write(sendmsg_convert);
-   }
-
-   recvmsg_t recvmsg_convert;
-   if (recvmsg_i.read_nb(recvmsg_convert)){ 
-      std::cerr << "RECVMSG\n";
-      recvmsg_i_o.write(recvmsg_convert);
-   }
-
-   dbuff_in_t dma_r_resp_convert;
-   if (dma_r_resp_i.read_nb(dma_r_resp_convert)){ 
-      std::cerr << "dbuff in\n";
-      dma_r_resp_i_o.write(dma_r_resp_convert);
-   }
-
-   dma_w_req_t dma_w_req_convert;
-   if (dma_w_req_o_o.read_nb(dma_w_req_convert)){ 
-      std::cerr << "dma_w_req\n";
-      dma_w_req_o.write(dma_w_req_convert);
-   }
-
-   dma_r_req_t dma_r_req_convert;
-   if (dma_r_req_o_o.read_nb(dma_r_req_convert)){ 
-      std::cerr << "dma r req\n";
-      dma_r_req_o.write(dma_r_req_convert);
-   }
 }
+
+void adapter1( hls::stream<recvmsg_t> & recvmsg_i,
+      hls::stream<recvmsg_t> & recvmsg_i_o) {
+
+   recvmsg_t recvmsg_convert = recvmsg_i.read();
+   recvmsg_i_o.write(recvmsg_convert);
+}
+
+void adapter2(hls::stream<dma_r_req_t> & dma_r_req_o,
+      hls::stream<dma_r_req_t> & dma_r_req_o_o) {
+
+   dma_r_req_t dma_r_req_convert = dma_r_req_o_o.read();
+   dma_r_req_o.write(dma_r_req_convert);
+
+}
+
+void adapter3(hls::stream<dbuff_in_t> & dma_r_resp_i,
+            hls::stream<dbuff_in_t> & dma_r_resp_i_o) {
+   dbuff_in_t dma_r_resp_convert = dma_r_resp_i.read();
+   dma_r_resp_i_o.write(dma_r_resp_convert);
+}
+
+
+void adapter4(hls::stream<dma_w_req_t> & dma_w_req_o,
+            hls::stream<dma_w_req_t> & dma_w_req_o_o) {
+   dma_w_req_t dma_w_req_convert = dma_w_req_o_o.read();
+   dma_w_req_o.write(dma_w_req_convert);
+}
+
 
 /**
  * homa() - Top level homa packet processor
@@ -72,13 +69,13 @@ void adapter(hls::stream<sendmsg_t> & sendmsg_i,
  * @dma:   DMA memory space pointer
  */
 extern "C"{
-   void homa(hls::stream<sendmsg_t> & sendmsg_i,
-         hls::stream<recvmsg_t> & recvmsg_i,
-         hls::stream<dma_r_req_t> & dma_r_req_o,
-         hls::stream<dbuff_in_t> & dma_r_resp_i,
-         hls::stream<dma_w_req_t> & dma_w_req_o,
-         hls::stream<raw_stream_t> & link_ingress,
-         hls::stream<raw_stream_t> & link_egress) {
+   void homa(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
+         hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
+         hls::stream<dma_r_req_t, VERIF_DEPTH> & dma_r_req_o,
+         hls::stream<dbuff_in_t, VERIF_DEPTH> & dma_r_resp_i,
+         hls::stream<dma_w_req_t, VERIF_DEPTH> & dma_w_req_o,
+         hls::stream<raw_stream_t, VERIF_DEPTH> & link_ingress,
+         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress) {
 
 #pragma HLS interface axis port=sendmsg_i depth=512
 #pragma HLS interface axis port=recvmsg_i depth=512
@@ -111,26 +108,59 @@ extern "C"{
 
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> sendmsg_a;
       hls_thread_local hls::stream<recvmsg_t,        VERIF_DEPTH> recvmsg_a;
-      hls_thread_local hls::stream<dma_r_req_t,        VERIF_DEPTH> dma_r_req_a;
-      hls_thread_local hls::stream<dbuff_in_t,        VERIF_DEPTH> dma_r_resp_a;
-      hls_thread_local hls::stream<dma_w_req_t,        VERIF_DEPTH> dma_w_req_a;
-
-      hls_thread_local hls::task adapter_task(
-            adapter,
-            sendmsg_i,
-            recvmsg_i,
-            dma_r_req_o,
-            dma_r_resp_i,
-            dma_w_req_o,
-            sendmsg_a,
-            recvmsg_a,
-            dma_r_req_a,
-            dma_r_resp_a,
-            dma_w_req_a
-            );
+      hls_thread_local hls::stream<dma_r_req_t,      VERIF_DEPTH> dma_r_req_a;
+      hls_thread_local hls::stream<dbuff_in_t,       VERIF_DEPTH> dma_r_resp_a;
+      hls_thread_local hls::stream<dma_w_req_t,      VERIF_DEPTH> dma_w_req_a;
 
 
+#pragma HLS stream variable=homa_sendmsg__dbuff_stack depth=128 
+#pragma HLS stream variable=dbuff_stack__peer_map     depth=128
+#pragma HLS stream variable=peer_map__rpc_state       depth=128
+#pragma HLS stream variable=rpc_state__srpt_data      depth=128
+#pragma HLS stream variable=srpt_data__egress_sel     depth=128
+#pragma HLS stream variable=srpt_grant__egress_sel    depth=128
+#pragma HLS stream variable=egress_sel__rpc_state     depth=128
+#pragma HLS stream variable=rpc_state__chunk_egress   depth=128
+#pragma HLS stream variable=peer_map__rpc_map         depth=128
+#pragma HLS stream variable=rpc_map__rpc_state        depth=128
+#pragma HLS stream variable=chunk_egress__dbuff_ingress depth=128
+#pragma HLS stream variable=dbuff_ingress__srpt_data depth=128
+#pragma HLS stream variable=chunk_ingress__dbuff_ingress depth=128
+#pragma HLS stream variable=rpc_state__dbuff_ingress depth=128
+#pragma HLS stream variable=rpc_state__srpt_grant depth=128
+#pragma HLS stream variable=header_in__rpc_state__srpt_data depth=128
+#pragma HLS stream variable=chunk_ingress__rpc_map depth=128
+#pragma HLS stream variable=recvmsg__peer_map__rpc_state depth=128
+#pragma HLS stream variable=recvmsg__rpc_state__rpc_map depth=128
+#pragma HLS stream variable=recvmsg__peer_map depth=128
 
+#pragma HLS stream variable=sendmsg_a depth=128
+#pragma HLS stream variable=recvmsg_a depth=128
+#pragma HLS stream variable=dma_r_req_a depth=128
+#pragma HLS stream variable=dma_r_resp_a depth=128
+#pragma HLS stream variable=dma_w_req_a depth=128
+
+     hls_thread_local hls::task adapter0_task(adapter0, sendmsg_i, sendmsg_a);
+     hls_thread_local hls::task adapter1_task(adapter1, recvmsg_i, recvmsg_a);
+     hls_thread_local hls::task adapter2_task(adapter2, dma_r_req_o, dma_r_req_a);
+     hls_thread_local hls::task adapter3_task(adapter3, dma_r_resp_i, dma_r_resp_a);
+     hls_thread_local hls::task adapter4_task(adapter4, dma_w_req_o, dma_w_req_a);
+
+      // TODO test pragma STREAM?
+
+//      hls_thread_local hls::task adapter_task(
+//            adapter,
+//            sendmsg_i,
+//            recvmsg_i,
+//            dma_r_req_o,
+//            dma_r_resp_i,
+//            dma_w_req_o,
+//            sendmsg_a,
+//            recvmsg_a,
+//            dma_r_req_a,
+//            dma_r_resp_a,
+//            dma_w_req_a
+//            );
 
       /* Data Driven Region */
       hls_thread_local hls::task peer_map_task(

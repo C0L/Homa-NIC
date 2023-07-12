@@ -16,6 +16,6 @@ extern "C"{
 void dbuff_egress(hls::stream<dbuff_in_t, VERIF_DEPTH> & dbuff_egress_i,
       hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_o,
       hls::stream<out_chunk_t, VERIF_DEPTH> & out_chunk_i,
-      hls::stream<raw_stream_t> & link_egress);
+      hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress);
 } 
 #endif

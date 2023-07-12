@@ -92,8 +92,12 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  * stream is 512 bit chunks.
  * TODO currently no side-channels are used
  */
-typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+// typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 // typedef ap_uint<512> raw_stream_t;
+typedef struct {
+   ap_uint<512> data; 
+   ap_uint<1> last;
+} raw_stream_t;
 
 /* Homa Kernel Configuration */
 
@@ -472,12 +476,12 @@ struct fifo_t {
 };
 
 extern "C"{
-void homa(hls::stream<sendmsg_t> & sendmsg_i,
-      hls::stream<recvmsg_t> & recvmsg_i,
-      hls::stream<dma_r_req_t> & dma_r_req_o,
-      hls::stream<dbuff_in_t> & dma_r_resp_i,
-      hls::stream<dma_w_req_t> & dma_w_req_o,
-      hls::stream<raw_stream_t> & link_ingress,
-      hls::stream<raw_stream_t> & link_egress);
+void homa(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
+      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
+      hls::stream<dma_r_req_t, VERIF_DEPTH> & dma_r_req_o,
+      hls::stream<dbuff_in_t, VERIF_DEPTH> & dma_r_resp_i,
+      hls::stream<dma_w_req_t, VERIF_DEPTH> & dma_w_req_o,
+      hls::stream<raw_stream_t, VERIF_DEPTH> & link_ingress,
+      hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress);
 }
 #endif
