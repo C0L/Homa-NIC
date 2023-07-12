@@ -5,8 +5,8 @@
  * ...
  */
 extern "C" {
-void homa_recvmsg(hls::stream<recvmsg_t> & recvmsg_i,
-                  hls::stream<recvmsg_t> & recvmsg_o) {
+void homa_recvmsg(hls::stream<recvmsg_t,VERIF_DEPTH> & recvmsg_i,
+                  hls::stream<recvmsg_t,VERIF_DEPTH> & recvmsg_o) {
    // TODO this used to perform some actual functions. Will keep this here
    // until it for sure is no longer needed
    if (!recvmsg_i.empty()) {
@@ -28,8 +28,8 @@ void homa_recvmsg(hls::stream<recvmsg_t> & recvmsg_i,
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
 extern "C"{
-void homa_sendmsg(hls::stream<sendmsg_t> & sendmsg_i,
-                  hls::stream<sendmsg_t> & sendmsg_o) {
+void homa_sendmsg(hls::stream<sendmsg_t,VERIF_DEPTH> & sendmsg_i,
+                  hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o) {
    if (!sendmsg_i.empty()) {
       sendmsg_t sendmsg = sendmsg_i.read(); 
       sendmsg.granted = (sendmsg.rtt_bytes > sendmsg.length) ? sendmsg.length : sendmsg.rtt_bytes;

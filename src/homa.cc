@@ -22,34 +22,41 @@ using namespace std;
 //      *maxi = d.rtt_bytes;
 //   }
 //}
-void adapter(hls::stream<raw_stream_t> & sendmsg_i,
-      	hls::stream<raw_stream_t> & recvmsg_i,
-      	hls::stream<raw_stream_t> & dma_r_req_o,
-      	hls::stream<raw_stream_t> & dma_r_resp_i,
-      	hls::stream<raw_stream_t> & dma_w_req_o,
+void adapter(hls::stream<sendmsg_t> & sendmsg_i,
+      	hls::stream<recvmsg_t> & recvmsg_i,
+      	hls::stream<dma_r_req_t> & dma_r_req_o,
+      	hls::stream<dbuff_in_t> & dma_r_resp_i,
+      	hls::stream<dma_w_req_t> & dma_w_req_o,
          hls::stream<sendmsg_t> & sendmsg_i_o,
       	hls::stream<recvmsg_t> & recvmsg_i_o,
       	hls::stream<dma_r_req_t> & dma_r_req_o_o,
       	hls::stream<dbuff_in_t> & dma_r_resp_i_o,
       	hls::stream<dma_w_req_t> & dma_w_req_o_o) {
-   sendmsg_t sendmsg_convert;
-   recvmsg_t recvmsg_convert;
-   dma_r_req_t dma_r_req_convert;
-   dbuff_in_t dma_r_resp_convert;
-   dma_w_req_t dma_w_req_convert;
-   
-   raw_stream_t recvmsg_raw = recvmsg_i.read();
-	raw_stream_t sendmsg_raw = sendmsg_i.read();
-   raw_stream_t dma_r_req_raw = dma_r_req_o.read();
-	raw_stream_t dma_r_resp_raw = dma_r_resp_i.read();
-	raw_stream_t dma_q_req_raw = dma_w_req_o.read();
 
-  // TRY ONLY USING RAW BITS ON THE INTERFACE? 
-	sendmsg_i_o.write(sendmsg_convert);
-	recvmsg_i_o.write(recvmsg_convert);
-	dma_r_req_o_o.write(dma_r_req_convert);
-	dma_r_resp_i_o.write(dma_r_resp_convert);
-	dma_w_req_o_o.write(dma_w_req_convert);
+   sendmsg_t sendmsg_convert;
+   if (sendmsg_i.read_nb(sendmsg_convert)) {
+      sendmsg_i_o.write(sendmsg_convert);
+   }
+
+   recvmsg_t recvmsg_convert;
+   if (recvmsg_i.read_nb(recvmsg_convert)){ 
+      recvmsg_i_o.write(recvmsg_convert);
+   }
+
+   dbuff_in_t dma_r_resp_convert;
+   if (dma_r_resp_i.read_nb(dma_r_resp_convert)){ 
+      dma_r_resp_i_o.write(dma_r_resp_convert);
+   }
+
+   dma_w_req_t dma_w_req_convert;
+   if (dma_w_req_o_o.read_nb(dma_w_req_convert)){ 
+      dma_w_req_o.write(dma_w_req_convert);
+   }
+
+   dma_r_req_t dma_r_req_convert;
+   if (dma_r_req_o_o.read_nb(dma_r_req_convert)){ 
+      dma_r_req_o.write(dma_r_req_convert);
+   }
 }
 
 /**
@@ -60,11 +67,11 @@ void adapter(hls::stream<raw_stream_t> & sendmsg_i,
  * @dma:   DMA memory space pointer
  */
 extern "C"{
-void homa(hls::stream<raw_stream_t> & sendmsg_i,
-      hls::stream<raw_stream_t> & recvmsg_i,
-      hls::stream<raw_stream_t> & dma_r_req_o,
-      hls::stream<raw_stream_t> & dma_r_resp_i,
-      hls::stream<raw_stream_t> & dma_w_req_o,
+void homa(hls::stream<sendmsg_t> & sendmsg_i,
+      hls::stream<recvmsg_t> & recvmsg_i,
+      hls::stream<dma_r_req_t> & dma_r_req_o,
+      hls::stream<dbuff_in_t> & dma_r_resp_i,
+      hls::stream<dma_w_req_t> & dma_w_req_o,
       hls::stream<raw_stream_t> & link_ingress,
       hls::stream<raw_stream_t> & link_egress) {
 

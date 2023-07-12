@@ -18,7 +18,7 @@
  * through the execution of the testbench. This should not effect the actual
  * generation of the RTL however 
  */
-#define VERIF_DEPTH 64
+#define VERIF_DEPTH 128
 
 /* Reduces the size of some parameters for faster compilation/testing */
 #define DEBUG
@@ -472,11 +472,11 @@ struct fifo_t {
 };
 
 extern "C"{
-void homa(hls::stream<raw_stream_t> & sendmsg_i,
-      hls::stream<raw_stream_t> & recvmsg_i,
-      hls::stream<raw_stream_t> & dma_r_req_o,
-      hls::stream<raw_stream_t> & dma_r_resp_i,
-      hls::stream<raw_stream_t> & dma_w_req_o,
+void homa(hls::stream<sendmsg_t> & sendmsg_i,
+      hls::stream<recvmsg_t> & recvmsg_i,
+      hls::stream<dma_r_req_t> & dma_r_req_o,
+      hls::stream<dbuff_in_t> & dma_r_resp_i,
+      hls::stream<dma_w_req_t> & dma_w_req_o,
       hls::stream<raw_stream_t> & link_ingress,
       hls::stream<raw_stream_t> & link_egress);
 }

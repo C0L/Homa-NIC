@@ -13,11 +13,11 @@ int main() {
 
    hls::stream<raw_stream_t> link_ingress;
    hls::stream<raw_stream_t> link_egress;
-   hls::stream<raw_stream_t> sendmsg_s;
-   hls::stream<raw_stream_t> recvmsg_s;
-   hls::stream<raw_stream_t> dma_r_req_s;
-   hls::stream<raw_stream_t> dma_resp_s;
-   hls::stream<raw_stream_t> dma_w_req_s;
+   hls::stream<sendmsg_t> sendmsg_s;
+   hls::stream<recvmsg_t> recvmsg_s;
+   hls::stream<dma_r_req_t> dma_r_req_s;
+   hls::stream<dbuff_in_t> dma_resp_s;
+   hls::stream<dma_w_req_t> dma_w_req_s;
 
    sendmsg_t sendmsg;
    recvmsg_t recvmsg;
@@ -50,18 +50,17 @@ int main() {
    sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
    sendmsg.valid = 1;
 
-   hls::axis<sendmsg_t,0,0,0> sendmsg_r;
-   sendmsg_r.data = sendmsg;
+//   hls::axis<sendmsg_t,0,0,0> sendmsg_r;
+//   sendmsg_r.data = sendmsg;
+//
+//   hls::axis<recvmsg_t,0,0,0> recvmsg_r;
+//   recvmsg_r.data = recvmsg;
+//
+//   raw_stream_t dummy_send;
+//   raw_stream_t dummy_recv;
 
-   hls::axis<recvmsg_t,0,0,0> recvmsg_r;
-   recvmsg_r.data = recvmsg;
-
-   raw_stream_t dummy_send;
-   raw_stream_t dummy_recv;
-
-   sendmsg_s.write(dummy_send);
-   recvmsg_s.write(dummy_recv);
-
+   sendmsg_s.write(sendmsg);
+   recvmsg_s.write(recvmsg);
    char maxi_in[128*64];
    char maxi_out[128*64];
 
@@ -70,29 +69,29 @@ int main() {
 
    strcpy(maxi_in, data.c_str());
 
-//   while (maxi_out[2772] == 0) {
-//      if (!link_egress.empty()) {
-//	link_ingress.write(link_egress.read());
-//      }
-//
-//      if (!dma_r_req_s.empty()) {
-//         hls::axis<dma_r_req_t,0,0,0> dma_r_req = dma_r_req_s.read(); 
-//
-//         for (int i = 0; i < dma_r_req.data.length; ++i) {
-//            integral_t chunk = *((integral_t*) (maxi_in + dma_r_req.data.offset + i * 64));
-//            dbuff_in_t dbuff_in;
-//            dbuff_in = {chunk, dma_r_req.data.dbuff_id, dma_r_req.data.offset + i};
-//	    hls::axis<dbuff_in_t,0,0,0> dbuff_in_r;
-//	    dbuff_in_r.data = dbuff_in;
-//            dma_resp_s.write(dbuff_in_r);
-//         }
-//      }
-//   
-//      if (!dma_w_req_s.empty()) {
-//         hls::axis<dma_w_req_t,0,0,0> dma_w_req = dma_w_req_s.read();
-//         *((integral_t*) (maxi_out + dma_w_req.data.offset)) = dma_w_req.data.block;
-//      }
-//   }
+   while (maxi_out[2772] == 0) {
+      if (!link_egress.empty()) {
+	link_ingress.write(link_egress.read());
+      }
+
+      if (!dma_r_req_s.empty()) {
+         dma_r_req_t dma_r_req = dma_r_req_s.read(); 
+
+         for (int i = 0; i < dma_r_req.length; ++i) {
+            integral_t chunk = *((integral_t*) (maxi_in + dma_r_req.offset + i * 64));
+            dbuff_in_t dbuff_in;
+            dbuff_in = {chunk, dma_r_req.dbuff_id, dma_r_req.offset + i};
+	    dbuff_in_t dbuff_in_r;
+	    dbuff_in_r = dbuff_in;
+            dma_resp_s.write(dbuff_in_r);
+         }
+      }
+   
+      if (!dma_w_req_s.empty()) {
+         dma_w_req_t dma_w_req = dma_w_req_s.read();
+         *((integral_t*) (maxi_out + dma_w_req.offset)) = dma_w_req.block;
+      }
+   }
 
    return memcmp(maxi_in, maxi_out, 2772);
 }
