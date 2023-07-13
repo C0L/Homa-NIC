@@ -360,7 +360,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
                   grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
                                        srpt_queue[ready_match_latch][`RPC_ID],
-                                       srpt_queue[ready_match_latch][`RECV_BYTES],
+                                       srpt_queue[ready_match_latch][`RECV_PKTS],
                                        10'b0,
                                        3'b0};
 

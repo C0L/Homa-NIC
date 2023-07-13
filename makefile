@@ -110,7 +110,7 @@ xsim: xsim_elaborate
 	xsim srpt_grant_queue_tb_snapshot --tclbatch ./tcl/xsim_cfg.tcl
 
 xsim_elaborate: xsim_compile
-	xelab -debug all -top srpt_grant_pkst--snapshot srpt_grant_queue_tb_snapshot
+	xelab -debug all -top srpt_grant_pkts --snapshot srpt_grant_queue_tb_snapshot
 
 xsim_compile: 
 	xvlog $(SRC_V) $(TB_V)
@@ -119,10 +119,12 @@ vlint:
 	$(LINTER) $(SRC_V) $(TB_V)
 
 clean:
-	rm vitis_hls.log
-	rm -r homa
+	rm -f vitis_hls.log
+	rm -rf homa
 	rm -rf xsim.dir
-	rm *.log
-	rm *.jou
-	rm *.log
-	rm xelab*
+	rm -f *.log
+	rm -f *.jou
+	rm -f *.log
+	rm -f xelab*
+	rm -f xvlog*
+	rm -f srpt_grant_queue_tb_snapshot.wdb

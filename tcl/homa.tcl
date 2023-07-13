@@ -20,7 +20,7 @@ if {$job_type == 0 || $job_type == 2 } {
    add_files -tb $test_bench
 }
 
-add_files -blackbox $json_src
+# add_files -blackbox $json_src
 
 open_solution -reset "solution" -flow_target vivado 
 set_part $part

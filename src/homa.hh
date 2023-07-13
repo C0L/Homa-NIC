@@ -169,8 +169,13 @@ typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
 typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 struct dbuff_in_t {
+#define DBUFF_IN_DATA 511,0
    integral_t block;
+
+#define DBUFF_IN_ID 521,512
    dbuff_id_t dbuff_id;
+
+#define DBUFF_IN_CHUNK 529,522
    dbuff_coffset_t dbuff_chunk;
 };
 
@@ -264,43 +269,57 @@ struct homa_rpc_t {
 
 /* */
 struct sendmsg_t {
+#define SENDMSG_BUFFIN 31,0
    ap_uint<32> buffin; // Offset in DMA space for input
+                       //
+#define SENDMSG_LENGTH 63,32
    ap_uint<32> length; // Total length of message
 
+#define SENDMSG_SADDR 191,64
    ap_uint<128> saddr; // Sender address
+#define SENDMSG_DADDR 319,192
    ap_uint<128> daddr; // Destination address
 
+#define SENDMSG_SPORT 335,320
    ap_uint<16> sport; // Sender port
+#define SENDMSG_DPORT 351,336
    ap_uint<16> dport; // Destination port
 
+#define SENDMSG_ID 415,352
    ap_uint<64> id; // RPC specified by caller
+#define SENDMSG_CC 479,416
    ap_uint<64> completion_cookie;
 
-   ap_uint<1> valid;
+   // Configuration
+#define SENDMSG_RTT 511,480
+   ap_uint<32> rtt_bytes;
+
+   // ap_uint<1> valid;
 
    // Internal use
    ap_uint<32> granted;
    rpc_id_t local_id; // Local RPC ID 
    dbuff_id_t dbuff_id; // Data buffer ID for outgoing data
    peer_id_t peer_id; // Local ID for this destination address
-
-   // Configuration
-   ap_uint<32> rtt_bytes;
 };
 
 struct recvmsg_t {
+#define RECVMSG_BUFFOUT 31,0
    ap_uint<32> buffout; // Offset in DMA space for output
-
+                        
+#define RECVMSG_SADDR 159,32
    ap_uint<128> saddr; // Sender address
+#define RECVMSG_DADDR 287,160
    ap_uint<128> daddr; // Destination address
 
+#define RECVMSG_SPORT 303,288
    ap_uint<16> sport; // Sender port
+#define RECVMSG_DPORT 319,304
    ap_uint<16> dport; // Destination port
-
+                      
+#define RECVMSG_ID 383,320
    ap_uint<64> id; // RPC specified by caller
-
-   ap_uint<1> valid;
-
+                   
    // Internal use
    rpc_id_t local_id; // Local RPC ID 
    peer_id_t peer_id; // Local ID for this peer
@@ -386,13 +405,18 @@ struct out_chunk_t {
 };
 
 struct dma_r_req_t {
+#define DMA_R_REQ_OFFSET 31,0
    ap_uint<32> offset;
+#define DMA_R_REQ_LENGTH 63,32
    ap_uint<32> length;
+#define DMA_R_REQ_DBUFF_ID 73,64
    dbuff_id_t dbuff_id;
 };
 
 struct dma_w_req_t {
+#define DMA_W_REQ_OFFSET 31,0
    ap_uint<32> offset;
+#define DMA_W_REQ_BLOCK 543,32
    integral_t block;
 };
 
@@ -478,10 +502,10 @@ struct fifo_t {
 
 extern "C"{
 void homa(hls::stream<ap_axiu<512,1,1,1>> & sendmsg_i,
-         hls::stream<hls::axis<recvmsg_t,1,1,1>> & recvmsg_i,
-         hls::stream<hls::axis<dma_r_req_t,1,1,1>> & dma_r_req_o,
-         hls::stream<hls::axis<dbuff_in_t,1,1,1>> & dma_r_resp_i,
-         hls::stream<hls::axis<dma_w_req_t,1,1,1>> & dma_w_req_o,
+         hls::stream<ap_axiu<384,1,1,1>> & recvmsg_i,
+         hls::stream<ap_axiu<80,1,1,1>> & dma_r_req_o,
+         hls::stream<ap_axiu<536,1,1,1>> & dma_r_resp_i,
+         hls::stream<ap_axiu<544,1,1,1>> & dma_w_req_o,
          hls::stream<raw_stream_t> & link_ingress,
          hls::stream<raw_stream_t> & link_egress);
 

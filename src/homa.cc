@@ -16,68 +16,76 @@
 
 using namespace std;
 
-//void adapter0(hls::stream<raw_stream_t,128> & in,
-//            hls::stream<raw_stream_t> & out) {
-//#pragma HLS pipeline 
-//   raw_stream_t i = in.read();
-//   out.write(i);
-//}
-//
-//void adapter1(hls::stream<raw_stream_t> & in,
-//            hls::stream<raw_stream_t,128> & out) {
-//
-//#pragma HLS pipeline 
-//   raw_stream_t i = in.read();
-//   out.write(i);
-//}
+void adapter2(hls::stream<dma_r_req_t> & in, 
+         hls::stream<ap_axiu<80,1,1,1>> & out) {
+  
+   dma_r_req_t i = in.read(); 
 
-void adapter2(hls::stream<dma_r_req_t> & in,
-            hls::stream<hls::axis<dma_r_req_t,1,1,1>> & out) {
+   ap_axiu<80,1,1,1> msgout;
+   msgout.data(DMA_R_REQ_OFFSET)   = i.offset;
+   msgout.data(DMA_R_REQ_LENGTH)   = i.length;
+   msgout.data(DMA_R_REQ_DBUFF_ID) = i.dbuff_id;
 
-#pragma HLS pipeline 
-   dma_r_req_t i = in.read();
-   hls::axis<dma_r_req_t,1,1,1> raw;
-   raw.data = i;
-   out.write(raw);
+   out.write(msgout);
 }
 
-void adapter3(hls::stream<hls::axis<dbuff_in_t,1,1,1>> & dma_r_resp_i,
-            hls::stream<dbuff_in_t> & dma_r_resp_i_o) {
+void adapter3(hls::stream<ap_axiu<536,1,1,1>> & in,
+            hls::stream<dbuff_in_t> & out) {
 
-#pragma HLS pipeline 
-   hls::axis<dbuff_in_t,1,1,1> dma_r_resp_convert = dma_r_resp_i.read();
-   dma_r_resp_i_o.write(dma_r_resp_convert.data);
+   ap_axiu<536,1,1,1> i = in.read();
+   dbuff_in_t msgout;
+   
+   msgout.block.data  = i.data(DBUFF_IN_DATA);
+   msgout.dbuff_id    = i.data(DBUFF_IN_ID);
+   msgout.dbuff_chunk = i.data(DBUFF_IN_CHUNK);
+
+   out.write(msgout);
 }
 
-void adapter4(hls::stream<hls::axis<dma_w_req_t,1,1,1>> & dma_w_req_o,
-            hls::stream<dma_w_req_t> & dma_w_req_o_o) {
+void adapter4(hls::stream<dma_w_req_t> & in,
+      hls::stream<ap_axiu<544,1,1,1>> & out) {
 
-#pragma HLS pipeline 
-   dma_w_req_t dma_w_req_convert = dma_w_req_o_o.read();
-   hls::axis<dma_w_req_t,1,1,1> raw;
-   raw.data = dma_w_req_convert;
-   dma_w_req_o.write(raw);
+   dma_w_req_t i = in.read();
+   ap_axiu<544,1,1,1> msgout;
+   msgout.data(DMA_W_REQ_OFFSET) = i.offset;
+   msgout.data(DMA_W_REQ_BLOCK)  = i.block.data;
+   out.write(msgout);
 }
 
 void adapter5(hls::stream<ap_axiu<512,1,1,1>> & in,
             hls::stream<sendmsg_t> & out) {
 
-#pragma HLS pipeline 
    ap_axiu<512,1,1,1> i = in.read();
+
    std::cerr << "SEND MSG READ\n";
    sendmsg_t msgout;
-   msgout.buffin = i.data(31,0);
+   msgout.buffin = i.data(SENDMSG_BUFFIN);
+   msgout.length = i.data(SENDMSG_LENGTH);
+   msgout.saddr = i.data(SENDMSG_SADDR);
+   msgout.daddr = i.data(SENDMSG_DADDR);
+   msgout.sport = i.data(SENDMSG_SPORT);
+   msgout.dport = i.data(SENDMSG_DPORT);
+   msgout.id = i.data(SENDMSG_ID);
+   msgout.completion_cookie = i.data(SENDMSG_CC);
+   msgout.rtt_bytes = i.data(SENDMSG_RTT);
+
    out.write(msgout);
    std::cerr << "SEND MSG WROTE\n";
 }
-void adapter6(hls::stream<hls::axis<recvmsg_t,1,1,1>> & in,
+void adapter6(hls::stream<ap_axiu<384,1,1,1>> & in,
             hls::stream<recvmsg_t> & out) {
 
-#pragma HLS pipeline 
-   hls::axis<recvmsg_t,1,1,1> i;
-   if (in.read_nb(i)) {
-      out.write(i.data);
-   }
+   ap_axiu<384,1,1,1> i = in.read();
+   recvmsg_t msgout;
+
+   msgout.buffout = i.data(RECVMSG_BUFFOUT);
+   msgout.saddr = i.data(RECVMSG_SADDR);
+   msgout.daddr = i.data(RECVMSG_DADDR); 
+   msgout.sport = i.data(RECVMSG_SPORT);
+   msgout.dport = i.data(RECVMSG_DPORT);
+   msgout.id = i.data(RECVMSG_ID);
+
+   out.write(msgout);
 }
 
 /**
@@ -89,21 +97,30 @@ void adapter6(hls::stream<hls::axis<recvmsg_t,1,1,1>> & in,
  */
 extern "C"{
    void homa(hls::stream<ap_axiu<512,1,1,1>> & sendmsg_i,
-         hls::stream<hls::axis<recvmsg_t,1,1,1>> & recvmsg_i,
-         hls::stream<hls::axis<dma_r_req_t,1,1,1>> & dma_r_req_o,
-         hls::stream<hls::axis<dbuff_in_t,1,1,1>> & dma_r_resp_i,
-         hls::stream<hls::axis<dma_w_req_t,1,1,1>> & dma_w_req_o,
+         hls::stream<ap_axiu<384,1,1,1>> & recvmsg_i,
+         hls::stream<ap_axiu<80,1,1,1>> & dma_r_req_o,
+         hls::stream<ap_axiu<536,1,1,1>> & dma_r_resp_i,
+         hls::stream<ap_axiu<544,1,1,1>> & dma_w_req_o,
          hls::stream<raw_stream_t> & link_ingress,
          hls::stream<raw_stream_t> & link_egress) {
 
       // TODO try "register" "both"
-#pragma HLS interface axis register_mode=both register port=sendmsg_i depth=512
-#pragma HLS interface axis register_mode=both register port=recvmsg_i depth=512
-#pragma HLS interface axis register_mode=both register port=dma_r_req_o depth=512
-#pragma HLS interface axis register_mode=both register port=dma_r_resp_i depth=512
-#pragma HLS interface axis register_mode=both register port=dma_w_req_o depth=512
-#pragma HLS interface axis register_mode=both register port=link_ingress depth=512
-#pragma HLS interface axis register_mode=both register port=link_egress depth=512
+// #pragma HLS interface axis register_mode=both register port=sendmsg_i depth=512
+// #pragma HLS interface axis register_mode=both register port=recvmsg_i depth=512
+// #pragma HLS interface axis register_mode=both register port=dma_r_req_o depth=512
+// #pragma HLS interface axis register_mode=both register port=dma_r_resp_i depth=512
+// #pragma HLS interface axis register_mode=both register port=dma_w_req_o depth=512
+// #pragma HLS interface axis register_mode=both register port=link_ingress depth=512
+// #pragma HLS interface axis register_mode=both register port=link_egress depth=512
+
+#pragma HLS interface axis port=sendmsg_i depth=512
+#pragma HLS interface axis port=recvmsg_i depth=512
+#pragma HLS interface axis port=dma_r_req_o depth=512
+#pragma HLS interface axis port=dma_r_resp_i depth=512
+#pragma HLS interface axis port=dma_w_req_o depth=512
+#pragma HLS interface axis port=link_ingress depth=512
+#pragma HLS interface axis port=link_egress depth=512
+
 
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> homa_sendmsg__dbuff_stack       ("homa_sendmsg__dbuff_stack");
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> dbuff_stack__peer_map           ("dbuff_stack__peer_map");
@@ -168,7 +185,7 @@ extern "C"{
      // hls_thread_local hls::task adapter1_task(adapter1, link_egress_i, link_egress);
      hls_thread_local hls::task adapter2_task(adapter2, dma_r_req_o_o, dma_r_req_o);
      hls_thread_local hls::task adapter3_task(adapter3, dma_r_resp_i, dma_r_resp_a);
-     hls_thread_local hls::task adapter4_task(adapter4, dma_w_req_o, dma_w_req_a);
+     hls_thread_local hls::task adapter4_task(adapter4, dma_w_req_a, dma_w_req_o);
      hls_thread_local hls::task adapter5_task(adapter5, sendmsg_i, sendmsg_a);
      hls_thread_local hls::task adapter6_task(adapter6, recvmsg_i, recvmsg_a);
 

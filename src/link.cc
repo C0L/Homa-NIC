@@ -288,11 +288,12 @@ extern "C"{
       void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
          hls::stream<raw_stream_t> & link_egress) {
          // TODO need to set the TKEEP bits
-         // raw_stream_t raw_stream;
          out_chunk_t chunk = out_chunk_i.read();
          // raw_stream.last = chunk.last;
          // raw_stream.data = chunk.buff.data;
          raw_stream_t raw_stream;
+         raw_stream.data = chunk.buff.data;
+         raw_stream.last = chunk.last;
          link_egress.write(raw_stream);
       }
    }
@@ -321,6 +322,7 @@ extern "C"{
          static in_chunk_t data_block;
 
          raw_stream_t raw_stream = link_ingress.read();
+         std::cerr << "READ BLOCK\n";
 
          ap_uint<512> natural_chunk;
 
@@ -331,7 +333,7 @@ extern "C"{
 
          // For every type of homa packet we need to read at least two blocks
          if (header_in.processed_bytes == 0) {
-
+            std::cerr << "HEADER PART 1\n";
             header_in.processed_bytes += 64;
 
             header_in.payload_length(2*8-1,0) = natural_chunk(8*64 - 18*8-1,8*64 - 20*8);
@@ -339,9 +341,6 @@ extern "C"{
             header_in.daddr(16*8-1,0) = natural_chunk(8*64 - 38*8-1,8*64 - 54*8);
             header_in.sport(2*8-1,0) =  natural_chunk( 8*64 - 54*8-1, 8*64 - 56*8);
             header_in.dport(2*8-1,0) =  natural_chunk( 8*64 - 56*8-1, 8*64 - 58*8);
-
-
-
 
             //header_in.payload_length(2*8-1,) = raw_stream.data.data(18*8-1,20*8);
             //header_in.saddr(16*8-1,0) = raw_stream.data.data(22*8-1,38*8);
@@ -355,6 +354,7 @@ extern "C"{
             //header_in.dport = raw_stream.data.data(463,448);
 
          } else if (header_in.processed_bytes == 64) {
+            std::cerr << "HEADER PART 2\n";
             header_in.processed_bytes += 64;
 
             header_in.type(8-1,0) =  natural_chunk(8*64 - 3*8-1,8*64 - 4*8);        // Packet type
@@ -411,7 +411,7 @@ extern "C"{
                   data_block.last = raw_stream.last;
                   chunk_in_o.write(data_block);
 
-                  // std::cerr << "PARTIAL BLOCK IN\n";
+                  std::cerr << "PARTIAL BLOCK IN\n";
 
                   data_block.offset += 14;
 
@@ -427,7 +427,7 @@ extern "C"{
 
             data_block.last = raw_stream.last;
 
-            //std::cerr << "FULL BLOCK IN \n";
+            std::cerr << "FULL BLOCK IN \n";
             chunk_in_o.write(data_block);
 
             data_block.offset += 64;
