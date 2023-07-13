@@ -10,9 +10,9 @@
  * about the RPC before the packet can be sent
  */
 extern "C"{
-   void egress_selector(hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_i,
-         hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_i,
-         hls::stream<header_t, VERIF_DEPTH> & header_out_o) {
+   void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
+         hls::stream<ap_uint<51>> & grant_pkt_i,
+         hls::stream<header_t> & header_out_o) {
 
 #pragma HLS pipeline II=1 style=flp
 
@@ -63,8 +63,8 @@ extern "C"{
  * this stream to be augmented with data from the data buffer
  */
 extern "C"{
-   void pkt_builder(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
-         hls::stream<out_chunk_t, VERIF_DEPTH> & chunk_out_o) {
+   void pkt_builder(hls::stream<header_t> & header_out_i,
+         hls::stream<out_chunk_t> & chunk_out_o) {
 
       // TODO I am not sure this ping pong would make its way to RTL
 
@@ -286,7 +286,7 @@ extern "C"{
 
    extern "C"{
       void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
-         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress) {
+         hls::stream<raw_stream_t> & link_egress) {
          // TODO need to set the TKEEP bits
          // raw_stream_t raw_stream;
          out_chunk_t chunk = out_chunk_i.read();
@@ -312,9 +312,9 @@ extern "C"{
     * seems simpler
     */
    extern "C"{
-      void pkt_chunk_ingress(hls::stream<raw_stream_t, VERIF_DEPTH> & link_ingress,
-            hls::stream<header_t, VERIF_DEPTH> & header_in_o,
-            hls::stream<in_chunk_t, VERIF_DEPTH> & chunk_in_o) {
+      void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
+            hls::stream<header_t> & header_in_o,
+            hls::stream<in_chunk_t> & chunk_in_o) {
 #pragma HLS pipeline II=1 style=flp
 
          static header_t header_in;

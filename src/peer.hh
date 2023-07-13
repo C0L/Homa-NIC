@@ -41,10 +41,10 @@ struct homa_peer_t {
 
 
 extern "C"{
-void peer_map(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
-	      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
-	      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
-	      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o);
+void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
+	      hls::stream<sendmsg_t> & sendmsg_o,
+	      hls::stream<recvmsg_t> & recvmsg_i,
+	      hls::stream<recvmsg_t> & recvmsg_o);
 }
 
 

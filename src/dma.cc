@@ -5,8 +5,8 @@
  * ...
  */
 extern "C" {
-   void homa_recvmsg(hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
-         hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o) {
+   void homa_recvmsg(hls::stream<recvmsg_t> & recvmsg_i,
+         hls::stream<recvmsg_t> & recvmsg_o) {
       recvmsg_t recvmsg = recvmsg_i.read();
       recvmsg_o.write(recvmsg);
    }
@@ -25,8 +25,8 @@ extern "C" {
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
 extern "C"{
-   void homa_sendmsg(hls::stream<sendmsg_t,VERIF_DEPTH> & sendmsg_i,
-         hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o) {
+   void homa_sendmsg(hls::stream<sendmsg_t> & sendmsg_i,
+         hls::stream<sendmsg_t> & sendmsg_o) {
       sendmsg_t sendmsg = sendmsg_i.read(); 
       // sendmsg.granted = (sendmsg.rtt_bytes > sendmsg.length) ? sendmsg.length : sendmsg.rtt_bytes;
       sendmsg_o.write(sendmsg);
@@ -41,8 +41,8 @@ extern "C"{
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 // void dma_read(
-//       hls::stream<dma_r_req_t, VERIF_DEPTH> & rpc_ingress__dma_read,
-//       hls::stream<dbuff_in_t, VERIF_DEPTH> & dma_requests__dbuff) {
+//       hls::stream<dma_r_req_t> & rpc_ingress__dma_read,
+//       hls::stream<dbuff_in_t> & dma_requests__dbuff) {
 // 
 //    static dma_r_req_t dma_req;
 //    static uint32_t chunk = 0;
@@ -77,7 +77,7 @@ extern "C"{
  */
 //void dma_write(char * maxi,
 //      homa_t homa_cfg,
-//      hls::stream<dma_w_req_t, VERIF_DEPTH> & dbuff_ingress__dma_write) {
+//      hls::stream<dma_w_req_t> & dbuff_ingress__dma_write) {
 //   //TODO this is not really pipelined? 70 cycle layency per req
 //
 //   static uint32_t dma_count = 0;

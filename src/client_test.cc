@@ -11,13 +11,13 @@ extern "C"{
    int main() {
       std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-      hls::stream<raw_stream_t, VERIF_DEPTH> link_ingress;
-      hls::stream<raw_stream_t, VERIF_DEPTH> link_egress;
-      hls::stream<sendmsg_t, VERIF_DEPTH> sendmsg_s;
-      hls::stream<recvmsg_t, VERIF_DEPTH> recvmsg_s;
-      hls::stream<dma_r_req_t, VERIF_DEPTH> dma_r_req_s;
-      hls::stream<dbuff_in_t, VERIF_DEPTH> dma_resp_s;
-      hls::stream<dma_w_req_t, VERIF_DEPTH> dma_w_req_s;
+      hls::stream<raw_stream_t> link_ingress;
+      hls::stream<raw_stream_t> link_egress;
+      hls::stream<ap_axiu<512,1,1,1>, VERIF_DEPTH> sendmsg_s;
+      hls::stream<hls::axis<recvmsg_t,1,1,1>, VERIF_DEPTH> recvmsg_s;
+      hls::stream<hls::axis<dma_r_req_t,1,1,1>, VERIF_DEPTH> dma_r_req_s;
+      hls::stream<hls::axis<dbuff_in_t,1,1,1>, VERIF_DEPTH> dma_resp_s;
+      hls::stream<hls::axis<dma_w_req_t,1,1,1>, VERIF_DEPTH> dma_w_req_s;
 
       sendmsg_t sendmsg;
       recvmsg_t recvmsg;
@@ -49,10 +49,6 @@ extern "C"{
       sendmsg.id = 0;
       sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
       sendmsg.valid = 1;
-
-      sendmsg_s.write(sendmsg);
-      recvmsg_s.write(recvmsg);
-
       std::cerr << "WROTE INPUTS\n";
 
       char maxi_in[128*64];
@@ -61,37 +57,45 @@ extern "C"{
       // Construct a new RPC to ingest  
       homa(sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link_ingress, link_egress);
 
+      ap_axiu<512,1,1,1> sendraw;
+      hls::axis<recvmsg_t,1,1,1> recvraw;
+      // sendraw.data = sendmsg;
+      //sendraw.last = 1;
+      sendmsg_s.write(sendraw);
+      recvmsg_s.write(recvraw);
+
       std::cerr << "CALLED HOMA\n";
 
-      strcpy(maxi_in, data.c_str());
+      // strcpy(maxi_in, data.c_str());
 
       while (maxi_out[2772] == 0) {
-         if (!link_egress.empty()) {
-            std::cerr << "WRITING TO LINK INGRESS\n";
-            link_ingress.write(link_egress.read());
-            std::cerr << "WROTE TO LINK INGRESS\n";
-         }
-
-         if (!dma_r_req_s.empty()) {
-            dma_r_req_t dma_r_req = dma_r_req_s.read(); 
-            std::cerr << "READ READ DMA REQ\n";
-
-            for (int i = 0; i < dma_r_req.length; ++i) {
-               integral_t chunk = *((integral_t*) (maxi_in + dma_r_req.offset + i * 64));
-               dbuff_in_t dbuff_in;
-               dbuff_in = {chunk, dma_r_req.dbuff_id, dma_r_req.offset + i};
-               dbuff_in_t dbuff_in_r;
-               dbuff_in_r = dbuff_in;
-               dma_resp_s.write(dbuff_in_r);
-            }
-         }
-
-         if (!dma_w_req_s.empty()) {
-            std::cerr << "READ WRITE DMA REQ\n";
-            dma_w_req_t dma_w_req = dma_w_req_s.read();
-            *((integral_t*) (maxi_out + dma_w_req.offset)) = dma_w_req.block;
-         }
       }
+      //    //if (!link_egress.empty()) {
+      //    //   std::cerr << "WRITING TO LINK INGRESS\n";
+      //    //   link_ingress.write(link_egress.read());
+      //    //   std::cerr << "WROTE TO LINK INGRESS\n";
+      //    //}
+
+      //    if (!dma_r_req_s.empty()) {
+      //       dma_r_req_t dma_r_req = dma_r_req_s.read(); 
+      //       std::cerr << "READ READ DMA REQ\n";
+
+      //       for (int i = 0; i < dma_r_req.length; ++i) {
+      //          integral_t chunk = *((integral_t*) (maxi_in + dma_r_req.offset + i * 64));
+      //          dbuff_in_t dbuff_in;
+      //          dbuff_in = {chunk, dma_r_req.dbuff_id, dma_r_req.offset + i};
+      //          dbuff_in_t dbuff_in_r;
+      //          dbuff_in_r = dbuff_in;
+      //          dma_resp_s.write(dbuff_in_r);
+      //       }
+      //    }
+
+      //    if (!dma_w_req_s.empty()) {
+      //       std::cerr << "READ WRITE DMA REQ\n";
+      //       dma_w_req_t dma_w_req = dma_w_req_s.read();
+      //       *((integral_t*) (maxi_out + dma_w_req.offset)) = dma_w_req.block;
+      //    }
+      // }
 
       return memcmp(maxi_in, maxi_out, 2772);
    }

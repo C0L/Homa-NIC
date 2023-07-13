@@ -2,16 +2,16 @@
 #include "hashmap.hh"
 #include <iostream>
 extern "C"{
-void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
-      hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o,
-      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
-      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o,
-      hls::stream<header_t, VERIF_DEPTH> & header_out_i, 
-      hls::stream<header_t, VERIF_DEPTH> & header_out_o,
-      hls::stream<header_t, VERIF_DEPTH> & header_in_i,
-      hls::stream<header_t, VERIF_DEPTH> & header_in_dbuff_o,
-      hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_grant_o,
-      hls::stream<header_t, VERIF_DEPTH> & header_in_srpt_o) {
+void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
+      hls::stream<sendmsg_t> & sendmsg_o,
+      hls::stream<recvmsg_t> & recvmsg_i,
+      hls::stream<recvmsg_t> & recvmsg_o,
+      hls::stream<header_t> & header_out_i, 
+      hls::stream<header_t> & header_out_o,
+      hls::stream<header_t> & header_in_i,
+      hls::stream<header_t> & header_in_dbuff_o,
+      hls::stream<ap_uint<58>> & header_in_grant_o,
+      hls::stream<header_t> & header_in_srpt_o) {
 
    static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
    static homa_rpc_t rpcs[MAX_RPCS];
@@ -129,9 +129,9 @@ void rpc_state(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
 }
 
 extern "C"{
-void rpc_map(hls::stream<header_t, VERIF_DEPTH> & header_in_i,
-      hls::stream<header_t, VERIF_DEPTH> & header_in_o,
-      hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i) {
+void rpc_map(hls::stream<header_t> & header_in_i,
+      hls::stream<header_t> & header_in_o,
+      hls::stream<recvmsg_t> & recvmsg_i) {
 
    static hashmap_t<rpc_hashpack_t, rpc_id_t, RPC_SUB_TABLE_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE, MAX_OPS> hashmap;
 

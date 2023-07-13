@@ -9,10 +9,10 @@
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
 // extern "C"{
-void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
-      hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_i,
-      hls::stream<ready_data_pkt_t, VERIF_DEPTH> & data_pkt_o,
-      hls::stream<header_t, VERIF_DEPTH> & header_in_i) {
+void srpt_data_pkts(hls::stream<sendmsg_t> & sendmsg_i,
+      hls::stream<dbuff_notif_t> & dbuff_notif_i,
+      hls::stream<ready_data_pkt_t> & data_pkt_o,
+      hls::stream<header_t> & header_in_i) {
 
    static srpt_data_t entries[MAX_RPCS];
    static ap_uint<32> grants[MAX_RPCS]; 
@@ -84,8 +84,8 @@ void srpt_data_pkts(hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_i,
  *
  */
 //extern "C"{
-void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
-      hls::stream<ap_uint<51>, VERIF_DEPTH> & grant_pkt_o) {
+void srpt_grant_pkts(hls::stream<ap_uint<58>> & header_in_i,
+      hls::stream<ap_uint<51>> & grant_pkt_o) {
 
    // TODO testing to get rid of warning. Should have no effect
 #pragma HLS pipeline style=flp
@@ -158,7 +158,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
       if (next_grant.recv_pkts > 0 && next_grant.rpc_id != 0) {
          ap_uint<51> grant_pkt;
 
-         if (next_grant.recv_pkts > avail_pkts && grant_pkt_o.size() < VERIF_DEPTH) {
+         if (next_grant.recv_pkts > avail_pkts) {
             // Just send avail_pkts of data
 
             entries[(next_grant.rpc_id >> 1) - 1].recv_pkts -= avail_pkts;
@@ -172,7 +172,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>, VERIF_DEPTH> & header_in_i,
 
             grant_pkt_o.write(grant_pkt);
 
-         } else if (grant_pkt_o.size() < VERIF_DEPTH) { 
+         } else { 
             // Is this going to result in a fully granted message?
             if ((next_grant.grantable_pkts - next_grant.recv_pkts) == 0) { 
                entries[(next_grant.rpc_id >> 1) - 1] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF}; 
