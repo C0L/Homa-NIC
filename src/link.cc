@@ -53,6 +53,7 @@ extern "C"{
       } 
    }
 }
+
 /**
  * pkt_chunk_egress() - Take in the packet header data and output
  * structured 64 byte chunks of that packet. Chunks requiring message
@@ -62,7 +63,7 @@ extern "C"{
  * this stream to be augmented with data from the data buffer
  */
 extern "C"{
-   void pkt_chunk_egress(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
+   void pkt_builder(hls::stream<header_t, VERIF_DEPTH> & header_out_i,
          hls::stream<out_chunk_t, VERIF_DEPTH> & chunk_out_o) {
 
       // TODO I am not sure this ping pong would make its way to RTL
@@ -262,7 +263,6 @@ extern "C"{
          header_out.processed_bytes += 64;
 
          if (header_out.processed_bytes >= header_out.packet_bytes) {
-            std::cerr << "processed_bytes " << header_out.processed_bytes << " packet_bytes " << header_out.packet_bytes << std::endl;
             header_out.valid = 0;
             out_chunk.last = 1;
             doublebuff[r_pkt].valid = 0; // TODO maybe not needed?
@@ -276,10 +276,24 @@ extern "C"{
             out_chunk.buff.data(512 - (i*8) - 1, 512 - 8 - (i*8)) = natural_chunk(7 + (i*8), (i*8));
          }
 
-         //out_chunk.buff.data = natural_chunk;
-         std::cerr << header_out.processed_bytes << std::endl;
+
          chunk_out_o.write(out_chunk);
       }
+
+
+      }
+   }
+
+   extern "C"{
+      void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
+         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress) {
+         // TODO need to set the TKEEP bits
+         // raw_stream_t raw_stream;
+         out_chunk_t chunk = out_chunk_i.read();
+         // raw_stream.last = chunk.last;
+         // raw_stream.data = chunk.buff.data;
+         raw_stream_t raw_stream;
+         link_egress.write(raw_stream);
       }
    }
 
@@ -306,128 +320,123 @@ extern "C"{
          static header_t header_in;
          static in_chunk_t data_block;
 
-         // raw_stream_t raw_stream;
-         // if (!link_ingress.empty()) {
-            // raw_stream = link_ingress.read();
-            raw_stream_t raw_stream = link_ingress.read();
-            std::cerr << "PROCESSED BYTES: " << header_in.processed_bytes << std::endl;
+         raw_stream_t raw_stream = link_ingress.read();
 
-            ap_uint<512> natural_chunk;
+         ap_uint<512> natural_chunk;
 
-            for (int i = 0; i < 64; ++i) {
+         for (int i = 0; i < 64; ++i) {
 #pragma hls unroll
-               natural_chunk(512 - (i*8) - 1, 512 - 8 - (i*8)) = raw_stream.data(7 + (i*8), (i*8));
-            }
+            natural_chunk(512 - (i*8) - 1, 512 - 8 - (i*8)) = raw_stream.data(7 + (i*8), (i*8));
+         }
 
-            // For every type of homa packet we need to read at least two blocks
-            if (header_in.processed_bytes == 0) {
+         // For every type of homa packet we need to read at least two blocks
+         if (header_in.processed_bytes == 0) {
 
-               header_in.processed_bytes += 64;
+            header_in.processed_bytes += 64;
 
-               header_in.payload_length(2*8-1,0) = natural_chunk(8*64 - 18*8-1,8*64 - 20*8);
-               header_in.saddr(16*8-1,0) = natural_chunk(8*64 - 22*8-1,8*64 - 38*8);
-               header_in.daddr(16*8-1,0) = natural_chunk(8*64 - 38*8-1,8*64 - 54*8);
-               header_in.sport(2*8-1,0) =  natural_chunk( 8*64 - 54*8-1, 8*64 - 56*8);
-               header_in.dport(2*8-1,0) =  natural_chunk( 8*64 - 56*8-1, 8*64 - 58*8);
-
-
+            header_in.payload_length(2*8-1,0) = natural_chunk(8*64 - 18*8-1,8*64 - 20*8);
+            header_in.saddr(16*8-1,0) = natural_chunk(8*64 - 22*8-1,8*64 - 38*8);
+            header_in.daddr(16*8-1,0) = natural_chunk(8*64 - 38*8-1,8*64 - 54*8);
+            header_in.sport(2*8-1,0) =  natural_chunk( 8*64 - 54*8-1, 8*64 - 56*8);
+            header_in.dport(2*8-1,0) =  natural_chunk( 8*64 - 56*8-1, 8*64 - 58*8);
 
 
-               //header_in.payload_length(2*8-1,) = raw_stream.data.data(18*8-1,20*8);
-               //header_in.saddr(16*8-1,0) = raw_stream.data.data(22*8-1,38*8);
-               //header_in.daddr(16*8-1,0) = raw_stream.data.data(38*8-1,54*8);
-               //header_in.sport(2*8-1,0) = raw_stream.data.data(54*8-1, 56*8);
-               //header_in.dport(2*8-1,0) = raw_stream.data.data(56*8-1, 58*8);
-
-               //header_in.saddr = raw_stream.data.data(303,176);
-               //header_in.daddr = raw_stream.data.data(431,304);
-               //header_in.sport = raw_stream.data.data(447,432);
-               //header_in.dport = raw_stream.data.data(463,448);
-
-            } else if (header_in.processed_bytes == 64) {
-               header_in.processed_bytes += 64;
-
-               header_in.type(8-1,0) =  natural_chunk(8*64 - 3*8-1,8*64 - 4*8);        // Packet type
-               header_in.sender_id(8*8-1,0) = natural_chunk(8*64 - 10*8-1,  8*64 - 18*8); // Sender RPC ID
-               header_in.sender_id = LOCALIZE_ID(header_in.sender_id);
-
-               header_in.valid = 1;
-
-               switch(header_in.type) {
-                  case GRANT: {
-
-                     // TODO
-                     // Grant header
-                     //header_in.offset = raw_stream.data.data(175, 144);   // Byte offset of grant
-                     //header_in.priority = raw_stream.data.data(183, 176); // TODO priority
 
 
-                     //header_in.data_offset(4*8-1,0) = header_in.sender_id( 8*64 - 18*8, 8*64 - 22*8-1);
+            //header_in.payload_length(2*8-1,) = raw_stream.data.data(18*8-1,20*8);
+            //header_in.saddr(16*8-1,0) = raw_stream.data.data(22*8-1,38*8);
+            //header_in.daddr(16*8-1,0) = raw_stream.data.data(38*8-1,54*8);
+            //header_in.sport(2*8-1,0) = raw_stream.data.data(54*8-1, 56*8);
+            //header_in.dport(2*8-1,0) = raw_stream.data.data(56*8-1, 58*8);
 
-                     break;
-                  }
+            //header_in.saddr = raw_stream.data.data(303,176);
+            //header_in.daddr = raw_stream.data.data(431,304);
+            //header_in.sport = raw_stream.data.data(447,432);
+            //header_in.dport = raw_stream.data.data(463,448);
 
-                  case DATA: {
-                     header_in.message_length(4*8-1,0) = natural_chunk(8*64 - 18*8-1,8*64 - 22*8);
-                     header_in.incoming(4*8-1,0) =  natural_chunk(8*64 - 22*8-1,8*64 - 26*8) ; 
-                     header_in.data_offset(4*8-1,0) = natural_chunk(8*64 - 30*8-1,8*64 - 34*8)  ;
-                     header_in.segment_length(4*8-1,0) = (8*64 - 34*8-1,8*64 - 38*8)  ;
+         } else if (header_in.processed_bytes == 64) {
+            header_in.processed_bytes += 64;
 
-                     std::cerr << "READ NEW PACKET: " << header_in.data_offset << std::endl;
+            header_in.type(8-1,0) =  natural_chunk(8*64 - 3*8-1,8*64 - 4*8);        // Packet type
+            header_in.sender_id(8*8-1,0) = natural_chunk(8*64 - 10*8-1,  8*64 - 18*8); // Sender RPC ID
+            header_in.sender_id = LOCALIZE_ID(header_in.sender_id);
 
-                     //header_in.message_length = raw_stream.data.data(175, 144); // Message Length (entire message)
-                     //header_in.incoming = raw_stream.data.data(207, 176); // Expected Incoming Bytes
-                     //header_in.data_offset = raw_stream.data.data(263, 232); // Offset in message of segment
-                     //header_in.segment_length = raw_stream.data.data(295, 264); // Segment Length
+            header_in.valid = 1;
 
-                     // TODO parse acks
+            switch(header_in.type) {
+               case GRANT: {
 
-                     //std::cerr << "READ PARTIAL BLOCK\n";
-                     //for (int i = 0; i < 64; ++i) {
-                     //  printf("%02x", (unsigned char) raw_stream.data.data((i+1)*8 - 1,i*8));
-                     //}
-                     //std::cerr << std::endl;
+                  // TODO
+                  // Grant header
+                  //header_in.offset = raw_stream.data.data(175, 144);   // Byte offset of grant
+                  //header_in.priority = raw_stream.data.data(183, 176); // TODO priority
 
-                     //out_chunk.buff.data(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
-                     data_block.buff.data(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
-                     //data_block.buff.data(511, 512-PARTIAL_DATA*8) = raw_stream.data.data(511, 512-PARTIAL_DATA*8);
 
-                     //std::cerr << "DATA BLOCK\n";
-                     //for (int i = 0; i < 64; ++i) {
-                     //  printf("%02x", (unsigned char) data_block.buff.data((i+1)*8 - 1,i*8));
-                     //}
-                     //std::cerr << std::endl;
+                  //header_in.data_offset(4*8-1,0) = header_in.sender_id( 8*64 - 18*8, 8*64 - 22*8-1);
 
-                     data_block.last = raw_stream.last;
-                     chunk_in_o.write(data_block);
-
-                     // std::cerr << "PARTIAL BLOCK IN\n";
-
-                     data_block.offset += 14;
-
-                     break;
-                  }
+                  break;
                }
 
-               header_in_o.write(header_in);
-            } else {
+               case DATA: {
+                  header_in.message_length(4*8-1,0) = natural_chunk(8*64 - 18*8-1,8*64 - 22*8);
+                  header_in.incoming(4*8-1,0) =  natural_chunk(8*64 - 22*8-1,8*64 - 26*8) ; 
+                  header_in.data_offset(4*8-1,0) = natural_chunk(8*64 - 30*8-1,8*64 - 34*8)  ;
+                  header_in.segment_length(4*8-1,0) = (8*64 - 34*8-1,8*64 - 38*8)  ;
 
-               // TODO need to test TKEEP and change raw_stream def
-               data_block.buff.data = raw_stream.data;
+                  std::cerr << "READ NEW PACKET: " << header_in.data_offset << std::endl;
 
-               data_block.last = raw_stream.last;
+                  //header_in.message_length = raw_stream.data.data(175, 144); // Message Length (entire message)
+                  //header_in.incoming = raw_stream.data.data(207, 176); // Expected Incoming Bytes
+                  //header_in.data_offset = raw_stream.data.data(263, 232); // Offset in message of segment
+                  //header_in.segment_length = raw_stream.data.data(295, 264); // Segment Length
 
-               //std::cerr << "FULL BLOCK IN \n";
-               chunk_in_o.write(data_block);
+                  // TODO parse acks
 
-               data_block.offset += 64;
+                  //std::cerr << "READ PARTIAL BLOCK\n";
+                  //for (int i = 0; i < 64; ++i) {
+                  //  printf("%02x", (unsigned char) raw_stream.data.data((i+1)*8 - 1,i*8));
+                  //}
+                  //std::cerr << std::endl;
+
+                  //out_chunk.buff.data(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
+                  data_block.buff.data(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
+                  //data_block.buff.data(511, 512-PARTIAL_DATA*8) = raw_stream.data.data(511, 512-PARTIAL_DATA*8);
+
+                  //std::cerr << "DATA BLOCK\n";
+                  //for (int i = 0; i < 64; ++i) {
+                  //  printf("%02x", (unsigned char) data_block.buff.data((i+1)*8 - 1,i*8));
+                  //}
+                  //std::cerr << std::endl;
+
+                  data_block.last = raw_stream.last;
+                  chunk_in_o.write(data_block);
+
+                  // std::cerr << "PARTIAL BLOCK IN\n";
+
+                  data_block.offset += 14;
+
+                  break;
+               }
             }
 
-            if (raw_stream.last) {
-               std::cerr << "IN STREAM LAST!!!\n";
-               data_block.offset = 0;
-               header_in.processed_bytes = 0;
-            }
+            header_in_o.write(header_in);
+         } else {
+
+            // TODO need to test TKEEP and change raw_stream def
+            data_block.buff.data = raw_stream.data;
+
+            data_block.last = raw_stream.last;
+
+            //std::cerr << "FULL BLOCK IN \n";
+            chunk_in_o.write(data_block);
+
+            data_block.offset += 64;
          }
-      // }
+
+         if (raw_stream.last) {
+            std::cerr << "IN STREAM LAST!!!\n";
+            data_block.offset = 0;
+            header_in.processed_bytes = 0;
+         }
+      }
    }

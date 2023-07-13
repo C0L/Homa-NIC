@@ -9,22 +9,16 @@ extern "C"{
 
       static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
-      sendmsg_t sendmsg;
-      if (!sendmsg_i.empty()) {
-         sendmsg = sendmsg_i.read();
-         sendmsg.dbuff_id = dbuff_stack.pop();
+      sendmsg_t sendmsg = sendmsg_i.read();
+      sendmsg.dbuff_id = dbuff_stack.pop();
 
-         uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
-         if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
+      uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
+      if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
 
-         dma_r_req_t dma_r_req;
-         dma_r_req = {sendmsg.buffin, num_chunks, sendmsg.dbuff_id};
-         dma_r_req_t dma_r_req_r;
-         dma_r_req_r = dma_r_req;
-         dma_read_o.write(dma_r_req_r);
+      dma_r_req_t dma_r_req = {sendmsg.buffin, num_chunks, sendmsg.dbuff_id};
+      dma_read_o.write(dma_r_req);
 
-         sendmsg_o.write(sendmsg);
-      }
+      sendmsg_o.write(sendmsg);
    }
 }
 
@@ -78,6 +72,7 @@ extern "C"{
       } 
    }
 }
+
 /**
  * dbuff_egress() - Augment outgoing packet chunks with packet data
  * @dbuff_egress_i - Input stream of data that needs to be inserted into the on-chip
@@ -96,7 +91,7 @@ extern "C"{
    void dbuff_egress(hls::stream<dbuff_in_t, VERIF_DEPTH> & dbuff_egress_i,
          hls::stream<dbuff_notif_t, VERIF_DEPTH> & dbuff_notif_o,
          hls::stream<out_chunk_t, VERIF_DEPTH> & out_chunk_i,
-         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress) {
+         hls::stream<out_chunk_t, VERIF_DEPTH> & out_chunk_o) {
 
 #pragma HLS pipeline II=1 style=flp
 
@@ -156,22 +151,12 @@ extern "C"{
             }
          } 
 
-         raw_stream.last = out_chunk.last;
+         out_chunk_o.write(out_chunk);
+         // raw_stream.last = out_chunk.last;
 
-         raw_stream.data = out_chunk.buff.data;
-
-         // std::cerr << "WRITE BLOCK\n";
-         //for (int i = 0; i < 64; ++i) {
-         //   printf("%02x", (unsigned char) out_chunk.buff.data((i+1)*8 - 1,i*8));
-         //}
-         //std::cerr << std::endl;
-         //
+         // raw_stream.data = out_chunk.buff.data;
 
          // link_egress.write(raw_stream);
       }
-   
-      raw_stream_t raw_stream;
-      link_egress.write(raw_stream);
    }
-
 }

@@ -50,15 +50,6 @@ extern "C"{
       sendmsg.completion_cookie = 0xFFFFFFFFFFFFFFFF;
       sendmsg.valid = 1;
 
-      //   hls::axis<sendmsg_t,0,0,0> sendmsg_r;
-      //   sendmsg_r.data = sendmsg;
-      //
-      //   hls::axis<recvmsg_t,0,0,0> recvmsg_r;
-      //   recvmsg_r.data = recvmsg;
-      //
-      //   raw_stream_t dummy_send;
-      //   raw_stream_t dummy_recv;
-
       sendmsg_s.write(sendmsg);
       recvmsg_s.write(recvmsg);
 

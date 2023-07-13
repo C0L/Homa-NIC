@@ -90,7 +90,8 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  * This defines an actual axi stream type, in contrast to the internal streams
  * which are all ap_fifo types. The actual data that will be passed by this
  * stream is 512 bit chunks.
- * TODO currently no side-channels are used
+ * 
+ * Need to leave side-channel signals enabled to avoid linker error
  */
 // typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 // typedef ap_uint<512> raw_stream_t;

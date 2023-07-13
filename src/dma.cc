@@ -5,17 +5,13 @@
  * ...
  */
 extern "C" {
-void homa_recvmsg(hls::stream<recvmsg_t,VERIF_DEPTH> & recvmsg_i,
-                  hls::stream<recvmsg_t,VERIF_DEPTH> & recvmsg_o) {
-   // TODO this used to perform some actual functions. Will keep this here
-   std::cerr << "DMA CHECK\n";
-   // until it for sure is no longer needed
-   if (!recvmsg_i.empty()) {
+   void homa_recvmsg(hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_i,
+         hls::stream<recvmsg_t, VERIF_DEPTH> & recvmsg_o) {
       recvmsg_t recvmsg = recvmsg_i.read();
       recvmsg_o.write(recvmsg);
    }
 }
-}
+
 /* TODO This is not outdated
  * sendmsg() - Injests new RPCs and homa configurations into the
  * homa processor. Manages the databuffer IDs, as those must be generated before
@@ -29,14 +25,13 @@ void homa_recvmsg(hls::stream<recvmsg_t,VERIF_DEPTH> & recvmsg_i,
  * @new_rpc_o    - Output for the next step of the new_rpc injestion
  */
 extern "C"{
-void homa_sendmsg(hls::stream<sendmsg_t,VERIF_DEPTH> & sendmsg_i,
-                  hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o) {
-   if (!sendmsg_i.empty()) {
+   void homa_sendmsg(hls::stream<sendmsg_t,VERIF_DEPTH> & sendmsg_i,
+         hls::stream<sendmsg_t, VERIF_DEPTH> & sendmsg_o) {
       sendmsg_t sendmsg = sendmsg_i.read(); 
-      sendmsg.granted = (sendmsg.rtt_bytes > sendmsg.length) ? sendmsg.length : sendmsg.rtt_bytes;
+      // sendmsg.granted = (sendmsg.rtt_bytes > sendmsg.length) ? sendmsg.length : sendmsg.rtt_bytes;
       sendmsg_o.write(sendmsg);
+      std::cerr << "SENT MESSAGE\n";
    }
-}
 }
 
 // TODO MOVING TO A SEPERATE CORE
