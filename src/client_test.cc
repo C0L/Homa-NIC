@@ -51,7 +51,7 @@ extern "C"{
       sendmsg(SENDMSG_ID) = 0;
       sendmsg(SENDMSG_CC) = 0xFFFFFFFFFFFFFFFF;
       sendmsg(SENDMSG_RTT) = 60000;
-      std::cerr << "WROTE INPUTS\n";
+      // std::cerr << "WROTE INPUTS\n";
 
       char maxi_in[128*64];
       char maxi_out[128*64];
@@ -62,15 +62,15 @@ extern "C"{
       sendmsg_s.write(sendmsg);
       recvmsg_s.write(recvmsg);
 
-      std::cerr << "CALLED HOMA\n";
+      // std::cerr << "CALLED HOMA\n";
 
       strcpy(maxi_in, data.c_str());
 
       while (maxi_out[2772] == 0) {
          if (!link_egress.empty()) {
-            std::cerr << "WRITING TO LINK INGRESS\n";
+            // std::cerr << "WRITING TO LINK INGRESS\n";
             link_ingress.write(link_egress.read());
-            std::cerr << "WROTE TO LINK INGRESS\n";
+            // std::cerr << "WROTE TO LINK INGRESS\n";
          }
 
          if (!dma_r_req_s.empty()) {
@@ -87,9 +87,9 @@ extern "C"{
          }
 
          if (!dma_w_req_s.empty()) {
-            std::cerr << "READ WRITE DMA REQ\n";
+            // std::cerr << "READ WRITE DMA REQ\n";
             ap_uint<544> dma_w_req = dma_w_req_s.read();
-            std::cerr << "OFFSET " << ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET)) << std::endl;
+            // std::cerr << "OFFSET " << ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET)) << std::endl;
             (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))).data = dma_w_req(DMA_W_REQ_BLOCK);
          }
       }

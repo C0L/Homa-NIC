@@ -18,7 +18,7 @@
  */
 // #define VERIF_DEPTH 128
 
-#define VERIF_DEPTH 128
+#define VERIF_DEPTH 2 
 
 /* Reduces the size of some parameters for faster compilation/testing */
 #define DEBUG
