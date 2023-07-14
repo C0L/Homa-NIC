@@ -3,12 +3,10 @@
 
 #include <iostream>
 
-// extern "C"{
 #include "ap_int.h"
 #include "ap_axi_sdata.h"
 #include "hls_task.h"
 #include "hls_stream.h"
-//}
 
 /* HLS Configuration */ 
 
@@ -18,6 +16,8 @@
  * through the execution of the testbench. This should not effect the actual
  * generation of the RTL however 
  */
+// #define VERIF_DEPTH 128
+
 #define VERIF_DEPTH 128
 
 /* Reduces the size of some parameters for faster compilation/testing */
@@ -35,9 +35,7 @@
 #define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
 
 
-
 /* SRPT Configuration */
-
 #ifndef DEBUG 
 #define MAX_SRPT 1024
 #else
@@ -76,14 +74,47 @@
 
 
 /* Peer Tab Configuration */
-#define MAX_PEERS_LOG2 14
+
+#ifndef DEBUG 
+#define MAX_PEERS_LOG2 16
+#define MAX_PEERS 16384
+#define PEER_SUB_TABLE_SIZE 16384
+#define PEER_SUB_TABLE_INDEX 14
+#else
+#define MAX_PEERS_LOG2 3
+#define MAX_PEERS 2
+#define PEER_SUB_TABLE_SIZE 2
+#define PEER_SUB_TABLE_INDEX 1
+#endif
+
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
+
+// #define NUM_PEER_UNACKED_IDS 5
+
+#define PEER_HP_SIZE 4
 
 
 /* RPC Store Configuration */
 // To index all the RPCs, we need LOG2 of the max number of RPCs
-#define MAX_RPCS_LOG2 14
+
+#ifndef DEBUG 
+#define MAX_RPCS_LOG2 16 // TODO 15 bc of shift??
+#define MAX_RPCS 16384
+#define RPC_SUB_TABLE_SIZE 16384
+#define RPC_SUB_TABLE_INDEX 14
+#define MAX_OPS 64
+#else
+#define MAX_RPCS_LOG2 3
+#define MAX_RPCS 2
+#define RPC_SUB_TABLE_SIZE 2
+#define RPC_SUB_TABLE_INDEX 1
+#define MAX_OPS 64
+#endif
+
 typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
+
+#define RPC_HP_SIZE 7
+
 
 /* Link Configuration */
 /* 
@@ -93,25 +124,29 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  * 
  * Need to leave side-channel signals enabled to avoid linker error
  */
-typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
-
-//typedef struct {
-//   ap_uint<512> data; 
-//   ap_uint<1> last;
-//} raw_stream_t;
+// typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+typedef ap_uint<513> raw_stream_t;
 
 /* Homa Kernel Configuration */
 
 // TODO organize this and make some of this runtime configurable
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
+
 #define IPV6_HEADER_LENGTH 40
+
 #define HOMA_ETH_OVERHEAD 24
+
 #define HOMA_MIN_PKT_LENGTH 26
+
 #define HOMA_MAX_HEADER 90
+
 #define ETHERNET_MAX_PAYLOAD 1500
+
 #define HOMA_MAX_PRIORITIES 8
+
 #define RTT_PKTS 44
+
 #define OVERCOMMIT_PKTS 352
 
 // Number of bytes in ethernet + ipv6 + data header
@@ -134,7 +169,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define NEED_ACK 0x17
 #define ACK      0x18
 
-// Central internal 64B chunk of data (for streams in, out, storing data internally...etc)
+// Internal 64B chunk of data (for streams in, out, storing data internally...etc)
 struct integral_t {
    ap_uint<512> data;
 };
@@ -143,10 +178,20 @@ struct integral_t {
 
 /* Data Buffer Configuration */
 
+#ifndef DEBUG 
 // Number of data buffers (max outgoing RPCs)
 #define NUM_DBUFF 1024 
 // Index into the data buffers
 #define DBUFF_INDEX 10 
+#else
+// Number of data buffers (max outgoing RPCs)
+// #define NUM_DBUFF 1024 
+#define NUM_DBUFF 2
+// Index into the data buffers
+// #define DBUFF_INDEX 10 
+#define DBUFF_INDEX 1
+#endif
+
 // Size of a "chunk" of a data buffer
 #define DBUFF_CHUNK_SIZE 64  
 // Number of "chunks" in one buffer
@@ -306,7 +351,7 @@ struct sendmsg_t {
 struct recvmsg_t {
 #define RECVMSG_BUFFOUT 31,0
    ap_uint<32> buffout; // Offset in DMA space for output
-                        
+
 #define RECVMSG_SADDR 159,32
    ap_uint<128> saddr; // Sender address
 #define RECVMSG_DADDR 287,160
@@ -316,10 +361,10 @@ struct recvmsg_t {
    ap_uint<16> sport; // Sender port
 #define RECVMSG_DPORT 319,304
    ap_uint<16> dport; // Destination port
-                      
+
 #define RECVMSG_ID 383,320
    ap_uint<64> id; // RPC specified by caller
-                   
+
    // Internal use
    rpc_id_t local_id; // Local RPC ID 
    peer_id_t peer_id; // Local ID for this peer
@@ -420,8 +465,6 @@ struct dma_w_req_t {
    integral_t block;
 };
 
-
-
 const ap_uint<16> ETHERTYPE_IPV6 = 0x86DD;
 const ap_uint<48> MAC_DST = 0xAAAAAAAAAAAA;
 const ap_uint<48> MAC_SRC = 0xBBBBBBBBBBBB;
@@ -501,20 +544,12 @@ struct fifo_t {
 };
 
 extern "C"{
-void homa(hls::stream<ap_axiu<512,1,1,1>> & sendmsg_i,
-         hls::stream<ap_axiu<384,1,1,1>> & recvmsg_i,
-         hls::stream<ap_axiu<80,1,1,1>> & dma_r_req_o,
-         hls::stream<ap_axiu<536,1,1,1>> & dma_r_resp_i,
-         hls::stream<ap_axiu<544,1,1,1>> & dma_w_req_o,
-         hls::stream<raw_stream_t> & link_ingress,
-         hls::stream<raw_stream_t> & link_egress);
-
-//void homa(hls::stream<sendmsg_t> & sendmsg_i,
-//      hls::stream<recvmsg_t> & recvmsg_i,
-//      hls::stream<dma_r_req_t> & dma_r_req_o,
-//      hls::stream<dbuff_in_t> & dma_r_resp_i,
-//      hls::stream<dma_w_req_t> & dma_w_req_o,
-//      hls::stream<raw_stream_t> & link_ingress,
-//      hls::stream<raw_stream_t> & link_egress);
+   void homa(hls::stream<ap_uint<512>, VERIF_DEPTH> & sendmsg_i,
+         hls::stream<ap_uint<384>, VERIF_DEPTH> & recvmsg_i,
+         hls::stream<ap_uint<80>, VERIF_DEPTH> & dma_r_req_o,
+         hls::stream<ap_uint<536>, VERIF_DEPTH> & dma_r_resp_i,
+         hls::stream<ap_uint<544>, VERIF_DEPTH> & dma_w_req_o,
+         hls::stream<raw_stream_t, VERIF_DEPTH> & link_ingress,
+         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress);
 }
 #endif

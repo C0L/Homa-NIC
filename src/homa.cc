@@ -17,73 +17,73 @@
 using namespace std;
 
 void adapter2(hls::stream<dma_r_req_t> & in, 
-         hls::stream<ap_axiu<80,1,1,1>> & out) {
+         hls::stream<ap_uint<80>> & out) {
   
    dma_r_req_t i = in.read(); 
 
-   ap_axiu<80,1,1,1> msgout;
-   msgout.data(DMA_R_REQ_OFFSET)   = i.offset;
-   msgout.data(DMA_R_REQ_LENGTH)   = i.length;
-   msgout.data(DMA_R_REQ_DBUFF_ID) = i.dbuff_id;
+   ap_uint<80> msgout;
+   msgout(DMA_R_REQ_OFFSET)   = i.offset;
+   msgout(DMA_R_REQ_LENGTH)   = i.length;
+   msgout(DMA_R_REQ_DBUFF_ID) = i.dbuff_id;
 
    out.write(msgout);
 }
 
-void adapter3(hls::stream<ap_axiu<536,1,1,1>> & in,
+void adapter3(hls::stream<ap_uint<536>> & in,
             hls::stream<dbuff_in_t> & out) {
 
-   ap_axiu<536,1,1,1> i = in.read();
+   ap_uint<536> i = in.read();
    dbuff_in_t msgout;
    
-   msgout.block.data  = i.data(DBUFF_IN_DATA);
-   msgout.dbuff_id    = i.data(DBUFF_IN_ID);
-   msgout.dbuff_chunk = i.data(DBUFF_IN_CHUNK);
+   msgout.block.data  = i(DBUFF_IN_DATA);
+   msgout.dbuff_id    = i(DBUFF_IN_ID);
+   msgout.dbuff_chunk = i(DBUFF_IN_CHUNK);
 
    out.write(msgout);
 }
 
 void adapter4(hls::stream<dma_w_req_t> & in,
-      hls::stream<ap_axiu<544,1,1,1>> & out) {
+      hls::stream<ap_uint<544>> & out) {
 
    dma_w_req_t i = in.read();
-   ap_axiu<544,1,1,1> msgout;
-   msgout.data(DMA_W_REQ_OFFSET) = i.offset;
-   msgout.data(DMA_W_REQ_BLOCK)  = i.block.data;
+   ap_uint<544> msgout;
+   msgout(DMA_W_REQ_OFFSET) = i.offset;
+   msgout(DMA_W_REQ_BLOCK)  = i.block.data;
    out.write(msgout);
 }
 
-void adapter5(hls::stream<ap_axiu<512,1,1,1>> & in,
+void adapter5(hls::stream<ap_uint<512>> & in,
             hls::stream<sendmsg_t> & out) {
 
-   ap_axiu<512,1,1,1> i = in.read();
+   ap_uint<512> i = in.read();
 
    std::cerr << "SEND MSG READ\n";
    sendmsg_t msgout;
-   msgout.buffin = i.data(SENDMSG_BUFFIN);
-   msgout.length = i.data(SENDMSG_LENGTH);
-   msgout.saddr = i.data(SENDMSG_SADDR);
-   msgout.daddr = i.data(SENDMSG_DADDR);
-   msgout.sport = i.data(SENDMSG_SPORT);
-   msgout.dport = i.data(SENDMSG_DPORT);
-   msgout.id = i.data(SENDMSG_ID);
-   msgout.completion_cookie = i.data(SENDMSG_CC);
-   msgout.rtt_bytes = i.data(SENDMSG_RTT);
+   msgout.buffin = i(SENDMSG_BUFFIN);
+   msgout.length = i(SENDMSG_LENGTH);
+   msgout.saddr = i(SENDMSG_SADDR);
+   msgout.daddr = i(SENDMSG_DADDR);
+   msgout.sport = i(SENDMSG_SPORT);
+   msgout.dport = i(SENDMSG_DPORT);
+   msgout.id = i(SENDMSG_ID);
+   msgout.completion_cookie = i(SENDMSG_CC);
+   msgout.rtt_bytes = i(SENDMSG_RTT);
 
    out.write(msgout);
    std::cerr << "SEND MSG WROTE\n";
 }
-void adapter6(hls::stream<ap_axiu<384,1,1,1>> & in,
+void adapter6(hls::stream<ap_uint<384>> & in,
             hls::stream<recvmsg_t> & out) {
 
-   ap_axiu<384,1,1,1> i = in.read();
+   ap_uint<384> i = in.read();
    recvmsg_t msgout;
 
-   msgout.buffout = i.data(RECVMSG_BUFFOUT);
-   msgout.saddr = i.data(RECVMSG_SADDR);
-   msgout.daddr = i.data(RECVMSG_DADDR); 
-   msgout.sport = i.data(RECVMSG_SPORT);
-   msgout.dport = i.data(RECVMSG_DPORT);
-   msgout.id = i.data(RECVMSG_ID);
+   msgout.buffout = i(RECVMSG_BUFFOUT);
+   msgout.saddr = i(RECVMSG_SADDR);
+   msgout.daddr = i(RECVMSG_DADDR); 
+   msgout.sport = i(RECVMSG_SPORT);
+   msgout.dport = i(RECVMSG_DPORT);
+   msgout.id = i(RECVMSG_ID);
 
    out.write(msgout);
 }
@@ -96,23 +96,17 @@ void adapter6(hls::stream<ap_axiu<384,1,1,1>> & in,
  * @dma:   DMA memory space pointer
  */
 extern "C"{
-   void homa(hls::stream<ap_axiu<512,1,1,1>> & sendmsg_i,
-         hls::stream<ap_axiu<384,1,1,1>> & recvmsg_i,
-         hls::stream<ap_axiu<80,1,1,1>> & dma_r_req_o,
-         hls::stream<ap_axiu<536,1,1,1>> & dma_r_resp_i,
-         hls::stream<ap_axiu<544,1,1,1>> & dma_w_req_o,
-         hls::stream<raw_stream_t> & link_ingress,
-         hls::stream<raw_stream_t> & link_egress) {
+   void homa(hls::stream<ap_uint<512>, VERIF_DEPTH> & sendmsg_i,
+         hls::stream<ap_uint<384>, VERIF_DEPTH> & recvmsg_i,
+         hls::stream<ap_uint<80>, VERIF_DEPTH> & dma_r_req_o,
+         hls::stream<ap_uint<536>, VERIF_DEPTH> & dma_r_resp_i,
+         hls::stream<ap_uint<544>, VERIF_DEPTH> & dma_w_req_o,
+         hls::stream<raw_stream_t, VERIF_DEPTH> & link_ingress,
+         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress) {
 
-      // TODO try "register" "both"
-// #pragma HLS interface axis register_mode=both register port=sendmsg_i depth=512
-// #pragma HLS interface axis register_mode=both register port=recvmsg_i depth=512
-// #pragma HLS interface axis register_mode=both register port=dma_r_req_o depth=512
-// #pragma HLS interface axis register_mode=both register port=dma_r_resp_i depth=512
-// #pragma HLS interface axis register_mode=both register port=dma_w_req_o depth=512
-// #pragma HLS interface axis register_mode=both register port=link_ingress depth=512
-// #pragma HLS interface axis register_mode=both register port=link_egress depth=512
-
+      /* The depth field specifies the size of the verification adapter for cosimulation
+       * Synth will claim that the depth field is ignored for some reason
+       */
 #pragma HLS interface axis port=sendmsg_i depth=512
 #pragma HLS interface axis port=recvmsg_i depth=512
 #pragma HLS interface axis port=dma_r_req_o depth=512
@@ -120,7 +114,6 @@ extern "C"{
 #pragma HLS interface axis port=dma_w_req_o depth=512
 #pragma HLS interface axis port=link_ingress depth=512
 #pragma HLS interface axis port=link_egress depth=512
-
 
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> homa_sendmsg__dbuff_stack       ("homa_sendmsg__dbuff_stack");
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> dbuff_stack__peer_map           ("dbuff_stack__peer_map");
@@ -146,43 +139,9 @@ extern "C"{
       hls_thread_local hls::stream<dbuff_in_t,       VERIF_DEPTH> dma_r_resp_a;
       hls_thread_local hls::stream<dma_w_req_t,      VERIF_DEPTH> dma_w_req_a;
       hls_thread_local hls::stream<dma_r_req_t,      VERIF_DEPTH> dma_r_req_o_o;
-      hls_thread_local hls::stream<sendmsg_t,      VERIF_DEPTH> sendmsg_a;
-      hls_thread_local hls::stream<recvmsg_t,      VERIF_DEPTH> recvmsg_a;
-      // hls_thread_local hls::stream<raw_stream_t,       VERIF_DEPTH> link_egress_i;
-      // hls_thread_local hls::stream<raw_stream_t,       VERIF_DEPTH> link_ingress_i;
+      hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> sendmsg_a;
+      hls_thread_local hls::stream<recvmsg_t,        VERIF_DEPTH> recvmsg_a;
 
-#pragma HLS stream variable=homa_sendmsg__dbuff_stack       depth=128 
-#pragma HLS stream variable=dbuff_stack__peer_map           depth=128 
-#pragma HLS stream variable=peer_map__rpc_state             depth=128 
-#pragma HLS stream variable=rpc_state__srpt_data            depth=128 
-#pragma HLS stream variable=srpt_data__egress_sel           depth=128 
-#pragma HLS stream variable=srpt_grant__egress_sel          depth=128 
-#pragma HLS stream variable=egress_sel__rpc_state           depth=128 
-#pragma HLS stream variable=rpc_state__pkt_builder          depth=128 
-#pragma HLS stream variable=peer_map__rpc_map               depth=128 
-#pragma HLS stream variable=rpc_map__rpc_state              depth=128 
-#pragma HLS stream variable=chunk_egress__dbuff_egress      depth=128 
-#pragma HLS stream variable=dbuff_egress__pkt_egress        depth=128 
-#pragma HLS stream variable=dbuff_egress__srpt_data         depth=128 
-#pragma HLS stream variable=chunk_ingress__dbuff_ingress    depth=128 
-#pragma HLS stream variable=rpc_state__dbuff_ingress        depth=128 
-#pragma HLS stream variable=rpc_state__srpt_grant           depth=128 
-#pragma HLS stream variable=header_in__rpc_state__srpt_data depth=128 
-#pragma HLS stream variable=chunk_ingress__rpc_map          depth=128 
-#pragma HLS stream variable=recvmsg__peer_map__rpc_state    depth=128 
-#pragma HLS stream variable=recvmsg__rpc_state__rpc_map     depth=128 
-#pragma HLS stream variable=recvmsg__peer_map               depth=128 
-// #pragma HLS stream variable=link_ingress_i depth=128
-// #pragma HLS stream variable=link_egress_i depth=128
-#pragma HLS stream variable=dma_r_req_o_o depth=128
-#pragma HLS stream variable=dma_r_resp_a depth=128
-#pragma HLS stream variable=dma_w_req_a depth=128
-#pragma HLS stream variable=sendmsg_a depth=128
-#pragma HLS stream variable=recvmsg_a depth=128
-
-
-     // hls_thread_local hls::task adapter0_task(adapter0, link_ingress, link_ingress_i);
-     // hls_thread_local hls::task adapter1_task(adapter1, link_egress_i, link_egress);
      hls_thread_local hls::task adapter2_task(adapter2, dma_r_req_o_o, dma_r_req_o);
      hls_thread_local hls::task adapter3_task(adapter3, dma_r_resp_i, dma_r_resp_a);
      hls_thread_local hls::task adapter4_task(adapter4, dma_w_req_a, dma_w_req_o);

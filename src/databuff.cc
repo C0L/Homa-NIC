@@ -5,7 +5,7 @@ extern "C"{
    void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
          hls::stream<sendmsg_t> & sendmsg_o,
          hls::stream<dma_r_req_t> & dma_read_o) {
-#pragma HLS pipeline II=1 style=flp
+//#pragma HLS pipeline II=1 style=flp
 
       static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
@@ -33,7 +33,7 @@ extern "C"{
    void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
          hls::stream<dma_w_req_t> & dma_w_req_o,
          hls::stream<header_t> & header_in_i) {
-#pragma HLS pipeline II=1 style=flp
+//#pragma HLS pipeline II=1 style=flp
 
       // TODO what size should this be actually?
       static fifo_t<in_chunk_t,128> rebuff;
@@ -93,11 +93,11 @@ extern "C"{
          hls::stream<out_chunk_t> & out_chunk_i,
          hls::stream<out_chunk_t> & out_chunk_o) {
 
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 
       // 1024 x 2^14 byte buffers
       static dbuff_t dbuff[NUM_DBUFF];
-#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
+//#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
       dbuff_in_t dbuff_in;
       // Do we need to add any data to data buffer 

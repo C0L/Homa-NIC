@@ -11,18 +11,18 @@ extern "C"{
    int main() {
       std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-      hls::stream<raw_stream_t> link_ingress;
-      hls::stream<raw_stream_t> link_egress;
-      hls::stream<ap_axiu<512,1,1,1>, VERIF_DEPTH> sendmsg_s;
-      hls::stream<ap_axiu<384,1,1,1>, VERIF_DEPTH> recvmsg_s;
-      hls::stream<ap_axiu<80,1,1,1>, VERIF_DEPTH> dma_r_req_s;
-      hls::stream<ap_axiu<536,1,1,1>, VERIF_DEPTH> dma_resp_s;
-      hls::stream<ap_axiu<544,1,1,1>, VERIF_DEPTH> dma_w_req_s;
+      hls::stream<raw_stream_t, VERIF_DEPTH> link_ingress;
+      hls::stream<raw_stream_t, VERIF_DEPTH> link_egress;
+      hls::stream<ap_uint<512>, VERIF_DEPTH> sendmsg_s;
+      hls::stream<ap_uint<384>, VERIF_DEPTH> recvmsg_s;
+      hls::stream<ap_uint<80>, VERIF_DEPTH>  dma_r_req_s;
+      hls::stream<ap_uint<536>, VERIF_DEPTH> dma_resp_s;
+      hls::stream<ap_uint<544>, VERIF_DEPTH> dma_w_req_s;
 
       // ap_uint<512> sendmsg;
 
-      ap_axiu<512,1,1,1> sendmsg;
-      ap_axiu<384,1,1,1> recvmsg;
+      ap_uint<512> sendmsg;
+      ap_uint<384> recvmsg;
 
       ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
       ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -35,22 +35,22 @@ extern "C"{
 
       // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
 
-      recvmsg.data(RECVMSG_BUFFOUT) = 0;
-      recvmsg.data(RECVMSG_SADDR) = saddr;
-      recvmsg.data(RECVMSG_DADDR) = daddr;
-      recvmsg.data(RECVMSG_SPORT) = sport;
-      recvmsg.data(RECVMSG_DPORT) = dport;
-      recvmsg.data(RECVMSG_ID)  = 0;
+      recvmsg(RECVMSG_BUFFOUT) = 0;
+      recvmsg(RECVMSG_SADDR) = saddr;
+      recvmsg(RECVMSG_DADDR) = daddr;
+      recvmsg(RECVMSG_SPORT) = sport;
+      recvmsg(RECVMSG_DPORT) = dport;
+      recvmsg(RECVMSG_ID)  = 0;
 
-      sendmsg.data(SENDMSG_BUFFIN) = 0;
-      sendmsg.data(SENDMSG_LENGTH) = 2772;
-      sendmsg.data(SENDMSG_SADDR) = saddr;
-      sendmsg.data(SENDMSG_DADDR) = daddr;
-      sendmsg.data(SENDMSG_SPORT) = sport;
-      sendmsg.data(SENDMSG_DPORT) = dport;
-      sendmsg.data(SENDMSG_ID) = 0;
-      sendmsg.data(SENDMSG_CC) = 0xFFFFFFFFFFFFFFFF;
-      sendmsg.data(SENDMSG_RTT) = 60000;
+      sendmsg(SENDMSG_BUFFIN) = 0;
+      sendmsg(SENDMSG_LENGTH) = 2772;
+      sendmsg(SENDMSG_SADDR) = saddr;
+      sendmsg(SENDMSG_DADDR) = daddr;
+      sendmsg(SENDMSG_SPORT) = sport;
+      sendmsg(SENDMSG_DPORT) = dport;
+      sendmsg(SENDMSG_ID) = 0;
+      sendmsg(SENDMSG_CC) = 0xFFFFFFFFFFFFFFFF;
+      sendmsg(SENDMSG_RTT) = 60000;
       std::cerr << "WROTE INPUTS\n";
 
       char maxi_in[128*64];
@@ -74,23 +74,23 @@ extern "C"{
          }
 
          if (!dma_r_req_s.empty()) {
-            ap_axiu<80,1,1,1> dma_r_req = dma_r_req_s.read(); 
+            ap_uint<80> dma_r_req = dma_r_req_s.read(); 
 
-            for (int i = 0; i < dma_r_req.data(DMA_R_REQ_LENGTH); ++i) {
-               integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req.data(DMA_R_REQ_OFFSET)) + i * 64));
-               ap_axiu<536,1,1,1> dbuff_in;
-               dbuff_in.data(DBUFF_IN_DATA) = chunk.data;
-               dbuff_in.data(DBUFF_IN_ID) = dma_r_req.data(DMA_R_REQ_DBUFF_ID);
-               dbuff_in.data(DBUFF_IN_CHUNK) = dma_r_req.data(DMA_R_REQ_OFFSET) + i;
+            for (int i = 0; i < dma_r_req(DMA_R_REQ_LENGTH); ++i) {
+               integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req(DMA_R_REQ_OFFSET)) + i * 64));
+               ap_uint<536> dbuff_in;
+               dbuff_in(DBUFF_IN_DATA) = chunk.data;
+               dbuff_in(DBUFF_IN_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
+               dbuff_in(DBUFF_IN_CHUNK) = dma_r_req(DMA_R_REQ_OFFSET) + i;
                dma_resp_s.write(dbuff_in);
             }
          }
 
          if (!dma_w_req_s.empty()) {
             std::cerr << "READ WRITE DMA REQ\n";
-            ap_axiu<544,1,1,1> dma_w_req = dma_w_req_s.read();
-            std::cerr << "OFFSET " << ((ap_uint<32>) dma_w_req.data(DMA_W_REQ_OFFSET)) << std::endl;
-            (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req.data(DMA_W_REQ_OFFSET))))).data = dma_w_req.data(DMA_W_REQ_BLOCK);
+            ap_uint<544> dma_w_req = dma_w_req_s.read();
+            std::cerr << "OFFSET " << ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET)) << std::endl;
+            (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))).data = dma_w_req(DMA_W_REQ_BLOCK);
          }
       }
 

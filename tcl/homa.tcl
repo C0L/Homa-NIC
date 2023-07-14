@@ -27,10 +27,7 @@ set_part $part
 create_clock -period 20 -name default
 # create_clock -period 3.1 -name default
 
-# config_dataflow -default_channel fifo -disable_fifo_sizing_opt -override_user_fifo_depth 128 -fifo_depth 2
 # config_dataflow -default_channel fifo -fifo_depth 128 -disable_fifo_sizing_opt -override_user_fifo_depth 128 -start_fifo_depth 128 -scalar_fifo_depth 128 -task_level_fifo_depth 128 
-# config_dataflow -fifo_depth 256 -start_fifo_depth 256 -scalar_fifo_depth 256 -task_level_fifo_depth 256
-# config_dataflow -default_channel fifo -fifo_depth 2
 
 # This is the neccesary pipeline style for tasks
 config_compile -pipeline_style flp

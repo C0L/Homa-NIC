@@ -14,7 +14,7 @@ extern "C"{
          hls::stream<ap_uint<51>> & grant_pkt_i,
          hls::stream<header_t> & header_out_o) {
 
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 
       ap_uint<51> ready_grant_pkt_raw;
       ready_data_pkt_t ready_data_pkt;
@@ -69,7 +69,7 @@ extern "C"{
       // TODO I am not sure this ping pong would make its way to RTL
 
       static header_t doublebuff[2];
-#pragma HLS array_partition variable=doublebuff type=complete
+// #pragma HLS array_partition variable=doublebuff type=complete
       // #pragma HLS dependence variable=doublebuff intra RAW false
       // #pragma HLS dependence variable=doublebuff intra WAR false
 
@@ -82,7 +82,7 @@ extern "C"{
          w_pkt++;
       }
 
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 
       // We have data to send
       if (doublebuff[r_pkt].valid == 1) {
@@ -272,7 +272,7 @@ extern "C"{
          }
 
          for (int i = 0; i < 64; ++i) {
-#pragma HLS  unroll
+// #pragma HLS  unroll
             out_chunk.buff.data(512 - (i*8) - 1, 512 - 8 - (i*8)) = natural_chunk(7 + (i*8), (i*8));
          }
 
@@ -292,8 +292,8 @@ extern "C"{
          // raw_stream.last = chunk.last;
          // raw_stream.data = chunk.buff.data;
          raw_stream_t raw_stream;
-         raw_stream.data = chunk.buff.data;
-         raw_stream.last = chunk.last;
+         raw_stream(511,0) = chunk.buff.data;
+         raw_stream(512, 512) = chunk.last;
          link_egress.write(raw_stream);
       }
    }
@@ -316,7 +316,7 @@ extern "C"{
       void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
             hls::stream<header_t> & header_in_o,
             hls::stream<in_chunk_t> & chunk_in_o) {
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 
          static header_t header_in;
          static in_chunk_t data_block;
@@ -327,8 +327,8 @@ extern "C"{
          ap_uint<512> natural_chunk;
 
          for (int i = 0; i < 64; ++i) {
-#pragma hls unroll
-            natural_chunk(512 - (i*8) - 1, 512 - 8 - (i*8)) = raw_stream.data(7 + (i*8), (i*8));
+// #pragma hls unroll
+            natural_chunk(512 - (i*8) - 1, 512 - 8 - (i*8)) = raw_stream(7 + (i*8), (i*8));
          }
 
          // For every type of homa packet we need to read at least two blocks
@@ -399,7 +399,7 @@ extern "C"{
                   //std::cerr << std::endl;
 
                   //out_chunk.buff.data(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
-                  data_block.buff.data(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
+                  data_block.buff.data(PARTIAL_DATA*8, 0) = raw_stream(511, 512-PARTIAL_DATA*8);
                   //data_block.buff.data(511, 512-PARTIAL_DATA*8) = raw_stream.data.data(511, 512-PARTIAL_DATA*8);
 
                   //std::cerr << "DATA BLOCK\n";
@@ -408,7 +408,7 @@ extern "C"{
                   //}
                   //std::cerr << std::endl;
 
-                  data_block.last = raw_stream.last;
+                  data_block.last = raw_stream(512, 512);
                   chunk_in_o.write(data_block);
 
                   std::cerr << "PARTIAL BLOCK IN\n";
@@ -423,9 +423,9 @@ extern "C"{
          } else {
 
             // TODO need to test TKEEP and change raw_stream def
-            data_block.buff.data = raw_stream.data;
+            data_block.buff.data = raw_stream(511,0);
 
-            data_block.last = raw_stream.last;
+            data_block.last = raw_stream(512, 512);
 
             std::cerr << "FULL BLOCK IN \n";
             chunk_in_o.write(data_block);
@@ -433,7 +433,7 @@ extern "C"{
             data_block.offset += 64;
          }
 
-         if (raw_stream.last) {
+         if (raw_stream(512, 512)) {
             std::cerr << "IN STREAM LAST!!!\n";
             data_block.offset = 0;
             header_in.processed_bytes = 0;

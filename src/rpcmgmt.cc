@@ -16,7 +16,7 @@ void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
    static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
    static homa_rpc_t rpcs[MAX_RPCS];
 
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 // #pragma HLS dependence variable=rpcs inter WAR false
 // #pragma HLS dependence variable=rpcs inter RAW false
 

@@ -88,7 +88,7 @@ void srpt_grant_pkts(hls::stream<ap_uint<58>> & header_in_i,
       hls::stream<ap_uint<51>> & grant_pkt_o) {
 
    // TODO testing to get rid of warning. Should have no effect
-#pragma HLS pipeline style=flp
+// #pragma HLS pipeline style=flp
 
    // Because this is only used for sim we brute force grants
    static srpt_grant_t entries[MAX_RPCS];
