@@ -20,5 +20,4 @@ extern "C"{
          hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress);
 }
 
-
 #endif

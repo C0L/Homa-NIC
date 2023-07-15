@@ -14,7 +14,7 @@ extern "C"{
       hls::stream<raw_stream_t, VERIF_DEPTH> link_ingress;
       hls::stream<raw_stream_t, VERIF_DEPTH> link_egress;
       hls::stream<ap_uint<512>, VERIF_DEPTH> sendmsg_s;
-      hls::stream<ap_uint<384>, VERIF_DEPTH> recvmsg_s;
+      hls::stream<ap_uint<416>, VERIF_DEPTH> recvmsg_s;
       hls::stream<ap_uint<80>, VERIF_DEPTH>  dma_r_req_s;
       hls::stream<ap_uint<536>, VERIF_DEPTH> dma_resp_s;
       hls::stream<ap_uint<544>, VERIF_DEPTH> dma_w_req_s;
@@ -22,7 +22,7 @@ extern "C"{
       // ap_uint<512> sendmsg;
 
       ap_uint<512> sendmsg;
-      ap_uint<384> recvmsg;
+      ap_uint<416> recvmsg;
 
       ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
       ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -41,6 +41,7 @@ extern "C"{
       recvmsg(RECVMSG_SPORT) = sport;
       recvmsg(RECVMSG_DPORT) = dport;
       recvmsg(RECVMSG_ID)  = 0;
+      sendmsg(RECVMSG_RTT) = 1;
 
       sendmsg(SENDMSG_BUFFIN) = 0;
       sendmsg(SENDMSG_LENGTH) = 2772;
@@ -50,8 +51,7 @@ extern "C"{
       sendmsg(SENDMSG_DPORT) = dport;
       sendmsg(SENDMSG_ID) = 0;
       sendmsg(SENDMSG_CC) = 0xFFFFFFFFFFFFFFFF;
-      sendmsg(SENDMSG_RTT) = 60000;
-      // std::cerr << "WROTE INPUTS\n";
+      sendmsg(SENDMSG_RTT) = 1;
 
       char maxi_in[128*64];
       char maxi_out[128*64];

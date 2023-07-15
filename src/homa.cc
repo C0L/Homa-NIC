@@ -7,7 +7,7 @@
 #include "hls_stream.h"
 
 #include "homa.hh"
-#include "dma.hh"
+#include "user.hh"
 #include "link.hh"
 #include "peer.hh"
 #include "rpcmgmt.hh"
@@ -17,8 +17,8 @@
 using namespace std;
 
 void adapter2(hls::stream<dma_r_req_t> & in, 
-         hls::stream<ap_uint<80>> & out) {
-  
+      hls::stream<ap_uint<80>> & out) {
+
    dma_r_req_t i = in.read(); 
 
    ap_uint<80> msgout;
@@ -30,11 +30,11 @@ void adapter2(hls::stream<dma_r_req_t> & in,
 }
 
 void adapter3(hls::stream<ap_uint<536>> & in,
-            hls::stream<dbuff_in_t> & out) {
+      hls::stream<dbuff_in_t> & out) {
 
    ap_uint<536> i = in.read();
    dbuff_in_t msgout;
-   
+
    msgout.block.data  = i(DBUFF_IN_DATA);
    msgout.dbuff_id    = i(DBUFF_IN_ID);
    msgout.dbuff_chunk = i(DBUFF_IN_CHUNK);
@@ -52,42 +52,6 @@ void adapter4(hls::stream<dma_w_req_t> & in,
    out.write(msgout);
 }
 
-void adapter5(hls::stream<ap_uint<512>> & in,
-            hls::stream<sendmsg_t> & out) {
-
-   ap_uint<512> i = in.read();
-
-   std::cerr << "SEND MSG READ\n";
-   sendmsg_t msgout;
-   msgout.buffin = i(SENDMSG_BUFFIN);
-   msgout.length = i(SENDMSG_LENGTH);
-   msgout.saddr = i(SENDMSG_SADDR);
-   msgout.daddr = i(SENDMSG_DADDR);
-   msgout.sport = i(SENDMSG_SPORT);
-   msgout.dport = i(SENDMSG_DPORT);
-   msgout.id = i(SENDMSG_ID);
-   msgout.completion_cookie = i(SENDMSG_CC);
-   msgout.rtt_bytes = i(SENDMSG_RTT);
-
-   out.write(msgout);
-   std::cerr << "SEND MSG WROTE\n";
-}
-void adapter6(hls::stream<ap_uint<384>> & in,
-            hls::stream<recvmsg_t> & out) {
-
-   ap_uint<384> i = in.read();
-   recvmsg_t msgout;
-
-   msgout.buffout = i(RECVMSG_BUFFOUT);
-   msgout.saddr = i(RECVMSG_SADDR);
-   msgout.daddr = i(RECVMSG_DADDR); 
-   msgout.sport = i(RECVMSG_SPORT);
-   msgout.dport = i(RECVMSG_DPORT);
-   msgout.id = i(RECVMSG_ID);
-
-   out.write(msgout);
-}
-
 /**
  * homa() - Top level homa packet processor
  * @homa:
@@ -97,29 +61,29 @@ void adapter6(hls::stream<ap_uint<384>> & in,
  */
 extern "C"{
    void homa(hls::stream<ap_uint<512>, VERIF_DEPTH> & sendmsg_i,
-         hls::stream<ap_uint<384>, VERIF_DEPTH> & recvmsg_i,
+         hls::stream<ap_uint<416>, VERIF_DEPTH> & recvmsg_i,
          hls::stream<ap_uint<80>, VERIF_DEPTH> & dma_r_req_o,
          hls::stream<ap_uint<536>, VERIF_DEPTH> & dma_r_resp_i,
          hls::stream<ap_uint<544>, VERIF_DEPTH> & dma_w_req_o,
-         hls::stream<raw_stream_t, VERIF_DEPTH> & link_ingress,
-         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress) {
+         hls::stream<raw_stream_t> & link_ingress,
+         hls::stream<raw_stream_t> & link_egress) {
 
       /* The depth field specifies the size of the verification adapter for cosimulation
        * Synth will claim that the depth field is ignored for some reason
        */
-#pragma HLS interface axis port=sendmsg_i depth=512
-#pragma HLS interface axis port=recvmsg_i depth=512
-#pragma HLS interface axis port=dma_r_req_o depth=512
+#pragma HLS interface axis port=sendmsg_i    depth=512
+#pragma HLS interface axis port=recvmsg_i    depth=512
+#pragma HLS interface axis port=dma_r_req_o  depth=512
 #pragma HLS interface axis port=dma_r_resp_i depth=512
-#pragma HLS interface axis port=dma_w_req_o depth=512
+#pragma HLS interface axis port=dma_w_req_o  depth=512
 #pragma HLS interface axis port=link_ingress depth=512
-#pragma HLS interface axis port=link_egress depth=512
+#pragma HLS interface axis port=link_egress  depth=512
 
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> homa_sendmsg__dbuff_stack       ("homa_sendmsg__dbuff_stack");
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> dbuff_stack__peer_map           ("dbuff_stack__peer_map");
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> peer_map__rpc_state             ("peer_map__rpc_state");
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> rpc_state__srpt_data            ("rpc_state__srpt_data");
-      hls_thread_local hls::stream<ready_data_pkt_t> srpt_data__egress_sel           ("srpt_data__egress_sel");
+      hls_thread_local hls::stream<ready_data_pkt_t> srpt_data__egress_sel                        ("srpt_data__egress_sel");
       hls_thread_local hls::stream<ap_uint<51>,      VERIF_DEPTH> srpt_grant__egress_sel          ("srpt_grant__egress_sel");
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> egress_sel__rpc_state           ("egress_sel__rpc_state"); 
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> rpc_state__pkt_builder          ("rpc_state__pkt_builder"); 
@@ -139,14 +103,10 @@ extern "C"{
       hls_thread_local hls::stream<dbuff_in_t,       VERIF_DEPTH> dma_r_resp_a;
       hls_thread_local hls::stream<dma_w_req_t,      VERIF_DEPTH> dma_w_req_a;
       hls_thread_local hls::stream<dma_r_req_t,      VERIF_DEPTH> dma_r_req_o_o;
-      hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> sendmsg_a;
-      hls_thread_local hls::stream<recvmsg_t,        VERIF_DEPTH> recvmsg_a;
 
-     hls_thread_local hls::task adapter2_task(adapter2, dma_r_req_o_o, dma_r_req_o);
-     hls_thread_local hls::task adapter3_task(adapter3, dma_r_resp_i, dma_r_resp_a);
-     hls_thread_local hls::task adapter4_task(adapter4, dma_w_req_a, dma_w_req_o);
-     hls_thread_local hls::task adapter5_task(adapter5, sendmsg_i, sendmsg_a);
-     hls_thread_local hls::task adapter6_task(adapter6, recvmsg_i, recvmsg_a);
+      hls_thread_local hls::task adapter2_task(adapter2, dma_r_req_o_o, dma_r_req_o);
+      hls_thread_local hls::task adapter3_task(adapter3, dma_r_resp_i, dma_r_resp_a);
+      hls_thread_local hls::task adapter4_task(adapter4, dma_w_req_a, dma_w_req_o);
 
       /* Data Driven Region */
       hls_thread_local hls::task peer_map_task(
@@ -243,13 +203,13 @@ extern "C"{
 
       hls_thread_local hls::task homa_recvmsg_task(
             homa_recvmsg, 
-            recvmsg_a, 
+            recvmsg_i, 
             recvmsg__peer_map
             );
 
       hls_thread_local hls::task homa_sendmsg_task(
             homa_sendmsg, 
-            sendmsg_a,
+            sendmsg_i,
             homa_sendmsg__dbuff_stack);
    }
 }

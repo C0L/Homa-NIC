@@ -16,8 +16,7 @@
  * through the execution of the testbench. This should not effect the actual
  * generation of the RTL however 
  */
-// #define VERIF_DEPTH 128
-
+// TODO change this name as it is FIFO depth?
 #define VERIF_DEPTH 2 
 
 /* Reduces the size of some parameters for faster compilation/testing */
@@ -56,25 +55,25 @@
 #define SRPT_BLOCKED 5
 #define SRPT_ACTIVE 6
 
-#define ENTRY_SIZE 51
-#define PEER_ID 50,37
-#define RPC_ID 36,23
-#define RECV_PKTS 22,13
-#define GRNTBLE_PKTS 12,3
-#define PRIORITY 2,0
-#define PRIORITY_SIZE 3
+// #define ENTRY_SIZE 51
+// #define PEER_ID 50,37
+// #define RPC_ID 36,23
+// #define RECV_PKTS 22,13
+// #define GRNTBLE_PKTS 12,3
+// #define PRIORITY 2,0
+// #define PRIORITY_SIZE 3
 
+// TODO refine the interface, usetypdef with offsets
 // Bit indexes for input "headers" to srpt_grant
-#define HEADER_SIZE 58
-#define HDR_PEER_ID 57,44
-#define HDR_RPC_ID 43,30
-#define HDR_MSG_LEN 29,20
-#define HDR_INCOMING 19,10
-#define HDR_OFFSET 9,0
+// #define HEADER_SIZE 58
+// #define HDR_PEER_ID 57,44
+// #define HDR_RPC_ID 43,30
+// #define HDR_MSG_LEN 29,20
+// #define HDR_INCOMING 19,10
+// #define HDR_OFFSET 9,0
 
 
 /* Peer Tab Configuration */
-
 #ifndef DEBUG 
 #define MAX_PEERS_LOG2 16
 #define MAX_PEERS 16384
@@ -122,13 +121,15 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  * which are all ap_fifo types. The actual data that will be passed by this
  * stream is 512 bit chunks.
  * 
- * Need to leave side-channel signals enabled to avoid linker error
+ * Need to leave side-channel signals enabled to avoid linker error?
  */
-// typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
-typedef ap_uint<513> raw_stream_t;
+typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+
+
+// TODO describe 64B structure, and offsets
+
 
 /* Homa Kernel Configuration */
-
 // TODO organize this and make some of this runtime configurable
 // Maximum Homa message size
 #define HOMA_MAX_MESSAGE_LENGTH 1000000
@@ -145,9 +146,11 @@ typedef ap_uint<513> raw_stream_t;
 
 #define HOMA_MAX_PRIORITIES 8
 
-#define RTT_PKTS 44
+// #define RTT_PKTS 44
 
-#define OVERCOMMIT_PKTS 352
+// MAX_OVERCOMMIT * RTT_BYTES
+#define OVERCOMMIT_BYTES 480000
+
 
 // Number of bytes in ethernet + ipv6 + data header
 #define DATA_PKT_HEADER 114
@@ -215,12 +218,10 @@ typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 struct dbuff_in_t {
 #define DBUFF_IN_DATA 511,0
-   integral_t block;
-
 #define DBUFF_IN_ID 521,512
-   dbuff_id_t dbuff_id;
-
 #define DBUFF_IN_CHUNK 529,522
+   integral_t block;
+   dbuff_id_t dbuff_id;
    dbuff_coffset_t dbuff_chunk;
 };
 
@@ -308,38 +309,35 @@ struct homa_rpc_t {
    peer_id_t peer_id;
    rpc_id_t rpc_id; 
    ap_uint<64> completion_cookie;
+   ap_uint<32> rtt_bytes;
    homa_message_in_t msgin;
    homa_message_out_t msgout;
 };
 
 /* */
 struct sendmsg_t {
+
 #define SENDMSG_BUFFIN 31,0
-   ap_uint<32> buffin; // Offset in DMA space for input
-                       //
 #define SENDMSG_LENGTH 63,32
-   ap_uint<32> length; // Total length of message
-
 #define SENDMSG_SADDR 191,64
-   ap_uint<128> saddr; // Sender address
 #define SENDMSG_DADDR 319,192
-   ap_uint<128> daddr; // Destination address
-
 #define SENDMSG_SPORT 335,320
-   ap_uint<16> sport; // Sender port
 #define SENDMSG_DPORT 351,336
-   ap_uint<16> dport; // Destination port
-
 #define SENDMSG_ID 415,352
-   ap_uint<64> id; // RPC specified by caller
 #define SENDMSG_CC 479,416
+#define SENDMSG_RTT 511,480
+
+   ap_uint<32> buffin; // Offset in DMA space for input
+   ap_uint<32> length; // Total length of message
+   ap_uint<128> saddr; // Sender address
+   ap_uint<128> daddr; // Destination address
+   ap_uint<16> sport; // Sender port
+   ap_uint<16> dport; // Destination port
+   ap_uint<64> id; // RPC specified by caller
    ap_uint<64> completion_cookie;
 
    // Configuration
-#define SENDMSG_RTT 511,480
    ap_uint<32> rtt_bytes;
-
-   // ap_uint<1> valid;
 
    // Internal use
    ap_uint<32> granted;
@@ -349,21 +347,25 @@ struct sendmsg_t {
 };
 
 struct recvmsg_t {
+
 #define RECVMSG_BUFFOUT 31,0
-   ap_uint<32> buffout; // Offset in DMA space for output
-
 #define RECVMSG_SADDR 159,32
-   ap_uint<128> saddr; // Sender address
 #define RECVMSG_DADDR 287,160
-   ap_uint<128> daddr; // Destination address
-
 #define RECVMSG_SPORT 303,288
-   ap_uint<16> sport; // Sender port
 #define RECVMSG_DPORT 319,304
-   ap_uint<16> dport; // Destination port
-
 #define RECVMSG_ID 383,320
+#define RECVMSG_RTT 415,384
+
+   // Message parameters
+   ap_uint<32> buffout; // Offset in DMA space for output
+   ap_uint<128> saddr; // Sender address
+   ap_uint<128> daddr; // Destination address
+   ap_uint<16> sport; // Sender port
+   ap_uint<16> dport; // Destination port
    ap_uint<64> id; // RPC specified by caller
+
+   // Configuration
+   ap_uint<32> rtt_bytes; // TODO?
 
    // Internal use
    rpc_id_t local_id; // Local RPC ID 
@@ -372,7 +374,7 @@ struct recvmsg_t {
 
 /* continuation structures */
 
-// TODO switch all of these to ap_uints (big endian). Perform conversion on head.
+// TODO create typedef header_raw. Use entire struct to pass around instead of 58 bit grant
 struct header_t {
    // Local Values
    rpc_id_t local_id;
@@ -475,6 +477,7 @@ const ap_uint<8> DOFF = 10 << 4;
 const ap_uint<8> DATA_TYPE = DATA;
 const ap_uint<32> HOMA_PAYLOAD_SIZE = 1386;
 
+// WARNING: For C simulation only
 struct srpt_data_t {
    rpc_id_t rpc_id;
    dbuff_id_t dbuff_id;
@@ -482,11 +485,12 @@ struct srpt_data_t {
    ap_uint<32> total;
 };
 
+// WARNING: For C simulation only
 struct srpt_grant_t {
    ap_uint<14> peer_id;
    ap_uint<14> rpc_id;
-   ap_uint<10> recv_pkts;
-   ap_uint<10> grantable_pkts;
+   ap_uint<10> recv_bytes;
+   ap_uint<10> grantable_bytes;
 };
 
 template<typename T, int FIFO_SIZE>
@@ -545,11 +549,11 @@ struct fifo_t {
 
 extern "C"{
    void homa(hls::stream<ap_uint<512>, VERIF_DEPTH> & sendmsg_i,
-         hls::stream<ap_uint<384>, VERIF_DEPTH> & recvmsg_i,
+         hls::stream<ap_uint<416>, VERIF_DEPTH> & recvmsg_i,
          hls::stream<ap_uint<80>, VERIF_DEPTH> & dma_r_req_o,
          hls::stream<ap_uint<536>, VERIF_DEPTH> & dma_r_resp_i,
          hls::stream<ap_uint<544>, VERIF_DEPTH> & dma_w_req_o,
-         hls::stream<raw_stream_t, VERIF_DEPTH> & link_ingress,
-         hls::stream<raw_stream_t, VERIF_DEPTH> & link_egress);
+         hls::stream<raw_stream_t> & link_ingress,
+         hls::stream<raw_stream_t> & link_egress);
 }
 #endif

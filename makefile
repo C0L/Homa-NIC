@@ -4,7 +4,6 @@ VIVADO = vivado
 
 C_SRC_DIR = ./src
 C_TB_DIR  = ./src
-# C_TB_DIR  = ./tb
 V_SRC_DIR = ./src
 V_TB_DIR  = ./src
 TCL_DIR   = ./tcl
@@ -22,8 +21,8 @@ SRC_JSON = \
 SRC_C =                      \
     $(C_SRC_DIR)/databuff.cc \
     $(C_SRC_DIR)/databuff.hh \
-    $(C_SRC_DIR)/dma.cc      \
-    $(C_SRC_DIR)/dma.hh      \
+    $(C_SRC_DIR)/user.cc     \
+    $(C_SRC_DIR)/user.hh     \
     $(C_SRC_DIR)/hashmap.hh  \
     $(C_SRC_DIR)/homa.cc     \
     $(C_SRC_DIR)/homa.hh     \
@@ -37,9 +36,7 @@ SRC_C =                      \
     $(C_SRC_DIR)/srptmgmt.hh \
     $(C_SRC_DIR)/stack.hh    \
     
-#$(C_TB_DIR)/client_test.hh \
-
-TB_C = $(C_TB_DIR)/client_test.cc
+# TB_C = $(C_TB_DIR)/client_test.cc
 
 XDC = \
    $(XDC_DIR)/clocks.xdc
@@ -50,48 +47,26 @@ CSIM = 0
 SYNTH = 1
 COSIM = 2
 
-# .PHONY: all vlint vtest clean
-
-# all: vlint xsim synth
-
-#homa:
-#       vitis_hls tcl/synth.tcl
-#
-#homa_test:
-#
-#homa_synth:
-#
-#srpt_queue_synth:
-#       vivado -mode tcl -source tcl/srpt_grant_synth.tcl
-#
-#srpt_queue_test:
-#       vivado -mode tcl -source tcl/srpt_grant_test.tcl
-#
-#
-#unit_test:
-#       vitis_hls tcl/unit_tests.tcl
-#
-#srptmgmt_test:
-#       vitis_hls tcl/srptmgmt_test.tcl
-#
-#link_test:
-#       vitis_hls tcl/link_test.tcl
-#
-#
 ############ Vitis C Synth ############ 
 
 synth:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" ""
 
 ############ Vitis C Simulation ############ 
 
-csim:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
+csim_unscheduled_exchange:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+
+csim_scheduled_exchange:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
 
 ############ Vitis Cosim ############ 
 
-cosim:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(TB_C)
+cosim_unscheduled_exchange:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+
+cosim_scheduled_exchange:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
 
 ############ Verilog Synthesis ############ 
 
