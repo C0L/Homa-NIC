@@ -1,82 +1,82 @@
 #include "peer.hh"
 #include "stack.hh"
 #include "hashmap.hh"
-extern "C"{
-void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
-	      hls::stream<sendmsg_t> & sendmsg_o,
-	      hls::stream<recvmsg_t> & recvmsg_i,
-	      hls::stream<recvmsg_t> & recvmsg_o) {
-
-  static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
-  static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
-
-//#pragma HLS dependence variable=peer_stack inter WAR false
-//#pragma HLS dependence variable=peer_stack inter RAW false
-//#pragma HLS dependence variable=peer_stack intra WAR false
-//#pragma HLS dependence variable=peer_stack intra RAW false
-
-
-//#pragma HLS dependence variable=hashmap inter WAR false
-//#pragma HLS dependence variable=hashmap inter RAW false
-//#pragma HLS dependence variable=hashmap intra WAR false
-//#pragma HLS dependence variable=hashmap intra RAW false
-
-// #pragma HLS dependence variable=hashmap inter WAR false
-
-  // TODO Can this be problematic?
-// #pragma HLS dependence variable=hashmap inter WAR false
-// #pragma HLS dependence variable=hashmap inter RAW false
-
-// #pragma HLS pipeline style=flp
-#pragma HLS pipeline II=1 style=flp
-
-  //if (!header_in_i.empty()) {
-  //  std::cerr << "header in peer map\n";
-  //  header_t header_in = header_in_i.read();
-
-  //  peer_hashpack_t query = {header_in.saddr};
-
-  //  peer_id_t peer_id = hashmap.search(query);
-
-  //  header_in.peer_id = peer_id;
-
-  //  //std::cerr << "header out " << peer_id << std::endl;
-  //  header_in_o.write(header_in);
-  //} else
-  sendmsg_t sendmsg;
-  recvmsg_t recvmsg;
-  if (!sendmsg_i.empty()) {
-      sendmsg = sendmsg_i.read();
-
-     peer_hashpack_t query = {sendmsg.daddr};
-     sendmsg.peer_id = hashmap.search(query);
-
-     if (sendmsg.peer_id == 0) {
-        sendmsg.peer_id = peer_stack.pop();
-
-        entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
-        hashmap.queue(entry);
-     }
-     sendmsg_o.write(sendmsg);
-  } else if (!recvmsg_i.empty()) {
-     recvmsg = recvmsg_i.read();
-
-     peer_hashpack_t query = {recvmsg.daddr};
-     recvmsg.peer_id = hashmap.search(query);
-
-     if (recvmsg.peer_id == 0) {
-        recvmsg.peer_id = peer_stack.pop();
-
-        entry_t<peer_hashpack_t, peer_id_t> entry = {query, recvmsg.peer_id};
-        hashmap.queue(entry);
-     }
-
-     recvmsg_o.write(recvmsg);
-  } else {
-     hashmap.process();
-  }
-}
-}
+// extern "C"{
+//    void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
+//          hls::stream<sendmsg_t> & sendmsg_o,
+//          hls::stream<recvmsg_t> & recvmsg_i,
+//          hls::stream<recvmsg_t> & recvmsg_o) {
+// 
+//       static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
+//       static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
+// 
+//       //#pragma HLS dependence variable=peer_stack inter WAR false
+//       //#pragma HLS dependence variable=peer_stack inter RAW false
+//       //#pragma HLS dependence variable=peer_stack intra WAR false
+//       //#pragma HLS dependence variable=peer_stack intra RAW false
+// 
+// 
+//       //#pragma HLS dependence variable=hashmap inter WAR false
+//       //#pragma HLS dependence variable=hashmap inter RAW false
+//       //#pragma HLS dependence variable=hashmap intra WAR false
+//       //#pragma HLS dependence variable=hashmap intra RAW false
+// 
+//       // #pragma HLS dependence variable=hashmap inter WAR false
+// 
+//       // TODO Can this be problematic?
+//       // #pragma HLS dependence variable=hashmap inter WAR false
+//       // #pragma HLS dependence variable=hashmap inter RAW false
+// 
+//       // #pragma HLS pipeline style=flp
+// #pragma HLS pipeline II=1 style=flp
+// 
+//       //if (!header_in_i.empty()) {
+//       //  std::cerr << "header in peer map\n";
+//       //  header_t header_in = header_in_i.read();
+// 
+//       //  peer_hashpack_t query = {header_in.saddr};
+// 
+//       //  peer_id_t peer_id = hashmap.search(query);
+// 
+//       //  header_in.peer_id = peer_id;
+// 
+//       //  //std::cerr << "header out " << peer_id << std::endl;
+//       //  header_in_o.write(header_in);
+//       //} else
+//       sendmsg_t sendmsg;
+//       recvmsg_t recvmsg;
+//       if (!sendmsg_i.empty()) {
+//          sendmsg = sendmsg_i.read();
+// 
+//          peer_hashpack_t query = {sendmsg.daddr};
+//          sendmsg.peer_id = hashmap.search(query);
+// 
+//          if (sendmsg.peer_id == 0) {
+//             sendmsg.peer_id = peer_stack.pop();
+// 
+//             entry_t<peer_hashpack_t, peer_id_t> entry = {query, sendmsg.peer_id};
+//             hashmap.queue(entry);
+//          }
+//          sendmsg_o.write(sendmsg);
+//       } else if (!recvmsg_i.empty()) {
+//          recvmsg = recvmsg_i.read();
+// 
+//          peer_hashpack_t query = {recvmsg.daddr};
+//          recvmsg.peer_id = hashmap.search(query);
+// 
+//          if (recvmsg.peer_id == 0) {
+//             recvmsg.peer_id = peer_stack.pop();
+// 
+//             entry_t<peer_hashpack_t, peer_id_t> entry = {query, recvmsg.peer_id};
+//             hashmap.queue(entry);
+//          }
+// 
+//          recvmsg_o.write(recvmsg);
+//       } else {
+//          hashmap.process();
+//       }
+//    }
+// }
 
 //void peer_state(stream_t<new_rpc_t, new_rpc_t> & new_rpc_t) {
 //

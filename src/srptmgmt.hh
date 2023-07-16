@@ -12,7 +12,7 @@ extern "C"{
          hls::stream<ready_data_pkt_t> & data_pkt_o,
          hls::stream<header_t> & header_in_i);
 
-   void srpt_grant_pkts(hls::stream<ap_uint<58>> & header_in_i,
-         hls::stream<ap_uint<51>> & grant_pkt_o);
+   void srpt_grant_pkts(hls::stream<grant_in_t> & header_in_i,
+         hls::stream<grant_out_t> & grant_pkt_o);
 }
 #endif

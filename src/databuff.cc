@@ -48,14 +48,14 @@ extern "C"{
          in_chunk_t in_chunk = rebuff.remove();
 
          // Place chunk in DMA space at global offset + packet offset
-         std::cerr << "DMA WRITE REQUEST"  << std::endl;
+         // std::cerr << "DMA WRITE REQUEST"  << std::endl;
          dma_w_req_t dma_w_req;
          dma_w_req = {in_chunk.offset + header_in.dma_offset + header_in.data_offset, in_chunk.buff};
          dma_w_req_t dma_w_req_r;
          dma_w_req_r = dma_w_req;
          dma_w_req_o.write(dma_w_req_r);
 
-         std::cerr << "DMA WRITE REQUEST COMPLETE" << std::endl;
+         // std::cerr << "DMA WRITE REQUEST COMPLETE" << std::endl;
          if (in_chunk.last) header_in.valid = 0;
       }
 
@@ -63,12 +63,12 @@ extern "C"{
       if (!chunk_in_o.empty()) {
          in_chunk = chunk_in_o.read(); 
          rebuff.insert(in_chunk);
-         std::cerr << "rebuffering input chunk " << rebuff.size() << std::endl;
+         // std::cerr << "rebuffering input chunk " << rebuff.size() << std::endl;
       }
 
       if (!header_in.valid && !header_in_i.empty()) {
          header_in = header_in_i.read();
-         std::cerr << "rebuffering input header\n";
+         // std::cerr << "rebuffering input header\n";
       } 
    }
 }

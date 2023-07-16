@@ -84,7 +84,7 @@ extern "C"{
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> peer_map__rpc_state             ("peer_map__rpc_state");
       hls_thread_local hls::stream<sendmsg_t,        VERIF_DEPTH> rpc_state__srpt_data            ("rpc_state__srpt_data");
       hls_thread_local hls::stream<ready_data_pkt_t> srpt_data__egress_sel                        ("srpt_data__egress_sel");
-      hls_thread_local hls::stream<ap_uint<51>,      VERIF_DEPTH> srpt_grant__egress_sel          ("srpt_grant__egress_sel");
+      hls_thread_local hls::stream<grant_out_t,      VERIF_DEPTH> srpt_grant__egress_sel          ("srpt_grant__egress_sel");
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> egress_sel__rpc_state           ("egress_sel__rpc_state"); 
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> rpc_state__pkt_builder          ("rpc_state__pkt_builder"); 
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> peer_map__rpc_map               ("peer_map__rpc_map"); 
@@ -94,7 +94,7 @@ extern "C"{
       hls_thread_local hls::stream<dbuff_notif_t,    VERIF_DEPTH> dbuff_egress__srpt_data         ("dbuff_egress__srpt_data");
       hls_thread_local hls::stream<in_chunk_t,       VERIF_DEPTH> chunk_ingress__dbuff_ingress    ("chunk_ingress__dbuff_ingress");
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> rpc_state__dbuff_ingress        ("rpc_state__dbuff_ingress");
-      hls_thread_local hls::stream<ap_uint<58>,      VERIF_DEPTH> rpc_state__srpt_grant           ("rpc_state__srpt_grant");
+      hls_thread_local hls::stream<grant_in_t,       VERIF_DEPTH> rpc_state__srpt_grant           ("rpc_state__srpt_grant");
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> header_in__rpc_state__srpt_data ("header_in__rpc_date__srpt_data");
       hls_thread_local hls::stream<header_t,         VERIF_DEPTH> chunk_ingress__rpc_map          ("chunk_ingress__rpc_map");
       hls_thread_local hls::stream<recvmsg_t,        VERIF_DEPTH> recvmsg__peer_map__rpc_state    ("recvmsg__peer_map__rpc_state");

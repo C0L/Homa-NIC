@@ -6,7 +6,7 @@
 #include "rpcmgmt.hh"
 extern "C"{
    void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
-         hls::stream<ap_uint<51>> & grant_pkt_i,
+         hls::stream<grant_out_t> & grant_pkt_i,
          hls::stream<header_t> & out_pkt_o);
 
    void pkt_builder(hls::stream<header_t> & header_out_i,

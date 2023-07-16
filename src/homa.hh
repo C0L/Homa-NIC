@@ -47,31 +47,33 @@
 #define MAX_OVERCOMMIT 1
 #endif
 
-#define SRPT_UPDATE 0
-#define SRPT_UPDATE_BLOCK 1
-#define SRPT_INVALIDATE 2
-#define SRPT_UNBLOCK 3
-#define SRPT_EMPTY 4
-#define SRPT_BLOCKED 5
-#define SRPT_ACTIVE 6
+// #define SRPT_UPDATE 0
+// #define SRPT_UPDATE_BLOCK 1
+// #define SRPT_INVALIDATE 2
+// #define SRPT_UNBLOCK 3
+// #define SRPT_EMPTY 4
+// #define SRPT_BLOCKED 5
+// #define SRPT_ACTIVE 6
 
-// #define ENTRY_SIZE 51
-// #define PEER_ID 50,37
-// #define RPC_ID 36,23
-// #define RECV_PKTS 22,13
-// #define GRNTBLE_PKTS 12,3
-// #define PRIORITY 2,0
-// #define PRIORITY_SIZE 3
+#define GRANT_OUT_SIZE     95
+#define GRANT_OUT_PEER_ID  13,0
+#define GRANT_OUT_RPC_ID   27,14
+#define GRANT_OUT_RECV     59,28
+#define GRANT_OUT_GRANT    91,60
+#define GRANT_OUT_PRIORITY 94,92
+#define PRIORITY_SIZE      3
 
-// TODO refine the interface, usetypdef with offsets
+typedef ap_uint<GRANT_OUT_SIZE> grant_out_t;
+
 // Bit indexes for input "headers" to srpt_grant
-// #define HEADER_SIZE 58
-// #define HDR_PEER_ID 57,44
-// #define HDR_RPC_ID 43,30
-// #define HDR_MSG_LEN 29,20
-// #define HDR_INCOMING 19,10
-// #define HDR_OFFSET 9,0
+#define GRANT_IN_SIZE    124
+#define GRANT_IN_PEER_ID 13,0
+#define GRANT_IN_RPC_ID  27,14
+#define GRANT_IN_OFFSET  59,28
+#define GRANT_IN_MSG_LEN 91,60
+#define GRANT_IN_INC     123,92
 
+typedef ap_uint<GRANT_IN_SIZE> grant_in_t;
 
 /* Peer Tab Configuration */
 #ifndef DEBUG 
@@ -489,8 +491,8 @@ struct srpt_data_t {
 struct srpt_grant_t {
    ap_uint<14> peer_id;
    ap_uint<14> rpc_id;
-   ap_uint<10> recv_bytes;
-   ap_uint<10> grantable_bytes;
+   ap_uint<32> recv_bytes;
+   ap_uint<32> grantable_bytes;
 };
 
 template<typename T, int FIFO_SIZE>

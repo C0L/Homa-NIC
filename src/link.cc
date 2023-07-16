@@ -11,17 +11,18 @@ extern "C"{
     * about the RPC before the packet can be sent
     */
    void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
-         hls::stream<ap_uint<51>> & grant_pkt_i,
+         hls::stream<grant_out_t> & grant_pkt_i,
          hls::stream<header_t> & header_out_o) {
 
       // #pragma HLS pipeline II=1 style=flp
 
-      ap_uint<51> ready_grant_pkt_raw;
-      ready_data_pkt_t ready_data_pkt;
-
       if (!grant_pkt_i.empty()) {
-         ready_grant_pkt_raw = grant_pkt_i.read();
-         ready_grant_pkt_t ready_grant_pkt = {ready_grant_pkt_raw(PEER_ID), ready_grant_pkt_raw(RPC_ID), ready_grant_pkt_raw(RECV_PKTS)};
+         std::cerr << "SELECTED GRANT TO SEND\n";
+         grant_out_t grant_out = grant_pkt_i.read();
+
+         ready_grant_pkt_t ready_grant_pkt = {grant_out(GRANT_OUT_PEER_ID), 
+            grant_out(GRANT_OUT_RPC_ID), 
+            grant_out(GRANT_OUT_RECV)};
 
          header_t header_out;
          header_out.type = GRANT;
@@ -32,22 +33,24 @@ extern "C"{
 
          header_out_o.write(header_out);
       } else if (!data_pkt_i.empty()) {
-         ready_data_pkt = data_pkt_i.read();
+         ready_data_pkt_t ready_data_pkt = data_pkt_i.read();
 
          ap_uint<32> data_bytes = MIN(ready_data_pkt.remaining, (ap_uint<32>) HOMA_PAYLOAD_SIZE);
 
          header_t header_out;
-         header_out.type = DATA;
-         header_out.local_id = ready_data_pkt.rpc_id;
-         header_out.packet_bytes = DATA_PKT_HEADER + data_bytes;
-         header_out.payload_length = data_bytes + HOMA_DATA_HEADER;
-         header_out.grant_offset = ready_data_pkt.granted;
-         header_out.message_length = ready_data_pkt.total;
+         header_out.type            = DATA;
+         header_out.local_id        = ready_data_pkt.rpc_id;
+         header_out.packet_bytes    = DATA_PKT_HEADER + data_bytes;
+         header_out.payload_length  = data_bytes + HOMA_DATA_HEADER;
+         header_out.grant_offset    = ready_data_pkt.granted;
+         header_out.message_length  = ready_data_pkt.total;
          header_out.processed_bytes = 0;
-         header_out.data_offset = ready_data_pkt.total - ready_data_pkt.remaining;
-         header_out.segment_length = data_bytes;
-         header_out.incoming = ready_data_pkt.granted;
-         header_out.valid = 1;
+         header_out.data_offset     = ready_data_pkt.total - ready_data_pkt.remaining;
+         header_out.segment_length  = data_bytes;
+         header_out.incoming        = ready_data_pkt.granted;
+         header_out.valid           = 1;
+
+         // std::cerr << "SET INCOMING: " << ready_data_pkt.granted << std::endl; 
 
          header_out_o.write(header_out);
       } 
@@ -137,6 +140,7 @@ extern "C"{
                   // Data header
                   natural_chunk(8*64 - 18*8-1,8*64 - 22*8) = header_out.message_length(4*8-1, 0); // Message Length (entire message)
                   natural_chunk(8*64 - 22*8-1,8*64 - 26*8) = header_out.incoming(4*8-1, 0);       // Incoming
+                  // std::cerr << "SET INCOMING: " << header_out.incoming << std::endl; 
                   natural_chunk(8*64 - 26*8-1,8*64 - 28*8) = 0;                                   // Cutoff Version (unimplemented) (2 bytes) TODO
                   natural_chunk(8*64 - 28*8-1,8*64 - 29*8) = 0;                                   // Retransmit (unimplemented) (1 byte) TODO
                   natural_chunk(8*64 - 29*8-1,8*64 - 30*8) = 0;                                   // Pad (1 byte)
@@ -289,16 +293,16 @@ extern "C"{
          header_in.processed_bytes += 64;
 
          header_in.payload_length(2*8-1,0) = natural_chunk(8*64 - 18*8-1,8*64 - 20*8);
-         header_in.saddr(16*8-1,0) = natural_chunk(8*64 - 22*8-1,8*64 - 38*8);
-         header_in.daddr(16*8-1,0) = natural_chunk(8*64 - 38*8-1,8*64 - 54*8);
-         header_in.sport(2*8-1,0) =  natural_chunk( 8*64 - 54*8-1, 8*64 - 56*8);
-         header_in.dport(2*8-1,0) =  natural_chunk( 8*64 - 56*8-1, 8*64 - 58*8);
+         header_in.saddr(16*8-1,0)         = natural_chunk(8*64 - 22*8-1,8*64 - 38*8);
+         header_in.daddr(16*8-1,0)         = natural_chunk(8*64 - 38*8-1,8*64 - 54*8);
+         header_in.sport(2*8-1,0)          = natural_chunk(8*64 - 54*8-1,8*64 - 56*8);
+         header_in.dport(2*8-1,0)          = natural_chunk(8*64 - 56*8-1,8*64 - 58*8);
 
       } else if (header_in.processed_bytes == 64) {
          header_in.processed_bytes += 64;
 
          header_in.type      = natural_chunk(8*64 - 3*8-1,8*64 - 4*8);     // Packet type
-         header_in.sender_id = natural_chunk(8*64 - 10*8-1,  8*64 - 18*8); // Sender RPC ID
+         header_in.sender_id = natural_chunk(8*64 - 10*8-1,8*64 - 18*8); // Sender RPC ID
          header_in.sender_id = LOCALIZE_ID(header_in.sender_id);
 
          header_in.valid = 1;

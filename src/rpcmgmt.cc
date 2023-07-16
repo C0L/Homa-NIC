@@ -11,7 +11,7 @@ extern "C"{
          hls::stream<header_t> & header_out_o,
          hls::stream<header_t> & header_in_i,
          hls::stream<header_t> & header_in_dbuff_o,
-         hls::stream<ap_uint<58>> & header_in_grant_o,
+         hls::stream<grant_in_t> & grant_in_o,
          hls::stream<header_t> & header_in_srpt_o) {
 
       static stack_t<rpc_id_t, MAX_RPCS> rpc_stack(true);
@@ -54,18 +54,23 @@ extern "C"{
 
                header_in_dbuff_o.write(header_in); // Write to data buffer
 
+               // std::cerr << "MESSAGE LENGTH: " << header_in.message_length << std::endl;
+               // std::cerr << "INCOMING: " << header_in.incoming << std::endl;
+               
+               // Does this RPC need to interact with the grant system?
+               if (header_in.message_length > header_in.incoming) { 
 
-               ap_uint<HEADER_SIZE> header_in_raw;
-               header_in_raw(HDR_OFFSET) = header_in.data_offset;
-               header_in_raw(HDR_INCOMING) = header_in.incoming; // TODO no longer used 
-               header_in_raw(HDR_MSG_LEN) = header_in.message_length;
-               header_in_raw(HDR_RPC_ID) = header_in.local_id;
-               header_in_raw(HDR_PEER_ID) = header_in.peer_id;
+                  grant_in_t grant_in;
+                  grant_in(GRANT_IN_OFFSET)   = header_in.data_offset;
+                  grant_in(GRANT_IN_INC)      = header_in.incoming;
+                  grant_in(GRANT_IN_MSG_LEN)  = header_in.message_length;
+                  grant_in(GRANT_IN_RPC_ID)   = header_in.local_id;
+                  grant_in(GRANT_IN_PEER_ID)  = header_in.peer_id;
 
-               std::cerr << "FORWARDING MSG LENGTH: " << header_in_raw(HDR_MSG_LEN) << std::endl;
+                  std::cerr << "FORWARDED TO GRANT SYSTEM\n";
+                  grant_in_o.write(grant_in); // Write to SRPT grant queue
+               } 
 
-               std::cerr << "FORWARDED TO GRANT SYSTEM\n";
-               header_in_grant_o.write(header_in_raw); // Write to SRPT grant queue
                break;
             }
 
@@ -77,7 +82,6 @@ extern "C"{
             }
          }
       }
-
 
       sendmsg_t sendmsg;
       recvmsg_t recvmsg;
@@ -135,6 +139,9 @@ extern "C"{
          hls::stream<header_t> & header_in_o,
          hls::stream<recvmsg_t> & recvmsg_i) {
 
+   // TODO is there a way to avoid double searches here??
+      static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
+      static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> hashmap;
       static hashmap_t<rpc_hashpack_t, rpc_id_t, RPC_SUB_TABLE_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE, MAX_OPS> hashmap;
 
       // TODO can this be problematic?
