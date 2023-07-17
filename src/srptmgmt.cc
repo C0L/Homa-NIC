@@ -33,16 +33,11 @@ extern "C"{
 
       }
 
-      sendmsg_t sendmsg;
       if (!sendmsg_i.empty()) {
-         sendmsg = sendmsg_i.read();
+         sendmsg_t sendmsg = sendmsg_i.read();
 
          srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
          grants[((sendmsg.local_id >> 1)-1)] = sendmsg.granted;
-
-         // std::cerr << "TOTAL: " << new_entry.total << std::endl;
-         // std::cerr << "REMAINING: " << new_entry.remaining << std::endl;
-         // std::cerr << "GRANTED: " << sendmsg.granted << std::endl;
 
          // bool granted = !(head.total - head.remaining > grants[i]);
          // TODO need to document this translation better
@@ -69,11 +64,8 @@ extern "C"{
 
       if (head.rpc_id != 0) {
 
-         std::cerr << (dbuff_notifs[head.dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE << std::endl;
          ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
-         std::cerr << "INCOMING " << grants[head.rpc_id];
          data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[((head.rpc_id >> 1)-1)]});
-         // std::cerr << "NEW REMAINING: " << remaining << std::endl;
          entries[((head.rpc_id >> 1) - 1)].remaining = remaining;
 
          if (remaining == 0) {
@@ -110,8 +102,7 @@ extern "C"{
          grant_in_t grant_in = grant_in_i.read();
          // The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
          if (grant_in(GRANT_IN_OFFSET) == 0) {
-            // std::cerr << "GRANT CREATE NEW ENTRY" << std::endl;
-            std::cerr << "GRANT CREATE NEW ENTRY " << grant_in(GRANT_IN_PEER_ID) << " " << grant_in(GRANT_IN_RPC_ID) << " " << std::endl;
+            std::cerr << "GRANT CREATE NEW ENTRY " << grant_in(GRANT_IN_PEER_ID) << " " << grant_in(GRANT_IN_RPC_ID) << " " << grant_in(GRANT_IN_MSG_LEN) << std::endl;
 
             entries[((grant_in(GRANT_IN_RPC_ID) >> 1) - 1)] = {grant_in(GRANT_IN_PEER_ID), grant_in(GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
          } else {
@@ -131,16 +122,10 @@ extern "C"{
             srpt_grant_t curr_best = entries[0];
             for (int e = 0; e < MAX_RPCS; ++e) {
 
-               //std::cerr << "GRANTABLE: " <<  entries[e].grantable_bytes  << std::endl;
-                            //std::cerr << "CURR GRANT: " <<  curr_best.grantable_bytes << std::endl;
-               //std::cerr << "CURR BEST: " <<  curr_best.rpc_id << std::endl;
                if (entries[e].rpc_id == 0) continue; 
 
                // Is this entry better than our current best
                if (entries[e].grantable_bytes < curr_best.grantable_bytes || curr_best.rpc_id == 0) {
-                  // std::cerr << "RPC_ID: " <<  entries[e].rpc_id << std::endl;
-                  // std::cerr << "PEER_ID: " <<  entries[e].peer_id << std::endl;
-
                   bool dupe = false;
                   for (int s = 0; s < 8; s++) {
                      if (entries[e].peer_id == best[s].peer_id) {
@@ -148,8 +133,6 @@ extern "C"{
                      }
                   }
 
-                  // if (!dupe) std::cerr << "FOUND NEW BEST\n";
-                  // if (dupe) std::cerr << "DUPE FOUND\n";
                   curr_best = (!dupe) ? entries[e] : curr_best;
                }
             }

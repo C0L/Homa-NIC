@@ -68,32 +68,25 @@ struct hashmap_t {
 
          switch(op.table_id) {
             case 0: {
-
                        ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED0);
                        out_entry = table_0[hash];
                        table_0[hash] = op.entry;
                        break;
                     }
             case 1: {
-
                        ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED1);
-
                        out_entry = table_1[hash];
                        table_3[hash] = op.entry;
                        break;
                     }
             case 2: {
-
                        ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED2);
-
                        out_entry = table_2[hash];
                        table_2[hash] = op.entry;
                        break;
                     }
             case 3: {
-
                        ap_uint<TABLE_IDX> hash = (ap_uint<TABLE_IDX>) simple_hash(op.entry.hashpack, SEED3);
-
                        out_entry = table_3[hash];                                            	
                        table_3[hash] = op.entry;
                        break;
@@ -102,8 +95,9 @@ struct hashmap_t {
             default: break;
          }
 
-         if (!out_entry.id)
+         if (!out_entry.id) {
             ops.push((table_op_t<E>) {op.table_id++, op.entry});
+         }
       }
    }
 

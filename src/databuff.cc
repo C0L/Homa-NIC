@@ -109,12 +109,10 @@ extern "C"{
          dbuff_notif_o.write({dbuff_in.dbuff_id, dbuff_in.dbuff_chunk});
       } 
 
-      out_chunk_t out_chunk; 
       // Do we need to process any packet chunks?
       if (!out_chunk_i.empty()) {
-         out_chunk = out_chunk_i.read();
+         out_chunk_t out_chunk = out_chunk_i.read();
 
-         raw_stream_t raw_stream;
          // Is this a data type packet?
          if (out_chunk.type == DATA) {
             int curr_byte = out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
@@ -152,11 +150,6 @@ extern "C"{
          } 
 
          out_chunk_o.write(out_chunk);
-         // raw_stream.last = out_chunk.last;
-
-         // raw_stream.data = out_chunk.buff.data;
-
-         // link_egress.write(raw_stream);
       }
    }
 }

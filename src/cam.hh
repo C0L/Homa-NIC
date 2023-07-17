@@ -32,7 +32,7 @@ struct cam_t {
 
    void push(V op) {
 #pragma HLS array_partition variable=buffer type=complete
-      for (int i = MAX_SIZE-2; i > 0; --i) {
+      for (int i = MAX_SIZE-2; i >= 0; --i) {
 #pragma HLS unroll
          buffer[i+1] = buffer[i];
       }
@@ -48,6 +48,10 @@ struct cam_t {
 
       read_head--;
       return op;
+   }
+
+   int size() {
+      return read_head;
    }
 
    bool empty() {

@@ -47,14 +47,6 @@
 #define MAX_OVERCOMMIT 1
 #endif
 
-// #define SRPT_UPDATE 0
-// #define SRPT_UPDATE_BLOCK 1
-// #define SRPT_INVALIDATE 2
-// #define SRPT_UNBLOCK 3
-// #define SRPT_EMPTY 4
-// #define SRPT_BLOCKED 5
-// #define SRPT_ACTIVE 6
-
 #define GRANT_OUT_SIZE     95
 #define GRANT_OUT_PEER_ID  13,0
 #define GRANT_OUT_RPC_ID   27,14
@@ -127,9 +119,50 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  */
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 
+#define IPV6_VERSION 6
+#define IPV6_TRAFFIC 0
+#define IPV6_FLOW    0xFFFF
 
-// TODO describe 64B structure, and offsets
 
+/* 64B Chunk Offsets */
+#define CHUNK_IPV6_MAC_DEST         511,464
+#define CHUNK_IPV6_MAC_SRC          463,416
+#define CHUNK_IPV6_ETHERTYPE        415,400
+#define CHUNK_IPV6_VERSION          399,396
+#define CHUNK_IPV6_TRAFFIC          395,388
+#define CHUNK_IPV6_FLOW             387,368
+#define CHUNK_IPV6_PAYLOAD_LEN      367,352
+#define CHUNK_IPV6_NEXT_HEADER      351,344
+#define CHUNK_IPV6_HOP_LIMIT        343,336
+#define CHUNK_IPV6_SADDR            335,208
+#define CHUNK_IPV6_DADDR            207,80
+#define CHUNK_HOMA_COMMON_SPORT     79,64
+#define CHUNK_HOMA_COMMON_DPORT     63,48
+#define CHUNK_HOMA_COMMON_UNUSED0   47,0
+
+#define CHUNK_HOMA_COMMON_UNUSED1   511,496
+#define CHUNK_HOMA_COMMON_DOFF      495,488
+#define CHUNK_HOMA_COMMON_TYPE      487,480
+#define CHUNK_HOMA_COMMON_UNUSED3   479,464
+#define CHUNK_HOMA_COMMON_CHECKSUM  463,448
+#define CHUNK_HOMA_COMMON_UNUSED4   447,432
+#define CHUNK_HOMA_COMMON_SENDER_ID 431,368
+
+/* DATA Specialization */
+#define CHUNK_HOMA_DATA_MSG_LEN     367,336
+#define CHUNK_HOMA_DATA_INCOMING    335,304
+#define CHUNK_HOMA_DATA_CUTOFF      303,288
+#define CHUNK_HOMA_DATA_REXMIT      287,280
+#define CHUNK_HOMA_DATA_PAD         279,272
+#define CHUNK_HOMA_DATA_OFFSET      271,240
+#define CHUNK_HOMA_DATA_SEG_LEN     239,208
+#define CHUNK_HOMA_ACK_ID           207,144
+#define CHUNK_HOMA_ACK_SPORT        143,128
+#define CHUNK_HOMA_ACK_DPORT        127,112
+
+/* GRANT Specialization */
+#define CHUNK_HOMA_GRANT_OFFSET     111,80
+#define CHUNK_HOMA_GRANT_PRIORITY   79,72
 
 /* Homa Kernel Configuration */
 // TODO organize this and make some of this runtime configurable
@@ -154,8 +187,12 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define OVERCOMMIT_BYTES 480000
 
 
-// Number of bytes in ethernet + ipv6 + data header
+// Number of bytes in ethernet + ipv6 + common header + data header
 #define DATA_PKT_HEADER 114
+
+// ethernet header: 14 + ipv6 header: 40 + common header: 28 + grant header: 5
+// Number of bytes in ethernet + ipv6 + common header + grant header
+#define GRANT_PKT_HEADER 87
 
 // Number of bytes in ethernet + ipv6 header
 #define PREFACE_HEADER 54
@@ -175,10 +212,9 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define ACK      0x18
 
 // Internal 64B chunk of data (for streams in, out, storing data internally...etc)
-struct integral_t {
+typedef struct {
    ap_uint<512> data;
-};
-
+} integral_t;
 
 
 /* Data Buffer Configuration */
@@ -438,21 +474,6 @@ enum data_bytes_e {
    PARTIAL_DATA = 14,
 };
 
-struct in_chunk_t {
-   integral_t buff;
-   ap_uint<32> offset;
-   ap_uint<1> last;
-};
-
-struct out_chunk_t {
-   homa_packet_type type;
-   dbuff_id_t dbuff_id;     // Which data buffer is the RPC message stored in
-   ap_uint<32> offset;      // Offset in data message
-   data_bytes_e data_bytes; // How many data bytes to add to this block
-   ap_uint<1> last;
-   integral_t buff;
-};
-
 struct dma_r_req_t {
 #define DMA_R_REQ_OFFSET 31,0
    ap_uint<32> offset;
@@ -472,11 +493,13 @@ struct dma_w_req_t {
 const ap_uint<16> ETHERTYPE_IPV6 = 0x86DD;
 const ap_uint<48> MAC_DST = 0xAAAAAAAAAAAA;
 const ap_uint<48> MAC_SRC = 0xBBBBBBBBBBBB;
+
 const ap_uint<32> VTF = 0x600FFFFF;
+
 const ap_uint<8> IPPROTO_HOMA = 0xFD;
 const ap_uint<8> HOP_LIMIT = 0x00;
 const ap_uint<8> DOFF = 10 << 4;
-const ap_uint<8> DATA_TYPE = DATA;
+// const ap_uint<8> DATA_TYPE = DATA;
 const ap_uint<32> HOMA_PAYLOAD_SIZE = 1386;
 
 // WARNING: For C simulation only
@@ -495,6 +518,24 @@ struct srpt_grant_t {
    ap_uint<32> grantable_bytes;
 };
 
+
+struct in_chunk_t {
+   integral_t buff;
+   ap_uint<32> offset;
+   ap_uint<1> last;
+};
+
+struct out_chunk_t {
+   homa_packet_type type;
+   dbuff_id_t dbuff_id;     // Which data buffer is the RPC message stored in
+   ap_uint<32> offset;      // Offset in data message
+   data_bytes_e data_bytes; // How many data bytes to add to this block
+   ap_uint<1> last;
+   integral_t buff;
+};
+
+
+// TODO move this
 template<typename T, int FIFO_SIZE>
 struct fifo_t {
    T buffer[FIFO_SIZE];
