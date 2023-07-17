@@ -51,7 +51,6 @@ extern "C"{
       sendmsg(SENDMSG_ID) = 0;
       sendmsg(SENDMSG_CC) = 0xFFFFFFFFFFFFFFFF;
       sendmsg(SENDMSG_RTT) = 5000;
-      // std::cerr << "WROTE INPUTS\n";
 
       char maxi_in[128*64];
       char maxi_out[128*64];

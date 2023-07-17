@@ -14,24 +14,28 @@ extern "C"{
          hls::stream<grant_out_t> & grant_pkt_i,
          hls::stream<header_t> & header_out_o) {
 
-      // #pragma HLS pipeline II=1 style=flp
+#pragma HLS pipeline II=1 style=flp
 
       if (!grant_pkt_i.empty()) {
          // std::cerr << "SELECTED GRANT TO SEND\n";
          grant_out_t grant_out = grant_pkt_i.read();
 
          // TODO can dump this now
-         ready_grant_pkt_t ready_grant_pkt = {grant_out(GRANT_OUT_PEER_ID), 
-            grant_out(GRANT_OUT_RPC_ID), 
-            grant_out(GRANT_OUT_RECV)};
+         // ready_grant_pkt_t ready_grant_pkt = {grant_out(GRANT_OUT_PEER_ID), 
+            // grant_out(GRANT_OUT_RPC_ID), 
+            // grant_out(GRANT_OUT_RECV)};
 
          header_t header_out;
          header_out.type         = GRANT;
-         header_out.local_id     = ready_grant_pkt.rpc_id;
-         header_out.grant_offset = ready_grant_pkt.grant_increment;
+         header_out.local_id     = grant_out(GRANT_OUT_RPC_ID);
+         // TODO if we are sending a GRANT packet, we need the corresponding RPC ID?
+         // header_out.sender_id    = grant_out(GRANT_OUT_RPC_ID);
+         header_out.grant_offset = grant_out(GRANT_OUT_GRANT);
          header_out.packet_bytes = GRANT_PKT_HEADER;
 
          header_out.valid = 1;
+
+         std::cerr << "SET HEADER OUT GRANT OFFSET " << header_out.grant_offset << std::endl;
 
          header_out_o.write(header_out);
       } else if (!data_pkt_i.empty()) {
@@ -137,7 +141,8 @@ extern "C"{
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                    // Unused (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                    // Checksum (unused) (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                    // Unused  (2 bytes) 
-                  natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header_out.sender_id; // Sender ID
+                  natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header_out.id; // Sender ID
+                  std::cerr << "OUTGOING DATA SENDER ID " << header_out.id << std::endl;
 
                   // Data header
                   natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = header_out.message_length; // Message Length (entire message)
@@ -211,11 +216,14 @@ extern "C"{
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                    // Unused (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                    // Checksum (unused) (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                    // Unused  (2 bytes) 
-                  natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header_out.sender_id; // Sender ID
+                  natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header_out.id; // Sender ID
+                  std::cerr << "OUTGOING GRANT SENDER ID " << header_out.id << std::endl;
 
                   // Grant header
                   natural_chunk(CHUNK_HOMA_GRANT_OFFSET)   = header_out.grant_offset; // Byte offset of grant
                   natural_chunk(CHUNK_HOMA_GRANT_PRIORITY) = 0;                       // Priority TODO
+                                                                                     
+                  std::cerr << "SET GRANT OFFSET " << header_out.grant_offset << std::endl;  
 
                   // Packet block configuration — no data bytes needed
                   out_chunk.type = GRANT;
@@ -306,37 +314,33 @@ extern "C"{
       } else if (header_in.processed_bytes == 64) {
          header_in.processed_bytes += 64;
 
-         header_in.type      = natural_chunk(CHUNK_HOMA_COMMON_TYPE); // Packet type
-         header_in.sender_id = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID);   // Sender RPC ID
-         header_in.sender_id = LOCALIZE_ID(header_in.sender_id);
+         header_in.type      = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
+         header_in.id = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
+         header_in.id = LOCALIZE_ID(header_in.id);
+
+         std::cerr << "INCOMING SENDER ID " << header_in.id << std::endl;
 
          switch(header_in.type) {
             case GRANT: {
                std::cerr << "GRANT CHUNK\n";
-               // TODO
                // Grant header
-               //header_in.offset = raw_stream.data.data(175, 144);   // Byte offset of grant
-               //header_in.priority = raw_stream.data.data(183, 176); // TODO priority
+               header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
+               header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
 
-
-               //header_in.data_offset(4*8-1,0) = header_in.sender_id( 8*64 - 18*8, 8*64 - 22*8-1);
+               // header_in.data_offset(4*8-1,0) = header_in.sender_id(8*64 - 18*8, 8*64 - 22*8-1);
 
                break;
             }
 
             case DATA: {
-               header_in.message_length = natural_chunk(8*64 - 18*8-1,8*64 - 22*8); // Message Length (entire message)
-               header_in.incoming       = natural_chunk(8*64 - 22*8-1,8*64 - 26*8); // Expected Incoming Bytes
-               header_in.data_offset    = natural_chunk(8*64 - 30*8-1,8*64 - 34*8); // Offset in message of segment
-               header_in.segment_length = natural_chunk(8*64 - 34*8-1,8*64 - 38*8); // Segment Length
-                                                                                    //
-               // std::cerr << "MESSAGE LENGTH RECV: " << header_in.message_length << std::endl;
+               header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
+               header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
+               header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
+               header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
                                                                                              
                // TODO parse acks
 
-               //out_chunk.buff.data(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
                data_block.buff.data(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
-               //data_block.buff.data(511, 512-PARTIAL_DATA*8) = raw_stream.data.data(511, 512-PARTIAL_DATA*8);
 
                data_block.last = raw_stream.last;
                chunk_in_o.write(data_block);
@@ -347,6 +351,7 @@ extern "C"{
             }
          }
 
+         header_in.valid = 1; 
          header_in_o.write(header_in);
       } else {
 
@@ -363,7 +368,6 @@ extern "C"{
       if (raw_stream.last) {
          data_block.offset = 0;
          header_in.processed_bytes = 0;
-         // std::cerr << "COMPLETE TRANSACTION\n";
       }
    }
 }

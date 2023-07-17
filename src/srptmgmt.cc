@@ -28,13 +28,16 @@ extern "C"{
       header_t header_in;
       if (!header_in_i.empty()) {
          header_in = header_in_i.read();
-
-         grants[header_in.local_id] = header_in.grant_offset;
-
+         std::cerr << "GRANT ARRIVED " << header_in.local_id << std::endl;
+   
+         // std::cerr << "UPDATED SENDMSG GRANT AT " << ((header_in.local_id >> 1) - 1) << " " << header_in.local_id << std::endl;
+         grants[((header_in.local_id >> 1) -1)] = header_in.grant_offset;
       }
 
       if (!sendmsg_i.empty()) {
          sendmsg_t sendmsg = sendmsg_i.read();
+
+         // std::cerr << "SENDMSG AT " << ((sendmsg.local_id >> 1) - 1) << " " << sendmsg.local_id << std::endl;
 
          srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
          grants[((sendmsg.local_id >> 1)-1)] = sendmsg.granted;
@@ -52,9 +55,6 @@ extern "C"{
             // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
             bool unblocked = (((dbuff_notifs[entries[i].dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE)) >= MIN((entries[i].total - entries[i].remaining + HOMA_PAYLOAD_SIZE)(31,0), entries[i].total(31,0));
             bool granted = !(entries[i].total - entries[i].remaining > grants[i]);
-            // bool granted = !(head.total - head.remaining > grants[i]);
-
-            //(2772 - 1386) > 1 
 
             if (unblocked && granted) { 
                head = entries[i];
@@ -63,6 +63,8 @@ extern "C"{
       }
 
       if (head.rpc_id != 0) {
+         // std::cerr << "DATA OUT FOR ID: " << head.rpc_id << std::endl;
+         // std::cerr << "DATA OUT FOR ID: " << (head.rpc_id >> 1) - 1 << std::endl;
 
          ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
          data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[((head.rpc_id >> 1)-1)]});
@@ -84,7 +86,6 @@ extern "C"{
     * @grant_pkt_o: The next rpc that should be granted to. Goes to packet egress process.
     *
     */
-   //extern "C"{
    void srpt_grant_pkts(hls::stream<grant_in_t> & grant_in_i,
          hls::stream<grant_out_t> & grant_out_o) {
 
@@ -97,16 +98,14 @@ extern "C"{
 
       // Headers from incoming DATA packets
 
-
       if (!grant_in_i.empty()) {
+
          grant_in_t grant_in = grant_in_i.read();
+
          // The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
          if (grant_in(GRANT_IN_OFFSET) == 0) {
-            std::cerr << "GRANT CREATE NEW ENTRY " << grant_in(GRANT_IN_PEER_ID) << " " << grant_in(GRANT_IN_RPC_ID) << " " << grant_in(GRANT_IN_MSG_LEN) << std::endl;
-
             entries[((grant_in(GRANT_IN_RPC_ID) >> 1) - 1)] = {grant_in(GRANT_IN_PEER_ID), grant_in(GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
          } else {
-            // std::cerr << "REUP ENTRY\n";
             entries[((grant_in(GRANT_IN_RPC_ID) >> 1) - 1)].recv_bytes += HOMA_PAYLOAD_SIZE;
             entries[((grant_in(GRANT_IN_RPC_ID) >> 1) - 1)].grantable_bytes -= HOMA_PAYLOAD_SIZE;
          } 
@@ -156,13 +155,11 @@ extern "C"{
                entries[(next_grant.rpc_id >> 1) - 1].recv_bytes -= avail_bytes;
                entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= avail_bytes;
 
-               // grant_pkt()   = 0;
-               // grant_pkt()  = 0;
                grant_out(GRANT_OUT_GRANT) = avail_bytes;
                grant_out(GRANT_OUT_RPC_ID) = next_grant.rpc_id;
                grant_out(GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
-               std::cerr << "DISPATCH GRANT\n";
+               // std::cerr << "DISPATCH GRANT\n";
 
                grant_out_o.write(grant_out);
 
@@ -175,13 +172,11 @@ extern "C"{
                entries[(next_grant.rpc_id >> 1) - 1].recv_bytes = 0;
                entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= next_grant.recv_bytes;
 
-               //grant_pkt(2, 0)   = 0;
-               //grant_pkt(12, 3)  = 0;
                grant_out(GRANT_OUT_GRANT)   = next_grant.recv_bytes;
                grant_out(GRANT_OUT_RPC_ID)  = next_grant.rpc_id;
                grant_out(GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
-               std::cerr << "DISPATCH GRANT\n";
+               // std::cerr << "DISPATCH GRANT " << grant_out(GRANT_OUT_GRANT) << std::endl;
                grant_out_o.write(grant_out);
             } 
          }

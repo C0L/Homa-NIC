@@ -346,6 +346,7 @@ struct homa_rpc_t {
    ap_uint<16> sport;
    peer_id_t peer_id;
    rpc_id_t rpc_id; 
+   ap_uint<64> id;
    ap_uint<64> completion_cookie;
    ap_uint<32> rtt_bytes;
    homa_message_in_t msgin;
@@ -430,7 +431,7 @@ struct header_t {
    ap_uint<16> sport;
    ap_uint<16> dport;
    homa_packet_type type;
-   ap_uint<64> sender_id;
+   ap_uint<64> id;
 
    // Data Header
    ap_uint<32> message_length; 
@@ -454,11 +455,11 @@ struct header_t {
    ap_uint<1> valid;
 };
 
-struct ready_grant_pkt_t {
-   peer_id_t peer_id;
-   rpc_id_t rpc_id;
-   ap_uint<10> grant_increment;
-};
+// struct ready_grant_pkt_t {
+//    peer_id_t peer_id;
+//    rpc_id_t rpc_id;
+//    ap_uint<10> grant_increment;
+// };
 
 struct ready_data_pkt_t {
    rpc_id_t rpc_id;

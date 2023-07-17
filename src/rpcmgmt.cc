@@ -19,39 +19,40 @@ extern "C"{
       // #pragma HLS dependence variable=rpcs inter WAR false
       // #pragma HLS dependence variable=rpcs inter RAW false
 
-      /* Read only process */
       if (!header_out_i.empty()) {
          header_t header_out = header_out_i.read();
 
          homa_rpc_t homa_rpc = rpcs[(header_out.local_id >> 1)-1];
 
-         header_out.dbuff_id = homa_rpc.msgout.dbuff_id;
-         header_out.daddr = homa_rpc.daddr;
-         header_out.dport = homa_rpc.dport;
-         header_out.saddr = homa_rpc.saddr;
-         header_out.sport = homa_rpc.sport;
+         header_out.dbuff_id  = homa_rpc.msgout.dbuff_id;
+         header_out.daddr     = homa_rpc.daddr;
+         header_out.dport     = homa_rpc.dport;
+         header_out.saddr     = homa_rpc.saddr;
+         header_out.sport     = homa_rpc.sport;
+         header_out.id        = homa_rpc.id;
 
          // The grant offset as it comes out of the SRPT grant core is an increment of pkts
-         header_out.grant_offset = homa_rpc.msgin.incoming + (header_out.grant_offset * HOMA_PAYLOAD_SIZE);
+         // header_out.grant_offset = homa_rpc.msgin.incoming + (header_out.grant_offset * HOMA_PAYLOAD_SIZE);
 
          header_out_o.write(header_out);
       }
 
       if (!header_in_i.empty()) {
          header_t header_in = header_in_i.read();
-         homa_rpc_t homa_rpc = rpcs[(header_in.local_id >> 1)-1];
+         homa_rpc_t & homa_rpc = rpcs[(header_in.local_id >> 1)-1];
 
          switch (header_in.type) {
             case DATA: {
-               homa_rpc.msgin.incoming = header_in.incoming;
+               // homa_rpc.msgin.incoming = header_in.incoming;
+               homa_rpc.id = header_in.id;
 
                // TODO maybe other data needs to be accumulated
                header_in.dma_offset = homa_rpc.buffout;
-               header_in.peer_id = homa_rpc.peer_id;
+               header_in.peer_id    = homa_rpc.peer_id;
 
                header_in_dbuff_o.write(header_in); // Write to data buffer
 
-               // Does this RPC need to interact with the grant system?
+               // Does this message need to interact with the grant system?
                if (header_in.message_length > header_in.incoming) { 
 
                   grant_in_t grant_in;
@@ -69,7 +70,6 @@ extern "C"{
 
             case GRANT: {
                // TODO maybe other data needs to be accumulated
-
                header_in_srpt_o.write(header_in); // Write to SRPT data queue
                break;
             }
@@ -94,32 +94,10 @@ extern "C"{
          homa_rpc.msgout.dbuff_id = sendmsg.dbuff_id;
          homa_rpc.rtt_bytes       = sendmsg.rtt_bytes;
          homa_rpc.peer_id         = sendmsg.peer_id;
+         homa_rpc.id              = sendmsg.id;
+         // homa_rpc.id              = sendmsg.peer_id;
 
          rpcs[(sendmsg.local_id >> 1)-1] = homa_rpc;
-
-         // if (sendmsg.id == 0) { // Is this a request message?
-         //                       
-         //    // TODO define macro for this translation (and back)
-         //    sendmsg.local_id = ((rpc_stack.pop() + 1) << 1);
-
-         //    homa_rpc_t homa_rpc;
-         //    homa_rpc.state           = homa_rpc_t::RPC_OUTGOING; // TODO is this needed?
-         //    homa_rpc.daddr           = sendmsg.daddr;
-         //    homa_rpc.dport           = sendmsg.dport;
-         //    homa_rpc.saddr           = sendmsg.saddr;
-         //    homa_rpc.sport           = sendmsg.sport;
-         //    homa_rpc.buffin          = sendmsg.buffin;
-         //    homa_rpc.msgout.length   = sendmsg.length;
-         //    homa_rpc.msgout.dbuff_id = sendmsg.dbuff_id;
-         //    homa_rpc.rtt_bytes       = sendmsg.rtt_bytes;
-
-         //    rpcs[(sendmsg.local_id >> 1)-1] = homa_rpc;
-         // } else { // Is this a response message?
-         //    homa_rpc_t & homa_rpc = rpcs[(sendmsg.local_id >> 1)-1];
-         //    homa_rpc.state           = homa_rpc_t::RPC_OUTGOING; // TODO needed?
-         //    homa_rpc.msgout.dbuff_id = sendmsg.dbuff_id;
-         //    homa_rpc.rtt_bytes       = sendmsg.rtt_bytes;
-         // }
 
          sendmsg_o.write(sendmsg);
       } else if (!recvmsg_i.empty()) {
@@ -137,6 +115,7 @@ extern "C"{
          homa_rpc.buffout   = recvmsg.buffout;
          homa_rpc.rtt_bytes = recvmsg.rtt_bytes;
          homa_rpc.peer_id   = recvmsg.peer_id;
+         // TODO also set ID
 
          rpcs[(recvmsg.local_id >> 1)-1] = homa_rpc;
 
@@ -172,8 +151,10 @@ extern "C"{
       if (!header_in_i.empty()) {
          header_t header_in = header_in_i.read();
 
-         /* The incoming message is a request */
-         if (!IS_CLIENT(header_in.sender_id)) {
+         // TODO This is clumsy 
+
+         /* Are we the server for this RPC? */
+         if (!IS_CLIENT(header_in.id)) {
 
             // Unscheduled packets need to be mapped to tmp recv entry
             if (header_in.type == DATA) {
@@ -183,18 +164,23 @@ extern "C"{
 
                   header_in.local_id = rpc_hashmap.search(recvfind);
 
-                  rpc_hashpack_t recvspecialize = {header_in.daddr, header_in.sender_id, header_in.dport, 0};
+                  rpc_hashpack_t recvspecialize = {header_in.daddr, header_in.id, header_in.dport, 0};
 
                   rpc_hashmap.queue({recvspecialize, header_in.local_id});
                } else {
-                  rpc_hashpack_t recvspecialize = {header_in.daddr, header_in.sender_id, header_in.dport, 0};
+                  rpc_hashpack_t recvspecialize = {header_in.daddr, header_in.id, header_in.dport, 0};
 
                   header_in.local_id = rpc_hashmap.search(recvspecialize);
                }
             } else {
-               rpc_hashpack_t query = {header_in.daddr, header_in.sender_id, header_in.dport, 0};
+               rpc_hashpack_t query = {header_in.saddr, header_in.id, header_in.sport, 0};
                header_in.local_id = rpc_hashmap.search(query);
+
+               std::cerr << "GRANT IN BACK MAP TO " << header_in.local_id << std::endl;
             }
+         } else {
+            header_in.local_id = header_in.id;
+            std::cerr << "WE ARE THE CLIENT FOR TYPE " << header_in.type << std::endl;
          }
 
          // If the incoming message is a response, the RPC ID is already valid in the local store
@@ -216,11 +202,13 @@ extern "C"{
 
             if (recvmsg.peer_id == 0) {
                // TODO macro this
-               recvmsg.peer_id = (peer_stack.pop() << 1);
+               recvmsg.peer_id = (peer_stack.pop() + 1);
 
                entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, recvmsg.peer_id};
                peer_hashmap.queue(peer_entry);
             }
+
+            std::cerr << "RECVMSG " << recvmsg.local_id << std::endl;
 
             rpc_hashpack_t rpc_query = {recvmsg.daddr, 0, recvmsg.dport, 0};
             entry_t<rpc_hashpack_t, rpc_id_t> rpc_entry = {rpc_query, recvmsg.local_id};
@@ -240,24 +228,32 @@ extern "C"{
          if (sendmsg.id == 0) {
 
             sendmsg.local_id = ((rpc_stack.pop() + 1) << 1);
+            sendmsg.id = sendmsg.local_id;
 
             peer_hashpack_t peer_query = {sendmsg.daddr};
             sendmsg.peer_id = peer_hashmap.search(peer_query);
 
             if (sendmsg.peer_id == 0) {
-               sendmsg.peer_id = (peer_stack.pop() << 1);
+               // TODO macro this
+               sendmsg.peer_id = (peer_stack.pop() + 1);
  
                entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, sendmsg.peer_id};
                peer_hashmap.queue(peer_entry);
             }
 
-            rpc_hashpack_t rpc_query = {sendmsg.daddr, sendmsg.id, sendmsg.dport, 0};
-            entry_t<rpc_hashpack_t, rpc_id_t> rpc_entry = {rpc_query, sendmsg.local_id};
-            rpc_hashmap.queue(rpc_entry); 
+            std::cerr << "SENDMSG " << sendmsg.local_id << std::endl;
+   
+            // TODO a send msg never needs to create a mapping????
+            // rpc_hashpack_t rpc_query = {sendmsg.daddr, sendmsg.local_id, sendmsg.dport, 0};
+            // rpc_hashpack_t rpc_query = {sendmsg.daddr, sendmsg.id, sendmsg.dport, 0};
+            // entry_t<rpc_hashpack_t, rpc_id_t> rpc_entry = {rpc_query, sendmsg.local_id};
+            // rpc_hashmap.queue(rpc_entry); 
          } else {
-            sendmsg.local_id = (rpc_id_t) sendmsg.id;
+            // sendmsg.local_id = (rpc_id_t) sendmsg.id;
+            // TODO The local already exists, we just need to find it!?
+            // sendmsg.id = sendmsg.id;
          }
-         
+        
          sendmsg_o.write(sendmsg);
       } else {
          rpc_hashmap.process();

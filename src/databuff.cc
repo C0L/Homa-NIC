@@ -5,7 +5,7 @@ extern "C"{
    void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
          hls::stream<sendmsg_t> & sendmsg_o,
          hls::stream<dma_r_req_t> & dma_read_o) {
-//#pragma HLS pipeline II=1 style=flp
+#pragma HLS pipeline II=1 style=flp
 
       static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
@@ -33,7 +33,7 @@ extern "C"{
    void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
          hls::stream<dma_w_req_t> & dma_w_req_o,
          hls::stream<header_t> & header_in_i) {
-//#pragma HLS pipeline II=1 style=flp
+#pragma HLS pipeline II=1 style=flp
 
       // TODO what size should this be actually?
       static fifo_t<in_chunk_t,128> rebuff;
