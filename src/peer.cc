@@ -1,6 +1,6 @@
-#include "peer.hh"
-#include "stack.hh"
-#include "hashmap.hh"
+// #include "peer.hh"
+// #include "stack.hh"
+// #include "hashmap.hh"
 // extern "C"{
 //    void peer_map(hls::stream<sendmsg_t> & sendmsg_i,
 //          hls::stream<sendmsg_t> & sendmsg_o,

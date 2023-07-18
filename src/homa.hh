@@ -9,7 +9,7 @@
 #include "hls_stream.h"
 
 // Configure the design in a reduced size for compilation speed
-#define DEBUG
+// #define DEBUG
 
 // Configure the size of the stream/fifo depths
 #define STREAM_DEPTH 2 
@@ -26,41 +26,50 @@
 
 /* SRPT Configuration */
 #ifndef DEBUG 
-#define MAX_SRPT 1024
-#else
-#define MAX_SRPT 8
-#endif
-
-#ifndef DEBUG 
 #define MAX_OVERCOMMIT 8
 #else
 #define MAX_OVERCOMMIT 1
 #endif
 
-#define GRANT_OUT_SIZE     95
+// #define GRANT_OUT_SIZE     95
+// #define GRANT_OUT_PEER_ID  13,0
+// #define GRANT_OUT_RPC_ID   27,14
+// #define GRANT_OUT_RECV     59,28
+// #define GRANT_OUT_GRANT    91,60
+// #define GRANT_OUT_PRIORITY 94,92
+// #define PRIORITY_SIZE      3
+#define GRANT_OUT_SIZE     97
 #define GRANT_OUT_PEER_ID  13,0
-#define GRANT_OUT_RPC_ID   27,14
-#define GRANT_OUT_RECV     59,28
-#define GRANT_OUT_GRANT    91,60
-#define GRANT_OUT_PRIORITY 94,92
+#define GRANT_OUT_RPC_ID   29,14
+#define GRANT_OUT_RECV     61,30
+#define GRANT_OUT_GRANT    93,62
+#define GRANT_OUT_PRIORITY 96,94
 #define PRIORITY_SIZE      3
+
 
 typedef ap_uint<GRANT_OUT_SIZE> grant_out_t;
 
 // Bit indexes for input "headers" to srpt_grant
-#define GRANT_IN_SIZE    124
+// #define GRANT_IN_SIZE    124
+// #define GRANT_IN_PEER_ID 13,0
+// #define GRANT_IN_RPC_ID  27,14
+// #define GRANT_IN_OFFSET  59,28
+// #define GRANT_IN_MSG_LEN 91,60
+// #define GRANT_IN_INC     123,92
+#define GRANT_IN_SIZE    126
 #define GRANT_IN_PEER_ID 13,0
-#define GRANT_IN_RPC_ID  27,14
-#define GRANT_IN_OFFSET  59,28
-#define GRANT_IN_MSG_LEN 91,60
-#define GRANT_IN_INC     123,92
+#define GRANT_IN_RPC_ID  29,14
+#define GRANT_IN_OFFSET  61,30
+#define GRANT_IN_MSG_LEN 93,62
+#define GRANT_IN_INC     125,94
+
 
 typedef ap_uint<GRANT_IN_SIZE> grant_in_t;
 
 /* Peer Tab Configuration */
 #ifndef DEBUG 
-#define MAX_PEERS_LOG2 16
-#define MAX_PEERS 16384
+#define MAX_PEERS_LOG2 14
+#define MAX_PEERS 16383
 #define PEER_SUB_TABLE_SIZE 16384
 #define PEER_SUB_TABLE_INDEX 14
 #else
@@ -72,13 +81,19 @@ typedef ap_uint<GRANT_IN_SIZE> grant_in_t;
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
+struct peer_hashpack_t {
+   ap_uint<128> s6_addr;
 #define PEER_HP_SIZE 4
-
+   bool operator==(const peer_hashpack_t & other) const {
+      return (s6_addr == other.s6_addr); 
+   }
+};
 
 /* RPC Store Configuration */
 #ifndef DEBUG 
+// RPC IDs are LSH 1 bit 
 #define MAX_RPCS_LOG2 16
-#define MAX_RPCS 16384
+#define MAX_RPCS 9000 
 #define RPC_SUB_TABLE_SIZE 16384
 #define RPC_SUB_TABLE_INDEX 14
 #define MAX_OPS 64
@@ -490,8 +505,8 @@ struct srpt_data_t {
 
 // WARNING: For C simulation only
 struct srpt_grant_t {
-   ap_uint<14> peer_id;
-   ap_uint<14> rpc_id;
+   peer_id_t peer_id;
+   rpc_id_t rpc_id;
    ap_uint<32> recv_bytes;
    ap_uint<32> grantable_bytes;
 };

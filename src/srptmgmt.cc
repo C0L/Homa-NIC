@@ -28,28 +28,21 @@ extern "C"{
       header_t header_in;
       if (!header_in_i.empty()) {
          header_in = header_in_i.read();
-         std::cerr << "GRANT ARRIVED " << header_in.local_id << std::endl;
-   
-         // std::cerr << "UPDATED SENDMSG GRANT AT " << ((header_in.local_id >> 1) - 1) << " " << header_in.local_id << std::endl;
          grants[((header_in.local_id >> 1) -1)] = header_in.grant_offset;
       }
 
       if (!sendmsg_i.empty()) {
          sendmsg_t sendmsg = sendmsg_i.read();
 
-         // std::cerr << "SENDMSG AT " << ((sendmsg.local_id >> 1) - 1) << " " << sendmsg.local_id << std::endl;
-
          srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
          grants[((sendmsg.local_id >> 1)-1)] = sendmsg.granted;
 
-         // bool granted = !(head.total - head.remaining > grants[i]);
          // TODO need to document this translation better
          entries[((sendmsg.local_id >> 1)-1)] = new_entry;
       } 
 
       srpt_data_t head = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
       for (int i = 0; i < MAX_RPCS; ++i) {
-         // std::cerr << "REMAINING: " << entries[i].remaining << std::endl;
 
          if (entries[i].remaining < head.remaining && entries[i].rpc_id != 0) {
             // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
@@ -63,8 +56,6 @@ extern "C"{
       }
 
       if (head.rpc_id != 0) {
-         // std::cerr << "DATA OUT FOR ID: " << head.rpc_id << std::endl;
-         // std::cerr << "DATA OUT FOR ID: " << (head.rpc_id >> 1) - 1 << std::endl;
 
          ap_uint<32> remaining  = (HOMA_PAYLOAD_SIZE > head.remaining) ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head.remaining - HOMA_PAYLOAD_SIZE));
          data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[((head.rpc_id >> 1)-1)]});
@@ -89,17 +80,12 @@ extern "C"{
    void srpt_grant_pkts(hls::stream<grant_in_t> & grant_in_i,
          hls::stream<grant_out_t> & grant_out_o) {
 
-      // TODO testing to get rid of warning. Should have no effect
-      // #pragma HLS pipeline style=flp
-
       // Because this is only used for sim we brute force grants
       static srpt_grant_t entries[MAX_RPCS];
       static ap_uint<32> avail_bytes = OVERCOMMIT_BYTES; 
 
       // Headers from incoming DATA packets
-
       if (!grant_in_i.empty()) {
-
          grant_in_t grant_in = grant_in_i.read();
 
          // The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
@@ -159,8 +145,6 @@ extern "C"{
                grant_out(GRANT_OUT_RPC_ID) = next_grant.rpc_id;
                grant_out(GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
-               // std::cerr << "DISPATCH GRANT\n";
-
                grant_out_o.write(grant_out);
 
             } else { 
@@ -176,7 +160,6 @@ extern "C"{
                grant_out(GRANT_OUT_RPC_ID)  = next_grant.rpc_id;
                grant_out(GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
-               // std::cerr << "DISPATCH GRANT " << grant_out(GRANT_OUT_GRANT) << std::endl;
                grant_out_o.write(grant_out);
             } 
          }

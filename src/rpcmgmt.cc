@@ -57,6 +57,7 @@ extern "C"{
 
          switch (header_in.type) {
             case DATA: {
+               // TODO really want to get rid of this!!!
                homa_rpc.id = header_in.id;
 
                // TODO maybe other data needs to be accumulated
@@ -89,7 +90,16 @@ extern "C"{
          }
       }
 
-      /* R/W Processes */
+      // TODO could store non-local ID inside of data SRPT and grant SRPT
+      // It seems best to move all state modified by packets be moved outside of store
+
+      /* Ideally, the RPC store contains only data passed or accumulated in the
+       * original sendmsg/recvmsg calls. It is desirable to not have the
+       * incoming or outgoing packets modifying this store as there is only a
+       * single write port. 
+       */
+
+      /* W Processes */
       if (!sendmsg_i.empty()) {
       
          sendmsg_t sendmsg = sendmsg_i.read();
@@ -147,6 +157,7 @@ extern "C"{
     * mapping which can be used to recieve the next piece of data from the
     * specified peer/port.
     * TODO The hashmap needs to be more robustly tested to determine its collision properties
+    * TODO need to return the first match of recv(0) to the caller?
     */
    void rpc_map(hls::stream<header_t> & header_in_i,
          hls::stream<header_t> & header_in_o,
@@ -257,11 +268,11 @@ extern "C"{
                entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, sendmsg.peer_id};
                peer_hashmap.queue(peer_entry);
             }
-
          } 
 
          // TODO if the user calls sendmsg with a non-zero ID, can we gaurentee
          // that it is a local ID? Should the result of a recv call be a local ID always?
+         // Or, should we be performing a search operation if sendmsg != 0?
         
          sendmsg_o.write(sendmsg);
       } else {
