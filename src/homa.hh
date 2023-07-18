@@ -31,13 +31,6 @@
 #define MAX_OVERCOMMIT 1
 #endif
 
-// #define GRANT_OUT_SIZE     95
-// #define GRANT_OUT_PEER_ID  13,0
-// #define GRANT_OUT_RPC_ID   27,14
-// #define GRANT_OUT_RECV     59,28
-// #define GRANT_OUT_GRANT    91,60
-// #define GRANT_OUT_PRIORITY 94,92
-// #define PRIORITY_SIZE      3
 #define GRANT_OUT_SIZE     97
 #define GRANT_OUT_PEER_ID  13,0
 #define GRANT_OUT_RPC_ID   29,14
@@ -49,13 +42,6 @@
 
 typedef ap_uint<GRANT_OUT_SIZE> grant_out_t;
 
-// Bit indexes for input "headers" to srpt_grant
-// #define GRANT_IN_SIZE    124
-// #define GRANT_IN_PEER_ID 13,0
-// #define GRANT_IN_RPC_ID  27,14
-// #define GRANT_IN_OFFSET  59,28
-// #define GRANT_IN_MSG_LEN 91,60
-// #define GRANT_IN_INC     123,92
 #define GRANT_IN_SIZE    126
 #define GRANT_IN_PEER_ID 13,0
 #define GRANT_IN_RPC_ID  29,14
@@ -211,7 +197,6 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 typedef ap_uint<512> integral_t;
 
 /* Data Buffer Configuration */
-
 #ifndef DEBUG 
 // Number of data buffers (max outgoing RPCs)
 #define NUM_DBUFF 1024 
@@ -294,22 +279,14 @@ struct homa_t {
    ap_int<32> flags;
 };
 
-/**
- * struct homa_message_out - Describes a message (either request or response)
- * for which this machine is the sender.
- */
+// TODO, I think these two can be collapsed into homa_rpc
 struct homa_message_out_t {
    ap_int<32> length;
    dbuff_id_t dbuff_id;
    ap_int<32> unscheduled;
    ap_int<32> granted;
-   //ap_uint<8> sched_priority;
-   //ap_uint<64> init_cycles;
 };
 
-/* struct homa_message_in - Holds the state of a message received by
- * this machine; used for both requests and responses.
- */
 struct homa_message_in_t {
    ap_int<32> total_length;
    ap_int<32> bytes_remaining;
@@ -320,10 +297,6 @@ struct homa_message_in_t {
    ap_int<64> copied_out;
 };
 
-/* struct homa_rpc - One of these structures exists for each active
- * RPC. The same structure is used to manage both outgoing RPCs on
- * clients and incoming RPCs on servers.
- */
 struct homa_rpc_t {
    ap_uint<32> buffout;
    ap_uint<32> buffin;
@@ -349,7 +322,6 @@ struct homa_rpc_t {
    homa_message_out_t msgout;
 };
 
-/* */
 struct sendmsg_t {
 
 #define SENDMSG_BUFFIN 31,0
@@ -413,10 +385,7 @@ struct recvmsg_t {
 
 typedef ap_uint<RECVMSG_SIZE> recvmsg_raw_t;
 
-/* forward structures */
-
-// TODO create typedef header_raw. Use entire struct to pass around instead of 58 bit grant
-
+/* forwarding structures */
 struct header_t {
    // Local Values
    rpc_id_t local_id;
@@ -510,7 +479,6 @@ struct srpt_grant_t {
    ap_uint<32> recv_bytes;
    ap_uint<32> grantable_bytes;
 };
-
 
 struct in_chunk_t {
    integral_t buff;

@@ -60,7 +60,6 @@ extern "C"{
                // TODO really want to get rid of this!!!
                homa_rpc.id = header_in.id;
 
-               // TODO maybe other data needs to be accumulated
                header_in.dma_offset = homa_rpc.buffout;
                header_in.peer_id    = homa_rpc.peer_id;
 
@@ -181,7 +180,7 @@ extern "C"{
       //#pragma HLS dependence variable=hashmap inter WAR false
       //#pragma HLS dependence variable=hashmap inter RAW false
 
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 
       if (!header_in_i.empty()) {
          header_t header_in = header_in_i.read();
