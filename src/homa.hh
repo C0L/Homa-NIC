@@ -261,7 +261,10 @@ struct dbuff_in_t {
    integral_t block;
    dbuff_id_t dbuff_id;
    dbuff_coffset_t dbuff_chunk;
+#define DBUFF_IN_SIZE 536
 };
+
+typedef ap_uint<DBUFF_IN_SIZE> dbuff_in_raw_t;
 
 struct dbuff_notif_t {
    dbuff_id_t dbuff_id;
@@ -365,6 +368,7 @@ struct sendmsg_t {
 #define SENDMSG_ID 415,352
 #define SENDMSG_CC 479,416
 #define SENDMSG_RTT 511,480
+#define SENDMSG_SIZE 512
 
    ap_uint<32> buffin; // Offset in DMA space for input
    ap_uint<32> length; // Total length of message
@@ -385,6 +389,8 @@ struct sendmsg_t {
    peer_id_t peer_id; // Local ID for this destination address
 };
 
+typedef ap_uint<SENDMSG_SIZE> sendmsg_raw_t;
+
 struct recvmsg_t {
 
 #define RECVMSG_BUFFOUT 31,0
@@ -394,6 +400,7 @@ struct recvmsg_t {
 #define RECVMSG_DPORT 319,304
 #define RECVMSG_ID 383,320
 #define RECVMSG_RTT 415,384
+#define RECVMSG_SIZE 416
 
    // Message parameters
    ap_uint<32> buffout; // Offset in DMA space for output
@@ -411,9 +418,12 @@ struct recvmsg_t {
    peer_id_t peer_id; // Local ID for this peer
 };
 
-/* continuation structures */
+typedef ap_uint<RECVMSG_SIZE> recvmsg_raw_t;
+
+/* forward structures */
 
 // TODO create typedef header_raw. Use entire struct to pass around instead of 58 bit grant
+
 struct header_t {
    // Local Values
    rpc_id_t local_id;
@@ -482,21 +492,26 @@ struct dma_r_req_t {
    ap_uint<32> length;
 #define DMA_R_REQ_DBUFF_ID 73,64
    dbuff_id_t dbuff_id;
+#define DMA_R_REQ_SIZE 80 
 };
+
+typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_raw_t;
 
 struct dma_w_req_t {
 #define DMA_W_REQ_OFFSET 31,0
    ap_uint<32> offset;
 #define DMA_W_REQ_BLOCK 543,32
    integral_t block;
+#define DMA_W_REQ_SIZE 544
 };
 
+typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
+
+// TODO can return to definfes for this
 const ap_uint<16> ETHERTYPE_IPV6 = 0x86DD;
 const ap_uint<48> MAC_DST = 0xAAAAAAAAAAAA;
 const ap_uint<48> MAC_SRC = 0xBBBBBBBBBBBB;
-
 const ap_uint<32> VTF = 0x600FFFFF;
-
 const ap_uint<8> IPPROTO_HOMA = 0xFD;
 const ap_uint<8> HOP_LIMIT = 0x00;
 const ap_uint<8> DOFF = 10 << 4;
@@ -535,68 +550,12 @@ struct out_chunk_t {
    integral_t buff;
 };
 
-
-// TODO move this
-template<typename T, int FIFO_SIZE>
-struct fifo_t {
-   T buffer[FIFO_SIZE];
-
-   int read_head;
-
-   fifo_t() {
-      read_head = -1;
-   }
-
-   void insert(T value) {
-#pragma HLS array_partition variable=buffer type=complete
-
-      for (int i = FIFO_SIZE-2; i >= 0; --i) {
-#pragma HLS unroll
-         buffer[i+1] = buffer[i];
-      }
-
-      buffer[0] = value;
-
-      read_head++;
-   }
-
-   T remove() {
-#pragma HLS array_partition variable=buffer type=complete
-      T val = buffer[read_head];
-
-      read_head--;
-      return val;
-   }
-
-   void dump() {
-      for (int i = 0; i < 64; ++i) {
-         std::cerr << buffer[i].offset << std::endl;
-      }
-   }
-
-   T & head() {
-      return buffer[read_head];
-   }
-
-   bool full() {
-      return read_head == FIFO_SIZE-1;
-   }
-
-   int size() {
-      return read_head;
-   }
-
-   bool empty() {
-      return read_head == -1;
-   }
-};
-
 extern "C"{
-   void homa(hls::stream<ap_uint<512>, VERIF_DEPTH> & sendmsg_i,
-         hls::stream<ap_uint<416>, VERIF_DEPTH> & recvmsg_i,
-         hls::stream<ap_uint<80>, VERIF_DEPTH> & dma_r_req_o,
-         hls::stream<ap_uint<536>, VERIF_DEPTH> & dma_r_resp_i,
-         hls::stream<ap_uint<544>, VERIF_DEPTH> & dma_w_req_o,
+   void homa(hls::stream<sendmsg_raw_t> & sendmsg_i,
+         hls::stream<recvmsg_raw_t> & recvmsg_i,
+         hls::stream<dma_r_req_raw_t> & dma_r_req_o,
+         hls::stream<dbuff_in_raw_t> & dma_r_resp_i,
+         hls::stream<dma_w_req_raw_t> & dma_w_req_o,
          hls::stream<raw_stream_t> & link_ingress,
          hls::stream<raw_stream_t> & link_egress);
 }
