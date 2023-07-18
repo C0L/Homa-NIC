@@ -1,14 +1,34 @@
 #include "link.hh"
 
 extern "C"{
+   /** network_order() - Convert the "natural" bit vector to a network order
+    * where the LSByte is at bit 7,0 and the MSByte is at bit 511, 504.
+    *
+    * https://docs.xilinx.com/r/en-US/pg203-cmac-usplus:
+    * My understanding is that for the AXI Stream output, 0 is the MSB, and 64
+    * is the LSB. The header fields in our core are a bit array where the MSB
+    * is the high bit and the LSB is the low bit. We cannot just flip these
+    * header fields, as that will change the actual byte value. So, we lay out
+    * a 64B block as if byte 64 is the MSB, and then perform a swap operation
+    * so that the byte at 64 is now the byte at 0.
+    *
+    */
+   void network_order(integral_t & in, integral_t & out) {
+#pragma HLS inline
+      for (int i = 0; i < 64; ++i) {
+#pragma HLS unroll
+         out(512 - (i*8) - 1, 512 - 8 - (i*8)) = in(7 + (i*8), (i*8));
+      }
+   }
+
+
    /**
-    * egress_selector() - Chose which of data packets, grant packets, retransmission
-    * packets, and control packets to send next.
-    * @data_pkt_i - Next highest priority data packet input
-    * @grant_pkt_i - Next highest priority grant packet input
-    * @rexmit_pkt_i - Packets requiring retransmission input
-    * @header_out_o - Output stream to the RPC store to get info
-    * about the RPC before the packet can be sent
+    * egress_selector() - Chose which of data packets, grant packets, retransmission(TODO)
+    * packets, and control packets(TODO) to send next.
+    * @data_pkt_i   - Next highest priority data packet to send
+    * @grant_pkt_i  - Next highest priority grant packet to send
+    * @header_out_o - Output stream to the RPC store to get info about the RPC
+    * before the packet can be sent
     */
    void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
          hls::stream<grant_out_t> & grant_pkt_i,
@@ -17,29 +37,18 @@ extern "C"{
 #pragma HLS pipeline II=1 style=flp
 
       if (!grant_pkt_i.empty()) {
-         // std::cerr << "SELECTED GRANT TO SEND\n";
          grant_out_t grant_out = grant_pkt_i.read();
-
-         // TODO can dump this now
-         // ready_grant_pkt_t ready_grant_pkt = {grant_out(GRANT_OUT_PEER_ID), 
-            // grant_out(GRANT_OUT_RPC_ID), 
-            // grant_out(GRANT_OUT_RECV)};
 
          header_t header_out;
          header_out.type         = GRANT;
          header_out.local_id     = grant_out(GRANT_OUT_RPC_ID);
-         // TODO if we are sending a GRANT packet, we need the corresponding RPC ID?
-         // header_out.sender_id    = grant_out(GRANT_OUT_RPC_ID);
          header_out.grant_offset = grant_out(GRANT_OUT_GRANT);
          header_out.packet_bytes = GRANT_PKT_HEADER;
 
          header_out.valid = 1;
 
-         std::cerr << "SET HEADER OUT GRANT OFFSET " << header_out.grant_offset << std::endl;
-
          header_out_o.write(header_out);
       } else if (!data_pkt_i.empty()) {
-         // std::cerr << "SELECTED DATA PACKET TO SEND\n";
          ready_data_pkt_t ready_data_pkt = data_pkt_i.read();
 
          ap_uint<32> data_bytes = MIN(ready_data_pkt.remaining, (ap_uint<32>) HOMA_PAYLOAD_SIZE);
@@ -62,20 +71,21 @@ extern "C"{
    }
 
    /**
-    * pkt_chunk_egress() - Take in the packet header data and output
+    * pkt_builder() - Take in the packet header data and output
     * structured 64 byte chunks of that packet. Chunks requiring message
     * data will be augmented with that data in the next step. 
     * @header_out_i - Header data that should be sent on the link
-    * @chunk_out_o - 64 byte structured packet chunks output to
-    * this stream to be augmented with data from the data buffer
+    * @chunk_out_o  - 64 byte structured packet chunks output to this stream to
+    * be augmented with data from the data buffer
     */
    void pkt_builder(hls::stream<header_t> & header_out_i,
          hls::stream<out_chunk_t> & chunk_out_o) {
 
-      // TODO I am not sure this ping pong would make its way to RTL
+#pragma HLS pipeline II=1 style=flp
 
+      // TODO revise this...
       static header_t doublebuff[2];
-      // #pragma HLS array_partition variable=doublebuff type=complete
+#pragma HLS array_partition variable=doublebuff type=complete
       // #pragma HLS dependence variable=doublebuff intra RAW false
       // #pragma HLS dependence variable=doublebuff intra WAR false
 
@@ -87,8 +97,6 @@ extern "C"{
          doublebuff[w_pkt] = header_out_i.read();
          w_pkt++;
       }
-
-      // #pragma HLS pipeline II=1 style=flp
 
       // We have data to send
       if (doublebuff[r_pkt].valid == 1) {
@@ -106,7 +114,7 @@ extern "C"{
                   // Ethernet header
                   natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;        // TODO MAC Dest (set by phy?)
                   natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;        // TODO MAC Src (set by phy?)
-                  natural_chunk(CHUNK_IPV6_ETHERTYPE) = ETHERTYPE_IPV6; // Ethertype
+                  natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE; // Ethertype
 
                   // IPv6 header
                   ap_uint<16> payload_length = (header_out.packet_bytes - PREFACE_HEADER);
@@ -142,7 +150,6 @@ extern "C"{
                   natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                    // Checksum (unused) (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                    // Unused  (2 bytes) 
                   natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header_out.id; // Sender ID
-                  std::cerr << "OUTGOING DATA SENDER ID " << header_out.id << std::endl;
 
                   // Data header
                   natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = header_out.message_length; // Message Length (entire message)
@@ -175,15 +182,13 @@ extern "C"{
             }
 
             case GRANT: {
-               // std::cerr << "GRANT PACKET OUT\n";
                if (header_out.processed_bytes == 0) {
-                  // std::cerr << "FIRST PART OF HEADER\n";
                   // TODO this is a little repetetive
 
                   // Ethernet header
                   natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;        // TODO MAC Dest (set by phy?)
                   natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;        // TODO MAC Src (set by phy?)
-                  natural_chunk(CHUNK_IPV6_ETHERTYPE) = ETHERTYPE_IPV6; // Ethertype
+                  natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE; // Ethertype
 
                   // IPv6 header 
                   ap_uint<16> payload_length = (header_out.packet_bytes - PREFACE_HEADER);
@@ -208,7 +213,6 @@ extern "C"{
                   out_chunk.type = GRANT;
                   out_chunk.data_bytes = NO_DATA;
                } else if (header_out.processed_bytes == 64) {
-                  // std::cerr << "GRANT SET REST OF COMMON\n";
                   // Rest of common header
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                    // Unused (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;                 // doff (4 byte chunks in data header)
@@ -216,14 +220,12 @@ extern "C"{
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                    // Unused (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                    // Checksum (unused) (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                    // Unused  (2 bytes) 
-                  natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header_out.id; // Sender ID
-                  std::cerr << "OUTGOING GRANT SENDER ID " << header_out.id << std::endl;
+                  natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header_out.id;        // Sender ID
 
                   // Grant header
                   natural_chunk(CHUNK_HOMA_GRANT_OFFSET)   = header_out.grant_offset; // Byte offset of grant
                   natural_chunk(CHUNK_HOMA_GRANT_PRIORITY) = 0;                       // Priority TODO
                                                                                      
-                  std::cerr << "SET GRANT OFFSET " << header_out.grant_offset << std::endl;  
 
                   // Packet block configuration — no data bytes needed
                   out_chunk.type = GRANT;
@@ -236,7 +238,6 @@ extern "C"{
          header_out.processed_bytes += 64;
 
          if (header_out.processed_bytes >= header_out.packet_bytes) {
-            // std::cerr << "COMPLETE PACKET\n";
             header_out.valid = 0;
             out_chunk.last = 1;
             doublebuff[r_pkt].valid = 0; // TODO maybe not needed?
@@ -245,26 +246,29 @@ extern "C"{
             out_chunk.last = 0;
          }
 
-         // TODO function this
-         for (int i = 0; i < 64; ++i) {
-            // #pragma HLS  unroll
-            out_chunk.buff.data(512 - (i*8) - 1, 512 - 8 - (i*8)) = natural_chunk(7 + (i*8), (i*8));
-         }
+         // TODO Can remove natural chunk entirely
+         network_order(natural_chunk, out_chunk.buff);
 
-         // std::cerr << "CHUNK OUT\n";
          chunk_out_o.write(out_chunk);
       }
    }
 
    /**
-    * pkt_chunk_egress() - 
+    * pkt_chunk_egress() - Take care of final configuration before packet
+    * chunks are placed on the link. Set TKEEP and TLAST bits for AXI Stream
+    * protocol.
+    * TODO this can maybe be absorbed by data buffer core, it just makes less
+    * sense for the "databuffer" to be writing to the link
+    * @out_chunk_i - Chunks to be output onto the link
+    * @link_egress - Outgoign AXI Stream to the link
     */
    void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
          hls::stream<raw_stream_t> & link_egress) {
       // TODO need to set the TKEEP bits
       out_chunk_t chunk = out_chunk_i.read();
       raw_stream_t raw_stream;
-      raw_stream.data = chunk.buff.data;
+      // network_order(chunk.buff, raw_stream.data);
+      raw_stream.data = chunk.buff;
       raw_stream.last = chunk.last;
       link_egress.write(raw_stream);
    }
@@ -273,8 +277,8 @@ extern "C"{
     * pkt_chunk_ingress() - Take packet chunks from the link, reconstruct packets,
     * write data to a temporary holding buffer
     * @link_ingress - Raw 64B chunks from the link of incoming packets
-    * @header_in_o - Outgoing stream for incoming headers to peer map
-    * @chunk_in_o - Outgoing stream for storing data until we know
+    * @header_in_o  - Outgoing stream for incoming headers to peer map
+    * @chunk_in_o   - Outgoing stream for storing data until we know
     * where to place it in DMA space
     *
     * We can't just write directly to DMA space as we don't know where until
@@ -292,13 +296,9 @@ extern "C"{
       static in_chunk_t data_block;
 
       raw_stream_t raw_stream = link_ingress.read();
-      //std::cerr << "CHUNK IN\n";
       ap_uint<512> natural_chunk;
 
-      for (int i = 0; i < 64; ++i) {
-#pragma hls unroll
-         natural_chunk(512 - (i*8) - 1, 512 - 8 - (i*8)) = raw_stream.data(7 + (i*8), (i*8));
-      }
+      network_order(raw_stream.data, natural_chunk);
 
       // For every type of homa packet we need to read at least two blocks
       if (header_in.processed_bytes == 0) {
@@ -314,20 +314,15 @@ extern "C"{
       } else if (header_in.processed_bytes == 64) {
          header_in.processed_bytes += 64;
 
-         header_in.type      = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
-         header_in.id = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
-         header_in.id = LOCALIZE_ID(header_in.id);
-
-         std::cerr << "INCOMING SENDER ID " << header_in.id << std::endl;
+         header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
+         header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
+         header_in.id   = LOCALIZE_ID(header_in.id);
 
          switch(header_in.type) {
             case GRANT: {
-               std::cerr << "GRANT CHUNK\n";
                // Grant header
                header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
                header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
-
-               // header_in.data_offset(4*8-1,0) = header_in.sender_id(8*64 - 18*8, 8*64 - 22*8-1);
 
                break;
             }
@@ -340,7 +335,7 @@ extern "C"{
                                                                                              
                // TODO parse acks
 
-               data_block.buff.data(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
+               data_block.buff(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
 
                data_block.last = raw_stream.last;
                chunk_in_o.write(data_block);
@@ -356,7 +351,7 @@ extern "C"{
       } else {
 
          // TODO need to test TKEEP and change raw_stream def
-         data_block.buff.data = raw_stream.data;
+         data_block.buff = raw_stream.data;
 
          data_block.last = raw_stream.last;
 

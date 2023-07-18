@@ -24,16 +24,14 @@ extern "C"{
 
       sendmsg_o.write(sendmsg);
    }
-}
 
-/**
- * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
- * packet header to determine DMA destination.
- * @chunk_in_o - Incoming data chunks from link destined for DMA
- * @dma_w_req_o - Outgoing requests for data to be placed in DMA
- * @header_in_i - Incoming headers that determine DMA placement
- */
-extern "C"{
+   /**
+    * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
+    * packet header to determine DMA destination.
+    * @chunk_in_o - Incoming data chunks from link destined for DMA
+    * @dma_w_req_o - Outgoing requests for data to be placed in DMA
+    * @header_in_i - Incoming headers that determine DMA placement
+    */
    void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
          hls::stream<dma_w_req_raw_t> & dma_w_req_o,
          hls::stream<header_t> & header_in_i) {
@@ -54,7 +52,7 @@ extern "C"{
          // Place chunk in DMA space at global offset + packet offset
          dma_w_req_raw_t dma_w_req;
          dma_w_req(DMA_W_REQ_OFFSET) = in_chunk.offset + header_in.dma_offset + header_in.data_offset;
-         dma_w_req(DMA_W_REQ_BLOCK)  = in_chunk.buff.data;
+         dma_w_req(DMA_W_REQ_BLOCK)  = in_chunk.buff;
 
          dma_w_req_o.write(dma_w_req);
 
@@ -71,39 +69,37 @@ extern "C"{
          header_in = header_in_i.read();
       } 
    }
-}
 
-/**
- * dbuff_egress() - Augment outgoing packet chunks with packet data
- * @dbuff_egress_i - Input stream of data that needs to be inserted into the on-chip
- * buffer. Contains the block index of the insertion, and the raw data.
- * @dbuff_notif_o - Notification to the SRPT core that data is ready on-chip
- * @out_chunk_i - Input stream for outgoing packets that need to be
- * augmented with data from the data buffer. Each chunk indicates the number of
- * bytes it will need to accumulate from the data buffer, which data buffer,
- * and what global byte offset in the message to send.
- * @link_egress - Outgoing path to link. 64 byte chunks are placed on the link
- * until the final chunk in a packet is placed on the link with the "last" bit
- * set, indicating a completiton of packet transmission.
- * TODO Needs to request data from DMA to keep the RB saturated with pkt data
- */
-extern "C"{
+   /**
+    * dbuff_egress() - Augment outgoing packet chunks with packet data
+    * @dbuff_egress_i - Input stream of data that needs to be inserted into the on-chip
+    * buffer. Contains the block index of the insertion, and the raw data.
+    * @dbuff_notif_o  - Notification to the SRPT core that data is ready on-chip
+    * @out_chunk_i    - Input stream for outgoing packets that need to be
+    * augmented with data from the data buffer. Each chunk indicates the number of
+    * bytes it will need to accumulate from the data buffer, which data buffer,
+    * and what global byte offset in the message to send.
+    * @link_egress    - Outgoing path to link. 64 byte chunks are placed on the link
+    * until the final chunk in a packet is placed on the link with the "last" bit
+    * set, indicating a completiton of packet transmission.
+    * TODO Needs to request data from DMA to keep the RB saturated with pkt data
+    */
    void dbuff_egress(hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
          hls::stream<dbuff_notif_t> & dbuff_notif_o,
          hls::stream<out_chunk_t> & out_chunk_i,
          hls::stream<out_chunk_t> & out_chunk_o) {
 
-// #pragma HLS pipeline II=1 style=flp
+#pragma HLS pipeline II=1 style=flp
 
       // 1024 x 2^14 byte buffers
       static dbuff_t dbuff[NUM_DBUFF];
-//#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
+      //#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
       // Do we need to add any data to data buffer 
       if (!dbuff_egress_i.empty()) {
          dbuff_in_raw_t dbuff_in = dbuff_egress_i.read();
 
-         dbuff[dbuff_in(DBUFF_IN_ID)][dbuff_in(DBUFF_IN_CHUNK)].data = dbuff_in(DBUFF_IN_DATA); 
+         dbuff[dbuff_in(DBUFF_IN_ID)][dbuff_in(DBUFF_IN_CHUNK)] = dbuff_in(DBUFF_IN_DATA); 
 
          dbuff_notif_o.write({dbuff_in(DBUFF_IN_ID), dbuff_in(DBUFF_IN_CHUNK)});
       } 
@@ -124,10 +120,12 @@ extern "C"{
 
             ap_uint<1024> double_buff;
 
-            //#pragma HLS array_partition variable=double_buff complete
+#pragma HLS array_partition variable=double_buff complete
 
-            double_buff(511,0)    = c0.data(511,0);
-            double_buff(1023,512) = c1.data(511,0);
+            // TODO this is backwards??? Maybe not
+            // Was the buffer data already in the right order??
+            double_buff(511,0)    = c0(511,0);
+            double_buff(1023,512) = c1(511,0);
 
             // There is a more obvious C implementation — results in very expensive hardware 
             switch(out_chunk.data_bytes) {
@@ -136,13 +134,12 @@ extern "C"{
                }
 
                case ALL_DATA: {
-                  out_chunk.buff.data(511, 0) = double_buff(((subyte_offset + ALL_DATA) * 8)-1 , subyte_offset * 8);
+                  out_chunk.buff(511, 0) = double_buff(((subyte_offset + ALL_DATA) * 8)-1 , subyte_offset * 8);
                   break;
                }
 
                case PARTIAL_DATA: {
-                  out_chunk.buff.data(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
-
+                  out_chunk.buff(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
                   break;
                }
             }

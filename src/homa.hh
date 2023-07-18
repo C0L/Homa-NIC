@@ -8,22 +8,13 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
-/* HLS Configuration */ 
-
-/* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
- * verification depth controls the size of the "RTL verification adapter" This
- * needs to be configured to be the maximum size of any stream encountered
- * through the execution of the testbench. This should not effect the actual
- * generation of the RTL however 
- */
-// TODO change this name as it is FIFO depth?
-#define VERIF_DEPTH 2 
-
-/* Reduces the size of some parameters for faster compilation/testing */
+// Configure the design in a reduced size for compilation speed
 #define DEBUG
 
-/* Helper Macros */
+// Configure the size of the stream/fifo depths
+#define STREAM_DEPTH 2 
 
+/* Helper Macros */
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
@@ -32,7 +23,6 @@
 
 // Sender->Client and Client->Sender rpc ID conversion
 #define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
-
 
 /* SRPT Configuration */
 #ifndef DEBUG 
@@ -82,16 +72,12 @@ typedef ap_uint<GRANT_IN_SIZE> grant_in_t;
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
-// #define NUM_PEER_UNACKED_IDS 5
-
 #define PEER_HP_SIZE 4
 
 
 /* RPC Store Configuration */
-// To index all the RPCs, we need LOG2 of the max number of RPCs
-
 #ifndef DEBUG 
-#define MAX_RPCS_LOG2 16 // TODO 15 bc of shift??
+#define MAX_RPCS_LOG2 16
 #define MAX_RPCS 16384
 #define RPC_SUB_TABLE_SIZE 16384
 #define RPC_SUB_TABLE_INDEX 14
@@ -109,8 +95,7 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 #define RPC_HP_SIZE 7
 
 
-/* Link Configuration */
-/* 
+/* Link Configuration:
  * This defines an actual axi stream type, in contrast to the internal streams
  * which are all ap_fifo types. The actual data that will be passed by this
  * stream is 512 bit chunks.
@@ -119,12 +104,43 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  */
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 
+
+/* Network Constants */
 #define IPV6_VERSION 6
 #define IPV6_TRAFFIC 0
 #define IPV6_FLOW    0xFFFF
+#define IPV6_ETHERTYPE 0x86DD
+#define MAC_DST 0xAAAAAAAAAAAA
+#define MAC_SRC 0xBBBBBBBBBBBB
+#define IPPROTO_HOMA 0xFD
+#define HOP_LIMIT 0x00
+#define DOFF 160
+#define HOMA_PAYLOAD_SIZE 1386
+
+// Maximum Homa message size
+#define HOMA_MAX_MESSAGE_LENGTH 1000000
+#define IPV6_HEADER_LENGTH 40
+#define HOMA_ETH_OVERHEAD 24
+#define HOMA_MIN_PKT_LENGTH 26
+#define HOMA_MAX_HEADER 90
+#define ETHERNET_MAX_PAYLOAD 1500
+#define HOMA_MAX_PRIORITIES 8
+#define OVERCOMMIT_BYTES 480000
+// Number of bytes in ethernet + ipv6 + common header + data header
+#define DATA_PKT_HEADER 114
+// ethernet header: 14 + ipv6 header: 40 + common header: 28 + grant header: 5
+// Number of bytes in ethernet + ipv6 + common header + grant header
+#define GRANT_PKT_HEADER 87
+// Number of bytes in ethernet + ipv6 header
+#define PREFACE_HEADER 54
+// Number of bytes in homa data ethernet header
+#define HOMA_DATA_HEADER 60
 
 
-/* 64B Chunk Offsets */
+
+/* The homa core writes out packets in 64B units. As a result, we need to know
+ * the local offsets for header data in the 64B chunks 
+ */
 #define CHUNK_IPV6_MAC_DEST         511,464
 #define CHUNK_IPV6_MAC_SRC          463,416
 #define CHUNK_IPV6_ETHERTYPE        415,400
@@ -148,7 +164,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define CHUNK_HOMA_COMMON_UNUSED4   447,432
 #define CHUNK_HOMA_COMMON_SENDER_ID 431,368
 
-/* DATA Specialization */
+/* DATA Packet */
 #define CHUNK_HOMA_DATA_MSG_LEN     367,336
 #define CHUNK_HOMA_DATA_INCOMING    335,304
 #define CHUNK_HOMA_DATA_CUTOFF      303,288
@@ -160,45 +176,10 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define CHUNK_HOMA_ACK_SPORT        143,128
 #define CHUNK_HOMA_ACK_DPORT        127,112
 
-/* GRANT Specialization */
+/* GRANT Packet */
 #define CHUNK_HOMA_GRANT_OFFSET     111,80
 #define CHUNK_HOMA_GRANT_PRIORITY   79,72
 
-/* Homa Kernel Configuration */
-// TODO organize this and make some of this runtime configurable
-// Maximum Homa message size
-#define HOMA_MAX_MESSAGE_LENGTH 1000000
-
-#define IPV6_HEADER_LENGTH 40
-
-#define HOMA_ETH_OVERHEAD 24
-
-#define HOMA_MIN_PKT_LENGTH 26
-
-#define HOMA_MAX_HEADER 90
-
-#define ETHERNET_MAX_PAYLOAD 1500
-
-#define HOMA_MAX_PRIORITIES 8
-
-// #define RTT_PKTS 44
-
-// MAX_OVERCOMMIT * RTT_BYTES
-#define OVERCOMMIT_BYTES 480000
-
-
-// Number of bytes in ethernet + ipv6 + common header + data header
-#define DATA_PKT_HEADER 114
-
-// ethernet header: 14 + ipv6 header: 40 + common header: 28 + grant header: 5
-// Number of bytes in ethernet + ipv6 + common header + grant header
-#define GRANT_PKT_HEADER 87
-
-// Number of bytes in ethernet + ipv6 header
-#define PREFACE_HEADER 54
-
-// Number of bytes in homa data ethernet header
-#define HOMA_DATA_HEADER 60
 
 /* Homa packet types */
 #define DATA     0x10
@@ -212,10 +193,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define ACK      0x18
 
 // Internal 64B chunk of data (for streams in, out, storing data internally...etc)
-typedef struct {
-   ap_uint<512> data;
-} integral_t;
-
+typedef ap_uint<512> integral_t;
 
 /* Data Buffer Configuration */
 
@@ -465,12 +443,6 @@ struct header_t {
    ap_uint<1> valid;
 };
 
-// struct ready_grant_pkt_t {
-//    peer_id_t peer_id;
-//    rpc_id_t rpc_id;
-//    ap_uint<10> grant_increment;
-// };
-
 struct ready_data_pkt_t {
    rpc_id_t rpc_id;
    dbuff_id_t dbuff_id;
@@ -507,16 +479,6 @@ struct dma_w_req_t {
 
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
 
-// TODO can return to definfes for this
-const ap_uint<16> ETHERTYPE_IPV6 = 0x86DD;
-const ap_uint<48> MAC_DST = 0xAAAAAAAAAAAA;
-const ap_uint<48> MAC_SRC = 0xBBBBBBBBBBBB;
-const ap_uint<32> VTF = 0x600FFFFF;
-const ap_uint<8> IPPROTO_HOMA = 0xFD;
-const ap_uint<8> HOP_LIMIT = 0x00;
-const ap_uint<8> DOFF = 10 << 4;
-// const ap_uint<8> DATA_TYPE = DATA;
-const ap_uint<32> HOMA_PAYLOAD_SIZE = 1386;
 
 // WARNING: For C simulation only
 struct srpt_data_t {

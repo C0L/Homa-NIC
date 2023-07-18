@@ -10,13 +10,13 @@ extern "C"{
    int main() {
       std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-      hls::stream<raw_stream_t, VERIF_DEPTH> link_ingress;
-      hls::stream<raw_stream_t, VERIF_DEPTH> link_egress;
-      hls::stream<ap_uint<512>, VERIF_DEPTH> sendmsg_s;
-      hls::stream<ap_uint<416>, VERIF_DEPTH> recvmsg_s;
-      hls::stream<ap_uint<80>, VERIF_DEPTH>  dma_r_req_s;
-      hls::stream<ap_uint<536>, VERIF_DEPTH> dma_resp_s;
-      hls::stream<ap_uint<544>, VERIF_DEPTH> dma_w_req_s;
+      hls::stream<raw_stream_t, STREAM_DEPTH> link_ingress;
+      hls::stream<raw_stream_t, STREAM_DEPTH> link_egress;
+      hls::stream<ap_uint<512>, STREAM_DEPTH> sendmsg_s;
+      hls::stream<ap_uint<416>, STREAM_DEPTH> recvmsg_s;
+      hls::stream<ap_uint<80>, STREAM_DEPTH>  dma_r_req_s;
+      hls::stream<ap_uint<536>, STREAM_DEPTH> dma_resp_s;
+      hls::stream<ap_uint<544>, STREAM_DEPTH> dma_w_req_s;
 
       // ap_uint<512> sendmsg;
 
@@ -78,7 +78,7 @@ extern "C"{
             for (int i = 0; i < dma_r_req(DMA_R_REQ_LENGTH); ++i) {
                integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req(DMA_R_REQ_OFFSET)) + i * 64));
                ap_uint<536> dbuff_in;
-               dbuff_in(DBUFF_IN_DATA) = chunk.data;
+               dbuff_in(DBUFF_IN_DATA) = chunk;
                dbuff_in(DBUFF_IN_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
                dbuff_in(DBUFF_IN_CHUNK) = dma_r_req(DMA_R_REQ_OFFSET) + i;
                dma_resp_s.write(dbuff_in);
@@ -89,7 +89,7 @@ extern "C"{
             // std::cerr << "READ WRITE DMA REQ\n";
             ap_uint<544> dma_w_req = dma_w_req_s.read();
             // std::cerr << "OFFSET " << ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET)) << std::endl;
-            (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))).data = dma_w_req(DMA_W_REQ_BLOCK);
+            (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))) = dma_w_req(DMA_W_REQ_BLOCK);
          }
       }
 
