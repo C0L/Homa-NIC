@@ -12,7 +12,7 @@
 	],
 	"c_parameters":[
 		{
-			"c_name":"header_in_i",
+			"c_name":"grant_in_i",
 			"c_port_direction":"in",
 			"rtl_ports":{
 				"FIFO_empty_flag":"header_in_empty_i",
@@ -21,7 +21,7 @@
 			}
 		},
 		{
-			"c_name":"grant_pkt_o",
+			"c_name":"grant_out_o",
 			"c_port_direction":"out",
 			"rtl_ports":{
 				"FIFO_full_flag":"grant_pkt_full_o",

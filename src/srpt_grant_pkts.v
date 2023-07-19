@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-`define SRPT_UPDATE 3'b0
+`define SRPT_UPDATE 3'b000
 `define SRPT_BLOCK 3'b001
 `define SRPT_INVALIDATE 3'b010
 `define SRPT_UNBLOCK 3'b011
@@ -8,20 +8,20 @@
 `define SRPT_BLOCKED 3'b101
 `define SRPT_ACTIVE 3'b110
 
-`define ENTRY_SIZE 51
-`define PEER_ID 50:37
-`define RPC_ID 36:23
-`define RECV_PKTS 22:13
-`define GRNTBLE_PKTS 12:3
-`define PRIORITY 2:0
+`define ENTRY_SIZE 97
+`define PEER_ID 13:0
+`define RPC_ID 29:14
+`define RECV_BYTES 61:30
+`define GRANTABLE_BYTES 93:62
+`define PRIORITY 96:94
 `define PRIORITY_SIZE 3
 
-`define HEADER_SIZE 58
-`define HDR_PEER_ID 57:44
-`define HDR_RPC_ID 43:30
-`define HDR_MSG_LEN 29:20
-`define HDR_INCOMING 19:10
-`define HDR_OFFSET 9:0
+`define HEADER_SIZE 126
+`define HDR_PEER_ID 13:0
+`define HDR_RPC_ID 29:14
+`define HDR_OFFSET 61:30
+`define HDR_MSG_LEN 93:62
+`define HDR_INCOMING 125:94
 
 `define CORE_IDLE 0
 `define CORE_NEW_HDR 1
@@ -29,13 +29,12 @@
 `define CORE_GRANT 3
 
 // 60K byte (RTT_Bytes) * 8 (MAX_OVERCOMMIT)
-`define RTT_PKTS 44
-`define OVERCOMMIT_PKTS 352
-`define OVERCOMMIT_BITS 10
+`define RTT_BYTES 60000
+`define OVERCOMMIT_BYTES 480000
+// `define OVERCOMMIT_BITS 19
+`define HOMA_PAYLOAD_SIZE 32'h56a
 
 /*
- * TODO INCOMING is not used any longer? Maybe use that as a replacement for
- * RTT PKTS?
  * TODO this needs to handle OOO packets (how does that effect SRPT entry creation?).
  * TODO this needs to consider duplicate packets (can't just increment recv bytes?).
  * TODO need upper bound on number of grantable bytes at any given point
@@ -80,7 +79,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
    reg [`HEADER_SIZE-1:0]        header_in_data_latch;
 
-   reg [`OVERCOMMIT_BITS-1:0]    avail_pkts;
+   reg [31:0]    avail_pkts;
 
    reg [1:0]                     state; 
 
@@ -89,8 +88,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    always @* begin
 
       // Init all values so that no latches are inferred. All control paths assign a value.
-      peer_match  = {MAX_OVERCOMMIT_LOG2{1'b1}};
-      rpc_match   = {MAX_OVERCOMMIT_LOG2{1'b1}};
+      peer_match    = {MAX_OVERCOMMIT_LOG2{1'b1}};
+      rpc_match     = {MAX_OVERCOMMIT_LOG2{1'b1}};
       ready_match   = {MAX_OVERCOMMIT_LOG2{1'b1}};
 
       peer_match_en  = 1'b0;
@@ -117,7 +116,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
          // Is the entry in the active set empty, and so, should it be filled and a GRANT packet sent?
          if (srpt_queue[entry][`PRIORITY] == `SRPT_ACTIVE 
-            && srpt_queue[entry][`RECV_PKTS] != 0 
+            && srpt_queue[entry][`RECV_BYTES] != 0 
             && ready_match_en == 1'b0
             && avail_pkts != 0) begin
             ready_match = entry[MAX_OVERCOMMIT_LOG2-1:0];
@@ -135,7 +134,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
          // If the priority differs or grantable bytes
          if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
             ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
-            : (srpt_queue[entry-1][`GRNTBLE_PKTS] > srpt_queue[entry][`GRNTBLE_PKTS])) begin
+            : (srpt_queue[entry-1][`GRANTABLE_BYTES] > srpt_queue[entry][`GRANTABLE_BYTES])) begin
             srpt_odd[entry-1] = srpt_queue[entry];
             srpt_odd[entry] = srpt_queue[entry-1];
             
@@ -152,8 +151,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                         (srpt_queue[entry-1][`RPC_ID] == srpt_queue[entry][`RPC_ID]) && 
                         (srpt_queue[entry-1][`PRIORITY] == `SRPT_UPDATE)) begin
 
-               srpt_odd[entry-1][`GRNTBLE_PKTS] = srpt_queue[entry-1][`GRNTBLE_PKTS] - 1;
-               srpt_odd[entry-1][`RECV_PKTS] = srpt_queue[entry-1][`RECV_PKTS] + 1;
+               srpt_odd[entry-1][`GRANTABLE_BYTES] = srpt_queue[entry-1][`GRANTABLE_BYTES] - `HOMA_PAYLOAD_SIZE;
+               srpt_odd[entry-1][`RECV_BYTES] = srpt_queue[entry-1][`RECV_BYTES] + `HOMA_PAYLOAD_SIZE;
 
             end 
 
@@ -168,7 +167,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
          // If the priority differs or grantable bytes
          if ((srpt_queue[entry-1][`PRIORITY] != srpt_queue[entry][`PRIORITY]) 
             ? (srpt_queue[entry-1][`PRIORITY] < srpt_queue[entry][`PRIORITY]) 
-            : (srpt_queue[entry-1][`GRNTBLE_PKTS] > srpt_queue[entry][`GRNTBLE_PKTS])) begin
+            : (srpt_queue[entry-1][`GRANTABLE_BYTES] > srpt_queue[entry][`GRANTABLE_BYTES])) begin
             srpt_even[entry]   = srpt_queue[entry-1];
             srpt_even[entry-1] = srpt_queue[entry];
 
@@ -185,8 +184,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                         (srpt_queue[entry-1][`RPC_ID] == srpt_queue[entry][`RPC_ID]) && 
                         (srpt_queue[entry-1][`PRIORITY] == `SRPT_UPDATE)) begin
 
-               srpt_even[entry-1][`GRNTBLE_PKTS] = srpt_queue[entry-1][`GRNTBLE_PKTS] - 1;
-               srpt_even[entry-1][`RECV_PKTS] = srpt_queue[entry-1][`RECV_PKTS] + 1;
+               srpt_even[entry-1][`GRANTABLE_BYTES] = srpt_queue[entry-1][`GRANTABLE_BYTES] - `HOMA_PAYLOAD_SIZE;
+               srpt_even[entry-1][`RECV_BYTES] = srpt_queue[entry-1][`RECV_BYTES] + `HOMA_PAYLOAD_SIZE;
             end 
 
          end else begin 
@@ -199,24 +198,25 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    integer rst_entry;
 
    always @(posedge ap_clk) begin
+
       if (ap_rst) begin
-         grant_pkt_data_o <= {`ENTRY_SIZE{1'b0}};
+         grant_pkt_data_o     <= {`ENTRY_SIZE{1'b0}};
          grant_pkt_write_en_o <= 1'b0;
-         header_in_read_en_o <= 1'b0;
-         state <= `CORE_IDLE;
-         swap_type <= 1'b0;
+         header_in_read_en_o  <= 1'b0;
+         state                <= `CORE_IDLE;
+         swap_type            <= 1'b0;
 
-         peer_match_latch <= 0;
-         rpc_match_latch <= 0;
-         ready_match_latch <= 0;
+         peer_match_latch     <= 0;
+         rpc_match_latch      <= 0;
+         ready_match_latch    <= 0;
 
-         peer_match_en_latch <= 0;
-         rpc_match_en_latch <= 0;
+         peer_match_en_latch  <= 0;
+         rpc_match_en_latch   <= 0;
          ready_match_en_latch <= 0;
 
          header_in_data_latch <= 0;
 
-         avail_pkts <= `OVERCOMMIT_PKTS;
+         avail_pkts           <= `OVERCOMMIT_BYTES;
 
          for (rst_entry = 0; rst_entry < MAX_SRPT; rst_entry=rst_entry+1) begin
             srpt_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
@@ -237,7 +237,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
          case (state) 
             `CORE_IDLE: begin
-               if (!header_in_empty_i) begin
+               if (header_in_empty_i) begin
 
                   // Make room for that new entry 
                   for (entry = MAX_OVERCOMMIT+1; entry < MAX_SRPT-1; entry=entry+1) begin
@@ -256,7 +256,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                   // TODO extra time to SRPT on the lower entries
 
                // Are there new grants we should send
-               end else if (!grant_pkt_full_o && ready_match_en == 1'b1) begin 
+               end else if (grant_pkt_full_o && ready_match_en == 1'b1) begin 
 
                   state <= `CORE_GRANT;
 
@@ -268,10 +268,10 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
                   // TODO Can still SRPT on the top
 
-               // Do we need to send any block operations?
+               // Do we need to send any block messages 
                end else if (((srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] != srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) 
                             ? (srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] < srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) 
-                            : (srpt_queue[MAX_OVERCOMMIT-1][`GRNTBLE_PKTS] > srpt_queue[MAX_OVERCOMMIT][`GRNTBLE_PKTS]))
+                            : (srpt_queue[MAX_OVERCOMMIT-1][`GRANTABLE_BYTES] > srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES]))
                            && (srpt_queue[MAX_OVERCOMMIT][`PRIORITY] == `SRPT_ACTIVE)) begin
 
                   // We need one more cycle to send out the block request
@@ -325,8 +325,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                // We did not read the data 
                header_in_read_en_o <= 0;
 
-               // We did not write a grant packet
-               grant_pkt_write_en_o <= 0;
+               // We did write a grant packet
+               grant_pkt_write_en_o <= 1;
 
                /*
                 * If we have reached this state:
@@ -337,32 +337,44 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                /* verilator lint_off WIDTH */
 
                // Do we want to send more packets than 8 * MAX_OVERCOMMIT PKTS?
-               if (srpt_queue[ready_match_latch][`RECV_PKTS] > avail_pkts) begin
+               if (srpt_queue[ready_match_latch][`RECV_BYTES] > avail_pkts) begin
                   // Just send avail_pkts of data
-                  grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
-                                       srpt_queue[ready_match_latch][`RPC_ID],
-                                       avail_pkts,
-                                       10'b0,
-                                       3'b0};
+                  // grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
+                  //                      srpt_queue[ready_match_latch][`RPC_ID],
+                  //                      avail_pkts,
+                  //                      32'b0,
+                  //                      3'b0};
+            
+                  grant_pkt_data_o[`PEER_ID]         <= srpt_queue[ready_match_latch][`PEER_ID];
+                  grant_pkt_data_o[`RPC_ID]          <= srpt_queue[ready_match_latch][`RPC_ID];
+                  grant_pkt_data_o[`RECV_BYTES]      <= 32'b0;
+                  grant_pkt_data_o[`GRANTABLE_BYTES] <= avail_pkts;
+                  grant_pkt_data_o[`PRIORITY]        <= 3'b0;
 
-                  srpt_queue[ready_match_latch][`RECV_PKTS] <= srpt_queue[ready_match_latch][`RECV_PKTS] - avail_pkts;
-                  srpt_queue[ready_match_latch][`GRNTBLE_PKTS] <= srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - avail_pkts;
+                  srpt_queue[ready_match_latch][`RECV_BYTES]      <= srpt_queue[ready_match_latch][`RECV_BYTES] - avail_pkts;
+                  srpt_queue[ready_match_latch][`GRANTABLE_BYTES] <= srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - avail_pkts;
 
                   avail_pkts <= 0;  
                end else begin 
                   // Is this going to result in a fully granted message?
-                  if ((srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - srpt_queue[ready_match_latch][`RECV_PKTS]) == 0) begin
+                  if ((srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - srpt_queue[ready_match_latch][`RECV_BYTES]) == 0) begin
                      srpt_queue[ready_match_latch][`PRIORITY] <= `SRPT_EMPTY;
                   end
 
-                  srpt_queue[ready_match_latch][`RECV_PKTS] <= 0;
-                  srpt_queue[ready_match_latch][`GRNTBLE_PKTS] <= srpt_queue[ready_match_latch][`GRNTBLE_PKTS] - srpt_queue[ready_match_latch][`RECV_PKTS];
+                  srpt_queue[ready_match_latch][`RECV_BYTES]      <= 0;
+                  srpt_queue[ready_match_latch][`GRANTABLE_BYTES] <= srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - srpt_queue[ready_match_latch][`RECV_BYTES];
 
-                  grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
-                                       srpt_queue[ready_match_latch][`RPC_ID],
-                                       srpt_queue[ready_match_latch][`RECV_PKTS],
-                                       10'b0,
-                                       3'b0};
+                  //grant_pkt_data_o <= {srpt_queue[ready_match_latch][`PEER_ID],
+                  //                     srpt_queue[ready_match_latch][`RPC_ID],
+                  //                     srpt_queue[ready_match_latch][`RECV_BYTES],
+                  //                     32'b0,
+                  //                     3'b0};
+                  
+                  grant_pkt_data_o[`PEER_ID]         <= srpt_queue[ready_match_latch][`PEER_ID];
+                  grant_pkt_data_o[`RPC_ID]          <= srpt_queue[ready_match_latch][`RPC_ID];
+                  grant_pkt_data_o[`RECV_BYTES]      <= 32'b0;
+                  grant_pkt_data_o[`GRANTABLE_BYTES] <= srpt_queue[ready_match_latch][`RECV_BYTES];
+                  grant_pkt_data_o[`PRIORITY]       <= 3'b0;
 
                end
                /* verilator lint_on WIDTH */
@@ -382,83 +394,107 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                   srpt_queue[entry] <= srpt_queue[entry-1];
                end
 
-               srpt_queue[MAX_OVERCOMMIT] <= {srpt_queue[MAX_OVERCOMMIT-1][`PEER_ID], 
-                  srpt_queue[MAX_OVERCOMMIT-1][`RPC_ID],
-                  10'b0,// recieved packets
-                  10'b0, // grantable packets
-                  `SRPT_BLOCK};
+               srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= srpt_queue[MAX_OVERCOMMIT-1][`PEER_ID];
+               srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= srpt_queue[MAX_OVERCOMMIT-1][`RPC_ID];
+               srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= 32'b0;
+               srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= 32'b0;
+               srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_BLOCK;
+               //srpt_queue[MAX_OVERCOMMIT] <= {srpt_queue[MAX_OVERCOMMIT-1][`PEER_ID], 
+               //   srpt_queue[MAX_OVERCOMMIT-1][`RPC_ID],
+               //   32'b0,// recieved packets
+               //   32'b0, // grantable packets
+               //   `SRPT_BLOCK};
 
             end
 
             `CORE_NEW_HDR: begin
 
-               // If the message length is less than or equal to the incoming bytes, we would have nothing to do here
-               if (header_in_data_latch[`HDR_MSG_LEN] > `RTT_PKTS) begin
+               // It is the first unscheduled packet that creates the entry in the SRPT queue.
+               if (header_in_data_latch[`HDR_OFFSET] == 0) begin
+                  // Is the new header's peer one of the active entries?
+                  if (peer_match_en_latch) begin
 
-                  // It is the first unscheduled packet that creates the entry in the SRPT queue.
-                  if (header_in_data_latch[`HDR_OFFSET] == 0) begin
- 
-                     // Is the new header's peer one of the active entries?
-                     if (peer_match_en_latch) begin
+                     // Is the grantable packets of the new RPC better than that of the active entry?
+                     
+                     /* verilator lint_off WIDTH */
+                     if ((header_in_data_latch[`HDR_MSG_LEN]-`HOMA_PAYLOAD_SIZE) < srpt_queue[peer_match_latch][`GRANTABLE_BYTES]) begin
+                        srpt_queue[peer_match_latch][`PRIORITY] <= `SRPT_BLOCKED;
 
-                        // Is the grantable packets of the new RPC better than that of the active entry?
-                        
-                        /* verilator lint_off WIDTH */
-                        if ((header_in_data_latch[`HDR_MSG_LEN]-1) < srpt_queue[peer_match_latch][`GRNTBLE_PKTS]) begin
-                           srpt_queue[peer_match_latch][`PRIORITY] <= `SRPT_BLOCKED;
-
-                           /* verilator lint_on WIDTH */
-
-                           srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
-                                                          header_in_data_latch[`HDR_RPC_ID],
-                                                          {9'b0, 1'b1},
-                                                          header_in_data_latch[`HDR_MSG_LEN] - 1'b1,
-                                                          `SRPT_ACTIVE};
-
-                        // The grantable packets of the new RPC is worse than that of the active entry
-                        end else begin
-                           // Insert the new RPC into the big queue
-                           srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
-                              header_in_data_latch[`HDR_RPC_ID],
-                              {9'b0, 1'b1},                         
-                              header_in_data_latch[`HDR_MSG_LEN] - 1'b1,
-                              `SRPT_BLOCKED};
-                        end
-
-                     // The header's peer is not one of the active entries
-                     end else begin 
-                        // Insert the new RPC into the big queue
-                        srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
-                           header_in_data_latch[`HDR_RPC_ID],
-                           {9'b0, 1'b1},                        
-                           header_in_data_latch[`HDR_MSG_LEN] - 1'b1,
-                           `SRPT_ACTIVE};
-                     end
-
-                  // A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
-                  end else begin
-                     /*
-                      * When an entry is encountered in the queue that matches on
-                      * peer and rpc, it will update the recv packets value of that
-                      * entry. 
-                      */
-                     if (rpc_match_en_latch == 1'b1) begin
-
-                        /* verilator lint_off WIDTH */
-                        srpt_queue[rpc_match_latch][`RECV_PKTS] <= srpt_queue[rpc_match_latch][`RECV_PKTS] + 1;
-                        srpt_queue[rpc_match_latch][`GRNTBLE_PKTS] <= srpt_queue[rpc_match_latch][`GRNTBLE_PKTS] - 1;
                         /* verilator lint_on WIDTH */
+                        srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
+                        srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
+                        srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= `HOMA_PAYLOAD_SIZE;
+                        srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE;
+                        srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_ACTIVE;
 
+                        // srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
+                        //                                header_in_data_latch[`HDR_RPC_ID],
+                        //                                `HOMA_PAYLOAD_SIZE,
+                        //                                header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE,
+                        //                                `SRPT_ACTIVE};
+
+                     // The grantable packets of the new RPC is worse than that of the active entry
                      end else begin
+                        // Insert the new RPC into the big queue
+                        srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
+                        srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
+                        srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= `HOMA_PAYLOAD_SIZE;
+                        srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE;
+                        srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_BLOCKED;
 
-                        srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
-                           header_in_data_latch[`HDR_RPC_ID],
-                           10'b0,
-                           10'b0,
-                           `SRPT_UPDATE};
+                        //srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
+                        //   header_in_data_latch[`HDR_RPC_ID],
+                        //   `HOMA_PAYLOAD_SIZE,                         
+                        //   header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE,
+                        //   `SRPT_BLOCKED};
                      end
+
+                  // The header's peer is not one of the active entries
+                  end else begin 
+                     // Insert the new RPC into the big queue
+                     srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
+                     srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
+                     srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= `HOMA_PAYLOAD_SIZE;
+                     srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE;
+                     srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_ACTIVE;
+
+                     //srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
+                     //   header_in_data_latch[`HDR_RPC_ID],
+                     //   `HOMA_PAYLOAD_SIZE,                        
+                     //   header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE,
+                     //   `SRPT_ACTIVE};
+                  end
+
+               // A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
+               end else begin
+                  /*
+                   * When an entry is encountered in the queue that matches on
+                   * peer and rpc, it will update the recv packets value of that
+                   * entry. 
+                   */
+                  if (rpc_match_en_latch == 1'b1) begin
+
+                     /* verilator lint_off WIDTH */
+                     srpt_queue[rpc_match_latch][`RECV_BYTES] <= srpt_queue[rpc_match_latch][`RECV_BYTES] + `HOMA_PAYLOAD_SIZE;
+                     srpt_queue[rpc_match_latch][`GRANTABLE_BYTES] <= srpt_queue[rpc_match_latch][`GRANTABLE_BYTES] - `HOMA_PAYLOAD_SIZE;
+                     /* verilator lint_on WIDTH */
+
+                  end else begin
+      
+                     // srpt_queue[MAX_OVERCOMMIT] <= {header_in_data_latch[`HDR_PEER_ID], 
+                     // header_in_data_latch[`HDR_RPC_ID],
+                     // 32'b0,
+                     // 32'b0,
+                     // `SRPT_UPDATE};
+
+                     srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
+                     srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
+                     srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= 32'b0;
+                     srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= 32'b0;
+                     srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_UPDATE;
                   end
                end
+               
 
 
                state <= `CORE_IDLE;

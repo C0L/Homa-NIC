@@ -8,7 +8,7 @@
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
-extern "C"{
+// extern "C"{
    void srpt_data_pkts(hls::stream<sendmsg_t> & sendmsg_i,
          hls::stream<dbuff_notif_t> & dbuff_notif_i,
          hls::stream<ready_data_pkt_t> & data_pkt_o,
@@ -165,4 +165,4 @@ extern "C"{
          }
       }
    }
-}
+// }

@@ -2,12 +2,20 @@
 
 /* verilator lint_off STMTDLY */
 
-`define HEADER_SIZE 58
-`define HDR_PEER_ID 57:44
-`define HDR_RPC_ID 43:30
-`define HDR_MSG_LEN 29:20
-`define HDR_INCOMING 19:10
-`define HDR_OFFSET 9:0
+`define ENTRY_SIZE 97
+`define PEER_ID 13:0
+`define RPC_ID 29:14
+`define RECV_BYTES 61:30
+`define GRANTABLE_BYTES 93:62
+`define PRIORITY 96:94
+`define PRIORITY_SIZE 3
+
+`define HEADER_SIZE 126
+`define HDR_PEER_ID 13:0
+`define HDR_RPC_ID 29:14
+`define HDR_OFFSET 61:30
+`define HDR_MSG_LEN 93:62
+`define HDR_INCOMING 125:94
 
 module srpt_grant_queue_tb();
 
@@ -26,7 +34,7 @@ module srpt_grant_queue_tb();
    reg	       grant_pkt_full_o;
 
    wire	       header_in_read_en_o;
-   wire [51-1:0] grant_pkt_data_o;
+   wire [`ENTRY_SIZE-1:0] grant_pkt_data_o; // TODO This is bad
    wire	       grant_pkt_write_en_o;
 
    srpt_grant_pkts srpt_queue(.ap_clk(ap_clk), 
@@ -44,19 +52,19 @@ module srpt_grant_queue_tb();
 			      .ap_done(ap_done), 
 			      .ap_ready(ap_ready));
 
-   task new_entry(input [13:0] rpc_id, peer_id, input [9:0] msg_len, offset);
+   task new_entry(input [15:0] rpc_id, input [13:0] peer_id, input [31:0] msg_len, offset);
       begin
       
-	 header_in_data_i[`HDR_PEER_ID] = peer_id;
-	 header_in_data_i[`HDR_RPC_ID] = rpc_id;
-	 header_in_data_i[`HDR_MSG_LEN] = msg_len;
-	 header_in_data_i[`HDR_OFFSET] = offset;
+	 header_in_data_i[`HDR_PEER_ID]  = peer_id;
+	 header_in_data_i[`HDR_RPC_ID]   = rpc_id;
+	 header_in_data_i[`HDR_MSG_LEN]  = msg_len;
+	 header_in_data_i[`HDR_OFFSET]   = offset;
 	 header_in_data_i[`HDR_INCOMING] = 0;
-	 header_in_empty_i = 0;
+	 header_in_empty_i = 1;
 
 	 #5;
 	 
-	 header_in_empty_i = 1;
+	 header_in_empty_i = 0;
    
 	 // #5;
 
@@ -77,8 +85,8 @@ module srpt_grant_queue_tb();
    
    initial begin
       header_in_data_i = {`HEADER_SIZE{1'b0}};
-      header_in_empty_i = 1;
-      grant_pkt_full_o = 1;
+      header_in_empty_i = 0;
+      grant_pkt_full_o = 0;
       // Send reset signal
       ap_ce = 1; 
       ap_rst = 0;
@@ -117,34 +125,6 @@ module srpt_grant_queue_tb();
 
       new_entry(7, 4, 4, 0);
       
-      //header_in_data_i = {14'b11101110111011, 14'b00110011001100, 10'b10000, 10'b100, 32'b0};
-      //header_in_empty_i = 0;
-      //grant_pkt_full_o = 0;
-
-      //#5;
-      //header_in_data_i = {14'b10, 14'b1, 32'hFFFFFFFF, 32'b10, 32'b0};
-      //header_in_empty_i = 0;
-      //grant_pkt_full_o = 0;
-      
-      //#5;
-      //header_in_data_i = {14'b1, 14'b1, 14'b1, 32'b10000, 32'b100, 32'b0};
-      //header_in_data_i = {14'b10, 14'b1, 32'hFFFF, 32'b10, 32'b0};
-      //header_in_empty_i = 0;
-      //grant_pkt_full_o = 0;
-      
-      //#5;
-
-      //if (header_in_read_en_o != 1'b1) begin
-      //	 $display("Incorrect Input FIFO Handshake");
-      //end
-      //
-      //header_in_empty_i = 1;
-      //grant_pkt_full_o = 0;
-      //
-      //#5;
-      //header_in_empty_i = 1;
-      //grant_pkt_full_o = 1;
-
       #1000
 	$stop;
    end

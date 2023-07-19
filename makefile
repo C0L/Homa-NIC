@@ -50,7 +50,7 @@ COSIM = 2
 ############ Vitis C Synth ############ 
 
 synth:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" ""
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
 
 ############ Vitis C Simulation ############ 
 
@@ -85,13 +85,13 @@ xsim: xsim_elaborate
 	xsim srpt_grant_queue_tb_snapshot --tclbatch ./tcl/xsim_cfg.tcl
 
 xsim_elaborate: xsim_compile
-	xelab -debug all -top srpt_grant_pkts --snapshot srpt_grant_queue_tb_snapshot
+	xelab -debug all -top srpt_grant_queue_tb --snapshot srpt_grant_queue_tb_snapshot
 
 xsim_compile: 
-	xvlog $(SRC_V) $(TB_V)
+	xvlog ./src/srpt_grant_pkts.v ./src/srpt_grant_queue_tb.v
 
-vlint:
-	$(LINTER) $(SRC_V) $(TB_V)
+lint_srpt_grant_pkts:
+	$(LINTER) ./src/srpt_grant_pkts.v ./src/srpt_grant_queue_tb.v
 
 clean:
 	rm -f vitis_hls.log

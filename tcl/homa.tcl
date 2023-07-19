@@ -20,7 +20,7 @@ if {$job_type == 0 || $job_type == 2 } {
    add_files -tb $test_bench
 }
 
-# add_files -blackbox $json_src
+add_files -blackbox $json_src
 
 open_solution -reset "solution" -flow_target vivado 
 set_part $part
@@ -41,7 +41,6 @@ if {$job_type == 0} {
 	# Run Synthesis, RTL Simulation and Exit
 	csynth_design
 	cosim_design 
-   #-disable_deadlock_detection
 } 
 # elseif {$hls_exec == 3} { 
 #	# Run Synthesis, RTL Simulation, RTL implementation and Exit

@@ -9,7 +9,7 @@
 #include "hls_stream.h"
 
 // Configure the design in a reduced size for compilation speed
-// #define DEBUG
+#define DEBUG
 
 // Configure the size of the stream/fifo depths
 #define STREAM_DEPTH 2 
@@ -39,7 +39,6 @@
 #define GRANT_OUT_PRIORITY 96,94
 #define PRIORITY_SIZE      3
 
-
 typedef ap_uint<GRANT_OUT_SIZE> grant_out_t;
 
 #define GRANT_IN_SIZE    126
@@ -48,7 +47,6 @@ typedef ap_uint<GRANT_OUT_SIZE> grant_out_t;
 #define GRANT_IN_OFFSET  61,30
 #define GRANT_IN_MSG_LEN 93,62
 #define GRANT_IN_INC     125,94
-
 
 typedef ap_uint<GRANT_IN_SIZE> grant_in_t;
 
