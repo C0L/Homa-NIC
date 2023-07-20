@@ -21,7 +21,7 @@ extern "C"{
     * not currently the case however.
     */
    void rpc_state(hls::stream<sendmsg_t> & sendmsg_i,
-         hls::stream<sendmsg_t> & sendmsg_o,
+         hls::stream<srpt_data_in_t> & sendmsg_o,
          hls::stream<recvmsg_t> & recvmsg_i,
          hls::stream<header_t> & header_out_i, 
          hls::stream<header_t> & header_out_o,
@@ -41,12 +41,26 @@ extern "C"{
 
          homa_rpc_t homa_rpc = rpcs[(header_out.local_id >> 1)-1];
 
-         header_out.dbuff_id  = homa_rpc.msgout.dbuff_id;
-         header_out.daddr     = homa_rpc.daddr;
-         header_out.dport     = homa_rpc.dport;
-         header_out.saddr     = homa_rpc.saddr;
-         header_out.sport     = homa_rpc.sport;
-         header_out.id        = homa_rpc.id;
+         // TODO need to acumulate message length, processed bytes
+         // TODO need to accumulate DBUFF ID
+
+         header_out.dbuff_id        = homa_rpc.msgout.dbuff_id;
+         header_out.daddr           = homa_rpc.daddr;
+         header_out.dport           = homa_rpc.dport;
+         header_out.saddr           = homa_rpc.saddr;
+         header_out.sport           = homa_rpc.sport;
+         header_out.id              = homa_rpc.id;
+         header_out.message_length  = homa_rpc.message_length;
+         header_out.processed_bytes = homa_rpc.processed_bytes;
+         // TODO even needed?
+         // header_out.grant_offset    = ready_data_pkt.granted;
+         header_out.data_offset     = homa_rpc.message_length - header_out.data_offset;
+
+         ap_uint<32> data_bytes = MIN(ready_data_pkt.remaining, (ap_uint<32>) HOMA_PAYLOAD_SIZE);
+
+         header_out.payload_length  = data_bytes + HOMA_DATA_HEADER;
+         header_out.segment_length  = data_bytes;
+         header_out.packet_bytes    = DATA_PKT_HEADER + data_bytes;
 
          header_out_o.write(header_out);
       }
@@ -116,6 +130,12 @@ extern "C"{
          homa_rpc.id              = sendmsg.id;
 
          rpcs[(sendmsg.local_id >> 1)-1] = homa_rpc;
+
+         srpt_data_in_t srpt_data_in;
+         srpt_data_in(SRPT_DATA_RPC_ID)    = sendmsg.local_id;
+         srpt_data_in(SRPT_DATA_REMAINING) = sendmsg.length;
+         srpt_data_in(SRPT_DATA_GRANTED)   = sendmsg.granted;
+         srpt_data_in(SRPT_DATA_DBUFFERED) = sendmsg.dbuffered;
 
          sendmsg_o.write(sendmsg);
       } else if (!recvmsg_i.empty()) {

@@ -59,7 +59,7 @@ extern "C"{
 
       /* header_in streams */
       hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_map__rpc_state       ("header_in__rpc_map__rpc_state"); 
-      hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__srpt_data     ("header_in__rpc_state__srpt_data");
+      hls_thread_local hls::stream<grant_notif_raw_i, STREAM_DEPTH> header_in__rpc_state__srpt_data     ("header_in__rpc_state__srpt_data");
       hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_map   ("header_in__chunk_ingress__rpc_map");
       hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress ("header_in__rpc_state__dbuff_ingress");
 
@@ -72,7 +72,7 @@ extern "C"{
       hls_thread_local hls::stream<sendmsg_t, STREAM_DEPTH> sendmsg__homa_sendmsg__dbuff_stack ("sendmsg__homa_sendmsg__dbuff_stack");
       hls_thread_local hls::stream<sendmsg_t, STREAM_DEPTH> sendmsg__dbuff_stack__rpc_map      ("sendmsg__dbuff_stack__rpc_map");
       hls_thread_local hls::stream<sendmsg_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state        ("sendmsg__rpc_map__rpc_state");
-      hls_thread_local hls::stream<sendmsg_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data      ("sendmsg__rpc_state__srpt_data");
+      hls_thread_local hls::stream<srpt_data_in_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data      ("sendmsg__rpc_state__srpt_data");
 
       /* out chunk streams */
       hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress  ("out_chunk__chunk_egress__dbuff_egress");
@@ -86,8 +86,8 @@ extern "C"{
       hls_thread_local hls::stream<grant_out_t, STREAM_DEPTH> grant__srpt_grant__egress_sel ("grant__srpt_grant__egress_sel");
 
       /* data SRPT streams */
-      hls_thread_local hls::stream<ready_data_pkt_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel ("ready_data_pkt__srpt_data__egress_sel");
-      hls_thread_local hls::stream<dbuff_notif_t, STREAM_DEPTH> dbuff_notif__dbuff_egress__srpt_data     ("dbuff_notif__dbuff_egress__srpt_data");
+      hls_thread_local hls::stream<srpt_data_out_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel   ("ready_data_pkt__srpt_data__egress_sel");
+      hls_thread_local hls::stream<srpt_dbuff_notif_t, STREAM_DEPTH> dbuff_notif__dbuff_egress__srpt_data ("dbuff_notif__dbuff_egress__srpt_data");
 
       hls_thread_local hls::task rpc_state_task(
             rpc_state,
@@ -152,12 +152,12 @@ extern "C"{
             in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
             );
 
-      hls_thread_local hls::task dbuff_stack_task(
-            dbuff_stack,
-            sendmsg__homa_sendmsg__dbuff_stack, // sendmsg_i
-            sendmsg__dbuff_stack__rpc_map,      // sendmsg_o
-            dma_r_req_o                         // dma_read_o
-            ); 
+      //hls_thread_local hls::task dbuff_stack_task(
+      //      dbuff_stack,
+      //      sendmsg__homa_sendmsg__dbuff_stack, // sendmsg_i
+      //      sendmsg__dbuff_stack__rpc_map,      // sendmsg_o
+      //      dma_r_req_o                         // dma_read_o
+      //      ); 
 
       hls_thread_local hls::task dbuff_egress_task(
             dbuff_egress,

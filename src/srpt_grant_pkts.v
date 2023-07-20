@@ -48,7 +48,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       input                        header_in_empty_i,
       output reg                   header_in_read_en_o,
       input [`HEADER_SIZE-1:0]     header_in_data_i,
-      input                        grant_pkt_full_o,
+      input                        grant_pkt_full_i,
       output reg                   grant_pkt_write_en_o,
       output reg [`ENTRY_SIZE-1:0] grant_pkt_data_o, 
       output                       ap_idle, ap_done, ap_ready);
@@ -256,7 +256,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                   // TODO extra time to SRPT on the lower entries
 
                // Are there new grants we should send
-               end else if (grant_pkt_full_o && ready_match_en == 1'b1) begin 
+               end else if (grant_pkt_full_i && ready_match_en == 1'b1) begin 
 
                   state <= `CORE_GRANT;
 
@@ -494,8 +494,6 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
                      srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_UPDATE;
                   end
                end
-               
-
 
                state <= `CORE_IDLE;
 

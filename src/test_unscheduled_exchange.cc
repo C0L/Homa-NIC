@@ -12,16 +12,14 @@ extern "C"{
 
       hls::stream<raw_stream_t, STREAM_DEPTH> link_ingress;
       hls::stream<raw_stream_t, STREAM_DEPTH> link_egress;
-      hls::stream<ap_uint<512>, STREAM_DEPTH> sendmsg_s;
-      hls::stream<ap_uint<416>, STREAM_DEPTH> recvmsg_s;
-      hls::stream<ap_uint<80>, STREAM_DEPTH>  dma_r_req_s;
-      hls::stream<ap_uint<536>, STREAM_DEPTH> dma_resp_s;
-      hls::stream<ap_uint<544>, STREAM_DEPTH> dma_w_req_s;
+      hls::stream<ap_uint<SENDMSG_SIZE>, STREAM_DEPTH> sendmsg_s;
+      hls::stream<ap_uint<RECVMSG_SIZE>, STREAM_DEPTH> recvmsg_s;
+      hls::stream<ap_uint<DMA_R_REQ_SIZE>, STREAM_DEPTH>  dma_r_req_s;
+      hls::stream<ap_uint<DBUFF_IN_SIZE>, STREAM_DEPTH> dma_resp_s;
+      hls::stream<ap_uint<DMA_W_REQ_SIZE>, STREAM_DEPTH> dma_w_req_s;
 
-      // ap_uint<512> sendmsg;
-
-      ap_uint<512> sendmsg;
-      ap_uint<416> recvmsg;
+      ap_uint<SENDMSG_SIZE> sendmsg;
+      ap_uint<RECVMSG_SIZE> recvmsg;
 
       ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
       ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -67,28 +65,25 @@ extern "C"{
 
       while (maxi_out[2772] == 0) {
          if (!link_egress.empty()) {
-            // std::cerr << "WRITING TO LINK INGRESS\n";
             link_ingress.write(link_egress.read());
-            // std::cerr << "WROTE TO LINK INGRESS\n";
          }
 
          if (!dma_r_req_s.empty()) {
-            ap_uint<80> dma_r_req = dma_r_req_s.read(); 
+            ap_uint<DMA_R_REQ_SIZE> dma_r_req = dma_r_req_s.read(); 
 
             for (int i = 0; i < dma_r_req(DMA_R_REQ_LENGTH); ++i) {
                integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req(DMA_R_REQ_OFFSET)) + i * 64));
-               ap_uint<536> dbuff_in;
+               ap_uint<DBUFF_IN_SIZE> dbuff_in;
                dbuff_in(DBUFF_IN_DATA) = chunk;
                dbuff_in(DBUFF_IN_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
                dbuff_in(DBUFF_IN_CHUNK) = dma_r_req(DMA_R_REQ_OFFSET) + i;
+               dbuff_in(DBUFF_IN_LAST) = (i == DMA_R_REQ_LENGTH);
                dma_resp_s.write(dbuff_in);
             }
          }
 
          if (!dma_w_req_s.empty()) {
-            // std::cerr << "READ WRITE DMA REQ\n";
-            ap_uint<544> dma_w_req = dma_w_req_s.read();
-            // std::cerr << "OFFSET " << ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET)) << std::endl;
+            ap_uint<DMA_W_REQ_SIZE> dma_w_req = dma_w_req_s.read();
             (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))) = dma_w_req(DMA_W_REQ_BLOCK);
          }
       }

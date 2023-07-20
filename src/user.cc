@@ -6,11 +6,11 @@ extern "C" {
     * homa_recvmsg() - Primes the core to accept data from an RPC
     * ...
     */
-   void homa_recvmsg(hls::stream<ap_uint<416>> & recvmsg_i,
+   void homa_recvmsg(hls::stream<ap_uint<RECVMSG_SIZE>> & recvmsg_i,
          hls::stream<recvmsg_t> & recvmsg_o) {
       // recvmsg_t recvmsg = recvmsg_i.read();
 
-      ap_uint<416> recvmsg_raw = recvmsg_i.read();
+      ap_uint<RECVMSG_SIZE> recvmsg_raw = recvmsg_i.read();
       recvmsg_t recvmsg;
 
       recvmsg.buffout   = recvmsg_raw(RECVMSG_BUFFOUT);
@@ -36,10 +36,10 @@ extern "C" {
     * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
     * @new_rpc_o    - Output for the next step of the new_rpc injestion
     */
-   void homa_sendmsg(hls::stream<ap_uint<512>> & sendmsg_i,
+   void homa_sendmsg(hls::stream<ap_uint<SENDMSG_SIZE>> & sendmsg_i,
          hls::stream<sendmsg_t> & sendmsg_o) {
 
-      ap_uint<512> sendmsg_raw = sendmsg_i.read();
+      ap_uint<SENDMSG_SIZE> sendmsg_raw = sendmsg_i.read();
       sendmsg_t sendmsg;
 
       sendmsg.buffin            = sendmsg_raw(SENDMSG_BUFFIN);

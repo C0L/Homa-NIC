@@ -31,24 +31,47 @@
 #define MAX_OVERCOMMIT 1
 #endif
 
-#define GRANT_OUT_SIZE     97
-#define GRANT_OUT_PEER_ID  13,0
-#define GRANT_OUT_RPC_ID   29,14
-#define GRANT_OUT_RECV     61,30
-#define GRANT_OUT_GRANT    93,62
-#define GRANT_OUT_PRIORITY 96,94
+#define SRPT_GRANT_OUT_SIZE     97
+#define SRPT_GRANT_OUT_PEER_ID  13,0
+#define SRPT_GRANT_OUT_RPC_ID   29,14
+#define SRPT_GRANT_OUT_RECV     61,30
+#define SRPT_GRANT_OUT_GRANT    93,62
+#define SRPT_GRANT_OUT_PRIORITY 96,94
 #define PRIORITY_SIZE      3
 
-typedef ap_uint<GRANT_OUT_SIZE> grant_out_t;
+typedef ap_uint<GRANT_OUT_SIZE> srpt_grant_out_t;
 
-#define GRANT_IN_SIZE    126
-#define GRANT_IN_PEER_ID 13,0
-#define GRANT_IN_RPC_ID  29,14
-#define GRANT_IN_OFFSET  61,30
-#define GRANT_IN_MSG_LEN 93,62
-#define GRANT_IN_INC     125,94
+#define SRPT_GRANT_IN_SIZE    126
+#define SRPT_GRANT_IN_PEER_ID 13,0
+#define SRPT_GRANT_IN_RPC_ID  29,14
+#define SRPT_GRANT_IN_OFFSET  61,30
+#define SRPT_GRANT_IN_MSG_LEN 93,62
+#define SRPT_GRANT_IN_INC     125,94
 
-typedef ap_uint<GRANT_IN_SIZE> grant_in_t;
+typedef ap_uint<GRANT_IN_SIZE> srpt_grant_in_t;
+
+#define SRPT_DATA_SIZE      115
+#define SRPT_DATA_RPC_ID    15:0
+#define SRPT_DATA_REMAINING 47:16
+#define SRPT_DATA_GRANTED   79:48
+#define SRPT_DATA_DBUFFERED 111:80
+#define SRPT_DATA_PRIORITY  114:112
+
+typedef ap_uint<SRPT_DATA_IN_SIZE> srpt_data_in_t;
+typedef ap_uint<SRPT_DATA_OUT_SIZE> srpt_data_out_t;
+
+#define SRPT_DBUFF_NOTIF_SIZE 48
+#define SRPT_DBUFF_NOTIF_RPC_ID 15:0
+#define SRPT_DBUFF_NOTIF_OFFSET 47:16
+
+typedef ap_uint<SRPT_DBUFF_NOTIF_SIZE> srpt_dbuff_notif_t;
+
+#define SRPT_GRANT_NOTIF_SIZE 48
+#define SRPT_GRANT_NOTIF_RPC_ID 15:0
+#define SRPT_GRANT_NOTIF_OFFSET 47:16
+
+typedef ap_uint<SRPT_GRANT_NOTIF_SIZE> srpt_grant_notif_t;
+
 
 /* Peer Tab Configuration */
 #ifndef DEBUG 
@@ -231,21 +254,25 @@ typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
 typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 struct dbuff_in_t {
-#define DBUFF_IN_DATA 511,0
-#define DBUFF_IN_ID 521,512
-#define DBUFF_IN_CHUNK 529,522
-   integral_t block;
+#define DBUFF_IN_DATA   511,0
+#define DBUFF_IN_ID     521,512
+#define DBUFF_IN_CHUNK  529,522
+#define DBUFF_IN_RPC_ID 545,530
+#define DBUFF_IN_LAST   547,546
+   integral_t block
+   ap_uint<32> length;;
    dbuff_id_t dbuff_id;
    dbuff_coffset_t dbuff_chunk;
-#define DBUFF_IN_SIZE 536
+#define DBUFF_IN_SIZE 552
 };
 
 typedef ap_uint<DBUFF_IN_SIZE> dbuff_in_raw_t;
 
-struct dbuff_notif_t {
-   dbuff_id_t dbuff_id;
-   dbuff_coffset_t dbuff_chunk; 
-};
+// struct dbuff_notif_t {
+//    dbuff_id_t dbuff_id;
+//    ap_uint<32> dbuff_offset;
+//    // dbuff_coffset_t dbuff_chunk; 
+// };
 
 typedef ap_uint<8> homa_packet_type;
 
@@ -425,13 +452,13 @@ struct header_t {
    ap_uint<1> valid;
 };
 
-struct ready_data_pkt_t {
-   rpc_id_t rpc_id;
-   dbuff_id_t dbuff_id;
-   ap_uint<32> remaining;
-   ap_uint<32> total;
-   ap_uint<32> granted;
-};
+// struct ready_data_pkt_t {
+//    rpc_id_t rpc_id;
+//    dbuff_id_t dbuff_id;
+//    ap_uint<32> remaining;
+//    ap_uint<32> total;
+//    ap_uint<32> granted;
+// };
 
 enum data_bytes_e {
    NO_DATA      = 0,

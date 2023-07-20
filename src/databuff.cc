@@ -3,27 +3,27 @@
 #include "fifo.hh"
 
 extern "C"{
-   void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
-         hls::stream<sendmsg_t> & sendmsg_o,
-         hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
-#pragma HLS pipeline II=1 style=flp
-
-      static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
-
-      sendmsg_t sendmsg = sendmsg_i.read();
-      sendmsg.dbuff_id = dbuff_stack.pop();
-
-      uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
-      if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
-
-      dma_r_req_raw_t dma_r_req;
-      dma_r_req(DMA_R_REQ_OFFSET)   = sendmsg.buffin;
-      dma_r_req(DMA_R_REQ_LENGTH)   = num_chunks;
-      dma_r_req(DMA_R_REQ_DBUFF_ID) = sendmsg.dbuff_id;
-      dma_r_req_o.write(dma_r_req);
-
-      sendmsg_o.write(sendmsg);
-   }
+//   void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
+//         hls::stream<sendmsg_t> & sendmsg_o,
+//         hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
+//#pragma HLS pipeline II=1 style=flp
+//
+//
+//
+//      sendmsg_t sendmsg = sendmsg_i.read();
+//      sendmsg.dbuff_id = dbuff_stack.pop();
+//
+//      // uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
+//      // if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
+//
+//      // dma_r_req_raw_t dma_r_req;
+//      // dma_r_req(DMA_R_REQ_OFFSET)   = sendmsg.buffin;
+//      // dma_r_req(DMA_R_REQ_LENGTH)   = num_chunks;
+//      // dma_r_req(DMA_R_REQ_DBUFF_ID) = sendmsg.dbuff_id;
+//      // dma_r_req_o.write(dma_r_req);
+//
+//      sendmsg_o.write(sendmsg);
+//   }
 
    /**
     * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
@@ -84,24 +84,57 @@ extern "C"{
     * set, indicating a completiton of packet transmission.
     * TODO Needs to request data from DMA to keep the RB saturated with pkt data
     */
-   void dbuff_egress(hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
-         hls::stream<dbuff_notif_t> & dbuff_notif_o,
+   void dbuff_egress(hls::stream<sendmsg_t> & sendmsg_i,
+         hls::stream<sendmsg_t> & sendmsg_o,
+         hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
+         hls::stream<srpt_data_dbuff_notif_t> & dbuff_notif_o,
          hls::stream<out_chunk_t> & out_chunk_i,
-         hls::stream<out_chunk_t> & out_chunk_o) {
+         hls::stream<out_chunk_t> & out_chunk_o, 
+         hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
 
 #pragma HLS pipeline II=1 style=flp
 
+      static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
+
       // 1024 x 2^14 byte buffers
       static dbuff_t dbuff[NUM_DBUFF];
-      //#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
+#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
+
+      // TODO hold onto the sendmsg until we have the data on-chip
+      static sendmsg_t pending_data;
+
+      if (!sendmsg_i.empty()) {
+         sendmsg_t sendmsg = sendmsg_i.read();
+         sendmsg.dbuff_id = dbuff_stack.pop();
+         sendmsg_o.write(sendmsg);
+      }
+
+      if (need to submit read requests) {
+         // uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
+         // if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
+         
+         // dma_r_req_raw_t dma_r_req;
+         // dma_r_req(DMA_R_REQ_OFFSET)   = sendmsg.buffin;
+         // dma_r_req(DMA_R_REQ_LENGTH)   = num_chunks;
+         // dma_r_req(DMA_R_REQ_DBUFF_ID) = sendmsg.dbuff_id;
+         // dma_r_req_o.write(dma_r_req);
+      }
 
       // Do we need to add any data to data buffer 
       if (!dbuff_egress_i.empty()) {
          dbuff_in_raw_t dbuff_in = dbuff_egress_i.read();
 
-         dbuff[dbuff_in(DBUFF_IN_ID)][dbuff_in(DBUFF_IN_CHUNK)] = dbuff_in(DBUFF_IN_DATA); 
+         dbuff[dbuff_in(DBUFF_IN_ID)].buff[dbuff_in(DBUFF_IN_CHUNK) % DBUFF_NUM_CHUNKS] = dbuff_in(DBUFF_IN_DATA); 
 
-         dbuff_notif_o.write({dbuff_in(DBUFF_IN_ID), dbuff_in(DBUFF_IN_CHUNK)});
+         ap_uint<32> message_offset = dbuff_in(DBUFF_IN_CHUNK) * DBUFF_CHUNK_SIZE;
+
+         // Send a notif roughly every packet size of incoming data, or when the message is complete
+         if (dbuff_in(DBUFF_IN_LAST)) {
+            srpt_dbuff_notif_t dbuff_notif;
+            dbuf_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in(DBUFF_IN_RPC_ID);
+            dbuf_notif(SRPT_DBUFF_OFFSET)       = message_offset;
+            dbuff_notif_o.write(dbuff_notif);
+         }
       } 
 
       // Do we need to process any packet chunks?

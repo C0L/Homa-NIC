@@ -76,8 +76,6 @@ vsynth:
 
 ############ Verilog Simulation ############ 
 
-#TODO generalize this section
-
 waves: xsim
 	xsim --gui srpt_grant_queue_tb_snapshot.wdb
 
@@ -90,8 +88,13 @@ xsim_elaborate: xsim_compile
 xsim_compile: 
 	xvlog ./src/srpt_grant_pkts.v ./src/srpt_grant_queue_tb.v
 
+############ Verilog Linting ############ 
+
 lint_srpt_grant_pkts:
 	$(LINTER) ./src/srpt_grant_pkts.v ./src/srpt_grant_queue_tb.v
+
+lint_srpt_data_pkts:
+	$(LINTER) ./src/srpt_data_pkts.v ./src/srpt_data_queue_tb.v
 
 clean:
 	rm -f vitis_hls.log

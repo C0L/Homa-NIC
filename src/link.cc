@@ -51,18 +51,9 @@ extern "C"{
       } else if (!data_pkt_i.empty()) {
          ready_data_pkt_t ready_data_pkt = data_pkt_i.read();
 
-         ap_uint<32> data_bytes = MIN(ready_data_pkt.remaining, (ap_uint<32>) HOMA_PAYLOAD_SIZE);
-
          header_t header_out;
          header_out.type            = DATA;
          header_out.local_id        = ready_data_pkt.rpc_id;
-         header_out.packet_bytes    = DATA_PKT_HEADER + data_bytes;
-         header_out.payload_length  = data_bytes + HOMA_DATA_HEADER;
-         header_out.grant_offset    = ready_data_pkt.granted;
-         header_out.message_length  = ready_data_pkt.total;
-         header_out.processed_bytes = 0;
-         header_out.data_offset     = ready_data_pkt.total - ready_data_pkt.remaining;
-         header_out.segment_length  = data_bytes;
          header_out.incoming        = ready_data_pkt.granted;
          header_out.valid           = 1;
 
