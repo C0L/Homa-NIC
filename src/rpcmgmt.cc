@@ -27,8 +27,8 @@ extern "C"{
          hls::stream<header_t> & header_out_o,
          hls::stream<header_t> & header_in_i,
          hls::stream<header_t> & header_in_dbuff_o,
-         hls::stream<grant_in_t> & grant_srpt_o,
-         hls::stream<header_t> & data_srpt_o) {
+         hls::stream<srpt_grant_in_t> & grant_srpt_o,
+         hls::stream<srpt_grant_notif_t> & data_srpt_o) {
 
       static homa_rpc_t rpcs[MAX_RPCS];
 
@@ -41,26 +41,19 @@ extern "C"{
 
          homa_rpc_t homa_rpc = rpcs[(header_out.local_id >> 1)-1];
 
-         // TODO need to acumulate message length, processed bytes
-         // TODO need to accumulate DBUFF ID
-
-         header_out.dbuff_id        = homa_rpc.msgout.dbuff_id;
+         header_out.dbuff_id        = homa_rpc.dbuff_id;
          header_out.daddr           = homa_rpc.daddr;
          header_out.dport           = homa_rpc.dport;
          header_out.saddr           = homa_rpc.saddr;
          header_out.sport           = homa_rpc.sport;
          header_out.id              = homa_rpc.id;
-         header_out.message_length  = homa_rpc.message_length;
-         header_out.processed_bytes = homa_rpc.processed_bytes;
-         // TODO even needed?
-         // header_out.grant_offset    = ready_data_pkt.granted;
-         header_out.data_offset     = homa_rpc.message_length - header_out.data_offset;
+         header_out.message_length  = homa_rpc.length;
+         header_out.processed_bytes = 0;
+         header_out.grant_offset = homa_rpc.length - header_out.grant_offset;
 
-         ap_uint<32> data_bytes = MIN(ready_data_pkt.remaining, (ap_uint<32>) HOMA_PAYLOAD_SIZE);
-
-         header_out.payload_length  = data_bytes + HOMA_DATA_HEADER;
-         header_out.segment_length  = data_bytes;
-         header_out.packet_bytes    = DATA_PKT_HEADER + data_bytes;
+         // Convert these to 0 offset rather than MAX offset
+         header_out.data_offset     = homa_rpc.length - header_out.data_offset;
+         header_out.incoming        = homa_rpc.length - header_out.incoming;
 
          header_out_o.write(header_out);
       }
@@ -82,12 +75,12 @@ extern "C"{
                // Does this message need to interact with the grant system?
                if (header_in.message_length > header_in.incoming) { 
 
-                  grant_in_t grant_in;
-                  grant_in(GRANT_IN_OFFSET)   = header_in.data_offset;
-                  grant_in(GRANT_IN_INC)      = header_in.incoming;
-                  grant_in(GRANT_IN_MSG_LEN)  = header_in.message_length;
-                  grant_in(GRANT_IN_RPC_ID)   = header_in.local_id;
-                  grant_in(GRANT_IN_PEER_ID)  = header_in.peer_id;
+                  srpt_grant_in_t grant_in;
+                  grant_in(SRPT_GRANT_IN_OFFSET)   = header_in.data_offset;
+                  grant_in(SRPT_GRANT_IN_INC)      = header_in.incoming;
+                  grant_in(SRPT_GRANT_IN_MSG_LEN)  = header_in.message_length;
+                  grant_in(SRPT_GRANT_IN_RPC_ID)   = header_in.local_id;
+                  grant_in(SRPT_GRANT_IN_PEER_ID)  = header_in.peer_id;
 
                   grant_srpt_o.write(grant_in); // Write to SRPT grant queue
                } 
@@ -97,14 +90,15 @@ extern "C"{
 
             case GRANT: {
                // TODO maybe other data needs to be accumulated
-               data_srpt_o.write(header_in); // Write to SRPT data queue
+               srpt_grant_notif_t srpt_grant_notif;
+               // TODO 
+               // srpt_grant_notif(SRPT_GRANT_NOTIF_RPC_ID) = header_in.local_id;
+               // srpt_grant_notif(SRPT_GRANT_NOTIF_OFFSET) = homa_rpc.length - header_in.grant_offset;
+               data_srpt_o.write(srpt_grant_notif); // Write to SRPT data queue
                break;
             }
          }
       }
-
-      // TODO could store non-local ID inside of data SRPT and grant SRPT
-      // It seems best to move all state modified by packets be moved outside of store
 
       /* Ideally, the RPC store contains only data passed or accumulated in the
        * original sendmsg/recvmsg calls. It is desirable to not have the
@@ -115,7 +109,9 @@ extern "C"{
       /* W Processes */
       if (!sendmsg_i.empty()) {
       
-         sendmsg_t sendmsg = sendmsg_i.read();
+         sendmsg_t sendmsg;
+         sendmsg_i.read_nb(sendmsg);
+         // sendmsg_t sendmsg = sendmsg_i.read();
 
          homa_rpc_t homa_rpc;
          homa_rpc.daddr           = sendmsg.daddr;
@@ -123,8 +119,8 @@ extern "C"{
          homa_rpc.saddr           = sendmsg.saddr;
          homa_rpc.sport           = sendmsg.sport;
          homa_rpc.buffin          = sendmsg.buffin;
-         homa_rpc.msgout.length   = sendmsg.length;
-         homa_rpc.msgout.dbuff_id = sendmsg.dbuff_id;
+         homa_rpc.length          = sendmsg.length;
+         homa_rpc.dbuff_id        = sendmsg.dbuff_id;
          homa_rpc.rtt_bytes       = sendmsg.rtt_bytes; // TODO lots of duplicate data
          homa_rpc.peer_id         = sendmsg.peer_id;
          homa_rpc.id              = sendmsg.id;
@@ -133,13 +129,16 @@ extern "C"{
 
          srpt_data_in_t srpt_data_in;
          srpt_data_in(SRPT_DATA_RPC_ID)    = sendmsg.local_id;
+         srpt_data_in(SRPT_DATA_DBUFF_ID)  = sendmsg.dbuff_id;
          srpt_data_in(SRPT_DATA_REMAINING) = sendmsg.length;
-         srpt_data_in(SRPT_DATA_GRANTED)   = sendmsg.granted;
-         srpt_data_in(SRPT_DATA_DBUFFERED) = sendmsg.dbuffered;
+         srpt_data_in(SRPT_DATA_GRANTED)   = sendmsg.length - sendmsg.granted;
+         // srpt_data_in(SRPT_DATA_DBUFFERED) = sendmsg.length - MIN(sendmsg.dbuffered, sendmsg.length);
 
-         sendmsg_o.write(sendmsg);
+         sendmsg_o.write(srpt_data_in);
       } else if (!recvmsg_i.empty()) {
-         recvmsg_t recvmsg = recvmsg_i.read();
+         recvmsg_t recvmsg;
+         recvmsg_i.read_nb(recvmsg);
+         // recvmsg_t recvmsg = recvmsg_i.read();
 
          homa_rpc_t homa_rpc;
          homa_rpc.daddr     = recvmsg.daddr;
@@ -235,7 +234,8 @@ extern "C"{
          // If the incoming message is a response, the RPC ID is already valid in the local store
          header_in_o.write(header_in);
       } else if (!recvmsg_i.empty()) {
-         recvmsg_t recvmsg = recvmsg_i.read();
+         recvmsg_t recvmsg;
+         recvmsg_i.read_nb(recvmsg);
 
          /* If the caller provided an ID of 0 we want to match on the first RPC
           * from the matching peer and port combination Otherwise recv has been
@@ -266,7 +266,10 @@ extern "C"{
 
          recvmsg_o.write(recvmsg);
       }  else if (!sendmsg_i.empty()) {
-         sendmsg_t sendmsg = sendmsg_i.read();
+         // sendmsg_t sendmsg = sendmsg_i.read();
+         
+         sendmsg_t sendmsg;
+         sendmsg_i.read_nb(sendmsg);
 
          /* If the caller provided an ID of 0 this is a request message and we
           * need to generate a new local ID Otherwise, this is a response

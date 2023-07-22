@@ -3,28 +3,6 @@
 #include "fifo.hh"
 
 extern "C"{
-//   void dbuff_stack(hls::stream<sendmsg_t> & sendmsg_i,
-//         hls::stream<sendmsg_t> & sendmsg_o,
-//         hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
-//#pragma HLS pipeline II=1 style=flp
-//
-//
-//
-//      sendmsg_t sendmsg = sendmsg_i.read();
-//      sendmsg.dbuff_id = dbuff_stack.pop();
-//
-//      // uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
-//      // if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
-//
-//      // dma_r_req_raw_t dma_r_req;
-//      // dma_r_req(DMA_R_REQ_OFFSET)   = sendmsg.buffin;
-//      // dma_r_req(DMA_R_REQ_LENGTH)   = num_chunks;
-//      // dma_r_req(DMA_R_REQ_DBUFF_ID) = sendmsg.dbuff_id;
-//      // dma_r_req_o.write(dma_r_req);
-//
-//      sendmsg_o.write(sendmsg);
-//   }
-
    /**
     * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
     * packet header to determine DMA destination.
@@ -87,58 +65,66 @@ extern "C"{
    void dbuff_egress(hls::stream<sendmsg_t> & sendmsg_i,
          hls::stream<sendmsg_t> & sendmsg_o,
          hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
-         hls::stream<srpt_data_dbuff_notif_t> & dbuff_notif_o,
+         hls::stream<srpt_dbuff_notif_t> & dbuff_notif_o,
          hls::stream<out_chunk_t> & out_chunk_i,
          hls::stream<out_chunk_t> & out_chunk_o, 
          hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
 
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 
       static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
       // 1024 x 2^14 byte buffers
       static dbuff_t dbuff[NUM_DBUFF];
-#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
-
-      // TODO hold onto the sendmsg until we have the data on-chip
-      static sendmsg_t pending_data;
+// TODO Does this cause cosimulation problems??!!
+// #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
       if (!sendmsg_i.empty()) {
          sendmsg_t sendmsg = sendmsg_i.read();
          sendmsg.dbuff_id = dbuff_stack.pop();
+
+         uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
+         if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
+         
+         dma_r_req_raw_t dma_r_req;
+         dma_r_req(DMA_R_REQ_OFFSET)     = sendmsg.buffin;
+         dma_r_req(DMA_R_REQ_BURST)      = num_chunks;
+         dma_r_req(DMA_R_REQ_MSG_LEN) = num_chunks;
+         dma_r_req(DMA_R_REQ_DBUFF_ID)   = sendmsg.dbuff_id;
+         
+         dma_r_req_o.write(dma_r_req);
+
+         sendmsg.dbuffered = sendmsg.length;
+         sendmsg.granted   = sendmsg.length;
+
          sendmsg_o.write(sendmsg);
       }
 
-      if (need to submit read requests) {
-         // uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
-         // if (sendmsg.length % DBUFF_CHUNK_SIZE != 0) num_chunks++;
-         
-         // dma_r_req_raw_t dma_r_req;
-         // dma_r_req(DMA_R_REQ_OFFSET)   = sendmsg.buffin;
-         // dma_r_req(DMA_R_REQ_LENGTH)   = num_chunks;
-         // dma_r_req(DMA_R_REQ_DBUFF_ID) = sendmsg.dbuff_id;
-         // dma_r_req_o.write(dma_r_req);
-      }
+      // TODO there is another case here that will trigger the request and receipt of data in response to changes caused by out chunk
 
       // Do we need to add any data to data buffer 
       if (!dbuff_egress_i.empty()) {
          dbuff_in_raw_t dbuff_in = dbuff_egress_i.read();
 
-         dbuff[dbuff_in(DBUFF_IN_ID)].buff[dbuff_in(DBUFF_IN_CHUNK) % DBUFF_NUM_CHUNKS] = dbuff_in(DBUFF_IN_DATA); 
+         dbuff[dbuff_in(DBUFF_IN_DBUFF_ID)][dbuff_in(DBUFF_IN_CHUNK) % DBUFF_NUM_CHUNKS] = dbuff_in(DBUFF_IN_DATA); 
+         ap_uint<32> message_offset = (dbuff_in(DBUFF_IN_CHUNK)+1) * DBUFF_CHUNK_SIZE;
 
-         ap_uint<32> message_offset = dbuff_in(DBUFF_IN_CHUNK) * DBUFF_CHUNK_SIZE;
-
-         // Send a notif roughly every packet size of incoming data, or when the message is complete
          if (dbuff_in(DBUFF_IN_LAST)) {
             srpt_dbuff_notif_t dbuff_notif;
-            dbuf_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in(DBUFF_IN_RPC_ID);
-            dbuf_notif(SRPT_DBUFF_OFFSET)       = message_offset;
+            dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID) = dbuff_in(DBUFF_IN_DBUFF_ID);
+            dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN) - MIN(message_offset, dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN));
+
+            std::cerr << "DBUFF MESSAGE LENGTH " << dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN) << std::endl;
+
+            std::cerr << "DBUFF MESSAGE OFFSET" << message_offset << std::endl;
+
             dbuff_notif_o.write(dbuff_notif);
          }
-      } 
+      }
 
       // Do we need to process any packet chunks?
       if (!out_chunk_i.empty()) {
+         // TODO need to dispatch requests in response to an entire packet being read
          out_chunk_t out_chunk = out_chunk_i.read();
 
          // Is this a data type packet?
@@ -155,7 +141,6 @@ extern "C"{
 
 #pragma HLS array_partition variable=double_buff complete
 
-            // TODO this is backwards??? Maybe not
             // Was the buffer data already in the right order??
             double_buff(511,0)    = c0(511,0);
             double_buff(1023,512) = c1(511,0);

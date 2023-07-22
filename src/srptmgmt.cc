@@ -8,52 +8,50 @@
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
-void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_raw_i,
+void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
       hls::stream<srpt_dbuff_notif_t> & dbuff_notif_raw_i,
       hls::stream<srpt_data_out_t> & data_pkt_raw_o,
       hls::stream<srpt_grant_notif_t> & grant_notif_raw_i) {
 
-   static srpt_data_in_t entries[MAX_RPCS];
-   static ap_uint<32> grants[MAX_RPCS]; 
-   static srpt_dbuff_notif_t dbuff_notifs[MAX_RPCS];
+   static srpt_data_in_t entries[NUM_DBUFF];
 
    if (!dbuff_notif_raw_i.empty()) {
       srpt_dbuff_notif_t dbuff_notif = dbuff_notif_raw_i.read();
-
-      dbuff_notifs[(dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) >> 1) - 1] = dbuff_notif;
+      entries[dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID)](SRPT_DATA_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
+      std::cerr << "DBUFF NOTIF " << dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) << " " << dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID) << std::endl;
    }
 
    if (!grant_notif_raw_i.empty()) {
-      grant_notif_t header_in = grant_notif_raw_i.read();
-      grants[((header_in(SRPT_GRANT_NOTIF_RPC_ID) >> 1) - 1)] = header_in(SRPT_GRANT_NOTIF_OFFSET);
+      srpt_grant_notif_t header_in = grant_notif_raw_i.read();
+      entries[header_in(SRPT_GRANT_NOTIF_DBUFF_ID)](SRPT_DATA_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
+      std::cerr << "GRANT NOTIF " <<  header_in(SRPT_GRANT_NOTIF_DBUFF_ID) << " " << header_in(SRPT_GRANT_NOTIF_OFFSET) << std::endl;
    }
 
    if (!sendmsg_i.empty()) {
       srpt_data_in_t sendmsg = sendmsg_i.read();
+      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_RPC_ID)    = sendmsg(SRPT_DATA_RPC_ID);
+      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_DBUFF_ID)  = sendmsg(SRPT_DATA_DBUFF_ID);
+      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_REMAINING) = sendmsg(SRPT_DATA_REMAINING);
+      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_GRANTED)   = sendmsg(SRPT_DATA_GRANTED);
+      std::cerr << sendmsg(SRPT_DATA_RPC_ID) << std::endl;
+      std::cerr << sendmsg(SRPT_DATA_DBUFF_ID) << std::endl;
+      std::cerr << sendmsg(SRPT_DATA_REMAINING) << std::endl;
+      std::cerr << sendmsg(SRPT_DATA_GRANTED) << std::endl;
+   }
 
-      // srpt_data_t new_entry = {sendmsg.local_id, sendmsg.dbuff_id, sendmsg.length, sendmsg.length};
-      grants[((sendmsg(SRPT_DATA_RPC_ID) >> 1)-1)] = sendmsg(SRPT_DATA_GRANTED);
-
-      entries[((sendmsg(SRPT_DATA_RPC_ID) >> 1)-1)] = sendmsg;
-   } 
-
-   //  srpt_data_t head = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
    srpt_data_in_t head;
+
    head(SRPT_DATA_RPC_ID)    = 0;
    head(SRPT_DATA_REMAINING) = 0xFFFFFFFF;
    head(SRPT_DATA_GRANTED)   = 0xFFFFFFFF;
    head(SRPT_DATA_DBUFFERED) = 0xFFFFFFFF;
 
-   for (int i = 0; i < MAX_RPCS; ++i) {
+   for (int i = 0; i < NUM_DBUFF; ++i) {
 
       if (entries[i](SRPT_DATA_REMAINING) < head(SRPT_DATA_REMAINING) && entries[i](SRPT_DATA_RPC_ID) != 0) {
          // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
-         // bool unblocked = (((dbuff_notifs[entries[i].dbuff_id].dbuff_chunk+1) * DBUFF_CHUNK_SIZE)) >= MIN((entries[i].total - entries[i].remaining + HOMA_PAYLOAD_SIZE)(31,0), entries[i].total(31,0));
-         // bool granted = !(entries[i].total - entries[i].remaining > grants[i]);
-         bool unblocked = (dbuff_notifs[entries[i](SRPT_DATA_RPC_ID)](SRPT_DBUFF_NOTIF_OFFSET) < (entries[i](SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE)) 
-            || (dbuff_notifs[entries[i](SRPT_DATA_RPC_ID)](SRPT_DBUFF_NOTIF_OFFSET) == 0);
-
-         bool granted = entries[i](SRPT_DATA_REMAINING) > grants[i];
+         bool unblocked = (entries[i](SRPT_DBUFF_NOTIF_OFFSET) < (entries[i](SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE)) || (entries[i](SRPT_DBUFF_NOTIF_OFFSET) == 0);
+         bool granted   = entries[i](SRPT_DATA_REMAINING) > entries[i](SRPT_DATA_GRANTED);
 
          if (unblocked && granted) { 
             head = entries[i];
@@ -61,20 +59,18 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_raw_i,
       }
    }
 
-   if (head.rpc_id != 0) {
+   if (head(SRPT_DATA_RPC_ID) != 0) {
 
       ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > head(SRPT_DATA_REMAINING)) 
                                  ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head(SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE));
 
-      head(SRPT_DATA_GRANTED) = grants[((head(SRPT_DATA_RPC_ID) >> 1)-1)];
-
-      // data_pkt_o.write({head.rpc_id, head.dbuff_id, head.remaining, head.total, grants[((head.rpc_id >> 1)-1)]});
+      std::cerr << "RIPE DATA PKT\n";
       data_pkt_raw_o.write(head);
 
-      entries[((head(SRPT_DATA_RPC_ID) >> 1) - 1)](SRPT_DATA_REMAINING) = remaining;
+      entries[head(SRPT_DATA_DBUFF_ID)](SRPT_DATA_REMAINING) = remaining;
 
       if (remaining == 0) {
-         entries[((head.rpc_id >> 1) - 1)] = 0;
+         entries[head(SRPT_DATA_DBUFF_ID)] = 0;
       }
    }
 }
@@ -89,8 +85,8 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_raw_i,
  * @grant_pkt_o: The next rpc that should be granted to. Goes to packet egress process.
  *
  */
-void srpt_grant_pkts(hls::stream<grant_in_t> & grant_in_i,
-      hls::stream<grant_out_t> & grant_out_o) {
+void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
+      hls::stream<srpt_grant_out_t> & grant_out_o) {
 
    // Because this is only used for sim we brute force grants
    static srpt_grant_t entries[MAX_RPCS];
@@ -98,14 +94,14 @@ void srpt_grant_pkts(hls::stream<grant_in_t> & grant_in_i,
 
    // Headers from incoming DATA packets
    if (!grant_in_i.empty()) {
-      grant_in_t grant_in = grant_in_i.read();
+      srpt_grant_in_t grant_in = grant_in_i.read();
 
       // The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
-      if (grant_in(GRANT_IN_OFFSET) == 0) {
-         entries[((grant_in(GRANT_IN_RPC_ID) >> 1) - 1)] = {grant_in(GRANT_IN_PEER_ID), grant_in(GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
+      if (grant_in(SRPT_GRANT_IN_OFFSET) == 0) {
+         entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)] = {grant_in(SRPT_GRANT_IN_PEER_ID), grant_in(SRPT_GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
       } else {
-         entries[((grant_in(GRANT_IN_RPC_ID) >> 1) - 1)].recv_bytes += HOMA_PAYLOAD_SIZE;
-         entries[((grant_in(GRANT_IN_RPC_ID) >> 1) - 1)].grantable_bytes -= HOMA_PAYLOAD_SIZE;
+         entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)].recv_bytes += HOMA_PAYLOAD_SIZE;
+         entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)].grantable_bytes -= HOMA_PAYLOAD_SIZE;
       } 
    } else {
       srpt_grant_t best[8];
@@ -146,16 +142,16 @@ void srpt_grant_pkts(hls::stream<grant_in_t> & grant_in_i,
       }
 
       if (next_grant.recv_bytes > 0 && next_grant.rpc_id != 0) {
-         grant_out_t grant_out;
+         srpt_grant_out_t grant_out;
 
          if (next_grant.recv_bytes > avail_bytes) {
             // Just send avail_pkts of data
             entries[(next_grant.rpc_id >> 1) - 1].recv_bytes -= avail_bytes;
             entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= avail_bytes;
 
-            grant_out(GRANT_OUT_GRANT) = avail_bytes;
-            grant_out(GRANT_OUT_RPC_ID) = next_grant.rpc_id;
-            grant_out(GRANT_OUT_PEER_ID) = next_grant.peer_id;
+            grant_out(SRPT_GRANT_OUT_GRANT) = avail_bytes;
+            grant_out(SRPT_GRANT_OUT_RPC_ID) = next_grant.rpc_id;
+            grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
             grant_out_o.write(grant_out);
 
@@ -168,9 +164,11 @@ void srpt_grant_pkts(hls::stream<grant_in_t> & grant_in_i,
             entries[(next_grant.rpc_id >> 1) - 1].recv_bytes = 0;
             entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= next_grant.recv_bytes;
 
-            grant_out(GRANT_OUT_GRANT)   = next_grant.recv_bytes;
-            grant_out(GRANT_OUT_RPC_ID)  = next_grant.rpc_id;
-            grant_out(GRANT_OUT_PEER_ID) = next_grant.peer_id;
+            srpt_grant_out_t grant_out;
+
+            grant_out(SRPT_GRANT_OUT_GRANT)   = entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes;
+            grant_out(SRPT_GRANT_OUT_RPC_ID)  = next_grant.rpc_id;
+            grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
             grant_out_o.write(grant_out);
          } 

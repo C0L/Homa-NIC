@@ -12,14 +12,14 @@ extern "C"{
 
       hls::stream<raw_stream_t, STREAM_DEPTH> link_ingress;
       hls::stream<raw_stream_t, STREAM_DEPTH> link_egress;
-      hls::stream<ap_uint<SENDMSG_SIZE>, STREAM_DEPTH> sendmsg_s;
-      hls::stream<ap_uint<RECVMSG_SIZE>, STREAM_DEPTH> recvmsg_s;
-      hls::stream<ap_uint<DMA_R_REQ_SIZE>, STREAM_DEPTH>  dma_r_req_s;
-      hls::stream<ap_uint<DBUFF_IN_SIZE>, STREAM_DEPTH> dma_resp_s;
-      hls::stream<ap_uint<DMA_W_REQ_SIZE>, STREAM_DEPTH> dma_w_req_s;
+      hls::stream<sendmsg_raw_t, STREAM_DEPTH> sendmsg_s;
+      hls::stream<recvmsg_raw_t, STREAM_DEPTH> recvmsg_s;
+      hls::stream<dma_r_req_raw_t, STREAM_DEPTH>  dma_r_req_s;
+      hls::stream<dbuff_in_raw_t, STREAM_DEPTH> dma_resp_s;
+      hls::stream<dma_w_req_raw_t, STREAM_DEPTH> dma_w_req_s;
 
-      ap_uint<SENDMSG_SIZE> sendmsg;
-      ap_uint<RECVMSG_SIZE> recvmsg;
+      sendmsg_raw_t sendmsg;
+      recvmsg_raw_t recvmsg;
 
       ap_uint<128> saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
       ap_uint<128> daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
@@ -53,37 +53,38 @@ extern "C"{
       char maxi_in[128*64];
       char maxi_out[128*64];
 
+      recvmsg_s.write(recvmsg);
+      sendmsg_s.write(sendmsg);
+
       // Construct a new RPC to ingest  
       homa(sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link_ingress, link_egress);
 
-      sendmsg_s.write(sendmsg);
-      recvmsg_s.write(recvmsg);
-
-      // std::cerr << "CALLED HOMA\n";
-
       strcpy(maxi_in, data.c_str());
-
+   
       while (maxi_out[2772] == 0) {
          if (!link_egress.empty()) {
             link_ingress.write(link_egress.read());
          }
 
          if (!dma_r_req_s.empty()) {
-            ap_uint<DMA_R_REQ_SIZE> dma_r_req = dma_r_req_s.read(); 
+            dma_r_req_raw_t dma_r_req = dma_r_req_s.read(); 
 
-            for (int i = 0; i < dma_r_req(DMA_R_REQ_LENGTH); ++i) {
+            for (int i = 0; i < dma_r_req(DMA_R_REQ_BURST); ++i) {
                integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req(DMA_R_REQ_OFFSET)) + i * 64));
-               ap_uint<DBUFF_IN_SIZE> dbuff_in;
-               dbuff_in(DBUFF_IN_DATA) = chunk;
-               dbuff_in(DBUFF_IN_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
-               dbuff_in(DBUFF_IN_CHUNK) = dma_r_req(DMA_R_REQ_OFFSET) + i;
-               dbuff_in(DBUFF_IN_LAST) = (i == DMA_R_REQ_LENGTH);
+               dbuff_in_raw_t dbuff_in;
+               dbuff_in(DBUFF_IN_DATA)    = chunk;
+               dbuff_in(DBUFF_IN_DBUFF_ID)      = dma_r_req(DMA_R_REQ_DBUFF_ID);
+               dbuff_in(DBUFF_IN_RPC_ID)  = dma_r_req(DMA_R_REQ_RPC_ID);
+               dbuff_in(DBUFF_IN_CHUNK)   = dma_r_req(DMA_R_REQ_OFFSET) + i;
+               dbuff_in(DBUFF_IN_MSG_LEN) = dma_r_req(DMA_R_REQ_MSG_LEN);
+               dbuff_in(DBUFF_IN_LAST)    = (i == (dma_r_req(DMA_R_REQ_BURST)-1));
+
                dma_resp_s.write(dbuff_in);
             }
          }
 
          if (!dma_w_req_s.empty()) {
-            ap_uint<DMA_W_REQ_SIZE> dma_w_req = dma_w_req_s.read();
+            dma_w_req_raw_t dma_w_req = dma_w_req_s.read();
             (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))) = dma_w_req(DMA_W_REQ_BLOCK);
          }
       }

@@ -4,10 +4,10 @@
 #include "homa.hh"
 
 extern "C"{
-   void homa_recvmsg(hls::stream<ap_uint<416>> & recvmsg_i,
+   void homa_recvmsg(hls::stream<recvmsg_raw_t> & recvmsg_i,
          hls::stream<recvmsg_t> & recvmsg_o);
 
-   void homa_sendmsg(hls::stream<ap_uint<512>> & sendmsg_i,
+   void homa_sendmsg(hls::stream<sendmsg_raw_t> & sendmsg_i,
          hls::stream<sendmsg_t> & sendmsg_o);
 }
 

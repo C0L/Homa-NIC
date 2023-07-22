@@ -57,9 +57,6 @@ extern "C"{
       // Construct a new RPC to ingest  
       homa(sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link_ingress, link_egress);
 
-
-      // TODO copy some data in advance. How to know when done though?
-
       sendmsg_s.write(sendmsg);
       recvmsg_s.write(recvmsg);
 
@@ -79,7 +76,7 @@ extern "C"{
                dbuff_in(DBUFF_IN_DATA) = chunk;
                dbuff_in(DBUFF_IN_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
                dbuff_in(DBUFF_IN_CHUNK) = dma_r_req(DMA_R_REQ_OFFSET) + i;
-               dbuff_in(DBUFF_IN_LAST) = (i == DMA_R_REQ_LENGTH);
+               dbuff_in(DBUFF_IN_LAST) = (i == (dma_r_req(DMA_R_REQ_LENGTH)-1));
                dma_resp_s.write(dbuff_in);
             }
          }

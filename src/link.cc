@@ -30,31 +30,37 @@ extern "C"{
     * @header_out_o - Output stream to the RPC store to get info about the RPC
     * before the packet can be sent
     */
-   void egress_selector(hls::stream<ready_data_pkt_t> & data_pkt_i,
-         hls::stream<grant_out_t> & grant_pkt_i,
+   void egress_selector(hls::stream<srpt_data_out_t> & data_pkt_i,
+         hls::stream<srpt_grant_out_t> & grant_pkt_i,
          hls::stream<header_t> & header_out_o) {
 
 #pragma HLS pipeline II=1 style=flp
 
       if (!grant_pkt_i.empty()) {
-         grant_out_t grant_out = grant_pkt_i.read();
+         std::cerr << "GRANT OUT\n";
+         srpt_grant_out_t grant_out = grant_pkt_i.read();
 
          header_t header_out;
          header_out.type         = GRANT;
-         header_out.local_id     = grant_out(GRANT_OUT_RPC_ID);
-         header_out.grant_offset = grant_out(GRANT_OUT_GRANT);
+         header_out.local_id     = grant_out(SRPT_GRANT_OUT_RPC_ID);
+         header_out.grant_offset = grant_out(SRPT_GRANT_OUT_GRANT);
          header_out.packet_bytes = GRANT_PKT_HEADER;
 
          header_out.valid = 1;
 
          header_out_o.write(header_out);
       } else if (!data_pkt_i.empty()) {
-         ready_data_pkt_t ready_data_pkt = data_pkt_i.read();
+         std::cerr << "DATA OUT\n";
+         srpt_data_out_t ready_data_pkt = data_pkt_i.read();
 
          header_t header_out;
          header_out.type            = DATA;
-         header_out.local_id        = ready_data_pkt.rpc_id;
-         header_out.incoming        = ready_data_pkt.granted;
+         header_out.local_id        = ready_data_pkt(SRPT_DATA_RPC_ID);
+         header_out.incoming        = ready_data_pkt(SRPT_DATA_GRANTED);
+         header_out.data_offset     = ready_data_pkt(SRPT_DATA_REMAINING);
+         header_out.segment_length  = MIN(ready_data_pkt(SRPT_DATA_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
+         header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
+         header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
          header_out.valid           = 1;
 
          header_out_o.write(header_out);
@@ -216,7 +222,8 @@ extern "C"{
                   // Grant header
                   natural_chunk(CHUNK_HOMA_GRANT_OFFSET)   = header_out.grant_offset; // Byte offset of grant
                   natural_chunk(CHUNK_HOMA_GRANT_PRIORITY) = 0;                       // Priority TODO
-                                                                                     
+                  
+                  std::cerr << "GRANT OUT " << header_out.grant_offset << std::endl;
 
                   // Packet block configuration — no data bytes needed
                   out_chunk.type = GRANT;
@@ -239,7 +246,7 @@ extern "C"{
 
          // TODO Can remove natural chunk entirely
          network_order(natural_chunk, out_chunk.buff);
-
+         std::cerr << "WROTE CHUNK \n";
          chunk_out_o.write(out_chunk);
       }
    }

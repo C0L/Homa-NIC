@@ -40,6 +40,7 @@ if {$job_type == 0} {
 } elseif {$job_type == 2} {
 	# Run Synthesis, RTL Simulation and Exit
 	csynth_design
+   # Enable FIFO sizing seems to prevent the tool from spamming sendmsg/recvmsg requests at the interface
 	cosim_design 
 } 
 # elseif {$hls_exec == 3} { 

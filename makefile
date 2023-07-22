@@ -60,6 +60,9 @@ csim_unscheduled_exchange:
 csim_scheduled_exchange:
 	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
 
+csim_srpt_data_pkts:
+	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_srpt_data_pkts.cc
+
 ############ Vitis Cosim ############ 
 
 cosim_unscheduled_exchange:

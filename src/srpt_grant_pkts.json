@@ -24,7 +24,7 @@
 			"c_name":"grant_out_o",
 			"c_port_direction":"out",
 			"rtl_ports":{
-				"FIFO_full_flag":"grant_pkt_full_o",
+				"FIFO_full_flag":"grant_pkt_full_i",
 				"FIFO_write_enable":"grant_pkt_write_en_o",
 				"FIFO_data_write_out":"grant_pkt_data_o"
 			}

@@ -26,8 +26,8 @@ extern "C"{
          hls::stream<header_t> & header_out_o,
          hls::stream<header_t> & header_in_i,
          hls::stream<header_t> & header_in_dbuff_o,
-         hls::stream<grant_in_t> & grant_in_o,
-         hls::stream<header_t> & header_in_srpt_o);
+         hls::stream<srpt_grant_in_t> & grant_in_o,
+         hls::stream<srpt_grant_notif_t> & header_in_srpt_o);
 
    void rpc_map(hls::stream<header_t> & header_in_i,
          hls::stream<header_t> & header_in_o,

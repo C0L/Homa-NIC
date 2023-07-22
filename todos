@@ -35,3 +35,5 @@ Defficiencies of the SRPT queue:
 The grant srpt queue should update its recv bytes based on NEW data. Not duplicates. This probably requires visiting the timer core.
 
 Need to test the data buffer buffering feature to fetch host memory
+
+What is the proximity of multiple sendmsg requests. Does stalling the propagation of a sendmsg to wait for data block out shorter messages?

@@ -6,13 +6,13 @@ extern "C" {
     * homa_recvmsg() - Primes the core to accept data from an RPC
     * ...
     */
-   void homa_recvmsg(hls::stream<ap_uint<RECVMSG_SIZE>> & recvmsg_i,
+   void homa_recvmsg(hls::stream<recvmsg_raw_t> & recvmsg_i,
          hls::stream<recvmsg_t> & recvmsg_o) {
-      // recvmsg_t recvmsg = recvmsg_i.read();
+#pragma HLS pipeline II=1
 
-      ap_uint<RECVMSG_SIZE> recvmsg_raw = recvmsg_i.read();
+      recvmsg_raw_t recvmsg_raw = recvmsg_i.read();
+   
       recvmsg_t recvmsg;
-
       recvmsg.buffout   = recvmsg_raw(RECVMSG_BUFFOUT);
       recvmsg.saddr     = recvmsg_raw(RECVMSG_SADDR);
       recvmsg.daddr     = recvmsg_raw(RECVMSG_DADDR); 
@@ -21,6 +21,7 @@ extern "C" {
       recvmsg.id        = recvmsg_raw(RECVMSG_ID);
       recvmsg.rtt_bytes = recvmsg_raw(RECVMSG_RTT);
 
+         
       recvmsg_o.write(recvmsg);
    }
 
@@ -36,23 +37,25 @@ extern "C" {
     * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
     * @new_rpc_o    - Output for the next step of the new_rpc injestion
     */
-   void homa_sendmsg(hls::stream<ap_uint<SENDMSG_SIZE>> & sendmsg_i,
+   void homa_sendmsg(hls::stream<sendmsg_raw_t> & sendmsg_i,
          hls::stream<sendmsg_t> & sendmsg_o) {
 
-      ap_uint<SENDMSG_SIZE> sendmsg_raw = sendmsg_i.read();
-      sendmsg_t sendmsg;
+#pragma HLS pipeline II=1
+         sendmsg_raw_t sendmsg_raw = sendmsg_i.read();
 
-      sendmsg.buffin            = sendmsg_raw(SENDMSG_BUFFIN);
-      sendmsg.length            = sendmsg_raw(SENDMSG_LENGTH);
-      sendmsg.saddr             = sendmsg_raw(SENDMSG_SADDR);
-      sendmsg.daddr             = sendmsg_raw(SENDMSG_DADDR);
-      sendmsg.sport             = sendmsg_raw(SENDMSG_SPORT);
-      sendmsg.dport             = sendmsg_raw(SENDMSG_DPORT);
-      sendmsg.id                = sendmsg_raw(SENDMSG_ID);
-      sendmsg.completion_cookie = sendmsg_raw(SENDMSG_CC);
-      sendmsg.rtt_bytes         = sendmsg_raw(SENDMSG_RTT);
-      sendmsg.granted           = (sendmsg_raw(SENDMSG_RTT) > sendmsg_raw(SENDMSG_LENGTH)) ? sendmsg_raw(SENDMSG_LENGTH) : sendmsg_raw(SENDMSG_RTT);
+         sendmsg_t sendmsg;
 
-      sendmsg_o.write(sendmsg);
+         sendmsg.buffin            = sendmsg_raw(SENDMSG_BUFFIN);
+         sendmsg.length            = sendmsg_raw(SENDMSG_LENGTH);
+         sendmsg.saddr             = sendmsg_raw(SENDMSG_SADDR);
+         sendmsg.daddr             = sendmsg_raw(SENDMSG_DADDR);
+         sendmsg.sport             = sendmsg_raw(SENDMSG_SPORT);
+         sendmsg.dport             = sendmsg_raw(SENDMSG_DPORT);
+         sendmsg.id                = sendmsg_raw(SENDMSG_ID);
+         sendmsg.completion_cookie = sendmsg_raw(SENDMSG_CC);
+         sendmsg.rtt_bytes         = sendmsg_raw(SENDMSG_RTT);
+         sendmsg.granted           = (sendmsg_raw(SENDMSG_RTT) > sendmsg_raw(SENDMSG_LENGTH)) ? sendmsg_raw(SENDMSG_LENGTH) : sendmsg_raw(SENDMSG_RTT);
+
+         sendmsg_o.write(sendmsg);
    }
 }
