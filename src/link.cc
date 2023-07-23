@@ -78,26 +78,36 @@ extern "C"{
    void pkt_builder(hls::stream<header_t> & header_out_i,
          hls::stream<out_chunk_t> & chunk_out_o) {
 
-#pragma HLS pipeline II=1 style=flp
+// #pragma HLS pipeline II=1 style=flp
 
       // TODO revise this...
-      static header_t doublebuff[2];
-#pragma HLS array_partition variable=doublebuff type=complete
+      // static header_t doublebuff[2];
+      //
+      static header_t header;
+// #pragma HLS array_partition variable=doublebuff type=complete
       // #pragma HLS dependence variable=doublebuff intra RAW false
       // #pragma HLS dependence variable=doublebuff intra WAR false
 
-      static ap_uint<1> w_pkt = 0;
-      static ap_uint<1> r_pkt = 0;
+      //static ap_uint<1> w_pkt = 0;
+      //static ap_uint<1> r_pkt = 0;
 
       // Need to decouple reading from input stream and reading from current packet
-      if (doublebuff[w_pkt].valid == 0 && !header_out_i.empty()) {
-         doublebuff[w_pkt] = header_out_i.read();
-         w_pkt++;
-      }
+      // if (doublebuff[w_pkt].valid == 0 && !header_out_i.empty()) {
+         // doublebuff[w_pkt] = header_out_i.read();
+         // w_pkt++;
+      // }
+      //
+      if (header.valid == 0 && !header_out_i.empty()) {
+	header = header_out_i.read();
+header.valid = 1;
+	}
 
       // We have data to send
-      if (doublebuff[r_pkt].valid == 1) {
-         header_t & header_out = doublebuff[r_pkt];
+       if (header.valid == 1) {
+      // if (doublebuff[r_pkt].valid == 1) {
+         // header_t & header_out = doublebuff[r_pkt];
+         //
+         header_t & header_out = header;
 
          out_chunk_t out_chunk;
          out_chunk.offset = header_out.data_offset;
@@ -238,15 +248,16 @@ extern "C"{
          if (header_out.processed_bytes >= header_out.packet_bytes) {
             header_out.valid = 0;
             out_chunk.last = 1;
-            doublebuff[r_pkt].valid = 0; // TODO maybe not needed?
-            r_pkt++;
+	    header.valid = 0;
+            // doublebuff[r_pkt].valid = 0; // TODO maybe not needed?
+            // r_pkt++;
          } else {
             out_chunk.last = 0;
          }
 
          // TODO Can remove natural chunk entirely
          network_order(natural_chunk, out_chunk.buff);
-         std::cerr << "WROTE CHUNK \n";
+         // std::cerr << "WROTE CHUNK \n";
          chunk_out_o.write(out_chunk);
       }
    }

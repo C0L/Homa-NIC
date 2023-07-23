@@ -43,23 +43,13 @@ extern "C"{
        *
        * Synth will claim that this is ignored, but cosim needs it to work.
        */
-#pragma HLS interface axis port=sendmsg_i   register_mode=off register depth=512
-#pragma HLS interface axis port=recvmsg_i   register_mode=off register depth=512
-#pragma HLS interface axis port=dma_r_req_o register_mode=off register depth=512
-#pragma HLS interface axis port=dma_r_resp_i register_mode=off register depth=512
-#pragma HLS interface axis port=dma_w_req_o register_mode=off register depth=512
-#pragma HLS interface axis port=link_ingress register_mode=off register depth=512
-#pragma HLS interface axis port=link_egress register_mode=off register depth=512
-
-// Seems to work but sizes not being decred
-// #pragma HLS interface axis port=sendmsg_i    depth=512
-// #pragma HLS interface axis port=recvmsg_i    depth=512
-// #pragma HLS interface axis port=dma_r_req_o  depth=512
-// #pragma HLS interface axis port=dma_r_resp_i depth=512
-// #pragma HLS interface axis port=dma_w_req_o  depth=512
-// #pragma HLS interface axis port=link_ingress depth=512
-// #pragma HLS interface axis port=link_egress  depth=512
-
+#pragma HLS interface axis port=sendmsg_i    depth=2048
+#pragma HLS interface axis port=recvmsg_i    depth=2048
+#pragma HLS interface axis port=dma_r_req_o  depth=2048
+#pragma HLS interface axis port=dma_r_resp_i depth=2048
+#pragma HLS interface axis port=dma_w_req_o depth=2048
+#pragma HLS interface axis port=link_ingress depth=2048
+#pragma HLS interface axis port=link_egress depth=2048
 
       /* Naming scheme: {flow}__{source kernel}__{dest kernel} */
 

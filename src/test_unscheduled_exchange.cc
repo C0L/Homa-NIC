@@ -10,13 +10,15 @@ extern "C"{
    int main() {
       std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
-      hls::stream<raw_stream_t, STREAM_DEPTH> link_ingress;
-      hls::stream<raw_stream_t, STREAM_DEPTH> link_egress;
-      hls::stream<sendmsg_raw_t, STREAM_DEPTH> sendmsg_s;
-      hls::stream<recvmsg_raw_t, STREAM_DEPTH> recvmsg_s;
-      hls::stream<dma_r_req_raw_t, STREAM_DEPTH>  dma_r_req_s;
-      hls::stream<dbuff_in_raw_t, STREAM_DEPTH> dma_resp_s;
-      hls::stream<dma_w_req_raw_t, STREAM_DEPTH> dma_w_req_s;
+      hls::stream<raw_stream_t> link_ingress;
+      hls::stream<raw_stream_t> link_egress;
+      hls::stream<sendmsg_raw_t> sendmsg_s;
+      hls::stream<recvmsg_raw_t> recvmsg_s;
+      hls::stream<dma_r_req_raw_t>  dma_r_req_s;
+      hls::stream<dbuff_in_raw_t> dma_resp_s;
+      hls::stream<dma_w_req_raw_t> dma_w_req_s;
+
+      homa(sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link_ingress, link_egress);
 
       sendmsg_raw_t sendmsg;
       recvmsg_raw_t recvmsg;
@@ -52,12 +54,14 @@ extern "C"{
 
       char maxi_in[128*64];
       char maxi_out[128*64];
+      // Construct a new RPC to ingest  
+
+
 
       recvmsg_s.write(recvmsg);
       sendmsg_s.write(sendmsg);
-
-      // Construct a new RPC to ingest  
-      homa(sendmsg_s, recvmsg_s, dma_r_req_s, dma_resp_s, dma_w_req_s, link_ingress, link_egress);
+      recvmsg_s.write(recvmsg);
+      recvmsg_s.write(recvmsg);
 
       strcpy(maxi_in, data.c_str());
    

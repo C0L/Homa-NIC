@@ -20,7 +20,6 @@ extern "C" {
       recvmsg.dport     = recvmsg_raw(RECVMSG_DPORT);
       recvmsg.id        = recvmsg_raw(RECVMSG_ID);
       recvmsg.rtt_bytes = recvmsg_raw(RECVMSG_RTT);
-
          
       recvmsg_o.write(recvmsg);
    }
