@@ -126,7 +126,7 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
  * 
  * Need to leave side-channel signals enabled to avoid linker error?
  */
-typedef ap_axiu<512, 1, 0, 0> raw_stream_t;
+typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 
 
 /* Network Constants */

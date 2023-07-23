@@ -56,12 +56,8 @@ extern "C"{
       char maxi_out[128*64];
       // Construct a new RPC to ingest  
 
-
-
       recvmsg_s.write(recvmsg);
       sendmsg_s.write(sendmsg);
-      recvmsg_s.write(recvmsg);
-      recvmsg_s.write(recvmsg);
 
       strcpy(maxi_in, data.c_str());
    
