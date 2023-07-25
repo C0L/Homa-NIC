@@ -132,7 +132,7 @@ extern "C"{
          srpt_data_in(SRPT_DATA_DBUFF_ID)  = sendmsg.dbuff_id;
          srpt_data_in(SRPT_DATA_REMAINING) = sendmsg.length;
          srpt_data_in(SRPT_DATA_GRANTED)   = sendmsg.length - sendmsg.granted;
-         // srpt_data_in(SRPT_DATA_DBUFFERED) = sendmsg.length - MIN(sendmsg.dbuffered, sendmsg.length);
+         srpt_data_in(SRPT_DATA_DBUFFERED) = sendmsg.length;
 
          sendmsg_o.write(srpt_data_in);
       } else if (!recvmsg_i.empty()) {
@@ -234,8 +234,12 @@ extern "C"{
          // If the incoming message is a response, the RPC ID is already valid in the local store
          header_in_o.write(header_in);
       } else if (!recvmsg_i.empty()) {
+
+         static int count = -1;
+
          recvmsg_t recvmsg;
          recvmsg_i.read_nb(recvmsg);
+         count++;
 
          /* If the caller provided an ID of 0 we want to match on the first RPC
           * from the matching peer and port combination Otherwise recv has been
@@ -264,7 +268,7 @@ extern "C"{
             recvmsg.local_id = (rpc_id_t) recvmsg.id;
          }
 
-         recvmsg_o.write(recvmsg);
+         if (count == 0) recvmsg_o.write(recvmsg);
       }  else if (!sendmsg_i.empty()) {
          // sendmsg_t sendmsg = sendmsg_i.read();
          

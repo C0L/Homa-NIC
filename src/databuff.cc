@@ -80,7 +80,10 @@ extern "C"{
 // #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
       if (!sendmsg_i.empty()) {
+         static int count = 0;
+         // if (count == 0)  {
          sendmsg_t sendmsg = sendmsg_i.read();
+
          sendmsg.dbuff_id = dbuff_stack.pop();
 
          uint32_t num_chunks = sendmsg.length / DBUFF_CHUNK_SIZE;
@@ -89,21 +92,24 @@ extern "C"{
          dma_r_req_raw_t dma_r_req;
          dma_r_req(DMA_R_REQ_OFFSET)     = sendmsg.buffin;
          dma_r_req(DMA_R_REQ_BURST)      = num_chunks;
-         dma_r_req(DMA_R_REQ_MSG_LEN) = num_chunks;
+         dma_r_req(DMA_R_REQ_MSG_LEN)    = sendmsg.length;
          dma_r_req(DMA_R_REQ_DBUFF_ID)   = sendmsg.dbuff_id;
          
          dma_r_req_o.write(dma_r_req);
 
          sendmsg.dbuffered = sendmsg.length;
          sendmsg.granted   = sendmsg.length;
-
          sendmsg_o.write(sendmsg);
+         // }
+         count++;
       }
 
       // TODO there is another case here that will trigger the request and receipt of data in response to changes caused by out chunk
 
       // Do we need to add any data to data buffer 
       if (!dbuff_egress_i.empty()) {
+         static int count = 0;
+         if (count < 44) {
          dbuff_in_raw_t dbuff_in = dbuff_egress_i.read();
 
          dbuff[dbuff_in(DBUFF_IN_DBUFF_ID)][dbuff_in(DBUFF_IN_CHUNK) % DBUFF_NUM_CHUNKS] = dbuff_in(DBUFF_IN_DATA); 
@@ -112,14 +118,16 @@ extern "C"{
          if (dbuff_in(DBUFF_IN_LAST)) {
             srpt_dbuff_notif_t dbuff_notif;
             dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID) = dbuff_in(DBUFF_IN_DBUFF_ID);
-            dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN) - MIN(message_offset, dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN));
+            dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = dbuff_in(DBUFF_IN_MSG_LEN) - MIN(message_offset, dbuff_in(DBUFF_IN_MSG_LEN));
 
             std::cerr << "DBUFF MESSAGE LENGTH " << dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN) << std::endl;
-
             std::cerr << "DBUFF MESSAGE OFFSET" << message_offset << std::endl;
+            std::cerr << "DBUFF NOTIF OFFSET" <<  dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) << std::endl;
 
             dbuff_notif_o.write(dbuff_notif);
          }
+         }
+         count++;
       }
 
       // Do we need to process any packet chunks?
@@ -129,21 +137,24 @@ extern "C"{
 
          // Is this a data type packet?
          if (out_chunk.type == DATA) {
-            int curr_byte = out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
+//            int curr_byte = out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
+//
+//            int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
+//            int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
+//
+//            integral_t c0 = dbuff[out_chunk.dbuff_id][block_offset];
+//            integral_t c1 = dbuff[out_chunk.dbuff_id][block_offset+1];
+//
+//            ap_uint<1024> double_buff;
+//
+//// #pragma HLS array_partition variable=double_buff complete
+//
+//            // Was the buffer data already in the right order??
+//            double_buff(511,0)    = c0(511,0);
+//            double_buff(1023,512) = c1(511,0);
+//
 
-            int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
-            int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
-
-            integral_t c0 = dbuff[out_chunk.dbuff_id][block_offset];
-            integral_t c1 = dbuff[out_chunk.dbuff_id][block_offset+1];
-
-            ap_uint<1024> double_buff;
-
-#pragma HLS array_partition variable=double_buff complete
-
-            // Was the buffer data already in the right order??
-            double_buff(511,0)    = c0(511,0);
-            double_buff(1023,512) = c1(511,0);
+               ap_uint<512> clear("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 16);
 
             // There is a more obvious C implementation — results in very expensive hardware 
             switch(out_chunk.data_bytes) {
@@ -152,12 +163,15 @@ extern "C"{
                }
 
                case ALL_DATA: {
-                  out_chunk.buff(511, 0) = double_buff(((subyte_offset + ALL_DATA) * 8)-1 , subyte_offset * 8);
+                  out_chunk.buff(511, 0) = clear;
+                  //out_chunk.buff(511, 0) = double_buff(((subyte_offset + ALL_DATA) * 8)-1 , subyte_offset * 8);
                   break;
                }
 
                case PARTIAL_DATA: {
-                  out_chunk.buff(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
+                  out_chunk.buff(511, 512-PARTIAL_DATA*8) = clear;
+
+                  //out_chunk.buff(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
                   break;
                }
             }

@@ -9,19 +9,25 @@ extern "C" {
    void homa_recvmsg(hls::stream<recvmsg_raw_t> & recvmsg_i,
          hls::stream<recvmsg_t> & recvmsg_o) {
 #pragma HLS pipeline II=1
+      static bool enabled = true;
 
-      recvmsg_raw_t recvmsg_raw = recvmsg_i.read();
-   
-      recvmsg_t recvmsg;
-      recvmsg.buffout   = recvmsg_raw(RECVMSG_BUFFOUT);
-      recvmsg.saddr     = recvmsg_raw(RECVMSG_SADDR);
-      recvmsg.daddr     = recvmsg_raw(RECVMSG_DADDR); 
-      recvmsg.sport     = recvmsg_raw(RECVMSG_SPORT);
-      recvmsg.dport     = recvmsg_raw(RECVMSG_DPORT);
-      recvmsg.id        = recvmsg_raw(RECVMSG_ID);
-      recvmsg.rtt_bytes = recvmsg_raw(RECVMSG_RTT);
-         
-      recvmsg_o.write(recvmsg);
+      if (enabled) {
+
+         recvmsg_raw_t recvmsg_raw = recvmsg_i.read();
+
+         enabled = recvmsg_raw(RECVMSG_ENABLED);
+
+         recvmsg_t recvmsg;
+         recvmsg.buffout   = recvmsg_raw(RECVMSG_BUFFOUT);
+         recvmsg.saddr     = recvmsg_raw(RECVMSG_SADDR);
+         recvmsg.daddr     = recvmsg_raw(RECVMSG_DADDR); 
+         recvmsg.sport     = recvmsg_raw(RECVMSG_SPORT);
+         recvmsg.dport     = recvmsg_raw(RECVMSG_DPORT);
+         recvmsg.id        = recvmsg_raw(RECVMSG_ID);
+         recvmsg.rtt_bytes = recvmsg_raw(RECVMSG_RTT);
+            
+         recvmsg_o.write(recvmsg);
+      }
    }
 
    /* TODO This is now outdated
@@ -40,7 +46,13 @@ extern "C" {
          hls::stream<sendmsg_t> & sendmsg_o) {
 
 #pragma HLS pipeline II=1
+
+      static bool enabled = true;
+
+      if (enabled) {
          sendmsg_raw_t sendmsg_raw = sendmsg_i.read();
+
+         enabled = sendmsg_raw(SENDMSG_ENABLED);
 
          sendmsg_t sendmsg;
 
@@ -56,5 +68,6 @@ extern "C" {
          sendmsg.granted           = (sendmsg_raw(SENDMSG_RTT) > sendmsg_raw(SENDMSG_LENGTH)) ? sendmsg_raw(SENDMSG_LENGTH) : sendmsg_raw(SENDMSG_RTT);
 
          sendmsg_o.write(sendmsg);
+      }
    }
 }

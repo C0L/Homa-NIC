@@ -29,14 +29,15 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
 
    if (!sendmsg_i.empty()) {
       srpt_data_in_t sendmsg = sendmsg_i.read();
+      if (entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_RPC_ID) == 0) {
+         entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_DBUFFERED)   = sendmsg(SRPT_DATA_DBUFFERED);
+         std::cerr << "0 RPC ID\n";
+      }
+
       entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_RPC_ID)    = sendmsg(SRPT_DATA_RPC_ID);
       entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_DBUFF_ID)  = sendmsg(SRPT_DATA_DBUFF_ID);
       entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_REMAINING) = sendmsg(SRPT_DATA_REMAINING);
       entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_GRANTED)   = sendmsg(SRPT_DATA_GRANTED);
-      std::cerr << sendmsg(SRPT_DATA_RPC_ID) << std::endl;
-      std::cerr << sendmsg(SRPT_DATA_DBUFF_ID) << std::endl;
-      std::cerr << sendmsg(SRPT_DATA_REMAINING) << std::endl;
-      std::cerr << sendmsg(SRPT_DATA_GRANTED) << std::endl;
    }
 
    srpt_data_in_t head;
@@ -50,7 +51,8 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
 
       if (entries[i](SRPT_DATA_REMAINING) < head(SRPT_DATA_REMAINING) && entries[i](SRPT_DATA_RPC_ID) != 0) {
          // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
-         bool unblocked = (entries[i](SRPT_DBUFF_NOTIF_OFFSET) < (entries[i](SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE)) || (entries[i](SRPT_DBUFF_NOTIF_OFFSET) == 0);
+         bool unblocked = (entries[i](SRPT_DATA_DBUFFERED) < (entries[i](SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE)) 
+            || (entries[i](SRPT_DATA_DBUFFERED) == 0);
          bool granted   = entries[i](SRPT_DATA_REMAINING) > entries[i](SRPT_DATA_GRANTED);
 
          if (unblocked && granted) { 

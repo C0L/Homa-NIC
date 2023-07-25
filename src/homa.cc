@@ -47,9 +47,9 @@ extern "C"{
 #pragma HLS interface axis port=recvmsg_i    depth=2048
 #pragma HLS interface axis port=dma_r_req_o  depth=2048
 #pragma HLS interface axis port=dma_r_resp_i depth=2048
-#pragma HLS interface axis port=dma_w_req_o depth=2048
+#pragma HLS interface axis port=dma_w_req_o  depth=2048
 #pragma HLS interface axis port=link_ingress depth=2048
-#pragma HLS interface axis port=link_egress depth=2048
+#pragma HLS interface axis port=link_egress  depth=2048
 
       /* Naming scheme: {flow}__{source kernel}__{dest kernel} */
 

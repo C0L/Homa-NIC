@@ -332,7 +332,8 @@ struct sendmsg_t {
 #define SENDMSG_ID 415,352
 #define SENDMSG_CC 479,416
 #define SENDMSG_RTT 511,480
-#define SENDMSG_SIZE 512
+#define SENDMSG_ENABLED 513,512
+#define SENDMSG_SIZE 520
 
    ap_uint<32> buffin; // Offset in DMA space for input
    ap_uint<32> length; // Total length of message
@@ -365,7 +366,9 @@ struct recvmsg_t {
 #define RECVMSG_DPORT 319,304
 #define RECVMSG_ID 383,320
 #define RECVMSG_RTT 415,384
-#define RECVMSG_SIZE 416
+#define RECVMSG_ENABLED 417,416
+#define RECVMSG_SIZE 424
+
 
    // Message parameters
    ap_uint<32> buffout; // Offset in DMA space for output

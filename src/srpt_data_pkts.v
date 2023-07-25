@@ -7,21 +7,28 @@
 `define SRPT_BLOCKED 3'b100
 `define SRPT_ACTIVE 3'b101
 
-`define ENTRY_SIZE      115
-`define ENTRY_RPC_ID    15:0
-`define ENTRY_REMAINING 47:16
-`define ENTRY_GRANTED   79:48
-`define ENTRY_DBUFFERED 111:80
-`define ENTRY_PRIORITY 114:112
-`define PRIORITY_SIZE 3
+`define ENTRY_SIZE      52
+`define ENTRY_REMAINING 31,0
+`define ENTRY_RPC_ID    47,32
+`define ENTRY_PRIORITY  51,48
 
-`define DBUFF_SIZE 48
-`define DBUFF_RPC_ID 15:0
-`define DBUFF_OFFSET 47:16
+`define SRPT_DATA_SIZE      123
+`define SRPT_DATA_RPC_ID    15:0
+`define SRPT_DATA_REMAINING 47:16
+`define SRPT_DATA_GRANTED   79:48
+`define SRPT_DATA_DBUFFERED 111:80
+`define SRPT_DATA_DBUFF_ID  119:112
+`define SRPT_DATA_PRIORITY  122:120
+`define SRPT_PRIORITY_SIZE 3
 
-`define GRANT_SIZE 48
-`define GRANT_RPC_ID 15:0
-`define GRANT_OFFSET 47:16
+`define DBUFF_SIZE     72
+`define DBUFF_DBUFF_ID 9:0
+`define DBUFF_MSG_LEN  41:10
+`define DBUFF_OFFSET   71:42
+
+`define GRANT_SIZE   42
+`define GRANT_RPC_ID 9:0
+`define GRANT_OFFSET 41:10
 
 `define HOMA_PAYLOAD_SIZE 32'h56a
 
@@ -84,27 +91,29 @@
  */
 module srpt_data_pkts #(parameter MAX_SRPT = 1024)
      (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
-      input                          sendmsg_in_empty_i,
-      output reg                     sendmsg_in_read_en_o,
-      input [`ENTRY_SIZE-1:0]        sendmsg_in_data_i,
-      input                          grant_in_empty_i,
-      output reg                     grant_in_read_en_o,
-      input [`GRANT_SIZE-1:0]        grant_in_data_i,
-      input                          dbuff_in_empty_i,
-      output reg                     dbuff_in_read_en_o,
-      input [`DBUFF_SIZE-1:0]        dbuff_in_data_i,
-      input                          data_pkt_full_i,
-      output reg                     data_pkt_write_en_o,
-      output reg [`ENTRY_SIZE-1:0] data_pkt_data_o, 
+      input                            sendmsg_in_empty_i,
+      output reg                       sendmsg_in_read_en_o,
+      input [`SRPT_DATA_SIZE-1:0]      sendmsg_in_data_i,
+      input                            grant_in_empty_i,
+      output reg                       grant_in_read_en_o,
+      input [`GRANT_SIZE-1:0]          grant_in_data_i,
+      input                            dbuff_in_empty_i,
+      output reg                       dbuff_in_read_en_o,
+      input [`DBUFF_SIZE-1:0]          dbuff_in_data_i,
+      input                            data_pkt_full_i,
+      output reg                       data_pkt_write_en_o,
+      output reg [`SRPT_DATA_SIZE-1:0] data_pkt_data_o, 
       output                         ap_idle, ap_done, ap_ready);
 
    reg [`ENTRY_SIZE-1:0]         srpt_queue[MAX_SRPT-1:0];
    reg [`ENTRY_SIZE-1:0]         srpt_odd[MAX_SRPT-1:0]; 
    reg [`ENTRY_SIZE-1:0]         srpt_even[MAX_SRPT-1:0]; 
 
+   reg [`SRPT_DATA_SIZE-1:0]     entries[MAX_SRPT-1:0];
+
    reg                           swap_type;
 
-   reg [`ENTRY_SIZE-1:0]        new_entry;
+   reg [`ENTRY_SIZE-1:0]         new_entry;
 
    integer                       entry;
 
@@ -334,4 +343,4 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
    assign ap_idle = 0;
    assign ap_done = 1;
 
-endmodule // srpt_grant_queue
+endmodule

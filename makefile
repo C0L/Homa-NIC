@@ -16,7 +16,8 @@ TB_V = \
         $(V_SRC_DIR)/srpt_grant_pkts.v
 
 SRC_JSON = \
-        $(V_SRC_DIR)/srpt_grant_pkts.json
+        $(V_SRC_DIR)/srpt_grant_pkts.json \
+        $(V_SRC_DIR)/srpt_data_pkts.json
 
 SRC_C =                      \
     $(C_SRC_DIR)/databuff.cc \

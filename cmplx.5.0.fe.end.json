@@ -1,0 +1,277 @@
+{
+    "0": {
+        "name": "homa",
+        "file": "homa.cc",
+        "fileloc": "30",
+        "instructions": "101",
+        "total_instructions": "9001",
+        "calls": "14 5 7 2 19 17 20 15 9 4 1 16",
+        "basicblocks": "1"
+    },
+    "1": {
+        "name": "dbuff_ingress",
+        "file": "databuff.cc",
+        "fileloc": "13",
+        "instructions": "823",
+        "total_instructions": "823",
+        "calls": "",
+        "basicblocks": "13",
+        "loads": {
+            "G": "388"
+        },
+        "stores": {
+            "G": "388"
+        }
+    },
+    "2": {
+        "name": "srpt_data_pkts",
+        "file": "srptmgmt.cc",
+        "fileloc": "11",
+        "instructions": "67",
+        "total_instructions": "109",
+        "calls": "18",
+        "basicblocks": "9",
+        "loads": {
+            "G": "4",
+            "L": "1"
+        },
+        "stores": {
+            "G": "4"
+        }
+    },
+    "3": {
+        "name": "push",
+        "file": "rpcmgmt.cc",
+        "fileloc": "0",
+        "instructions": "772",
+        "total_instructions": "772",
+        "calls": "",
+        "basicblocks": "1",
+        "loads": {
+            "G": "379"
+        },
+        "stores": {
+            "G": "385"
+        }
+    },
+    "4": {
+        "name": "dbuff_egress",
+        "file": "databuff.cc",
+        "fileloc": "65",
+        "instructions": "87",
+        "total_instructions": "87",
+        "calls": "",
+        "basicblocks": "11",
+        "loads": {
+            "G": "4"
+        },
+        "stores": {
+            "G": "3"
+        }
+    },
+    "5": {
+        "name": "rpc_state",
+        "file": "rpcmgmt.cc",
+        "fileloc": "23",
+        "instructions": "152",
+        "total_instructions": "152",
+        "calls": "",
+        "basicblocks": "15",
+        "loads": {
+            "G": "9"
+        },
+        "stores": {
+            "G": "16"
+        }
+    },
+    "6": {
+        "name": "search",
+        "file": "rpcmgmt.cc",
+        "fileloc": "0",
+        "instructions": "47",
+        "total_instructions": "781",
+        "calls": "12",
+        "basicblocks": "1",
+        "loads": {
+            "G": "12"
+        }
+    },
+    "7": {
+        "name": "rpc_map",
+        "file": "rpcmgmt.cc",
+        "fileloc": "180",
+        "instructions": "169",
+        "total_instructions": "7339",
+        "calls": "6 3 6 6 8 13 3 8 13 11 10",
+        "basicblocks": "27",
+        "loads": {
+            "G": "19"
+        },
+        "stores": {
+            "G": "5"
+        }
+    },
+    "8": {
+        "name": "search.2",
+        "file": "rpcmgmt.cc",
+        "fileloc": "0",
+        "instructions": "348",
+        "total_instructions": "348",
+        "calls": "",
+        "basicblocks": "1",
+        "loads": {
+            "G": "128"
+        }
+    },
+    "9": {
+        "name": "pkt_chunk_ingress",
+        "file": "link.cc",
+        "fileloc": "299",
+        "instructions": "141",
+        "total_instructions": "141",
+        "calls": "",
+        "basicblocks": "12",
+        "loads": {
+            "G": "14"
+        },
+        "stores": {
+            "G": "15"
+        }
+    },
+    "10": {
+        "name": "process.1",
+        "file": "rpcmgmt.cc",
+        "fileloc": "0",
+        "instructions": "224",
+        "total_instructions": "612",
+        "calls": "13",
+        "basicblocks": "10",
+        "loads": {
+            "G": "196"
+        },
+        "stores": {
+            "G": "9"
+        }
+    },
+    "11": {
+        "name": "process",
+        "file": "rpcmgmt.cc",
+        "fileloc": "0",
+        "instructions": "427",
+        "total_instructions": "1199",
+        "calls": "3",
+        "basicblocks": "10",
+        "loads": {
+            "G": "388"
+        },
+        "stores": {
+            "G": "17"
+        }
+    },
+    "12": {
+        "name": "search.1",
+        "file": "rpcmgmt.cc",
+        "fileloc": "0",
+        "instructions": "734",
+        "total_instructions": "734",
+        "calls": "",
+        "basicblocks": "1",
+        "loads": {
+            "G": "256"
+        }
+    },
+    "13": {
+        "name": "push.1",
+        "file": "rpcmgmt.cc",
+        "fileloc": "0",
+        "instructions": "388",
+        "total_instructions": "388",
+        "calls": "",
+        "basicblocks": "1",
+        "loads": {
+            "G": "190"
+        },
+        "stores": {
+            "G": "193"
+        }
+    },
+    "14": {
+        "name": "homa_sendmsg",
+        "file": "user.cc",
+        "fileloc": "38",
+        "instructions": "14",
+        "total_instructions": "14",
+        "calls": "",
+        "basicblocks": "1"
+    },
+    "15": {
+        "name": "pkt_chunk_egress",
+        "file": "link.cc",
+        "fileloc": "274",
+        "instructions": "8",
+        "total_instructions": "8",
+        "calls": "",
+        "basicblocks": "1"
+    },
+    "16": {
+        "name": "homa_recvmsg",
+        "file": "user.cc",
+        "fileloc": "9",
+        "instructions": "7",
+        "total_instructions": "7",
+        "calls": "",
+        "basicblocks": "1"
+    },
+    "17": {
+        "name": "egress_selector",
+        "file": "link.cc",
+        "fileloc": "33",
+        "instructions": "47",
+        "total_instructions": "47",
+        "calls": "",
+        "basicblocks": "6"
+    },
+    "18": {
+        "name": "srpt_data_pkts_Pipeline_VITIS_LOOP_56_1",
+        "file": "srptmgmt.cc",
+        "fileloc": "0",
+        "instructions": "42",
+        "total_instructions": "42",
+        "calls": "",
+        "basicblocks": "4",
+        "loads": {
+            "G": "1",
+            "L": "3"
+        },
+        "stores": {
+            "L": "4"
+        },
+        "loops": {
+            "L": "1"
+        }
+    },
+    "19": {
+        "name": "srpt_grant_pkts",
+        "file": "homa.cc",
+        "fileloc": "0",
+        "instructions": "7",
+        "total_instructions": "7",
+        "calls": "",
+        "basicblocks": "1"
+    },
+    "20": {
+        "name": "pkt_builder",
+        "file": "link.cc",
+        "fileloc": "78",
+        "instructions": "166",
+        "total_instructions": "166",
+        "calls": "",
+        "basicblocks": "9",
+        "loads": {
+            "G": "15"
+        },
+        "stores": {
+            "G": "15"
+        }
+    }
+}
