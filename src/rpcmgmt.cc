@@ -49,11 +49,11 @@ extern "C"{
          header_out.id              = homa_rpc.id;
          header_out.message_length  = homa_rpc.length;
          header_out.processed_bytes = 0;
-         header_out.grant_offset = homa_rpc.length - header_out.grant_offset;
+         header_out.grant_offset    = homa_rpc.length - header_out.grant_offset;
 
          // Convert these to 0 offset rather than MAX offset
          header_out.data_offset     = homa_rpc.length - header_out.data_offset;
-         header_out.incoming        = homa_rpc.length - header_out.incoming;
+         header_out.incoming        = header_out.incoming;
 
          header_out_o.write(header_out);
       }
@@ -108,10 +108,7 @@ extern "C"{
 
       /* W Processes */
       if (!sendmsg_i.empty()) {
-      
-         sendmsg_t sendmsg;
-         sendmsg_i.read_nb(sendmsg);
-         // sendmsg_t sendmsg = sendmsg_i.read();
+         sendmsg_t sendmsg = sendmsg_i.read();
 
          homa_rpc_t homa_rpc;
          homa_rpc.daddr           = sendmsg.daddr;
@@ -131,14 +128,12 @@ extern "C"{
          srpt_data_in(SRPT_DATA_RPC_ID)    = sendmsg.local_id;
          srpt_data_in(SRPT_DATA_DBUFF_ID)  = sendmsg.dbuff_id;
          srpt_data_in(SRPT_DATA_REMAINING) = sendmsg.length;
-         srpt_data_in(SRPT_DATA_GRANTED)   = sendmsg.length - sendmsg.granted;
-         srpt_data_in(SRPT_DATA_DBUFFERED) = sendmsg.length;
+         srpt_data_in(SRPT_DATA_GRANTED)   = sendmsg.granted;
+         srpt_data_in(SRPT_DATA_MSG_LEN)   = sendmsg.length;
 
          sendmsg_o.write(srpt_data_in);
       } else if (!recvmsg_i.empty()) {
-         recvmsg_t recvmsg;
-         recvmsg_i.read_nb(recvmsg);
-         // recvmsg_t recvmsg = recvmsg_i.read();
+         recvmsg_t recvmsg = recvmsg_i.read();
 
          homa_rpc_t homa_rpc;
          homa_rpc.daddr     = recvmsg.daddr;
@@ -235,11 +230,7 @@ extern "C"{
          header_in_o.write(header_in);
       } else if (!recvmsg_i.empty()) {
 
-         static int count = -1;
-
-         recvmsg_t recvmsg;
-         recvmsg_i.read_nb(recvmsg);
-         count++;
+         recvmsg_t recvmsg = recvmsg_i.read();
 
          /* If the caller provided an ID of 0 we want to match on the first RPC
           * from the matching peer and port combination Otherwise recv has been
@@ -268,7 +259,7 @@ extern "C"{
             recvmsg.local_id = (rpc_id_t) recvmsg.id;
          }
 
-         if (count == 0) recvmsg_o.write(recvmsg);
+         recvmsg_o.write(recvmsg);
       }  else if (!sendmsg_i.empty()) {
          // sendmsg_t sendmsg = sendmsg_i.read();
          

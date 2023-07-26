@@ -1,29 +1,6 @@
 `timescale 1ns / 1ps
 
 /* verilator lint_off STMTDLY */
-
-// `define SRPT_GRANT 3'b000
-// `define SRPT_DBUFF 3'b001
-// `define SRPT_INVALIDATE 3'b010
-// `define SRPT_EMPTY 3'b011
-// `define SRPT_ACTIVE 3'100
-// 
-// `define ENTRY_SIZE 115
-// `define RPC_ID    15:0
-// `define REMAINING 47:16
-// `define GRANTABLE 79:48
-// `define DBUFFERED 111:80
-// `define PRIORITY  114:112
-// `define PRIORITY_SIZE 3
-// 
-// `define DBUFF_SIZE 
-// `define RPC_ID       9:0
-// `define DBUFF_OFFSET 41:10
-// 
-// `define GRANT_SIZE 48
-// `define RPC_ID       15:0
-// `define GRANT_OFFSET 47:16
-
 module srpt_grant_queue_tb();
 
    reg ap_clk=0;
@@ -38,7 +15,7 @@ module srpt_grant_queue_tb();
 
    reg                      sendmsg_in_empty_i;
    wire                     sendmsg_in_read_en_o;
-   reg [`ENTRY_SIZE-1:0]    sendmsg_in_data_i;
+   reg [`SRPT_DATA_SIZE-1:0]    sendmsg_in_data_i;
 
    reg                      grant_in_empty_i;
    wire                     grant_in_read_en_o;
@@ -50,7 +27,7 @@ module srpt_grant_queue_tb();
 
    reg                      data_pkt_full_i;
    wire                     data_pkt_write_en_o;
-   wire [`ENTRY_SIZE-1:0] data_pkt_data_o;
+   wire [`SRPT_DATA_SIZE-1:0] data_pkt_data_o;
 
    srpt_data_pkts srpt_queue(.ap_clk(ap_clk), 
 			      .ap_rst(ap_rst), 
@@ -73,19 +50,19 @@ module srpt_grant_queue_tb();
 			      .ap_done(ap_done), 
 			      .ap_ready(ap_ready));
 
-   task new_entry(input [15:0] rpc_id, input [31:0] remaining, grantable, dbuffered);
+   task new_entry(input [9:0] dbuff_id, input [31:0] remaining, grantable, dbuffered);
       begin
       
-	 sendmsg_in_data_i[`ENTRY_RPC_ID]    = rpc_id;
-	 sendmsg_in_data_i[`ENTRY_REMAINING] = remaining;
-	 sendmsg_in_data_i[`ENTRY_GRANTED] = grantable;
-	 sendmsg_in_data_i[`ENTRY_DBUFFERED] = dbuffered;
+	   sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]  = dbuff_id;
+	   sendmsg_in_data_i[`SRPT_DATA_REMAINING] = remaining;
+	   sendmsg_in_data_i[`SRPT_DATA_GRANTED]   = grantable;
+	   sendmsg_in_data_i[`SRPT_DATA_DBUFFERED] = dbuffered;
 
-	 sendmsg_in_empty_i  = 1;
+	   sendmsg_in_empty_i  = 1;
 
-	 #5;
-	 
-	 sendmsg_in_empty_i  = 0;
+	   #5;
+	   
+	   sendmsg_in_empty_i  = 0;
    
       end
       
@@ -102,7 +79,7 @@ module srpt_grant_queue_tb();
    end
    
    initial begin
-      sendmsg_in_data_i = {`ENTRY_SIZE{1'b0}};
+      sendmsg_in_data_i = {`SRPT_DATA_SIZE{1'b0}};
 
 	   sendmsg_in_empty_i  = 0;
 	   grant_in_empty_i    = 0;

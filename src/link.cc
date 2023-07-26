@@ -21,7 +21,6 @@ extern "C"{
       }
    }
 
-
    /**
     * egress_selector() - Chose which of data packets, grant packets, retransmission(TODO)
     * packets, and control packets(TODO) to send next.

@@ -108,8 +108,8 @@ extern "C"{
 
       // Do we need to add any data to data buffer 
       if (!dbuff_egress_i.empty()) {
-         static int count = 0;
-         if (count < 44) {
+         // static int count = 0;
+         // if (count < 44) {
          dbuff_in_raw_t dbuff_in = dbuff_egress_i.read();
 
          dbuff[dbuff_in(DBUFF_IN_DBUFF_ID)][dbuff_in(DBUFF_IN_CHUNK) % DBUFF_NUM_CHUNKS] = dbuff_in(DBUFF_IN_DATA); 
@@ -118,7 +118,8 @@ extern "C"{
          if (dbuff_in(DBUFF_IN_LAST)) {
             srpt_dbuff_notif_t dbuff_notif;
             dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID) = dbuff_in(DBUFF_IN_DBUFF_ID);
-            dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = dbuff_in(DBUFF_IN_MSG_LEN) - MIN(message_offset, dbuff_in(DBUFF_IN_MSG_LEN));
+            dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = message_offset;
+            // dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = dbuff_in(DBUFF_IN_MSG_LEN) - MIN(message_offset, dbuff_in(DBUFF_IN_MSG_LEN));
 
             std::cerr << "DBUFF MESSAGE LENGTH " << dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN) << std::endl;
             std::cerr << "DBUFF MESSAGE OFFSET" << message_offset << std::endl;
@@ -126,8 +127,8 @@ extern "C"{
 
             dbuff_notif_o.write(dbuff_notif);
          }
-         }
-         count++;
+         //}
+         //count++;
       }
 
       // Do we need to process any packet chunks?
@@ -137,24 +138,23 @@ extern "C"{
 
          // Is this a data type packet?
          if (out_chunk.type == DATA) {
-//            int curr_byte = out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
-//
-//            int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
-//            int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
-//
-//            integral_t c0 = dbuff[out_chunk.dbuff_id][block_offset];
-//            integral_t c1 = dbuff[out_chunk.dbuff_id][block_offset+1];
-//
-//            ap_uint<1024> double_buff;
-//
-//// #pragma HLS array_partition variable=double_buff complete
-//
-//            // Was the buffer data already in the right order??
-//            double_buff(511,0)    = c0(511,0);
-//            double_buff(1023,512) = c1(511,0);
-//
+            int curr_byte = out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS);
 
-               ap_uint<512> clear("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 16);
+            int block_offset = curr_byte / DBUFF_CHUNK_SIZE;
+            int subyte_offset = curr_byte - (block_offset * DBUFF_CHUNK_SIZE);
+
+            integral_t c0 = dbuff[out_chunk.dbuff_id][block_offset];
+            integral_t c1 = dbuff[out_chunk.dbuff_id][block_offset+1];
+
+            ap_uint<1024> double_buff;
+
+// #pragma HLS array_partition variable=double_buff complete
+
+            double_buff(511,0)    = c0(511,0);
+            double_buff(1023,512) = c1(511,0);
+
+
+            //ap_uint<512> clear("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 16);
 
             // There is a more obvious C implementation — results in very expensive hardware 
             switch(out_chunk.data_bytes) {
@@ -163,15 +163,15 @@ extern "C"{
                }
 
                case ALL_DATA: {
-                  out_chunk.buff(511, 0) = clear;
-                  //out_chunk.buff(511, 0) = double_buff(((subyte_offset + ALL_DATA) * 8)-1 , subyte_offset * 8);
+                  // out_chunk.buff(511, 0) = clear;
+                  out_chunk.buff(511, 0) = double_buff(((subyte_offset + ALL_DATA) * 8)-1 , subyte_offset * 8);
                   break;
                }
 
                case PARTIAL_DATA: {
-                  out_chunk.buff(511, 512-PARTIAL_DATA*8) = clear;
+                  // out_chunk.buff(511, 512-PARTIAL_DATA*8) = clear;
 
-                  //out_chunk.buff(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
+                  out_chunk.buff(511, 512-PARTIAL_DATA*8) = double_buff(((subyte_offset + PARTIAL_DATA) * 8)-1, subyte_offset * 8);
                   break;
                }
             }

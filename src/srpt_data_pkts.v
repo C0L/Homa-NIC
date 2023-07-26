@@ -1,33 +1,33 @@
 `timescale 1ns / 1ps
 
-`define SRPT_GRANT 3'b000
-`define SRPT_DBUFF 3'b001
+// `define SRPT_GRANT      3'b000
+// `define SRPT_DBUFF      3'b001
 `define SRPT_INVALIDATE 3'b010
-`define SRPT_EMPTY 3'b011
-`define SRPT_BLOCKED 3'b100
-`define SRPT_ACTIVE 3'b101
+`define SRPT_EMPTY      3'b011
+`define SRPT_BLOCKED    3'b100
+`define SRPT_ACTIVE     3'b101
 
-`define ENTRY_SIZE      52
-`define ENTRY_REMAINING 31,0
-`define ENTRY_RPC_ID    47,32
-`define ENTRY_PRIORITY  51,48
+`define ENTRY_SIZE      45
+`define ENTRY_REMAINING 31:0
+`define ENTRY_DBUFF_ID  41:32
+`define ENTRY_PRIORITY  44:42
 
-`define SRPT_DATA_SIZE      123
+`define SRPT_DATA_SIZE      157
 `define SRPT_DATA_RPC_ID    15:0
-`define SRPT_DATA_REMAINING 47:16
-`define SRPT_DATA_GRANTED   79:48
-`define SRPT_DATA_DBUFFERED 111:80
-`define SRPT_DATA_DBUFF_ID  119:112
-`define SRPT_DATA_PRIORITY  122:120
-`define SRPT_PRIORITY_SIZE 3
+`define SRPT_DATA_DBUFF_ID  25:16
+`define SRPT_DATA_REMAINING 57:26
+`define SRPT_DATA_GRANTED   89:58
+`define SRPT_DATA_DBUFFERED 121:90
+`define SRPT_DATA_MSG_LEN   153:122
+`define SRPT_DATA_PRIORITY  156:154
 
-`define DBUFF_SIZE     72
+`define DBUFF_SIZE     74
 `define DBUFF_DBUFF_ID 9:0
 `define DBUFF_MSG_LEN  41:10
-`define DBUFF_OFFSET   71:42
+`define DBUFF_OFFSET   73:42
 
 `define GRANT_SIZE   42
-`define GRANT_RPC_ID 9:0
+`define GRANT_DBUFF_ID 9:0
 `define GRANT_OFFSET 41:10
 
 `define HOMA_PAYLOAD_SIZE 32'h56a
@@ -113,92 +113,118 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
 
    reg                           swap_type;
 
-   reg [`ENTRY_SIZE-1:0]         new_entry;
+   reg [`ENTRY_SIZE-1:0]        sendmsg_insert[1:0];
+   reg [`ENTRY_SIZE-1:0]        dbuff_insert[1:0];
+   reg [`ENTRY_SIZE-1:0]        grant_insert[1:0];
+   reg [`ENTRY_SIZE-1:0]        invalidate_entry[1:0];
+   reg [`ENTRY_SIZE-1:0]        decr_entry[1:0];
+
+   wire                          will_invalidate;
+   wire                          sendmsg_unblock;
+   wire                          dbuff_unblock;
+   wire                          grant_unblock;
+
+   assign will_invalidate = (entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_REMAINING] 
+      <= `HOMA_PAYLOAD_SIZE) 
+      || ((entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_MSG_LEN] 
+      - entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_GRANTED]) 
+      < srpt_queue[0][`ENTRY_REMAINING])
+      || ((entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_MSG_LEN] 
+      - entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_DBUFFERED]) 
+      <= (srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE))
+      || (entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_DBUFFERED] 
+      >= entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_MSG_LEN]);
+
+   assign sendmsg_unblock = ((sendmsg_in_data_i[`SRPT_DATA_REMAINING] != 0)
+         || ((sendmsg_in_data_i[`SRPT_DATA_MSG_LEN] 
+         - sendmsg_in_data_i[`SRPT_DATA_GRANTED]) 
+         < sendmsg_in_data_i[`SRPT_DATA_REMAINING])
+         || ((sendmsg_in_data_i[`SRPT_DATA_MSG_LEN] 
+         - sendmsg_in_data_i[`SRPT_DATA_DBUFFERED]) 
+         <= (sendmsg_in_data_i[`SRPT_DATA_REMAINING] 
+         - `HOMA_PAYLOAD_SIZE))
+         || (sendmsg_in_data_i[`SRPT_DATA_DBUFFERED] 
+         >= sendmsg_in_data_i[`SRPT_DATA_MSG_LEN]));
+
+   assign dbuff_unblock = ((entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_REMAINING] != 0)
+         || ((entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_MSG_LEN] 
+         - entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_GRANTED]) 
+         < entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_REMAINING])
+         || ((entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_MSG_LEN] 
+         - entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_DBUFFERED]) 
+         <= (entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`ENTRY_REMAINING] 
+         - `HOMA_PAYLOAD_SIZE))
+         || (entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_DBUFFERED] 
+         >= entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_MSG_LEN]));
+
+   assign grant_unblock = ((entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING] != 0)
+         || ((entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_MSG_LEN] 
+         - entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_GRANTED]) 
+         < entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING])
+         || ((entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_MSG_LEN] 
+         - entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_DBUFFERED]) 
+         <= (entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING] 
+         - `HOMA_PAYLOAD_SIZE))
+         || (entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_DBUFFERED] 
+         >= entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_MSG_LEN]));
 
    integer                       entry;
 
    always @* begin
-   
-      // srpt_odd[MAX_SRPT-1] = srpt_queue[MAX_SRPT-1];
-      
-      if (sendmsg_in_empty_i) begin
-         new_entry = sendmsg_in_data_i;
-         new_entry[`ENTRY_PRIORITY] = `SRPT_ACTIVE;
-      // Are there new grants we should consider
-      end else if (dbuff_in_empty_i) begin
-         new_entry[`ENTRY_RPC_ID]    = 0;
-         new_entry[`ENTRY_REMAINING] = 0;
-         new_entry[`ENTRY_DBUFFERED] = dbuff_in_data_i[`DBUFF_OFFSET];
-         new_entry[`ENTRY_PRIORITY]  = `SRPT_DBUFF;
 
-      // Are there new data buffer notifications we should consider
-      end else if (grant_in_empty_i) begin
-         new_entry[`ENTRY_PRIORITY] = `SRPT_GRANT;
-         new_entry[`ENTRY_GRANTED]  = grant_in_data_i[`GRANT_OFFSET];
-      end else begin
-         new_entry = 0;
-      end
-
-      if ((new_entry[`ENTRY_PRIORITY] != srpt_queue[0][`ENTRY_PRIORITY]) 
-         ? (new_entry[`ENTRY_PRIORITY] < srpt_queue[0][`ENTRY_PRIORITY]) 
-         : (new_entry[`ENTRY_REMAINING] > srpt_queue[0][`ENTRY_REMAINING])) begin
-            srpt_odd[0] = srpt_queue[0];
-            srpt_odd[1] = new_entry;
-
-         if ((new_entry[`ENTRY_RPC_ID] == srpt_queue[0][`ENTRY_RPC_ID]) 
-            && (new_entry[`ENTRY_PRIORITY] == `SRPT_GRANT)) begin
-
-            srpt_odd[0][`ENTRY_GRANTED] = new_entry[`ENTRY_GRANTED];
-
-            if ((new_entry[`ENTRY_DBUFFERED] <= (srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE))
-               || (new_entry[`ENTRY_DBUFFERED] == 0)) begin
-               srpt_odd[0][`ENTRY_PRIORITY] = `SRPT_ACTIVE;
-            end
-         end else if ((new_entry[`ENTRY_RPC_ID] == srpt_queue[0][`ENTRY_RPC_ID]) &&
-                     (new_entry[`ENTRY_PRIORITY] == `SRPT_DBUFF)) begin
-
-            srpt_odd[0][`ENTRY_DBUFFERED] = new_entry[`ENTRY_DBUFFERED];
-         
-            if (new_entry[`ENTRY_GRANTED] < srpt_queue[0][`ENTRY_REMAINING]) begin
-               srpt_odd[0][`ENTRY_PRIORITY] = `SRPT_ACTIVE;
-            end
-         end
+      if ((`SRPT_ACTIVE != srpt_queue[0][`ENTRY_PRIORITY]) 
+        ? (`SRPT_ACTIVE < srpt_queue[0][`ENTRY_PRIORITY]) 
+        : (sendmsg_in_data_i[`ENTRY_REMAINING] > srpt_queue[0][`ENTRY_REMAINING])) begin
+         sendmsg_insert[0] = srpt_queue[0];
+         sendmsg_insert[1][`ENTRY_REMAINING] = sendmsg_in_data_i[`ENTRY_REMAINING];
+         sendmsg_insert[1][`ENTRY_DBUFF_ID]  = sendmsg_in_data_i[`ENTRY_DBUFF_ID];
+         sendmsg_insert[1][`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
       end else begin 
-         srpt_odd[0] = new_entry;
-         srpt_odd[1] = srpt_queue[0];
+         sendmsg_insert[0][`ENTRY_REMAINING] = sendmsg_in_data_i[`ENTRY_REMAINING];
+         sendmsg_insert[0][`ENTRY_DBUFF_ID]  = sendmsg_in_data_i[`ENTRY_DBUFF_ID];
+         sendmsg_insert[0][`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+         sendmsg_insert[1] = srpt_queue[0];
       end 
-      
+
+      if ((`SRPT_ACTIVE != srpt_queue[0][`ENTRY_PRIORITY]) 
+        ? (`SRPT_ACTIVE < srpt_queue[0][`ENTRY_PRIORITY]) 
+        : (entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING] > srpt_queue[0][`ENTRY_REMAINING])) begin
+         grant_insert[0] = srpt_queue[0];
+         grant_insert[1][`ENTRY_REMAINING] = entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING];
+         grant_insert[1][`ENTRY_DBUFF_ID]  = entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_DBUFF_ID];
+         grant_insert[1][`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+      end else begin 
+         grant_insert[0][`ENTRY_REMAINING] = entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING];
+         grant_insert[0][`ENTRY_DBUFF_ID]  = entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_DBUFF_ID];
+         grant_insert[0][`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+         grant_insert[1] = srpt_queue[0];
+      end 
+
+      if ((`SRPT_ACTIVE != srpt_queue[0][`ENTRY_PRIORITY]) 
+        ? (`SRPT_ACTIVE < srpt_queue[0][`ENTRY_PRIORITY]) 
+        : (entries[dbuff_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING] > srpt_queue[0][`ENTRY_REMAINING])) begin
+         dbuff_insert[0] = srpt_queue[0];
+         dbuff_insert[1][`ENTRY_REMAINING] = entries[dbuff_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING];
+         dbuff_insert[1][`ENTRY_DBUFF_ID]  = entries[dbuff_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_DBUFF_ID];
+         dbuff_insert[1][`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+      end else begin 
+         dbuff_insert[0][`ENTRY_REMAINING] = entries[dbuff_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_REMAINING];
+         dbuff_insert[0][`ENTRY_DBUFF_ID]  = entries[dbuff_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_DBUFF_ID];
+         dbuff_insert[0][`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+         dbuff_insert[1] = srpt_queue[0];
+      end 
+
       // Compute srpt_odd
       for (entry = 2; entry < MAX_SRPT-1; entry=entry+2) begin
          // If the priority differs or grantable bytes
          if ((srpt_queue[entry-1][`ENTRY_PRIORITY] != srpt_queue[entry][`ENTRY_PRIORITY]) 
             ? (srpt_queue[entry-1][`ENTRY_PRIORITY] < srpt_queue[entry][`ENTRY_PRIORITY]) 
             : (srpt_queue[entry-1][`ENTRY_REMAINING] > srpt_queue[entry][`ENTRY_REMAINING])) begin
-            srpt_odd[entry-1+1] = srpt_queue[entry];
+            srpt_odd[entry] = srpt_queue[entry];
             srpt_odd[entry+1]   = srpt_queue[entry-1];
-
-            if ((srpt_queue[entry-1][`ENTRY_RPC_ID] == srpt_queue[entry][`ENTRY_RPC_ID]) 
-               && (srpt_queue[entry-1][`ENTRY_PRIORITY] == `SRPT_GRANT)) begin
-
-               srpt_odd[entry-1+1][`ENTRY_GRANTED] = srpt_queue[entry-1][`ENTRY_GRANTED];
-
-               if ((srpt_queue[entry-1][`ENTRY_DBUFFERED] <= (srpt_queue[entry][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE))
-                  || (srpt_queue[entry-1][`ENTRY_DBUFFERED] == 0)) begin
-                  srpt_odd[entry-1+1][`ENTRY_PRIORITY] = `SRPT_ACTIVE;
-               end
-            end else if ((srpt_queue[entry-1][`ENTRY_RPC_ID] == srpt_queue[entry][`ENTRY_RPC_ID]) &&
-               (srpt_queue[entry-1][`ENTRY_PRIORITY] == `SRPT_DBUFF)) begin
-
-               srpt_odd[entry-1+1][`ENTRY_DBUFFERED] = srpt_queue[entry-1][`ENTRY_DBUFFERED];
-            
-               if (srpt_queue[entry-1][`ENTRY_GRANTED] < srpt_queue[entry][`ENTRY_REMAINING]) begin
-                  srpt_odd[entry-1+1][`ENTRY_PRIORITY] = `SRPT_ACTIVE;
-               end
-            end
-            
          end else begin 
             srpt_odd[entry+1]   = srpt_queue[entry];
-            srpt_odd[entry-1+1] = srpt_queue[entry-1];
+            srpt_odd[entry] = srpt_queue[entry-1];
          end 
       end
 
@@ -210,25 +236,6 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
             : (srpt_queue[entry-1][`ENTRY_REMAINING] > srpt_queue[entry][`ENTRY_REMAINING])) begin
             srpt_even[entry]   = srpt_queue[entry-1];
             srpt_even[entry-1] = srpt_queue[entry];
-
-            if ((srpt_queue[entry-1][`ENTRY_RPC_ID] == srpt_queue[entry][`ENTRY_RPC_ID]) 
-               && (srpt_queue[entry-1][`ENTRY_PRIORITY] == `SRPT_GRANT)) begin
-
-               srpt_even[entry-1][`ENTRY_GRANTED] = srpt_queue[entry-1][`ENTRY_GRANTED];
-
-               if ((srpt_queue[entry-1][`ENTRY_DBUFFERED] <= (srpt_queue[entry][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE))
-                  || (srpt_queue[entry-1][`ENTRY_DBUFFERED] == 0)) begin
-                  srpt_even[entry-1][`ENTRY_PRIORITY] = `SRPT_ACTIVE;
-               end
-            end else if ((srpt_queue[entry-1][`ENTRY_RPC_ID] == srpt_queue[entry][`ENTRY_RPC_ID]) &&
-               (srpt_queue[entry-1][`ENTRY_PRIORITY] == `SRPT_DBUFF)) begin
-
-               srpt_even[entry-1][`ENTRY_DBUFFERED] = srpt_queue[entry-1][`ENTRY_DBUFFERED];
-            
-               if (srpt_queue[entry-1][`ENTRY_GRANTED] < srpt_queue[entry][`ENTRY_REMAINING]) begin
-                  srpt_even[entry-1][`ENTRY_PRIORITY] = `SRPT_ACTIVE;
-               end
-            end
          end else begin 
             srpt_even[entry]   = srpt_queue[entry];
             srpt_even[entry-1] = srpt_queue[entry-1];
@@ -241,7 +248,7 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
    always @(posedge ap_clk) begin
 
       if (ap_rst) begin
-         data_pkt_data_o       <= {`ENTRY_SIZE{1'b0}};
+         data_pkt_data_o       <= {`SRPT_DATA_SIZE{1'b0}};
          data_pkt_write_en_o   <= 1'b0;
 
          sendmsg_in_read_en_o <= 0;
@@ -249,28 +256,49 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
          grant_in_read_en_o   <= 0;
          data_pkt_write_en_o  <= 1;
 
-         swap_type             <= 1'b0;
+         swap_type            <= 1'b0;
 
          for (rst_entry = 0; rst_entry < MAX_SRPT; rst_entry=rst_entry+1) begin
             srpt_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
          end
       end else if (ap_ce && ap_start) begin
-         // TODO first check for sending
+         // Is there room on the output stream and is the head of the queue active
          if (data_pkt_full_i && srpt_queue[0][`ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-            if ((srpt_queue[0][`ENTRY_GRANTED] < srpt_queue[0][`ENTRY_REMAINING]) 
-               && ((srpt_queue[0][`ENTRY_DBUFFERED] <= (srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE))
-               || (srpt_queue[0][`ENTRY_DBUFFERED] == 0))) begin
 
-               data_pkt_data_o <= srpt_queue[0];
-               srpt_queue[0][`ENTRY_REMAINING] <= srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE;
+            data_pkt_data_o[`SRPT_DATA_REMAINING] <= srpt_queue[0][`ENTRY_REMAINING]; 
+            data_pkt_data_o[`SRPT_DATA_RPC_ID]    <= entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_RPC_ID];
+            data_pkt_data_o[`SRPT_DATA_DBUFF_ID]  <= entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_DBUFF_ID];
+            data_pkt_data_o[`SRPT_DATA_GRANTED]   <= entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_GRANTED]; 
+            data_pkt_data_o[`SRPT_DATA_DBUFFERED] <= entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_DBUFFERED];
+            data_pkt_data_o[`SRPT_DATA_MSG_LEN]   <= entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_MSG_LEN]; 
 
-               if (srpt_queue[0][`ENTRY_REMAINING] == 0) begin
-                  srpt_queue[0][`ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
-               end else if (!((srpt_queue[0][`ENTRY_GRANTED] < srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE) 
-                              && ((srpt_queue[0][`ENTRY_DBUFFERED] <= (srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE - `HOMA_PAYLOAD_SIZE))
-                                 || (srpt_queue[0][`ENTRY_DBUFFERED] == 0)))) begin
-                  srpt_queue[0][`ENTRY_PRIORITY] <= `SRPT_BLOCKED;
+            /* We can deactivate an entry from the SRPT queue when 
+             *   1) There are no more remaining bytes
+             *   2) There are not enough grantable bytes
+             *   3) There are not enough databuffered bytes
+             */
+            if (will_invalidate) begin
+
+               // Save the remaining bytes value 
+               entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_REMAINING] <= srpt_queue[0][`ENTRY_REMAINING];
+               entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_PRIORITY]  <= `SRPT_BLOCKED;
+
+               // Invalidate and swap the srpt_queue[0] value we just read from
+               for (entry = 2; entry < MAX_SRPT; entry=entry+1) begin
+                  srpt_queue[entry] <= srpt_even[entry];
                end
+
+               srpt_queue[0] <= srpt_even[1];
+               srpt_queue[1][`ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
+            end 
+            
+            // If the RPC is complete then remove it from the entries list
+            if (entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_REMAINING] <= `HOMA_PAYLOAD_SIZE) begin
+               entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_RPC_ID]     <= 0;
+               entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_DBUFF_ID]   <= 0;
+               entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_GRANTED]    <= 0; 
+               entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_DBUFFERED]  <= 0;
+               entries[srpt_queue[0][`ENTRY_DBUFF_ID]][`SRPT_DATA_MSG_LEN]    <= 0; 
             end
 
             sendmsg_in_read_en_o <= 0;
@@ -280,10 +308,39 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
 
          // Are there new messages we should consider 
          end else if (sendmsg_in_empty_i) begin
-            for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
-               srpt_queue[entry] <= srpt_odd[entry];
-            end
 
+            /* The dbuffered value is either 0, and we do not need to update
+             * it here. Or, the value has been set by a dbuffer notif and we
+             * should not overwrite it.
+             */
+            entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_RPC_ID]    <= sendmsg_in_data_i[`SRPT_DATA_RPC_ID];
+            entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_DBUFF_ID]  <= sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID];
+            entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_REMAINING] <= sendmsg_in_data_i[`SRPT_DATA_REMAINING];
+            entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_GRANTED]   <= sendmsg_in_data_i[`SRPT_DATA_GRANTED];
+            entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_MSG_LEN]   <= sendmsg_in_data_i[`SRPT_DATA_MSG_LEN];
+
+            /* An entry begins as active if:
+             *   1) There are remaining bytes to send
+             *   2) There is at least 1 more granted byte
+             *   3) There is enough data buffered for one whole packet or to
+             *   reach the end of the mesage
+             */
+            if (sendmsg_unblock) begin
+
+               entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_PRIORITY] <= `SRPT_ACTIVE;
+               
+               // Adds the entry to the queue  
+               for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
+                  srpt_queue[entry+1] <= srpt_odd[entry];
+               end 
+               
+               srpt_queue[0] <= sendmsg_insert[0];
+               srpt_queue[1] <= sendmsg_insert[1];
+                  
+            end else begin
+               entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_PRIORITY] <= `SRPT_BLOCKED;
+            end
+  
             sendmsg_in_read_en_o <= 1;
             dbuff_in_read_en_o   <= 0;
             grant_in_read_en_o   <= 0;
@@ -292,9 +349,28 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
          // Are there new grants we should consider
          end else if (dbuff_in_empty_i) begin
 
-            for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
-               srpt_queue[entry] <= srpt_odd[entry];
-            end
+            /* Fow new databuffer notifications, we:
+             *  1) Update the corresponding value in entries
+             *  2) Check if the RPC value is non-zero, indicating this entry is alive
+             *  3) If the entry is alive and blocked, and we just made the entry re-eligible, 
+             *  then re-add it to the queue
+             *  4) If the entry is alive and active, do nothing
+             */
+            entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_DBUFFERED] <= dbuff_in_data_i[`DBUFF_OFFSET];
+
+            if (dbuff_unblock) begin
+               if (entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_PRIORITY] == `SRPT_BLOCKED) begin
+                  entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_PRIORITY] <= `SRPT_ACTIVE;
+               
+                  // Adds the entry to the queue  
+                  for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
+                     srpt_queue[entry+1] <= srpt_odd[entry];
+                  end 
+                  
+                  srpt_queue[0] <= dbuff_insert[0];
+                  srpt_queue[1] <= dbuff_insert[1];
+               end
+            end 
 
             sendmsg_in_read_en_o <= 0;
             dbuff_in_read_en_o   <= 1;
@@ -304,9 +380,26 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
          // Are there new data buffer notifications we should consider
          end else if (grant_in_empty_i) begin
 
-            for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
-               srpt_queue[entry] <= srpt_odd[entry];
-            end
+            entries[grant_in_data_i[`GRANT_DBUFF_ID]][`SRPT_DATA_DBUFFERED] <= grant_in_data_i[`GRANT_OFFSET];
+
+            if (grant_unblock) begin
+               if (entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_PRIORITY] == `SRPT_BLOCKED) begin
+                  entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_PRIORITY] <= `SRPT_ACTIVE;
+
+                  if (entries[dbuff_in_data_i[`DBUFF_DBUFF_ID]][`SRPT_DATA_PRIORITY] == `SRPT_BLOCKED) begin
+                     entries[sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID]][`SRPT_DATA_PRIORITY] <= `SRPT_ACTIVE;
+                  
+                     // Adds the entry to the queue  
+                     for (entry = 1; entry < MAX_SRPT; entry=entry+1) begin
+                        srpt_queue[entry+1] <= srpt_odd[entry];
+                     end 
+                     
+                     srpt_queue[0] <= grant_insert[0];
+                     srpt_queue[1] <= grant_insert[1];
+                  end
+               
+               end 
+            end 
 
             sendmsg_in_read_en_o <= 0;
             dbuff_in_read_en_o   <= 0;

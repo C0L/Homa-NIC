@@ -50,13 +50,14 @@ typedef ap_uint<SRPT_GRANT_OUT_SIZE> srpt_grant_out_t;
 
 typedef ap_uint<SRPT_GRANT_IN_SIZE> srpt_grant_in_t;
 
-#define SRPT_DATA_SIZE      123
+#define SRPT_DATA_SIZE      157
 #define SRPT_DATA_RPC_ID    15,0
-#define SRPT_DATA_REMAINING 47,16
-#define SRPT_DATA_GRANTED   79,48
-#define SRPT_DATA_DBUFFERED 111,80
-#define SRPT_DATA_DBUFF_ID  119,112
-#define SRPT_DATA_PRIORITY  122,120
+#define SRPT_DATA_DBUFF_ID  25,16
+#define SRPT_DATA_REMAINING 57,26
+#define SRPT_DATA_GRANTED   89,58
+#define SRPT_DATA_DBUFFERED 121,90
+#define SRPT_DATA_MSG_LEN   153,122
+#define SRPT_DATA_PRIORITY  156,154
 
 typedef ap_uint<SRPT_DATA_SIZE> srpt_data_in_t;
 typedef ap_uint<SRPT_DATA_SIZE> srpt_data_out_t;

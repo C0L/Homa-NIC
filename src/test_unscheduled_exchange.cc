@@ -89,11 +89,12 @@ extern "C"{
 
          if (!dma_w_req_s.empty()) {
             dma_w_req_raw_t dma_w_req = dma_w_req_s.read();
+            std::cerr << "DMA WRITE REQUEST " << dma_w_req(DMA_W_REQ_OFFSET) << std::endl;
             (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))) = dma_w_req(DMA_W_REQ_BLOCK);
          }
       }
 
-      return 0;
-      // return memcmp(maxi_in, maxi_out, 2772);
+      // return 0;
+      return memcmp(maxi_in, maxi_out, 2772);
    }
 }
