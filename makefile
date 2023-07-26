@@ -1,13 +1,26 @@
+# Verilog linter (2001 version) -- unroll count needed for larege loops
 LINTER = verilator -lint-only +1364-2001ext+v --unroll-count 1024 
-VITIS = vitis_hls
+
+# C synthesis tool (2023.1 currently tested)
+VITIS  = vitis_hls
+
+# Synthesis, Placement, Routing, Bitstream Generation (2023.1 currentl tested)
 VIVADO = vivado
+
+# Verilog Simulator
+VS    = xsim
+
+# Verilog Elaboration 
+VE    = xelab
+
+# Verilog Compiler for Simulator
+VC    = xvlog 
 
 C_SRC_DIR = ./src
 C_TB_DIR  = ./src
 V_SRC_DIR = ./src
 V_TB_DIR  = ./src
 TCL_DIR   = ./tcl
-XDC_DIR   = ./xdc
 
 SRC_V = \
         $(V_SRC_DIR)/srpt_grant_pkts.v
@@ -37,11 +50,6 @@ SRC_C =                      \
     $(C_SRC_DIR)/srptmgmt.hh \
     $(C_SRC_DIR)/stack.hh    \
     
-# TB_C = $(C_TB_DIR)/client_test.cc
-
-XDC = \
-   $(XDC_DIR)/clocks.xdc
-
 PART = xcvu9p-flgb2104-2-i
 
 CSIM = 0
@@ -74,31 +82,39 @@ cosim_scheduled_exchange:
 
 ############ Verilog Synthesis ############ 
 
-vsynth:
-	# TODO generalize this tcl script
-	$(VIVADO) -mode tcl -source tcl/srpt_grant_synth.tcl
+data_synth: srpt_data_pkts.synth
+grant_synth: srpt_grant_pkts.synth
+
+%.synth: ./src/%.v
+	$(VIVADO) -mode tcl -source tcl/ooc_synth.tcl -tclargs $(PART) $^ $(notdir $(basename $(^))) ./xdc/clocks.xdc  $(notdir $(basename $(^)))
 
 ############ Verilog Simulation ############ 
 
-waves: xsim
-	xsim --gui srpt_grant_queue_tb_snapshot.wdb
+data_test: srpt_data_pkts.xsim
+grant_test: srpt_grant_pkts.xsim
 
-xsim: xsim_elaborate
-	xsim srpt_grant_queue_tb_snapshot --tclbatch ./tcl/xsim_cfg.tcl
+data_waves: srpt_data_pkts.waves
+grant_waves: srpt_grant_pkts.waves
 
-xsim_elaborate: xsim_compile
-	xelab -debug all -top srpt_grant_queue_tb --snapshot srpt_grant_queue_tb_snapshot
+%.waves: %.xsim
+	$(VS) --gui $(basename $(^)).snapshot.wdb
 
-xsim_compile: 
-	xvlog ./src/srpt_grant_pkts.v ./src/srpt_grant_queue_tb.v
+%.xsim: %.xelab
+	$(VS) $(basename $(^)).snapshot --tclbatch ./tcl/xsim_cfg.tcl
+
+%.xelab: %.xvlog
+	$(VE) -debug all -top $(basename $(^))_tb --snapshot $(basename $(^)).snapshot
+
+%.xvlog: ./src/%.v
+	$(VC) $(basename $(^)).v 
 
 ############ Verilog Linting ############ 
 
-lint_srpt_grant_pkts:
-	$(LINTER) ./src/srpt_grant_pkts.v ./src/srpt_grant_queue_tb.v
+grant_lint: srpt_grant_pkts.lint
+data_lint: srpt_data_pkts.lint
 
-lint_srpt_data_pkts:
-	$(LINTER) ./src/srpt_data_pkts.v ./src/srpt_data_queue_tb.v
+%.lint: ./src/%.v
+	$(LINTER) $^
 
 clean:
 	rm -f vitis_hls.log
@@ -109,4 +125,7 @@ clean:
 	rm -f *.log
 	rm -f xelab*
 	rm -f xvlog*
-	rm -f srpt_grant_queue_tb_snapshot.wdb
+	rm -f *.wdb
+	rm -rf srpt_grant_pkts
+	rm -rf srpt_data_pkts
+

@@ -80,8 +80,6 @@ extern "C"{
 // #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
       if (!sendmsg_i.empty()) {
-         static int count = 0;
-         // if (count == 0)  {
          sendmsg_t sendmsg = sendmsg_i.read();
 
          sendmsg.dbuff_id = dbuff_stack.pop();
@@ -100,8 +98,6 @@ extern "C"{
          sendmsg.dbuffered = sendmsg.length;
          sendmsg.granted   = sendmsg.length;
          sendmsg_o.write(sendmsg);
-         // }
-         count++;
       }
 
       // TODO there is another case here that will trigger the request and receipt of data in response to changes caused by out chunk
@@ -118,7 +114,7 @@ extern "C"{
          if (dbuff_in(DBUFF_IN_LAST)) {
             srpt_dbuff_notif_t dbuff_notif;
             dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID) = dbuff_in(DBUFF_IN_DBUFF_ID);
-            dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = message_offset;
+            dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = MIN(message_offset, dbuff_in(DBUFF_IN_MSG_LEN));
             // dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = dbuff_in(DBUFF_IN_MSG_LEN) - MIN(message_offset, dbuff_in(DBUFF_IN_MSG_LEN));
 
             std::cerr << "DBUFF MESSAGE LENGTH " << dbuff_notif(SRPT_DBUFF_NOTIF_MSG_LEN) << std::endl;
