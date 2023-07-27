@@ -128,4 +128,5 @@ clean:
 	rm -f *.wdb
 	rm -rf srpt_grant_pkts
 	rm -rf srpt_data_pkts
+	rm *.str
 
