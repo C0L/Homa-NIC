@@ -48,7 +48,7 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
          // TODO this is not signed and will fail?
          bool unblocked = ((entries[i](SRPT_DATA_MSG_LEN) - entries[i](SRPT_DATA_DBUFFERED)) < (entries[i](SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE)) 
             || (entries[i](SRPT_DATA_DBUFFERED) == entries[i](SRPT_DATA_MSG_LEN));
-         bool granted   = entries[i](SRPT_DATA_REMAINING) > (entries[i](SRPT_DATA_MSG_LEN) - entries[i](SRPT_DATA_GRANTED);
+         bool granted   = entries[i](SRPT_DATA_REMAINING) > (entries[i](SRPT_DATA_MSG_LEN) - entries[i](SRPT_DATA_GRANTED));
 
          if (unblocked && granted) { 
             head = entries[i];

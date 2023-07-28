@@ -62,10 +62,10 @@ typedef ap_uint<SRPT_GRANT_IN_SIZE> srpt_grant_in_t;
 typedef ap_uint<SRPT_DATA_SIZE> srpt_data_in_t;
 typedef ap_uint<SRPT_DATA_SIZE> srpt_data_out_t;
 
-#define SRPT_DBUFF_NOTIF_SIZE     72
+#define SRPT_DBUFF_NOTIF_SIZE     74
 #define SRPT_DBUFF_NOTIF_DBUFF_ID 9,0
 #define SRPT_DBUFF_NOTIF_MSG_LEN  41,10
-#define SRPT_DBUFF_NOTIF_OFFSET   71,42
+#define SRPT_DBUFF_NOTIF_OFFSET   73,42
 
 typedef ap_uint<SRPT_DBUFF_NOTIF_SIZE> srpt_dbuff_notif_t;
 

@@ -1,16 +1,10 @@
 `timescale 1ns / 1ps
 
 `define SRPT_INVALIDATE 3'b000
-`define SRPT_EMPTY      3'b001
-`define SRPT_BLOCKED    3'b010
-`define SRPT_ACTIVE     3'b011
-
-`define ENTRY_SIZE      109
-`define ENTRY_REMAINING 31:0
-`define ENTRY_GRANTED   63:32
-`define ENTRY_DBUFFERED 95:64
-`define ENTRY_DBUFF_ID  105:96
-`define ENTRY_PRIORITY  108:106
+`define SRPT_UPDATE     3'b001
+`define SRPT_EMPTY      3'b010
+`define SRPT_BLOCKED    3'b011
+`define SRPT_ACTIVE     3'b100
 
 `define SRPT_DATA_SIZE      157
 `define SRPT_DATA_RPC_ID    15:0
@@ -184,23 +178,28 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
       output reg [`SRPT_DATA_SIZE-1:0] data_pkt_data_o, 
       output                         ap_idle, ap_done, ap_ready);
 
-   reg [`ENTRY_SIZE-1:0]         srpt_queue[MAX_SRPT-1:0];
-   reg [`ENTRY_SIZE-1:0]         srpt_odd[MAX_SRPT-1:0]; 
-   reg [`ENTRY_SIZE-1:0]         srpt_even[MAX_SRPT-1:0]; 
-   reg [`ENTRY_SIZE-1:0]         new_entry;
+   reg [`SRPT_DATA_SIZE-1:0]         srpt_queue[MAX_SRPT-1:0];
+   reg [`SRPT_DATA_SIZE-1:0]         srpt_odd[MAX_SRPT-1:0]; 
+   reg [`SRPT_DATA_SIZE-1:0]         srpt_even[MAX_SRPT-1:0]; 
+   reg [`SRPT_DATA_SIZE-1:0]         new_entry;
 
-   reg                           sendmsg_in_empty_i_latch;
-   reg [`SRPT_DATA_SIZE-1:0]     sendmsg_in_data_i_latch;
+   reg                           sendmsg_in_empty_i_latch_stage_0;
+   reg [`SRPT_DATA_SIZE-1:0]     sendmsg_in_data_i_latch_stage_0;
 
-   reg                           grant_in_empty_i_latch;
-   reg [`GRANT_SIZE-1:0]         grant_in_data_i_latch;
+   reg                           sendmsg_in_empty_i_latch_stage_1;
+   reg [`SRPT_DATA_SIZE-1:0]     sendmsg_in_data_i_latch_stage_1;
 
-   reg                           dbuff_in_empty_i_latch;
-   reg [`DBUFF_SIZE-1:0]         dbuff_in_data_i_latch;
+   reg                           grant_in_empty_i_latch_stage_0;
+   reg [`GRANT_SIZE-1:0]         grant_in_data_i_latch_stage_0;
 
-   reg                           data_pkt_full_i_latch;
+   reg                           grant_in_empty_i_latch_stage_1;
+   reg [`GRANT_SIZE-1:0]         grant_in_data_i_latch_stage_1;
 
-   reg [`ENTRY_SIZE-1:0]         head_latch;
+   reg                           dbuff_in_empty_i_latch_stage_0;
+   reg [`DBUFF_SIZE-1:0]         dbuff_in_data_i_latch_stage_0;
+
+   reg                           dbuff_in_empty_i_latch_stage_1;
+   reg [`DBUFF_SIZE-1:0]         dbuff_in_data_i_latch_stage_1;
 
    reg                           swap_type;
 
@@ -231,8 +230,6 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
    wire [31:0]                   doutb_offset;
    wire [31:0]                   head_offset;
 
-   reg [1:0] rdelay;
-
    reg [`DBUFF_ID_SIZE-1:0]     bram_addra;
    reg [`DBUFF_ID_SIZE-1:0]     bram_addrb;
    reg [`SRPT_DATA_SIZE-1:0]    bram_dina;
@@ -241,6 +238,8 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
    wire bram_rstb;
    wire bram_regceb;
    wire [`SRPT_DATA_SIZE-1:0]    bram_doutb;
+
+   wire [`SRPT_DATA_SIZE-1:0]        head;
 
    //  Xilinx Simple Dual Port Single Clock RAM
    xilinx_simple_dual_port_1_clock_ram #(
@@ -260,23 +259,25 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
      .doutb(bram_doutb)    // RAM output data, width determined from RAM_WIDTH
    );
 
+   assign head = srpt_queue[0];
+
    /* These signals determine whether the head of the queue should be
     * deactivated after the last message chunk we just send 
     */
   
    // After we send this next message chunk, what is the new remaining bytes offset  
-   assign head_offset = (bram_doutb[`SRPT_DATA_MSG_LEN] - head_latch[`ENTRY_REMAINING]) + `HOMA_PAYLOAD_SIZE;
+   assign head_offset = (head[`SRPT_DATA_MSG_LEN] - head[`SRPT_DATA_REMAINING]) + `HOMA_PAYLOAD_SIZE;
 
    // After we send this next message chunk, is the message ungranted?
-   assign head_ungranted = (head_offset + 1 > bram_doutb[`SRPT_DATA_GRANTED])
-      & (bram_doutb[`SRPT_DATA_MSG_LEN] > bram_doutb[`SRPT_DATA_GRANTED]);
+   assign head_ungranted = (head_offset + 1 > head[`SRPT_DATA_GRANTED])
+      & (head[`SRPT_DATA_MSG_LEN] > head[`SRPT_DATA_GRANTED]);
 
    // After we send this next message chunk, is the message unbuffered?
-   assign head_unbuffered = ((head_offset + `HOMA_PAYLOAD_SIZE) > bram_doutb[`SRPT_DATA_DBUFFERED]) 
-      & (bram_doutb[`SRPT_DATA_MSG_LEN] > bram_doutb[`SRPT_DATA_DBUFFERED]);
+   assign head_unbuffered = ((head_offset + `HOMA_PAYLOAD_SIZE) > head[`SRPT_DATA_DBUFFERED]) 
+      & (head[`SRPT_DATA_MSG_LEN] > head[`SRPT_DATA_DBUFFERED]);
 
    // When have we completed sending an RPC
-   assign head_done  = bram_doutb[`SRPT_DATA_MSG_LEN] <= head_offset;
+   assign head_done  = head[`SRPT_DATA_MSG_LEN] <= head_offset;
 
    // When can we invalidate an entry
    assign head_inval = head_done | head_ungranted | head_unbuffered;
@@ -286,13 +287,13 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
     */
 
    // Sent offset is 0 for new messages
-   assign sendmsg_ungranted  = (1 > sendmsg_in_data_i_latch[`SRPT_DATA_GRANTED])
-      & (sendmsg_in_data_i_latch[`SRPT_DATA_MSG_LEN] > sendmsg_in_data_i_latch[`SRPT_DATA_GRANTED]);
+   assign sendmsg_ungranted  = (1 > sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_GRANTED])
+      & (sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_MSG_LEN] > sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_GRANTED]);
 
    assign sendmsg_unbuffered = (`HOMA_PAYLOAD_SIZE > bram_doutb[`SRPT_DATA_DBUFFERED]) 
-      & (sendmsg_in_data_i_latch[`SRPT_DATA_MSG_LEN] > bram_doutb[`SRPT_DATA_DBUFFERED]);
+      & (sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_MSG_LEN] > bram_doutb[`SRPT_DATA_DBUFFERED]);
 
-   assign sendmsg_done = sendmsg_in_data_i_latch[`SRPT_DATA_MSG_LEN] <= head_offset;
+   assign sendmsg_done = sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_MSG_LEN] <= sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_REMAINING];
 
    assign sendmsg_inval = sendmsg_done | sendmsg_unbuffered | sendmsg_ungranted;
 
@@ -301,7 +302,7 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
     * notification will cause the entry to become valid again
     */
 
-   // After we send this next message chunk, what is the new remaining bytes offset  
+   // What is the byte up to which we have already sent?
    assign doutb_offset = (bram_doutb[`SRPT_DATA_MSG_LEN] - bram_doutb[`SRPT_DATA_REMAINING]);
 
    // After we send this next message chunk, is the message ungranted?
@@ -309,8 +310,8 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
       & (bram_doutb[`SRPT_DATA_MSG_LEN] > bram_doutb[`SRPT_DATA_GRANTED]);
 
    // After we send this next message chunk, is the message unbuffered?
-   assign dbuff_unbuffered = ((doutb_offset + `HOMA_PAYLOAD_SIZE) > dbuff_in_data_i_latch[`DBUFF_OFFSET]) 
-      & (bram_doutb[`SRPT_DATA_MSG_LEN] > dbuff_in_data_i_latch[`DBUFF_OFFSET]);
+   assign dbuff_unbuffered = ((doutb_offset + `HOMA_PAYLOAD_SIZE) > dbuff_in_data_i_latch_stage_1[`DBUFF_OFFSET]) 
+      & (bram_doutb[`SRPT_DATA_MSG_LEN] > dbuff_in_data_i_latch_stage_1[`DBUFF_OFFSET]);
 
    // When have we completed sending an RPC
    assign dbuff_done  = bram_doutb[`SRPT_DATA_MSG_LEN] <= doutb_offset;
@@ -323,8 +324,8 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
     */
 
    // After we send this next message chunk, is the message ungranted?
-   assign grant_ungranted = (doutb_offset + 1 > grant_in_data_i_latch[`GRANT_OFFSET])
-      & (bram_doutb[`SRPT_DATA_MSG_LEN] > grant_in_data_i_latch[`GRANT_OFFSET]);
+   assign grant_ungranted = (doutb_offset + 1 > grant_in_data_i_latch_stage_1[`GRANT_OFFSET])
+      & (bram_doutb[`SRPT_DATA_MSG_LEN] > grant_in_data_i_latch_stage_1[`GRANT_OFFSET]);
 
    // After we send this next message chunk, is the message unbuffered?
    assign grant_unbuffered = ((doutb_offset + `HOMA_PAYLOAD_SIZE) > bram_doutb[`SRPT_DATA_DBUFFERED]) 
@@ -336,76 +337,75 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
    // Does updating the grant make our entry valid for the queue?
    assign grant_inval = grant_done | grant_ungranted | grant_unbuffered;
 
-
    integer                       entry;
 
+
+   reg probe;
+
+   // TODO need to handle pipeline hazards
+
    always @* begin
-      bram_wea = 0'b0;
+      probe = 0;
+      bram_wea = 1'b0;
 
       new_entry = 0;
-      new_entry[`ENTRY_PRIORITY] = `SRPT_EMPTY;
+      new_entry[`SRPT_DATA_PRIORITY] = `SRPT_EMPTY;
 
-      if (rdelay == 2'b00) begin
-      /* Read Operations */
-      if (data_pkt_full_i && srpt_queue[0][`ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-         bram_addrb = srpt_queue[0][`ENTRY_DBUFF_ID];
-      end else if (sendmsg_in_empty_i) begin
+      sendmsg_in_read_en_o = 0;
+      dbuff_in_read_en_o   = 0;
+      grant_in_read_en_o   = 0;
+      data_pkt_write_en_o  = 0;
+
+      data_pkt_data_o[`SRPT_DATA_RPC_ID]    = head[`SRPT_DATA_RPC_ID];
+      data_pkt_data_o[`SRPT_DATA_DBUFF_ID]  = head[`SRPT_DATA_DBUFF_ID];
+      data_pkt_data_o[`SRPT_DATA_GRANTED]   = head[`SRPT_DATA_GRANTED]; 
+      data_pkt_data_o[`SRPT_DATA_DBUFFERED] = head[`SRPT_DATA_DBUFFERED];
+      data_pkt_data_o[`SRPT_DATA_MSG_LEN]   = head[`SRPT_DATA_MSG_LEN]; 
+      data_pkt_data_o[`SRPT_DATA_REMAINING] = head[`SRPT_DATA_REMAINING]; 
+      
+      if (sendmsg_in_empty_i) begin
+         sendmsg_in_read_en_o = 1;
+
          bram_addrb = sendmsg_in_data_i[`SRPT_DATA_DBUFF_ID];
       end else if (dbuff_in_empty_i) begin
+
+         dbuff_in_read_en_o = 1;
+
          bram_addrb = dbuff_in_data_i[`DBUFF_DBUFF_ID];
       end else if (grant_in_empty_i) begin
+
+         grant_in_read_en_o = 1;
+
          bram_addrb = grant_in_data_i[`GRANT_DBUFF_ID];
       end
-
-   end else if (rdelay == 2'b01) begin
-
-   end else if (rdelay == 2'b10) begin
-      /* Write Operations */
-      if (data_pkt_full_i_latch && head_latch[`ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-
-         // Will sending this next message chunk cause the RPC to be blocked?
-         if (head_inval) begin
-            bram_dina = bram_doutb;
-
-            // Save the remaining bytes value 
-            bram_dina[`SRPT_DATA_REMAINING] = head_latch[`ENTRY_REMAINING];
-            bram_dina[`SRPT_DATA_PRIORITY]  = `SRPT_BLOCKED;
-            bram_wea = 1'b1;
-         end 
-
-         // If the RPC is complete then remove it from the entries list
-         if (head_done) begin
-            bram_dina = 0;
-            bram_wea  = 1'b1;
-         end
-
-         bram_addra = head_latch[`ENTRY_DBUFF_ID];
-      end else if (sendmsg_in_empty_i_latch) begin
+     
+      if (sendmsg_in_empty_i_latch_stage_1) begin
          bram_wea = 1'b1;
 
          /* The dbuffered value is either 0, and we do not need to update
           * it here. Or, the value has been set by a dbuffer notif and we
           * should not overwrite it.
           */
-         bram_dina[`SRPT_DATA_RPC_ID]    = sendmsg_in_data_i_latch[`SRPT_DATA_RPC_ID];
-         bram_dina[`SRPT_DATA_DBUFF_ID]  = sendmsg_in_data_i_latch[`SRPT_DATA_DBUFF_ID];
+         bram_dina[`SRPT_DATA_RPC_ID]    = sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_RPC_ID];
+         bram_dina[`SRPT_DATA_DBUFF_ID]  = sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_DBUFF_ID];
          bram_dina[`SRPT_DATA_DBUFFERED] = bram_doutb[`SRPT_DATA_DBUFFERED];
-         bram_dina[`SRPT_DATA_REMAINING] = sendmsg_in_data_i_latch[`SRPT_DATA_REMAINING];
-         bram_dina[`SRPT_DATA_GRANTED]   = sendmsg_in_data_i_latch[`SRPT_DATA_GRANTED];
-         bram_dina[`SRPT_DATA_MSG_LEN]   = sendmsg_in_data_i_latch[`SRPT_DATA_MSG_LEN];
+         bram_dina[`SRPT_DATA_REMAINING] = sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_REMAINING];
+         bram_dina[`SRPT_DATA_GRANTED]   = sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_GRANTED];
+         bram_dina[`SRPT_DATA_MSG_LEN]   = sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_MSG_LEN];
          
-         new_entry[`ENTRY_REMAINING] = sendmsg_in_data_i_latch[`SRPT_DATA_REMAINING];
-         new_entry[`ENTRY_DBUFF_ID]  = sendmsg_in_data_i_latch[`SRPT_DATA_DBUFF_ID];
-         new_entry[`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+         new_entry = sendmsg_in_data_i_latch_stage_1;
+         new_entry[`SRPT_DATA_DBUFFERED] = bram_doutb[`SRPT_DATA_DBUFFERED];
+         new_entry[`SRPT_DATA_PRIORITY]  = `SRPT_ACTIVE;
 
+         // Should this new RPC begin as active?
          if (!sendmsg_inval) begin
             bram_dina[`SRPT_DATA_PRIORITY] = `SRPT_ACTIVE;
          end else begin
             bram_dina[`SRPT_DATA_PRIORITY] = `SRPT_BLOCKED;
          end
 
-         bram_addra = sendmsg_in_data_i_latch[`SRPT_DATA_DBUFF_ID];
-      end else if (dbuff_in_empty_i_latch) begin
+         bram_addra = sendmsg_in_data_i_latch_stage_1[`SRPT_DATA_DBUFF_ID];
+      end else if (dbuff_in_empty_i_latch_stage_1) begin
          bram_wea = 1'b1;
 
          /* The dbuffered value is either 0, and we do  need to update
@@ -414,59 +414,128 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
           */
          bram_dina[`SRPT_DATA_RPC_ID]    = bram_doutb[`SRPT_DATA_RPC_ID];
          bram_dina[`SRPT_DATA_DBUFF_ID]  = bram_doutb[`SRPT_DATA_DBUFF_ID];
-         bram_dina[`SRPT_DATA_DBUFFERED] = dbuff_in_data_i_latch[`DBUFF_OFFSET];
+         bram_dina[`SRPT_DATA_DBUFFERED] = dbuff_in_data_i_latch_stage_1[`DBUFF_OFFSET];
          bram_dina[`SRPT_DATA_REMAINING] = bram_doutb[`SRPT_DATA_REMAINING];
          bram_dina[`SRPT_DATA_GRANTED]   = bram_doutb[`SRPT_DATA_GRANTED];
          bram_dina[`SRPT_DATA_MSG_LEN]   = bram_doutb[`SRPT_DATA_MSG_LEN];
-         bram_dina[`SRPT_DATA_PRIORITY]  = `SRPT_ACTIVE;
-         
-         new_entry[`ENTRY_REMAINING] = bram_doutb[`SRPT_DATA_REMAINING];
-         new_entry[`ENTRY_DBUFF_ID]  = bram_doutb[`SRPT_DATA_DBUFF_ID];
-         new_entry[`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
 
-         bram_addra = dbuff_in_data_i_latch[`DBUFF_DBUFF_ID];
-      end else if (grant_in_empty_i_latch) begin
+         new_entry                       = bram_doutb;
+         new_entry[`SRPT_DATA_DBUFFERED] = dbuff_in_data_i_latch_stage_1[`DBUFF_OFFSET];
+        
+         // Is the entry able to be active
+         if (!dbuff_inval) begin
+            // Is the entry already active
+            if (bram_doutb[`SRPT_DATA_PRIORITY] == `SRPT_ACTIVE) begin
+               new_entry[`SRPT_DATA_PRIORITY] = `SRPT_UPDATE; 
+            // Is the entry inactive
+            end else begin
+               new_entry[`SRPT_DATA_PRIORITY] = `SRPT_ACTIVE; 
+            end
+            // The entry remains active in the BRAM
+            bram_dina[`SRPT_DATA_PRIORITY]  = `SRPT_ACTIVE;
+         end
+
+         bram_addra = dbuff_in_data_i_latch_stage_1[`DBUFF_DBUFF_ID];
+      end else if (grant_in_empty_i_latch_stage_1) begin
          bram_wea = 1'b1;
 
          /* The dbuffered value is either 0, and we do  need to update
-          * it here. Or, the value has been set by a dbuffer notif and we
-          * should not overwrite it.
-          */
+         * it here. Or, the value has been set by a dbuffer notif and we
+         * should not overwrite it.
+         */
          bram_dina[`SRPT_DATA_RPC_ID]    = bram_doutb[`SRPT_DATA_RPC_ID];
          bram_dina[`SRPT_DATA_DBUFF_ID]  = bram_doutb[`SRPT_DATA_DBUFF_ID];
          bram_dina[`SRPT_DATA_DBUFFERED] = bram_doutb[`SRPT_DATA_DBUFFERED];
          bram_dina[`SRPT_DATA_REMAINING] = bram_doutb[`SRPT_DATA_REMAINING];
-         bram_dina[`SRPT_DATA_GRANTED]   = grant_in_data_i_latch[`GRANT_OFFSET];
+         bram_dina[`SRPT_DATA_GRANTED]   = grant_in_data_i_latch_stage_1[`GRANT_OFFSET];
          bram_dina[`SRPT_DATA_MSG_LEN]   = bram_doutb[`SRPT_DATA_MSG_LEN];
-         bram_dina[`SRPT_DATA_PRIORITY]  = `SRPT_ACTIVE;
-         
-         new_entry[`ENTRY_REMAINING] = bram_doutb[`SRPT_DATA_REMAINING];
-         new_entry[`ENTRY_DBUFF_ID]  = bram_doutb[`SRPT_DATA_DBUFF_ID];
-         new_entry[`ENTRY_PRIORITY]  = `SRPT_ACTIVE;
 
-         bram_addra = grant_in_data_i_latch[`DBUFF_DBUFF_ID];
-      end
-   end
+         new_entry                       = bram_doutb;
+         new_entry[`SRPT_DATA_DBUFFERED] = grant_in_data_i_latch_stage_1[`GRANT_OFFSET];
+        
+         // Is the entry able to be active
+         if (!grant_inval) begin
+            // Is the entry already active
+            if (bram_doutb[`SRPT_DATA_PRIORITY] == `SRPT_ACTIVE) begin
+               new_entry[`SRPT_DATA_PRIORITY] = `SRPT_UPDATE; 
+            // Is the entry inactive
+            end else begin
+               new_entry[`SRPT_DATA_PRIORITY] = `SRPT_ACTIVE; 
+            end
+            // The entry remains active in the BRAM
+            bram_dina[`SRPT_DATA_PRIORITY]  = `SRPT_ACTIVE;
+         end
+
+         bram_addra = grant_in_data_i_latch_stage_1[`GRANT_DBUFF_ID];
+      end else if (data_pkt_full_i && head[`SRPT_DATA_PRIORITY] == `SRPT_ACTIVE) begin
+         /* Will sending this next message chunk cause the RPC to be blocked?
+          * If so, then dump its contents to BRAM
+          */
+         if (head_inval) begin
+            // Save the remaining bytes value 
+            bram_dina[`SRPT_DATA_REMAINING] = head[`SRPT_DATA_REMAINING];
+            bram_dina[`SRPT_DATA_PRIORITY]  = `SRPT_BLOCKED;
+            bram_dina[`SRPT_DATA_RPC_ID]    = head[`SRPT_DATA_RPC_ID];
+            bram_dina[`SRPT_DATA_DBUFF_ID]  = head[`SRPT_DATA_DBUFF_ID];
+            bram_dina[`SRPT_DATA_GRANTED]   = head[`SRPT_DATA_GRANTED]; 
+            bram_dina[`SRPT_DATA_DBUFFERED] = head[`SRPT_DATA_DBUFFERED];
+            bram_dina[`SRPT_DATA_MSG_LEN]   = head[`SRPT_DATA_MSG_LEN]; 
+
+            bram_wea = 1'b1;
+         end 
+
+         /* Will sending this next message chunk cause the RPC to be complete?
+          * If so, then zero its slot in the BRAM
+          */
+         if (head_done) begin
+            bram_dina = 0;
+            bram_wea  = 1'b1;
+         end
+
+         bram_addra = head[`SRPT_DATA_DBUFF_ID];
+
+         data_pkt_write_en_o = 1;
+      end 
+
+      // TODO the commented section below is better but this reduces critical path
+      srpt_odd[0] = new_entry;
+      srpt_odd[1] = srpt_queue[0];
 
       // If the priority differs or grantable bytes
-      if ((new_entry[`ENTRY_PRIORITY] != srpt_queue[0][`ENTRY_PRIORITY]) 
-         ? (new_entry[`ENTRY_PRIORITY] < srpt_queue[0][`ENTRY_PRIORITY]) 
-         : (new_entry[`ENTRY_REMAINING] > srpt_queue[0][`ENTRY_REMAINING])) begin
-         srpt_odd[0] = srpt_queue[0];
-         srpt_odd[1] = new_entry;
-      end else begin 
-         srpt_odd[1] = srpt_queue[0];
-         srpt_odd[0] = new_entry;
-      end 
+      //if ((new_entry[`SRPT_DATA_PRIORITY] != srpt_queue[0][`SRPT_DATA_PRIORITY]) 
+      //   ? (new_entry[`SRPT_DATA_PRIORITY] < srpt_queue[0][`SRPT_DATA_PRIORITY]) 
+      //   : (new_entry[`SRPT_DATA_REMAINING] > srpt_queue[0][`SRPT_DATA_REMAINING])) begin
+
+      //   srpt_odd[0] = srpt_queue[0];
+      //   srpt_odd[1] = new_entry;
+
+      //   if ((new_entry[`SRPT_DATA_DBUFF_ID] == srpt_queue[0][`SRPT_DATA_DBUFF_ID]) && 
+      //      (new_entry[`SRPT_DATA_PRIORITY] == `SRPT_UPDATE)) begin
+      //      probe = 1;
+      //      srpt_odd[0][`SRPT_DATA_GRANTED]   = new_entry[`SRPT_DATA_GRANTED];
+      //      srpt_odd[0][`SRPT_DATA_DBUFFERED] = new_entry[`SRPT_DATA_DBUFFERED];
+      //   end 
+      //end else begin 
+      //   srpt_odd[1] = srpt_queue[0];
+      //   srpt_odd[0] = new_entry;
+      //end 
 
       // Compute srpt_odd
       for (entry = 2; entry < MAX_SRPT-1; entry=entry+2) begin
          // If the priority differs or grantable bytes
-         if ((srpt_queue[entry-1][`ENTRY_PRIORITY] != srpt_queue[entry][`ENTRY_PRIORITY]) 
-            ? (srpt_queue[entry-1][`ENTRY_PRIORITY] < srpt_queue[entry][`ENTRY_PRIORITY]) 
-            : (srpt_queue[entry-1][`ENTRY_REMAINING] > srpt_queue[entry][`ENTRY_REMAINING])) begin
+         if ((srpt_queue[entry-1][`SRPT_DATA_PRIORITY] != srpt_queue[entry][`SRPT_DATA_PRIORITY]) 
+            ? (srpt_queue[entry-1][`SRPT_DATA_PRIORITY] < srpt_queue[entry][`SRPT_DATA_PRIORITY]) 
+            : (srpt_queue[entry-1][`SRPT_DATA_REMAINING] > srpt_queue[entry][`SRPT_DATA_REMAINING])) begin
+
             srpt_odd[entry+1] = srpt_queue[entry-1];
             srpt_odd[entry]   = srpt_queue[entry];
+
+            if ((srpt_queue[entry-1][`SRPT_DATA_DBUFF_ID] == srpt_queue[entry][`SRPT_DATA_DBUFF_ID]) && 
+               (srpt_queue[entry-1][`SRPT_DATA_PRIORITY] == `SRPT_UPDATE)) begin
+               srpt_odd[entry][`SRPT_DATA_GRANTED]   = srpt_queue[entry-1][`SRPT_DATA_GRANTED];
+               srpt_odd[entry][`SRPT_DATA_DBUFFERED] = srpt_queue[entry-1][`SRPT_DATA_DBUFFERED];
+            end 
+
          end else begin 
             srpt_odd[entry+1] = srpt_queue[entry];
             srpt_odd[entry]   = srpt_queue[entry-1];
@@ -476,11 +545,19 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
       // Compute srpt_even
       for (entry = 1; entry < MAX_SRPT; entry=entry+2) begin
          // If the priority differs or grantable bytes
-         if ((srpt_queue[entry-1][`ENTRY_PRIORITY] != srpt_queue[entry][`ENTRY_PRIORITY]) 
-            ? (srpt_queue[entry-1][`ENTRY_PRIORITY] < srpt_queue[entry][`ENTRY_PRIORITY]) 
-            : (srpt_queue[entry-1][`ENTRY_REMAINING] > srpt_queue[entry][`ENTRY_REMAINING])) begin
+         if ((srpt_queue[entry-1][`SRPT_DATA_PRIORITY] != srpt_queue[entry][`SRPT_DATA_PRIORITY]) 
+            ? (srpt_queue[entry-1][`SRPT_DATA_PRIORITY] < srpt_queue[entry][`SRPT_DATA_PRIORITY]) 
+            : (srpt_queue[entry-1][`SRPT_DATA_REMAINING] > srpt_queue[entry][`SRPT_DATA_REMAINING])) begin
+
             srpt_even[entry]   = srpt_queue[entry-1];
             srpt_even[entry-1] = srpt_queue[entry];
+
+            if ((srpt_queue[entry-1][`SRPT_DATA_DBUFF_ID] == srpt_queue[entry][`SRPT_DATA_DBUFF_ID]) && 
+               (srpt_queue[entry-1][`SRPT_DATA_PRIORITY] == `SRPT_UPDATE)) begin
+               srpt_even[entry-1][`SRPT_DATA_GRANTED]   = srpt_queue[entry][`SRPT_DATA_GRANTED];
+               srpt_even[entry-1][`SRPT_DATA_DBUFFERED] = srpt_queue[entry][`SRPT_DATA_DBUFFERED];
+            end 
+
          end else begin 
             srpt_even[entry]   = srpt_queue[entry];
             srpt_even[entry-1] = srpt_queue[entry-1];
@@ -493,147 +570,96 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
    always @(posedge ap_clk) begin
 
       if (ap_rst) begin
-         data_pkt_data_o       <= {`SRPT_DATA_SIZE{1'b0}};
-         data_pkt_write_en_o   <= 1'b0;
-
          sendmsg_in_read_en_o <= 0;
          dbuff_in_read_en_o   <= 0;
          grant_in_read_en_o   <= 0;
-         data_pkt_write_en_o  <= 1;
+         data_pkt_write_en_o  <= 0;
 
-         sendmsg_in_empty_i_latch <= 0; 
-         sendmsg_in_data_i_latch  <= 0;
-         grant_in_empty_i_latch   <= 0;
-         grant_in_data_i_latch    <= 0;
-         dbuff_in_empty_i_latch   <= 0;
-         dbuff_in_data_i_latch    <= 0;
+         sendmsg_in_empty_i_latch_stage_0 <= 0; 
+         sendmsg_in_data_i_latch_stage_0  <= 0;
+         
+         sendmsg_in_empty_i_latch_stage_1 <= 0; 
+         sendmsg_in_data_i_latch_stage_1  <= 0;
+
+         grant_in_empty_i_latch_stage_0   <= 0;
+         grant_in_data_i_latch_stage_0    <= 0;
+
+         grant_in_empty_i_latch_stage_1   <= 0;
+         grant_in_data_i_latch_stage_1    <= 0;
+
+         dbuff_in_empty_i_latch_stage_0   <= 0;
+         dbuff_in_data_i_latch_stage_0    <= 0;
+
+         dbuff_in_empty_i_latch_stage_1   <= 0;
+         dbuff_in_data_i_latch_stage_1    <= 0;
  
          swap_type            <= 1'b0;
 
-         rdelay <= 2'b00;
-
          for (rst_entry = 0; rst_entry < MAX_SRPT; rst_entry=rst_entry+1) begin
-            srpt_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
+            srpt_queue[rst_entry][`SRPT_DATA_RPC_ID]    <= 0;
+            srpt_queue[rst_entry][`SRPT_DATA_DBUFF_ID]  <= 0;
+            srpt_queue[rst_entry][`SRPT_DATA_REMAINING] <= 0; 
+            srpt_queue[rst_entry][`SRPT_DATA_GRANTED]   <= 0;
+            srpt_queue[rst_entry][`SRPT_DATA_DBUFFERED] <= 0;
+            srpt_queue[rst_entry][`SRPT_DATA_MSG_LEN]   <= 0;
+            srpt_queue[rst_entry][`SRPT_DATA_PRIORITY]  <= `SRPT_EMPTY;
+
          end
       end else if (ap_ce && ap_start) begin
 
-         // TODO there are two paths
-         // 1) We take data bytes from SRPT head if it is eligible,
-         // if it is not eligible, we remove it and write it as blocked to one
-         // bram and write the remaining bytes to another BRAM
-         // 2) A notif or sendmsg arrives, which triggers a read of the state
-         // BRAM, the remaining bytes BRAM, and the blocked BRAM.
-         //
-         // 1 will happen every cycle, unless 2) is reaching its WB stage
-         // there is a bubble for a sendmsg or notif. 
-         //
-         // Stall reading a dbuff notif, grant notif, if a sendmsg of the same
-         // RPC ID is in the pipeline
+         sendmsg_in_empty_i_latch_stage_1 <= sendmsg_in_empty_i_latch_stage_0;
+         sendmsg_in_data_i_latch_stage_1 <= sendmsg_in_data_i_latch_stage_0;
 
+         dbuff_in_empty_i_latch_stage_1 <= dbuff_in_empty_i_latch_stage_0;
+         dbuff_in_data_i_latch_stage_1  <= dbuff_in_data_i_latch_stage_0;
 
-         if (rdelay == 2'b00) begin
+         grant_in_empty_i_latch_stage_1 <= grant_in_empty_i_latch_stage_0;
+         grant_in_data_i_latch_stage_1  <= grant_in_data_i_latch_stage_0;
+      
+        // Should read en not be latched? 
+         if (sendmsg_in_empty_i) begin
+            //sendmsg_in_read_en_o <= 1;
+            //dbuff_in_read_en_o   <= 0;
+            //grant_in_read_en_o   <= 0;
 
-         sendmsg_in_empty_i_latch <= sendmsg_in_empty_i;
-         sendmsg_in_data_i_latch  <= sendmsg_in_data_i;
-         grant_in_empty_i_latch   <= grant_in_empty_i;
-         grant_in_data_i_latch    <= grant_in_data_i;
-         dbuff_in_empty_i_latch   <= dbuff_in_empty_i;
-         dbuff_in_data_i_latch    <= dbuff_in_data_i;
-         data_pkt_full_i_latch    <= data_pkt_full_i;
-         head_latch               <= srpt_queue[0];
+            sendmsg_in_empty_i_latch_stage_0 <= sendmsg_in_empty_i;
+            sendmsg_in_data_i_latch_stage_0 <= sendmsg_in_data_i;
 
-         /* Read Operations */
-         if (data_pkt_full_i && srpt_queue[0][`ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-            sendmsg_in_read_en_o <= 0;
-            dbuff_in_read_en_o   <= 0;
-            grant_in_read_en_o   <= 0;
-         rdelay <= 2'b01;
-         end else if (sendmsg_in_empty_i) begin
-            sendmsg_in_read_en_o <= 1;
-            dbuff_in_read_en_o   <= 0;
-            grant_in_read_en_o   <= 0;
-         rdelay <= 2'b01;
          end else if (dbuff_in_empty_i) begin
-            sendmsg_in_read_en_o <= 0;
-            dbuff_in_read_en_o   <= 1;
-            grant_in_read_en_o   <= 0;
-         rdelay <= 2'b01;
+            //sendmsg_in_read_en_o <= 0;
+            //dbuff_in_read_en_o   <= 1;
+            //grant_in_read_en_o   <= 0;
+
+            dbuff_in_empty_i_latch_stage_0 <= dbuff_in_empty_i;
+            dbuff_in_data_i_latch_stage_0  <= dbuff_in_data_i;
+
          end else if (grant_in_empty_i) begin
-            sendmsg_in_read_en_o <= 0;
-            dbuff_in_read_en_o   <= 0;
-            grant_in_read_en_o   <= 1;
-         rdelay <= 2'b01;
+            //sendmsg_in_read_en_o <= 0;
+            //dbuff_in_read_en_o   <= 0;
+            //grant_in_read_en_o   <= 1;
+
+            grant_in_empty_i_latch_stage_0 <= grant_in_empty_i;
+            grant_in_data_i_latch_stage_0  <= grant_in_data_i;
+
          end else begin
-            sendmsg_in_read_en_o <= 0;
-            dbuff_in_read_en_o   <= 0;
-            grant_in_read_en_o   <= 0;
+            //sendmsg_in_read_en_o <= 0;
+            //dbuff_in_read_en_o   <= 0;
+            //grant_in_read_en_o   <= 0;
+
+            sendmsg_in_empty_i_latch_stage_0 <= 0;
+            sendmsg_in_data_i_latch_stage_0 <= 0;
+
+            dbuff_in_empty_i_latch_stage_0 <= 0;
+            dbuff_in_data_i_latch_stage_0  <= 0;
+
+            grant_in_empty_i_latch_stage_0 <= 0;
+            grant_in_data_i_latch_stage_0  <= 0;
+
          end
 
-         data_pkt_write_en_o <= 0;
 
-
-      
-         end else if (rdelay == 2'b01) begin
-
-         rdelay <= 2'b10;
-
-         sendmsg_in_read_en_o <= 0;
-         dbuff_in_read_en_o   <= 0;
-         grant_in_read_en_o   <= 0;
-         data_pkt_write_en_o <= 0;
-         end else if (rdelay == 2'b10) begin
-         sendmsg_in_read_en_o <= 0;
-         dbuff_in_read_en_o   <= 0;
-         grant_in_read_en_o   <= 0;
-
-         /* Write Operations */
-         if (data_pkt_full_i_latch && head_latch[`ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-
-            /* We have to be careful, because it is possible the last write
-             * operation swapped elements 0 and 1 in the queue
-             */
-            data_pkt_write_en_o  <= 1;
-
-            data_pkt_data_o[`SRPT_DATA_RPC_ID]    <= bram_doutb[`SRPT_DATA_RPC_ID];
-            data_pkt_data_o[`SRPT_DATA_DBUFF_ID]  <= bram_doutb[`SRPT_DATA_DBUFF_ID];
-            data_pkt_data_o[`SRPT_DATA_GRANTED]   <= bram_doutb[`SRPT_DATA_GRANTED]; 
-            data_pkt_data_o[`SRPT_DATA_DBUFFERED] <= bram_doutb[`SRPT_DATA_DBUFFERED];
-            data_pkt_data_o[`SRPT_DATA_MSG_LEN]   <= bram_doutb[`SRPT_DATA_MSG_LEN]; 
-
-            // There was no swap last cycle
-            if (head_latch[`ENTRY_DBUFF_ID] == srpt_queue[0][`ENTRY_DBUFF_ID]) begin
-               data_pkt_data_o[`SRPT_DATA_REMAINING] <= srpt_queue[0][`ENTRY_REMAINING]; 
-
-               /* We can deactivate an entry from the SRPT queue when 
-                *   1) There are no more remaining bytes
-                *   2) There are not enough grantable bytes
-                *   3) There are not enough databuffered bytes
-                */
-               if (head_inval) begin
-                  srpt_queue[0] <= srpt_queue[1];
-                  srpt_queue[1][`ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
-               end else begin
-                  srpt_queue[0][`ENTRY_REMAINING] <= srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE;
-               end
-            // There was a swap last cycle
-            end else begin
-               data_pkt_data_o[`SRPT_DATA_REMAINING] <= srpt_queue[1][`ENTRY_REMAINING]; 
-
-               /* We can deactivate an entry from the SRPT queue when 
-                *   1) There are no more remaining bytes
-                *   2) There are not enough grantable bytes
-                *   3) There are not enough databuffered bytes
-                */
-               if (head_inval) begin
-                  srpt_queue[1][`ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
-               end else begin
-                  srpt_queue[1][`ENTRY_REMAINING] <= srpt_queue[0][`ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE;
-               end
-            end
-         end else if (sendmsg_in_empty_i_latch) begin
-
-            data_pkt_write_en_o  <= 0;
-
+         // Was there a sendmsg request that now has BRAM data availible?
+         if (sendmsg_in_empty_i_latch_stage_1) begin
             /* An entry begins as active if:
              *   1) There are remaining bytes to send
              *   2) There is at least 1 more granted byte
@@ -646,32 +672,40 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
                for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
                   srpt_queue[entry] <= srpt_odd[entry];
                end 
-               
-            end 
-  
-         // Are there new grants we should consider
-         end else if (dbuff_in_empty_i_latch) begin
-            if (!dbuff_inval) begin
-               if (bram_doutb[`SRPT_DATA_PRIORITY] == `SRPT_BLOCKED) begin
-               
-                  // Adds the entry to the queue  
-                  for (entry = 0; entry < MAX_SRPT-1; entry=entry+1) begin
-                     srpt_queue[entry] <= srpt_odd[entry];
-                  end 
-               end
-            end 
-
-         // Are there new data buffer notifications we should consider
-         end else if (grant_in_empty_i_latch) begin
-            if (!grant_inval) begin
-               if (bram_doutb[`SRPT_DATA_PRIORITY] == `SRPT_BLOCKED) begin
-                  // Adds the entry to the queue  
-                  for (entry = 0; entry < MAX_SRPT-1; entry=entry+1) begin
-                     srpt_queue[entry] <= srpt_odd[entry];
-                  end 
-               end
             end
+
+         end else if (dbuff_in_empty_i_latch_stage_1) begin
+            // Is the entry able to be active
+            if (!dbuff_inval) begin
+               // Adds either the reactivated message or the update to the queue
+               for (entry = 0; entry < MAX_SRPT-1; entry=entry+1) begin
+                  srpt_queue[entry] <= srpt_odd[entry];
+               end 
+            end
+
+         end else if (grant_in_empty_i_latch_stage_1) begin
+            if (!grant_inval) begin
+               // Adds either the reactivated message or the update to the queue
+               for (entry = 0; entry < MAX_SRPT-1; entry=entry+1) begin
+                  srpt_queue[entry] <= srpt_odd[entry];
+               end 
+            end
+
+         end else if (data_pkt_full_i && head[`SRPT_DATA_PRIORITY] == `SRPT_ACTIVE) begin
+            /* We can deactivate an entry from the SRPT queue when 
+             *   1) There are no more remaining bytes
+             *   2) There are not enough grantable bytes
+             *   3) There are not enough databuffered bytes
+             */
+            if (head_inval) begin
+               srpt_queue[0] <= srpt_queue[1];
+               srpt_queue[1][`SRPT_DATA_PRIORITY]  <= `SRPT_INVALIDATE;
+            end else begin
+               srpt_queue[0][`SRPT_DATA_REMAINING] <= head[`SRPT_DATA_REMAINING] - `HOMA_PAYLOAD_SIZE;
+            end
+
          end else begin
+
             if (swap_type == 1'b0) begin
                // Assumes that write does not keep data around
                for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
@@ -686,13 +720,8 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
 
                swap_type <= 1'b0;
             end
-
-            data_pkt_write_en_o  <= 0;
-
          end
-         rdelay <= 2'b00;
-         end
-      end
+      end 
    end 
 
    assign ap_ready = 1;
@@ -838,94 +867,104 @@ module srpt_data_pkts_tb();
       ap_start = 1;
 
       #5;
-      if (sendmsg_in_read_en_o != 0 || grant_in_read_en_o != 0 || dbuff_in_read_en_o != 0) begin
-         $display("Reading data when unavailible");
-         $stop;
-      end
+      data_pkt_full_i = 1;
+      new_entry(1, 1, 5000, 5000, 0, 5000);
 
-      #5;
+      #20;
+      new_dbuff(1, 5000, 5000);
 
-      if (data_pkt_write_en_o != 0) begin
-         $display("Writing data when unavailible");
-         $stop;
-      end
+      //#5;
+      //if (sendmsg_in_read_en_o != 0 || grant_in_read_en_o != 0 || dbuff_in_read_en_o != 0) begin
+      //   $display("Reading data when unavailible");
+      //   $stop;
+      //end
 
-      #5;
+      //#5;
+
+      //if (data_pkt_write_en_o != 0) begin
+      //   $display("Writing data when unavailible");
+      //   $stop;
+      //end
+
+      //#5;
      
-      // RPC ID, Dbuff ID, Remaining, Granted, Dbuffered, Length
-      new_entry(1, 1, 10000, 3000, 0, 10000);
+      //// RPC ID, Dbuff ID, Remaining, Granted, Dbuffered, Length
+      //new_entry(1, 1, 100000, 100000, 0, 100000);
 
-      #5;
-      if (data_pkt_write_en_o != 0) begin
-         $display("Writing data that is unready");
-         $stop;
-      end
+      //#50;
+      //if (data_pkt_write_en_o != 0) begin
+      //   $display("Writing data that is unready");
+      //   $stop;
+      //end
 
-      #5;
-      new_dbuff(1, 10000, 10000);
+      //#5;
+      //new_dbuff(1, 50000, 100000);
 
-      #5;
-      data_pkt_full_i = 1;
+      //#20;
+      //data_pkt_full_i = 1;
 
-      #200;
-      data_pkt_full_i = 0;
+      //#20;
+      //data_pkt_full_i = 0;
 
-      #5;
-      new_grant(1, 10000);
+      //#20;
+      //new_dbuff(1, 100000, 100000);
 
-      #200;
-      data_pkt_full_i = 1;
+      //#100;
+      //data_pkt_full_i = 1;
 
-      #200;
-      data_pkt_full_i = 0;
+      //#600;
+      //data_pkt_full_i = 0;
 
-      #5;
-      new_entry(2, 2, 10000, 10000, 0, 10000);
 
-      #5;
-      new_entry(3, 3, 10000, 10000, 0, 10000);
 
-      #5;
-      new_entry(4, 4, 10000, 10000, 0, 10000);
 
-      #5;
-      new_entry(5, 5, 10000, 10000, 0, 10000);
+      //#5;
+      //new_entry(2, 2, 10000, 10000, 0, 10000);
 
-      #5;
-      new_entry(6, 6, 10000, 10000, 0, 10000);
+      //#5;
+      //new_entry(3, 3, 10000, 10000, 0, 10000);
 
-      #5;
-      new_entry(7, 7, 10000, 10000, 0, 10000);
+      //#5;
+      //new_entry(4, 4, 10000, 10000, 0, 10000);
 
-      #5;
-      new_entry(8, 8, 10000, 10000, 0, 10000);
+      //#5;
+      //new_entry(5, 5, 10000, 10000, 0, 10000);
 
-      #5;
-      new_entry(9, 9, 10000, 10000, 0, 10000);
+      //#5;
+      //new_entry(6, 6, 10000, 10000, 0, 10000);
 
-      #5;
-      new_dbuff(2, 10000, 10000);
+      //#5;
+      //new_entry(7, 7, 10000, 10000, 0, 10000);
 
-      #5;
-      new_dbuff(3, 10000, 10000);
+      //#5;
+      //new_entry(8, 8, 10000, 10000, 0, 10000);
 
-      #5;
-      new_dbuff(4, 10000, 10000);
+      //#5;
+      //new_entry(9, 9, 10000, 10000, 0, 10000);
 
-      #5;
-      new_dbuff(5, 10000, 10000);
+      //#5;
+      //new_dbuff(2, 10000, 10000);
 
-      #5;
-      new_dbuff(6, 10000, 10000);
+      //#5;
+      //new_dbuff(3, 10000, 10000);
 
-      #5;
-      new_dbuff(7, 10000, 10000);
+      //#5;
+      //new_dbuff(4, 10000, 10000);
 
-      #5;
-      new_dbuff(8, 10000, 10000);
+      //#5;
+      //new_dbuff(5, 10000, 10000);
 
-      #5;
-      new_dbuff(9, 10000, 10000);
+      //#5;
+      //new_dbuff(6, 10000, 10000);
+
+      //#5;
+      //new_dbuff(7, 10000, 10000);
+
+      //#5;
+      //new_dbuff(8, 10000, 10000);
+
+      //#5;
+      //new_dbuff(9, 10000, 10000);
 
       // #5;
       // new_entry(5, 10000, 5000, 0);
