@@ -32,23 +32,26 @@ SRC_JSON = \
         $(V_SRC_DIR)/srpt_grant_pkts.json \
         $(V_SRC_DIR)/srpt_data_pkts.json
 
-SRC_C =                      \
-    $(C_SRC_DIR)/databuff.cc \
-    $(C_SRC_DIR)/databuff.hh \
-    $(C_SRC_DIR)/user.cc     \
-    $(C_SRC_DIR)/user.hh     \
-    $(C_SRC_DIR)/hashmap.hh  \
-    $(C_SRC_DIR)/homa.cc     \
-    $(C_SRC_DIR)/homa.hh     \
-    $(C_SRC_DIR)/link.cc     \
-    $(C_SRC_DIR)/link.hh     \
-    $(C_SRC_DIR)/peer.cc     \
-    $(C_SRC_DIR)/peer.hh     \
-    $(C_SRC_DIR)/rpcmgmt.cc  \
-    $(C_SRC_DIR)/rpcmgmt.hh  \
-    $(C_SRC_DIR)/srptmgmt.cc \
-    $(C_SRC_DIR)/srptmgmt.hh \
-    $(C_SRC_DIR)/stack.hh    \
+SRC_C =                       \
+    $(C_SRC_DIR)/databuff.cc  \
+    $(C_SRC_DIR)/databuff.hh  \
+    $(C_SRC_DIR)/user.cc      \
+    $(C_SRC_DIR)/user.hh      \
+    $(C_SRC_DIR)/hashmap.hh   \
+    $(C_SRC_DIR)/homa.cc      \
+    $(C_SRC_DIR)/homa.hh      \
+    $(C_SRC_DIR)/link.cc      \
+    $(C_SRC_DIR)/link.hh      \
+    $(C_SRC_DIR)/peer.cc      \
+    $(C_SRC_DIR)/peer.hh      \
+    $(C_SRC_DIR)/rpcmgmt.cc   \
+    $(C_SRC_DIR)/rpcmgmt.hh   \
+    $(C_SRC_DIR)/srptmgmt.cc  \
+    $(C_SRC_DIR)/srptmgmt.hh  \
+    $(C_SRC_DIR)/stack.hh     \
+    $(C_SRC_DIR)/packetmap.hh \
+    $(C_SRC_DIR)/packetmap.cc \
+
     
 PART = xcvu9p-flgb2104-2-i
 

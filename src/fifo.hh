@@ -13,7 +13,7 @@ struct fifo_t {
    }
 
    void insert(T value) {
-#pragma HLS array_partition variable=buffer type=complete
+// #pragma HLS array_partition variable=buffer type=complete
 
       for (int i = FIFO_SIZE-2; i >= 0; --i) {
 #pragma HLS unroll
@@ -26,7 +26,7 @@ struct fifo_t {
    }
 
    T remove() {
-#pragma HLS array_partition variable=buffer type=complete
+// #pragma HLS array_partition variable=buffer type=complete
       T val = buffer[read_head];
 
       read_head--;

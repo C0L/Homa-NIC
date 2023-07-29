@@ -37,3 +37,7 @@ The grant srpt queue should update its recv bytes based on NEW data. Not duplica
 Need to test the data buffer buffering feature to fetch host memory
 
 What is the proximity of multiple sendmsg requests. Does stalling the propagation of a sendmsg to wait for data block out shorter messages?
+
+How do we determine who to return the recvmsg request to? Is it based on port?
+
+* Is it fine to trigger behavior off the incoming packet offset being 0? Should we start saving data even if the first packet has not arrived?

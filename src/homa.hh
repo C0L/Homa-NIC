@@ -8,9 +8,6 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
-// Configure the design in a reduced size for compilation speed
-#define DEBUG
-
 // Configure the size of the stream/fifo depths
 #define STREAM_DEPTH 2
 
@@ -21,15 +18,18 @@
 // Client RPC IDs are even, servers are odd 
 #define IS_CLIENT(id) ((id & 1) == 0)
 
+// Convert between representation and index
+#define RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
+#define INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
+
+#define PEER_ID_FROM_INDEX(a) (a + 1)
+#define INDEX_FROM_PEER_ID(a) (a - 1)
+
 // Sender->Client and Client->Sender rpc ID conversion
 #define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
 
 /* SRPT Configuration */
-#ifndef DEBUG 
 #define MAX_OVERCOMMIT 8
-#else
-#define MAX_OVERCOMMIT 1
-#endif
 
 #define SRPT_GRANT_OUT_SIZE     97
 #define SRPT_GRANT_OUT_PEER_ID  13,0
@@ -37,7 +37,6 @@
 #define SRPT_GRANT_OUT_RECV     61,30
 #define SRPT_GRANT_OUT_GRANT    93,62
 #define SRPT_GRANT_OUT_PRIORITY 96,94
-#define PRIORITY_SIZE      3
 
 typedef ap_uint<SRPT_GRANT_OUT_SIZE> srpt_grant_out_t;
 
@@ -75,19 +74,47 @@ typedef ap_uint<SRPT_DBUFF_NOTIF_SIZE> srpt_dbuff_notif_t;
 
 typedef ap_uint<SRPT_GRANT_NOTIF_SIZE> srpt_grant_notif_t;
 
+/* Packet Map */
+
+// 1ms == 1000000ns == 200000 cycles
+#define REXMIT_CUTOFF 200000
+
+// Index into a packetmap bitmap
+typedef ap_uint<10> packetmap_idx_t;
+
+struct packetmap_t {
+  packetmap_idx_t head;
+  packetmap_idx_t length;
+  ap_uint<64> map;
+};
+
+struct touch_t {
+  local_id_t rpc_id;
+
+  bool init;
+
+  // Bit to set in packet map
+  packetmap_idx_t offset;
+
+  // Total length of the message
+  packetmap_idx_t length;
+};
+
+
+struct rexmit_t {
+  rpc_id_t rpc_id;
+
+  // Bit to set in packet map
+  packetmap_idx_t offset;
+};
+
+
 
 /* Peer Tab Configuration */
-#ifndef DEBUG 
 #define MAX_PEERS_LOG2 14
 #define MAX_PEERS 16383
 #define PEER_SUB_TABLE_SIZE 16384
 #define PEER_SUB_TABLE_INDEX 14
-#else
-#define MAX_PEERS_LOG2 3
-#define MAX_PEERS 2
-#define PEER_SUB_TABLE_SIZE 2
-#define PEER_SUB_TABLE_INDEX 1
-#endif
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
@@ -100,25 +127,16 @@ struct peer_hashpack_t {
 };
 
 /* RPC Store Configuration */
-#ifndef DEBUG 
-// RPC IDs are LSH 1 bit 
-#define MAX_RPCS_LOG2 16
-#define MAX_RPCS 9000 
-#define RPC_SUB_TABLE_SIZE 16384
-#define RPC_SUB_TABLE_INDEX 14
-#define MAX_OPS 64
-#else
-#define MAX_RPCS_LOG2 3
-#define MAX_RPCS 2
-#define RPC_SUB_TABLE_SIZE 2
-#define RPC_SUB_TABLE_INDEX 1
-#define MAX_OPS 64
-#endif
 
-typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
+#define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
+#define MAX_RPCS            9000  // TODO Maximum number of RPCs
+#define RPC_SUB_TABLE_SIZE  16384 // Size of cuckoo hash sub-tables
+#define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
+#define MAX_OPS             64 // TODO rename this
 
-#define RPC_HP_SIZE 7
+typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 
+#define RPC_HP_SIZE 7 // Number of 32 bit chunks to hash for RPC table
 
 /* Link Configuration:
  * This defines an actual axi stream type, in contrast to the internal streams
@@ -130,7 +148,9 @@ typedef ap_uint<MAX_RPCS_LOG2> rpc_id_t;
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 
 
-/* Network Constants */
+/* Homa Configuration */
+
+// TODO this wall of defs needs to be organized
 #define IPV6_VERSION 6
 #define IPV6_TRAFFIC 0
 #define IPV6_FLOW    0xFFFF
@@ -141,9 +161,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define HOP_LIMIT 0x00
 #define DOFF 160
 #define HOMA_PAYLOAD_SIZE 1386
-
-// Maximum Homa message size
-#define HOMA_MAX_MESSAGE_LENGTH 1000000
+#define HOMA_MAX_MESSAGE_LENGTH 1000000 // Maximum Homa message size
 #define IPV6_HEADER_LENGTH 40
 #define HOMA_ETH_OVERHEAD 24
 #define HOMA_MIN_PKT_LENGTH 26
@@ -151,16 +169,10 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define ETHERNET_MAX_PAYLOAD 1500
 #define HOMA_MAX_PRIORITIES 8
 #define OVERCOMMIT_BYTES 480000
-// Number of bytes in ethernet + ipv6 + common header + data header
-#define DATA_PKT_HEADER 114
-// ethernet header: 14 + ipv6 header: 40 + common header: 28 + grant header: 5
-// Number of bytes in ethernet + ipv6 + common header + grant header
-#define GRANT_PKT_HEADER 87
-// Number of bytes in ethernet + ipv6 header
-#define PREFACE_HEADER 54
-// Number of bytes in homa data ethernet header
-#define HOMA_DATA_HEADER 60
-
+#define DATA_PKT_HEADER 114 // Number of bytes in ethernet + ipv6 + common header + data header
+#define GRANT_PKT_HEADER 87 // Number of bytes in ethernet + ipv6 + common header + grant header
+#define PREFACE_HEADER 54 // Number of bytes in ethernet + ipv6 header
+#define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
 
 
 /* The homa core writes out packets in 64B units. As a result, we need to know
@@ -205,7 +217,6 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define CHUNK_HOMA_GRANT_OFFSET     111,80
 #define CHUNK_HOMA_GRANT_PRIORITY   79,72
 
-
 /* Homa packet types */
 #define DATA     0x10
 #define GRANT    0x11
@@ -221,28 +232,12 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 typedef ap_uint<512> integral_t;
 
 /* Data Buffer Configuration */
-#ifndef DEBUG 
-// Number of data buffers (max outgoing RPCs)
-#define NUM_DBUFF 1024 
-// Index into the data buffers
-#define DBUFF_INDEX 10 
-#else
-// Number of data buffers (max outgoing RPCs)
-// #define NUM_DBUFF 1024 
-#define NUM_DBUFF 2
-// Index into the data buffers
-// #define DBUFF_INDEX 10 
-#define DBUFF_INDEX 1
-#endif
-
-// Size of a "chunk" of a data buffer
-#define DBUFF_CHUNK_SIZE 64  
-// Number of "chunks" in one buffer
-#define DBUFF_NUM_CHUNKS 256  
-// Index into 256 chunks
-#define DBUFF_CHUNK_INDEX 8   
-// Byte index within data buffer (NUM_DBUFF * DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)
-#define DBUFF_BYTE_INDEX 14
+#define NUM_DBUFF        1024 // Number of data buffers (max outgoing RPCs)
+#define DBUFF_INDEX      10   // Index into the data buffers
+#define DBUFF_CHUNK_SIZE 64   // Size of a "chunk" of a data buffer
+#define DBUFF_NUM_CHUNKS 256  // Number of "chunks" in one buffer
+#define DBUFF_CHUNK_INDEX 8   // Index into 256 chunks
+#define DBUFF_BYTE_INDEX 14   // Byte index within data buffer
 
 // Index into data buffers
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
@@ -266,154 +261,90 @@ typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 typedef ap_uint<DBUFF_IN_SIZE> dbuff_in_raw_t;
 
-typedef ap_uint<8> homa_packet_type;
-
-/**
- * struct homa - Overall information about the Homa protocol implementation.
- */
-struct homa_t {
-   uint32_t dma_count;
-   ap_int<32> mtu;
-   ap_uint<32> rtt_bytes;
-   ap_int<32> link_mbps;
-   ap_int<32> num_priorities;
-   ap_int<32> priority_map[HOMA_MAX_PRIORITIES];
-   ap_int<32> max_sched_prio;
-   ap_int<32> unsched_cutoffs[HOMA_MAX_PRIORITIES];
-   ap_int<32> cutoff_version;
-   ap_int<32> duty_cycle;
-   ap_int<32> grant_threshold;
-   ap_int<32> max_overcommit;
-   ap_int<32> max_incoming;
-   ap_int<32> resend_ticks;
-   ap_int<32> resend_interval;
-   ap_int<32> timeout_resends;
-   ap_int<32> request_ack_ticks;
-   ap_int<32> reap_limit;
-   ap_int<32> dead_buffs_limit;
-   ap_int<32> max_dead_buffs;
-   ap_uint<32> timer_ticks;
-   ap_int<32> flags;
+struct in_chunk_t {
+   integral_t  buff;   // Data to be written to DMA
+   ap_uint<32> offset; // Byte offset of this chunk in msg
+   ap_uint<1>  last;   // 1 to notify srpt_data_queue
 };
+
+struct out_chunk_t {
+   homa_packet_type type;   // What is the type of this outgoing packet
+   dbuff_id_t dbuff_id;     // Which data buffer is the message stored in
+   ap_uint<32> offset;      // What byte offset is this output chunk for
+   data_bytes_e data_bytes; // How many data bytes to add to this block
+   integral_t buff;         // Data to be sent onto the link
+   ap_uint<1> last;         // Is this the last chunk in the sequence
+};
+
 
 struct homa_rpc_t {
-   ap_uint<32> buffout;
-   ap_uint<32> buffin;
-
-   // TODO not sure if this will be utilized
-   enum {
-      RPC_OUTGOING            = 5,
-      RPC_INCOMING            = 6,
-      RPC_IN_SERVICE          = 8,
-      RPC_DEAD                = 9
-   } state;
-
-   ap_uint<128> saddr;
-   ap_uint<128> daddr;
-   ap_uint<16> dport;
-   ap_uint<16> sport;
-   peer_id_t peer_id;
-   rpc_id_t rpc_id; 
-   ap_uint<64> id;
-   ap_uint<64> completion_cookie;
-   ap_uint<32> rtt_bytes;
-
-   ap_int<32> length;
-   dbuff_id_t dbuff_id;
+   ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
+   ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
+   ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
+   ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg)
+   ap_uint<64>  id;       // RPC ID (potentially not local)
+   dbuff_id_t   dbuff_id; // ID for outgoing data
 };
 
-struct sendmsg_t {
+#define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg)
+#define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg)
+#define MSGHDR_SPORT        273,256 // Port of sender (sendmsg) or receiver (recvmsg)
+#define MSGHDR_DPORT        289,274 // Address of receiver (sendmsg) or sender (recvmsg) 
+#define MSGHDR_IOV          321,290 // Message contents in DMA space
+#define MSGHDR_IOV_SIZE     353,322 // Size of message in DMA space 
 
-#define SENDMSG_BUFFIN 31,0
-#define SENDMSG_LENGTH 63,32
-#define SENDMSG_SADDR 191,64
-#define SENDMSG_DADDR 319,192
-#define SENDMSG_SPORT 335,320
-#define SENDMSG_DPORT 351,336
-#define SENDMSG_ID 415,352
-#define SENDMSG_CC 479,416
-#define SENDMSG_RTT 511,480
-#define SENDMSG_ENABLED 513,512
-#define SENDMSG_SIZE 520
+#define MSGHDR_SEND_ID      417,354 // RPC identifier
+#define MSGHDR_SEND_CC      481,418 // Completion Cookie
+#define MSGHDR_SEND_FLAGS   513,482 // TODO: or-ed combination of bits
+#define MSGHDR_SEND_SIZE    514 
 
-   ap_uint<32> buffin; // Offset in DMA space for input
-   ap_uint<32> length; // Total length of message
-   ap_uint<128> saddr; // Sender address
-   ap_uint<128> daddr; // Destination address
-   ap_uint<16> sport; // Sender port
-   ap_uint<16> dport; // Destination port
-   ap_uint<64> id; // RPC specified by caller
-   ap_uint<64> completion_cookie;
+#define MSGHDR_RECV_ID      417,354 // RPC identifier
+#define MSGHDR_RECV_CC      481,418 // Completion Cookie
+#define MSGHDR_RECV_SIZE    482 
 
-   // Configuration
-   ap_uint<32> rtt_bytes;
+typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
+typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
 
-   // Internal use
-   ap_uint<32> granted;
-   ap_uint<32> dbuffered;
-   rpc_id_t local_id; // Local RPC ID 
-   dbuff_id_t dbuff_id; // Data buffer ID for outgoing data
-   peer_id_t peer_id; // Local ID for this destination address
+struct onboard_send_t {
+   ap_uint<128> saddr; // Address of sender (sendmsg) or receiver (recvmsg)
+   ap_uint<128> daddr; // Address of receiver (sendmsg) or sender (recvmsg)
+   ap_uint<16>  sport; // Port of sender (sendmsg) or receiver (recvmsg) 
+   ap_uint<16>  dport; // Port of sender (sendmsg) or receiver (recvmsg)
+   ap_uint<32>  iov;   // Message contents in DMA space 
+   ap_uint<64>  id;    // RPC identifier 
+   ap_uint<64>  cc;    // Completion Cookie
+
+   local_id_t  local_id; // Local RPC ID 
+   dbuff_id_t  dbuff_id; // Data buffer ID for outgoing data
+   peer_id_t   peer_id;  // Local ID for this destination address
 };
 
-typedef ap_uint<SENDMSG_SIZE> sendmsg_raw_t;
-
-struct recvmsg_t {
-
-#define RECVMSG_BUFFOUT 31,0
-#define RECVMSG_SADDR 159,32
-#define RECVMSG_DADDR 287,160
-#define RECVMSG_SPORT 303,288
-#define RECVMSG_DPORT 319,304
-#define RECVMSG_ID 383,320
-#define RECVMSG_RTT 415,384
-#define RECVMSG_ENABLED 417,416
-#define RECVMSG_SIZE 424
-
-
-   // Message parameters
-   ap_uint<32> buffout; // Offset in DMA space for output
-   ap_uint<128> saddr; // Sender address
-   ap_uint<128> daddr; // Destination address
-   ap_uint<16> sport; // Sender port
-   ap_uint<16> dport; // Destination port
-   ap_uint<64> id; // RPC specified by caller
-
-   // Configuration
-   ap_uint<32> rtt_bytes; // TODO?
-
-   // Internal use
-   rpc_id_t local_id; // Local RPC ID 
-   peer_id_t peer_id; // Local ID for this peer
-};
-
-typedef ap_uint<RECVMSG_SIZE> recvmsg_raw_t;
 
 /* forwarding structures */
 struct header_t {
    // Local Values
-   rpc_id_t local_id;
-   peer_id_t peer_id;
-   dbuff_id_t dbuff_id;
+   local_id_t  local_id;
+   peer_id_t   peer_id;
+   dbuff_id_t  dbuff_id;
    ap_uint<32> dma_offset;
    ap_uint<32> processed_bytes;
    ap_uint<32> packet_bytes;
    ap_uint<32> rtt_bytes;
 
    // IPv6 + Common Header
-   ap_uint<16> payload_length;
-   ap_uint<128> saddr;
-   ap_uint<128> daddr;
-   ap_uint<16> sport;
-   ap_uint<16> dport;
+   ap_uint<16>      payload_length;
+   ap_uint<128>     saddr;
+   ap_uint<128>     daddr;
+   ap_uint<16>      sport;
+   ap_uint<16>      dport;
    homa_packet_type type;
-   ap_uint<64> id;
+   ap_uint<64>      id;
 
    // Data Header
    ap_uint<32> message_length; 
    ap_uint<32> incoming;
    ap_uint<16> cutoff_version;
-   ap_uint<8> retransmit;
+   ap_uint<8>  retransmit;
 
    // Data Segment
    ap_uint<32> data_offset;
@@ -426,7 +357,7 @@ struct header_t {
 
    // Grant Header
    ap_uint<32> grant_offset;
-   ap_uint<8> priority;
+   ap_uint<8>  priority;
 
    ap_uint<1> valid;
 };
@@ -452,7 +383,6 @@ typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_raw_t;
 
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
 
-
 // WARNING: For C simulation only
 struct srpt_data_t {
    rpc_id_t rpc_id;
@@ -469,28 +399,15 @@ struct srpt_grant_t {
    ap_uint<32> grantable_bytes;
 };
 
-struct in_chunk_t {
-   integral_t buff;
-   ap_uint<32> offset;
-   ap_uint<1> last;
-};
-
-struct out_chunk_t {
-   homa_packet_type type;
-   dbuff_id_t dbuff_id;     // Which data buffer is the RPC message stored in
-   ap_uint<32> offset;      // Offset in data message
-   data_bytes_e data_bytes; // How many data bytes to add to this block
-   ap_uint<1> last;
-   integral_t buff;
-};
-
 extern "C"{
-   void homa(hls::stream<sendmsg_raw_t> & sendmsg_i,
-         hls::stream<recvmsg_raw_t> & recvmsg_i,
-         hls::stream<dma_r_req_raw_t> & dma_r_req_o,
-         hls::stream<dbuff_in_raw_t> & dma_r_resp_i,
-         hls::stream<dma_w_req_raw_t> & dma_w_req_o,
-         hls::stream<raw_stream_t> & link_ingress,
-         hls::stream<raw_stream_t> & link_egress);
+void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+   hls::stream<msghdr_send_t> & msghdr_send_o,
+   hls::stream<msghdr_recv_t> & msghdr_recv_i,
+   hls::stream<msghdr_recv_t> & msghdr_recv_o,
+   hls::stream<dma_r_req_raw_t> & dma_r_req_o,
+   hls::stream<dbuff_in_raw_t> & dma_r_resp_i,
+   hls::stream<dma_w_req_raw_t> & dma_w_req_o,
+   hls::stream<raw_stream_t> & link_ingress,
+   hls::stream<raw_stream_t> & link_egress);
 }
 #endif

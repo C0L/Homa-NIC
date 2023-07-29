@@ -170,6 +170,12 @@ extern "C"{
             header_in__rpc_state__dbuff_ingress     // header_in_i
             );
 
+      hls_thread_local hls::task packetmap_task(
+            packetmap, 
+            header_in__dbuff_ingress__packetmap, // 
+            header_in__packetmap__homa_recvmsg   // 
+            );
+
       hls_thread_local hls::task homa_recvmsg_task(
             homa_recvmsg, 
             recvmsg_i,                      // recvmsg_i

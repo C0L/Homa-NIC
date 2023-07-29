@@ -12,7 +12,9 @@ extern "C"{
     */
    void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
          hls::stream<dma_w_req_raw_t> & dma_w_req_o,
-         hls::stream<header_t> & header_in_i) {
+         hls::stream<header_t> & header_in_i,
+         hls::stream<header_t> & header_in_o) {
+
 #pragma HLS pipeline II=1 style=flp
 
       // TODO what size should this be actually?
@@ -29,7 +31,7 @@ extern "C"{
 
          // Place chunk in DMA space at global offset + packet offset
          dma_w_req_raw_t dma_w_req;
-         dma_w_req(DMA_W_REQ_OFFSET) = in_chunk.offset + header_in.dma_offset + header_in.data_offset;
+         dma_w_req(DMA_W_REQ_OFFSET) = in_chunk.offset + (INDEX_FROM_RPC_ID(header_in.local_id) * HOMA_MAX_MESSAGE_LENGTH) + header_in.data_offset;
          dma_w_req(DMA_W_REQ_BLOCK)  = in_chunk.buff;
 
          dma_w_req_o.write(dma_w_req);
@@ -45,6 +47,7 @@ extern "C"{
 
       if (!header_in.valid && !header_in_i.empty()) {
          header_in = header_in_i.read();
+         header_in_o.write(header_in);
       } 
    }
 

@@ -2,72 +2,71 @@
 
 extern "C" {
 
-   /*
-    * homa_recvmsg() - Primes the core to accept data from an RPC
-    * ...
+   /**
+    * homa_recvmsg() - Maps completed messages to user level homa receive calls. 
+    * @msghdr_recv_i - Incoming recvmsg requests from the user
+    * @msghdr_recv_o - Returned recvmsg responsed with DMA offset
+    * @header_in_i   - The final header received for a completed message. This
+    * indicates the message has been fully received and buffering is complete.
+    * TODO Should we for some notification that the message has been fully
+    * buffered? If so the user could get the return recvmsg before the data has
+    * made it to DMA?
     */
-   void homa_recvmsg(hls::stream<recvmsg_raw_t> & recvmsg_i,
-         hls::stream<recvmsg_t> & recvmsg_o) {
+   void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
+         hls::stream<msghdr_recv_t> & msghdr_recv_o,
+         hls::stream<header_t> & header_in_i) {
+
+      // TODO this should be in BRAM, so cost is minimal
+      static fifo_t<msghdr_recv_t,128> rec_response;
+      static fifo_t<msghdr_recv_t,128> rec_request;
+
+      // TODO do we need to return the shortest message first??
+      // TODO instead of storing full header we can just store this
+      static fifo_t<msghdr_recv_t,128> inc_response;
+      static fifo_t<msghdr_recv_t,128> inc_request;
+
 #pragma HLS pipeline II=1
-      static bool enabled = true;
+      if (!msghdr_recv_i.empty()) {
+         msghdr_recv_t msghdr_recv = msghdr_recv_i.read();
 
-      if (enabled) {
+         // TODO pop from the respective inc fifo if the recv fifo is empty
+         // Otherwise block
+         
+      } else if (!header_in_i) {
+         header_in_i header_in = header_in_i.read();
 
-         recvmsg_raw_t recvmsg_raw = recvmsg_i.read();
+         // TODO pop from the respective fifo, or block if both are empty
 
-         enabled = recvmsg_raw(RECVMSG_ENABLED);
+      } else {
 
-         recvmsg_t recvmsg;
-         recvmsg.buffout   = recvmsg_raw(RECVMSG_BUFFOUT);
-         recvmsg.saddr     = recvmsg_raw(RECVMSG_SADDR);
-         recvmsg.daddr     = recvmsg_raw(RECVMSG_DADDR); 
-         recvmsg.sport     = recvmsg_raw(RECVMSG_SPORT);
-         recvmsg.dport     = recvmsg_raw(RECVMSG_DPORT);
-         recvmsg.id        = recvmsg_raw(RECVMSG_ID);
-         recvmsg.rtt_bytes = recvmsg_raw(RECVMSG_RTT);
-            
-         recvmsg_o.write(recvmsg);
+
       }
    }
 
-   /* TODO This is now outdated
-    * sendmsg() - Injests new RPCs and homa configurations into the
-    * homa processor. Manages the databuffer IDs, as those must be generated before
-    * started pulling data from DMA, and we need to know the ID to store it in the
-    * homa_rpc.
-    * @homa         - Homa configuration parameters
-    * @params       - New RPCs that need to be onboarded
-    * @maxi         - Burstable AXI interface to the DMA space
-    * @freed_rpcs_o - Free RPC data buffer IDs for inclusion into the new RPCs
-    * @dbuff_0      - Output to the data buffer for placing the chunks from DMA
-    * @new_rpc_o    - Output for the next step of the new_rpc injestion
+   /**
+    * sendmsg() - Injests new RPCs 
+    * @msghdr_send_i - Homa configuration parameters
+    * @msghdr_send_o - New RPCs that need to be onboarded
     */
-   void homa_sendmsg(hls::stream<sendmsg_raw_t> & sendmsg_i,
-         hls::stream<sendmsg_t> & sendmsg_o) {
+   void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
+         hls::stream<msghdr_send_t> & msghdr_send_o,
+         hls::stream<onboard_send_t> & onboard_send_o) {
 
 #pragma HLS pipeline II=1
 
-      static bool enabled = true;
+         msghdr_send_t msghdr_send = msghdr_send_i.read();
 
-      if (enabled) {
-         sendmsg_raw_t sendmsg_raw = sendmsg_i.read();
-
-         enabled = sendmsg_raw(SENDMSG_ENABLED);
-
-         sendmsg_t sendmsg;
-
-         sendmsg.buffin            = sendmsg_raw(SENDMSG_BUFFIN);
-         sendmsg.length            = sendmsg_raw(SENDMSG_LENGTH);
-         sendmsg.saddr             = sendmsg_raw(SENDMSG_SADDR);
-         sendmsg.daddr             = sendmsg_raw(SENDMSG_DADDR);
-         sendmsg.sport             = sendmsg_raw(SENDMSG_SPORT);
-         sendmsg.dport             = sendmsg_raw(SENDMSG_DPORT);
-         sendmsg.id                = sendmsg_raw(SENDMSG_ID);
-         sendmsg.completion_cookie = sendmsg_raw(SENDMSG_CC);
-         sendmsg.rtt_bytes         = sendmsg_raw(SENDMSG_RTT);
-         sendmsg.granted           = (sendmsg_raw(SENDMSG_RTT) > sendmsg_raw(SENDMSG_LENGTH)) ? sendmsg_raw(SENDMSG_LENGTH) : sendmsg_raw(SENDMSG_RTT);
+         onboard_send_t onboard_send;
+         onboard_send.saddr      = msghdr_send(MSGHDR_SADDR);
+         onboard_send.daddr      = msghdr_send(MSGHDR_DADDR);
+         onboard_send.sport      = msghdr_send(MSGHDR_SPORT);
+         onboard_send.dport      = msghdr_send(MSGHDR_DPORT);
+         onboard_send.iov        = msghdr_send(MSGHDR_IOV);
+         onboard_send.iov_size   = msghdr_send(MSGHDR_IOV_SIZE);
+         onboard_send.id         = msghdr_send(MSGHDR_SEND_ID);
+         onboard_send.cc         = msghdr_send(MSGHDR_SEND_CC);
+         onboard_send.flags      = msghdr_send(MSGHDR_SEND_FLAGS);
 
          sendmsg_o.write(sendmsg);
-      }
    }
 }
