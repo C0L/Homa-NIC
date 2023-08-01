@@ -1,18 +1,16 @@
 #include "packetmap.hh"
 
 /**
- * packetmap() - Determines when resent requests need to be issued and
- * manages packet bitmaps. Will evaluate touch requests (reset timer/update packetmap)
- * immediately, but crawls through RPCs to evaluate resend requests. Resend requests
- * contain the offset of the first packet that needs to be resent.
- * @touch:  Incoming stream from link_ingress. Resets the timer on an RPC and updates
- * packet maps.
- * @complete: RPCs that have an all '1' packetmap, and thus have been completely
- * received, have their RPC ID placed on the complete stream.
- * @rexmit: Outgoing stream to link_egress. RPC that needs a RESEND request.
+ * packetmap() - Determines when RPCs packet maps are complete and can be
+ * returned to the user 
+ * @header_in_i     - Incoming DATA packet headers which will update the state of
+ * the packet map and potentially complete the RPC
+ * @complete_msgs_o - When a packet map is complete, the header that triggered
+ * that completion is forwarded back to the recv system so that the RPC can be
+ * mactched with a recv call and the user notified
  */
-void packetmap(hls::stream<header_t> & header_in, 
-      hls::stream<header_t> & complete_messages) {
+void packetmap(hls::stream<header_t> & header_in_i, 
+      hls::stream<header_t> & complete_msgs_o) {
 
    /* 
     * A 64 bit timestamp is stored for each RPC. 
@@ -37,48 +35,45 @@ void packetmap(hls::stream<header_t> & header_in,
 
    header_t header_in;
 
-   if (header_in.read_nb(header_in)) {
-
+   if (header_in_i.read_nb(header_in)) {
       packetmap_t packetmap;
-      if (header_in.offset == 0) {
+      if (header_in.data_offset == 0) {
          packetmap.map = 0;
          packetmap.head = 0;
-         // TODO need to convert to bit index?
-         packetmap.length = (header_in.length / HOMA_PAYLOAD_SIZE);
+         packetmap.length = (header_in.message_length / HOMA_PAYLOAD_SIZE);
       } else {
-         packetmap = packetmaps[rexmit_touch.rpc_id];
+         packetmap = packetmaps[header_in.local_id];
       }
 
       // TODO need to convert to bit index
-      int diff = (header_in.segment_offset / HOMA_PAYLOAD_SIZE) - packetmap.head;
+      int diff = (header_in.data_offset / HOMA_PAYLOAD_SIZE) - packetmap.head;
+         
+      // Is this packet in bounds
+      if (diff < 64) {
+         packetmap.map[63-diff] = 1;
 
-      if (diff <= 0 || diff > 64) {
-         continue;
+         // TODO should this be pipelined?
+         int shift = 0;
+         for (int i = 63; i >= 0; --i) {
+            if (packetmap.map[63-i] == 0) shift = i;
+         }
+
+         packetmap.head += shift;
+         packetmap.map <<= shift;
+
+         // Has the head reached the length?
+         if (packetmap.head - packetmap.length == 0) {
+            // Notify recv system that the message is fully buffered
+            complete_messages_o.write(header_in);
+
+            // Disable this RPC
+            //last_touches[header_in.local_id] = 0;
+         }
+
+         packetmaps[header_in.local_id] = packetmap;
+
       }
-
-      packetmap.map[diff-1] = 1;
-
-      int shift = 0;
-      for (int i = 63; i >= 0; --i) {
-         if (packetmap.map[i] == 0) shift = i;
-      }
-
-      packetmap.head += shift;
-      packetmap.map <<= shift;
-
-      // Has the head reached the length?
-      if (packetmap.head - packetmap.length == 0) {
-         // Notify recv system that the message is fully buffered
-         complete_out.write(header_in.local_id);
-
-         // Disable this RPC
-         last_touches[header_in.locak_id] = 0;
-      }
-
-      packetmaps[header_in.local_id] = packetmap;
    }
-
-   // TODO currently disabled timer componant
 
    //static uint64_t time = 0;
 

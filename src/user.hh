@@ -1,14 +1,14 @@
-#ifndef DMA_H
-#define DMA_H
+#ifndef USER_H
+#define USER_H
 
 #include "homa.hh"
 
-extern "C"{
-   void homa_recvmsg(hls::stream<recvmsg_raw_t> & recvmsg_i,
-         hls::stream<recvmsg_t> & recvmsg_o);
+void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
+      hls::stream<msghdr_recv_t> & msghdr_recv_o,
+      hls::stream<header_t> & header_in_i);
 
-   void homa_sendmsg(hls::stream<sendmsg_raw_t> & sendmsg_i,
-         hls::stream<sendmsg_t> & sendmsg_o);
-}
+void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
+      hls::stream<msghdr_send_t> & msghdr_send_o,
+      hls::stream<onboard_send_t> & onboard_send_o);
 
 #endif

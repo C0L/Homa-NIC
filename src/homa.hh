@@ -28,6 +28,79 @@
 // Sender->Client and Client->Sender rpc ID conversion
 #define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
 
+/* Homa Configuration */
+
+// TODO this wall of defs needs to be organized
+#define IPV6_VERSION 6
+#define IPV6_TRAFFIC 0
+#define IPV6_FLOW    0xFFFF
+#define IPV6_ETHERTYPE 0x86DD
+#define MAC_DST 0xAAAAAAAAAAAA
+#define MAC_SRC 0xBBBBBBBBBBBB
+#define IPPROTO_HOMA 0xFD
+#define HOP_LIMIT 0x00
+#define DOFF 160
+#define HOMA_PAYLOAD_SIZE 1386
+#define HOMA_MAX_MESSAGE_LENGTH 1000000 // Maximum Homa message size
+#define IPV6_HEADER_LENGTH 40
+#define HOMA_ETH_OVERHEAD 24
+#define HOMA_MIN_PKT_LENGTH 26
+#define HOMA_MAX_HEADER 90
+#define ETHERNET_MAX_PAYLOAD 1500
+#define HOMA_MAX_PRIORITIES 8
+#define OVERCOMMIT_BYTES 480000
+#define DATA_PKT_HEADER 114 // Number of bytes in ethernet + ipv6 + common header + data header
+#define GRANT_PKT_HEADER 87 // Number of bytes in ethernet + ipv6 + common header + grant header
+#define PREFACE_HEADER 54 // Number of bytes in ethernet + ipv6 header
+#define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
+#define RTT_BYTES (ap_uint<32>) 5000
+                            
+typedef ap_uint<8> homa_packet_type;
+
+enum data_bytes_e {
+   NO_DATA      = 0,
+   ALL_DATA     = 64,
+   PARTIAL_DATA = 14,
+};
+
+
+/* Peer Tab Configuration */
+#define MAX_PEERS_LOG2 14
+#define MAX_PEERS 16383
+#define PEER_SUB_TABLE_SIZE 16384
+#define PEER_SUB_TABLE_INDEX 14
+
+typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
+
+struct peer_hashpack_t {
+   ap_uint<128> s6_addr;
+#define PEER_HP_SIZE 4
+   bool operator==(const peer_hashpack_t & other) const {
+      return (s6_addr == other.s6_addr); 
+   }
+};
+
+/* RPC Store Configuration */
+
+#define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
+#define MAX_RPCS            9000  // TODO Maximum number of RPCs
+#define RPC_SUB_TABLE_SIZE  16384 // Size of cuckoo hash sub-tables
+#define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
+#define MAX_OPS             64 // TODO rename this
+
+typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
+
+#define RPC_HP_SIZE 7 // Number of 32 bit chunks to hash for RPC table
+
+/* Link Configuration:
+ * This defines an actual axi stream type, in contrast to the internal streams
+ * which are all ap_fifo types. The actual data that will be passed by this
+ * stream is 512 bit chunks.
+ * 
+ * Need to leave side-channel signals enabled to avoid linker error?
+ */
+typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+
 /* SRPT Configuration */
 #define MAX_OVERCOMMIT 8
 
@@ -102,78 +175,11 @@ struct touch_t {
 
 
 struct rexmit_t {
-  rpc_id_t rpc_id;
+  local_id_t rpc_id;
 
   // Bit to set in packet map
   packetmap_idx_t offset;
 };
-
-
-
-/* Peer Tab Configuration */
-#define MAX_PEERS_LOG2 14
-#define MAX_PEERS 16383
-#define PEER_SUB_TABLE_SIZE 16384
-#define PEER_SUB_TABLE_INDEX 14
-
-typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
-
-struct peer_hashpack_t {
-   ap_uint<128> s6_addr;
-#define PEER_HP_SIZE 4
-   bool operator==(const peer_hashpack_t & other) const {
-      return (s6_addr == other.s6_addr); 
-   }
-};
-
-/* RPC Store Configuration */
-
-#define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
-#define MAX_RPCS            9000  // TODO Maximum number of RPCs
-#define RPC_SUB_TABLE_SIZE  16384 // Size of cuckoo hash sub-tables
-#define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
-#define MAX_OPS             64 // TODO rename this
-
-typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
-
-#define RPC_HP_SIZE 7 // Number of 32 bit chunks to hash for RPC table
-
-/* Link Configuration:
- * This defines an actual axi stream type, in contrast to the internal streams
- * which are all ap_fifo types. The actual data that will be passed by this
- * stream is 512 bit chunks.
- * 
- * Need to leave side-channel signals enabled to avoid linker error?
- */
-typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
-
-
-/* Homa Configuration */
-
-// TODO this wall of defs needs to be organized
-#define IPV6_VERSION 6
-#define IPV6_TRAFFIC 0
-#define IPV6_FLOW    0xFFFF
-#define IPV6_ETHERTYPE 0x86DD
-#define MAC_DST 0xAAAAAAAAAAAA
-#define MAC_SRC 0xBBBBBBBBBBBB
-#define IPPROTO_HOMA 0xFD
-#define HOP_LIMIT 0x00
-#define DOFF 160
-#define HOMA_PAYLOAD_SIZE 1386
-#define HOMA_MAX_MESSAGE_LENGTH 1000000 // Maximum Homa message size
-#define IPV6_HEADER_LENGTH 40
-#define HOMA_ETH_OVERHEAD 24
-#define HOMA_MIN_PKT_LENGTH 26
-#define HOMA_MAX_HEADER 90
-#define ETHERNET_MAX_PAYLOAD 1500
-#define HOMA_MAX_PRIORITIES 8
-#define OVERCOMMIT_BYTES 480000
-#define DATA_PKT_HEADER 114 // Number of bytes in ethernet + ipv6 + common header + data header
-#define GRANT_PKT_HEADER 87 // Number of bytes in ethernet + ipv6 + common header + grant header
-#define PREFACE_HEADER 54 // Number of bytes in ethernet + ipv6 header
-#define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
-
 
 /* The homa core writes out packets in 64B units. As a result, we need to know
  * the local offsets for header data in the 64B chunks 
@@ -290,7 +296,7 @@ struct homa_rpc_t {
 #define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg)
 #define MSGHDR_SPORT        273,256 // Port of sender (sendmsg) or receiver (recvmsg)
 #define MSGHDR_DPORT        289,274 // Address of receiver (sendmsg) or sender (recvmsg) 
-#define MSGHDR_IOV          321,290 // Message contents in DMA space
+#define MSGHDR_IOV          321,290 // Message contents DMA offset
 #define MSGHDR_IOV_SIZE     353,322 // Size of message in DMA space 
 
 #define MSGHDR_SEND_ID      417,354 // RPC identifier
@@ -306,13 +312,16 @@ typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
 typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
 
 struct onboard_send_t {
-   ap_uint<128> saddr; // Address of sender (sendmsg) or receiver (recvmsg)
-   ap_uint<128> daddr; // Address of receiver (sendmsg) or sender (recvmsg)
-   ap_uint<16>  sport; // Port of sender (sendmsg) or receiver (recvmsg) 
-   ap_uint<16>  dport; // Port of sender (sendmsg) or receiver (recvmsg)
-   ap_uint<32>  iov;   // Message contents in DMA space 
+   ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
+   ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
+   ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg) 
+   ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
+   ap_uint<32>  iov;      // Message contents DMA offset
+   ap_uint<32>  iov_size; // Size of message in DMA space 
+
    ap_uint<64>  id;    // RPC identifier 
    ap_uint<64>  cc;    // Completion Cookie
+   ap_uint<32>  flags; // TODO 
 
    local_id_t  local_id; // Local RPC ID 
    dbuff_id_t  dbuff_id; // Data buffer ID for outgoing data
@@ -362,12 +371,6 @@ struct header_t {
    ap_uint<1> valid;
 };
 
-enum data_bytes_e {
-   NO_DATA      = 0,
-   ALL_DATA     = 64,
-   PARTIAL_DATA = 14,
-};
-
 #define DMA_R_REQ_SIZE     122
 #define DMA_R_REQ_OFFSET   31,0
 #define DMA_R_REQ_BURST    63,32
@@ -385,7 +388,7 @@ typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
 
 // WARNING: For C simulation only
 struct srpt_data_t {
-   rpc_id_t rpc_id;
+   local_id_t rpc_id;
    dbuff_id_t dbuff_id;
    ap_uint<32> remaining;
    ap_uint<32> total;
@@ -394,20 +397,21 @@ struct srpt_data_t {
 // WARNING: For C simulation only
 struct srpt_grant_t {
    peer_id_t peer_id;
-   rpc_id_t rpc_id;
+   local_id_t rpc_id;
    ap_uint<32> recv_bytes;
    ap_uint<32> grantable_bytes;
 };
 
 extern "C"{
-void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
-   hls::stream<msghdr_send_t> & msghdr_send_o,
-   hls::stream<msghdr_recv_t> & msghdr_recv_i,
-   hls::stream<msghdr_recv_t> & msghdr_recv_o,
-   hls::stream<dma_r_req_raw_t> & dma_r_req_o,
-   hls::stream<dbuff_in_raw_t> & dma_r_resp_i,
-   hls::stream<dma_w_req_raw_t> & dma_w_req_o,
-   hls::stream<raw_stream_t> & link_ingress,
-   hls::stream<raw_stream_t> & link_egress);
+   void homa(hls::stream<msghdr_send_t> & onboard_send_i,
+         hls::stream<msghdr_send_t>     & onboard_send_o,
+         hls::stream<msghdr_recv_t>     & onboard_recv_i,
+         hls::stream<msghdr_recv_t>     & onboard_recv_o,
+         hls::stream<dma_r_req_raw_t>   & dma_r_req_o,
+         hls::stream<dbuff_in_raw_t>    & dma_r_resp_i,
+         hls::stream<dma_w_req_raw_t>   & dma_w_req_o,
+         hls::stream<raw_stream_t>      & link_ingress,
+         hls::stream<raw_stream_t>      & link_egress);
 }
+
 #endif

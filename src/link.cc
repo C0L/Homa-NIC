@@ -36,7 +36,6 @@ extern "C"{
 #pragma HLS pipeline II=1 style=flp
 
       if (!grant_pkt_i.empty()) {
-         std::cerr << "GRANT OUT\n";
          srpt_grant_out_t grant_out = grant_pkt_i.read();
 
          header_t header_out;
@@ -49,7 +48,6 @@ extern "C"{
 
          header_out_o.write(header_out);
       } else if (!data_pkt_i.empty()) {
-         std::cerr << "DATA OUT\n";
          srpt_data_out_t ready_data_pkt = data_pkt_i.read();
 
          header_t header_out;
@@ -63,10 +61,10 @@ extern "C"{
          header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
          header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
          header_out.message_length  = ready_data_pkt(SRPT_DATA_MSG_LEN);
-         header_out.dbuff_id        = ready_data_pkt(SRPT_DBUFF_ID);
+         header_out.dbuff_id        = ready_data_pkt(SRPT_DATA_DBUFF_ID);
          header_out.processed_bytes = 0;
 
-         // header_out.valid           = 1;
+         header_out.valid           = 1;
 
          header_out_o.write(header_out);
       } 
@@ -87,24 +85,29 @@ extern "C"{
 
       static header_t header;
 
-      if (header.valid == 1 || (header.valid == 0 && !header_out_i.read_nb(header))) {
+      if (header.valid == 1 || (header.valid == 0 && header_out_i.read_nb(header))) {
+         //std::cerr << "PACKET CHUNK OUT\n";
+         //std::cerr << header.packet_bytes << std::endl;
+         //std::cerr << header.processed_bytes << std::endl;
+         //std::cerr << header.valid << std::endl;
+
          out_chunk_t out_chunk;
          out_chunk.offset = header.data_offset;
-         
+
          ap_uint<512> natural_chunk;
-         
+
          switch(header.type) {
             case DATA: {
                if (header.processed_bytes == 0) {
-         
+
                   // Ethernet header
                   natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;        // TODO MAC Dest (set by phy?)
                   natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;        // TODO MAC Src (set by phy?)
                   natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE; // Ethertype
-         
+
                   // IPv6 header
                   ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
-                  
+
                   natural_chunk(CHUNK_IPV6_VERSION)     = IPV6_VERSION;     // Version
                   natural_chunk(CHUNK_IPV6_TRAFFIC)     = IPV6_TRAFFIC;     // Traffic Class
                   natural_chunk(CHUNK_IPV6_FLOW)        = IPV6_FLOW;        // Flow Label
@@ -113,20 +116,20 @@ extern "C"{
                   natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = HOP_LIMIT;        // Hop Limit
                   natural_chunk(CHUNK_IPV6_SADDR)       = header.saddr; // Sender Address
                   natural_chunk(CHUNK_IPV6_DADDR)       = header.daddr; // Destination Address
-         
+
                   // Start of common header
                   natural_chunk(CHUNK_HOMA_COMMON_SPORT) = header.sport;  // Sender Port
                   natural_chunk(CHUNK_HOMA_COMMON_DPORT) = header.dport;  // Destination Port
-         
+
                   // Unused
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;               // Unused
-         
+
                   // Packet block configuration — no data bytes needed
                   out_chunk.type = DATA;
                   out_chunk.data_bytes = NO_DATA;
                   out_chunk.dbuff_id = header.dbuff_id;
                   header.data_offset += NO_DATA;
-         
+
                } else if (header.processed_bytes == 64) {
                   // Rest of common header
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                    // Unused (2 bytes)
@@ -136,23 +139,23 @@ extern "C"{
                   natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                    // Checksum (unused) (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                    // Unused  (2 bytes) 
                   natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header.id;            // Sender ID
-         
+
                   // Data header
                   natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = header.message_length; // Message Length (entire message)
                   natural_chunk(CHUNK_HOMA_DATA_INCOMING) = header.incoming;       // Incoming
                   natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;                         // Cutoff Version (unimplemented) (2 bytes) TODO
                   natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;                         // Retransmit (unimplemented) (1 byte) TODO
                   natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;                         // Pad (1 byte)
-         
+
                   // Data Segment
                   natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header.data_offset;    // Offset
                   natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = header.segment_length; // Segment Length
-         
+
                   // Ack header
                   natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;  // Client ID (8 bytes) TODO
                   natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;  // Client Port (2 bytes) TODO
                   natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;  // Server Port (2 bytes) TODO
-         
+
                   // Packet block configuration — 14 data bytes needed
                   out_chunk.type = DATA;
                   out_chunk.data_bytes = PARTIAL_DATA;
@@ -166,19 +169,19 @@ extern "C"{
                }
                break;
             }
-         
+
             case GRANT: {
                if (header.processed_bytes == 0) {
                   // TODO this is a little repetetive
-         
+
                   // Ethernet header
                   natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;        // TODO MAC Dest (set by phy?)
                   natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;        // TODO MAC Src (set by phy?)
                   natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE; // Ethertype
-         
+
                   // IPv6 header 
                   ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
-                  
+
                   natural_chunk(CHUNK_IPV6_VERSION)        = IPV6_VERSION;     // Version
                   natural_chunk(CHUNK_IPV6_TRAFFIC)        = IPV6_TRAFFIC;     // Traffic Class
                   natural_chunk(CHUNK_IPV6_FLOW)           = IPV6_FLOW;        // Flow Label
@@ -187,14 +190,14 @@ extern "C"{
                   natural_chunk(CHUNK_IPV6_HOP_LIMIT)      = HOP_LIMIT;        // Hop Limit
                   natural_chunk(CHUNK_IPV6_SADDR)          = header.saddr; // Sender Address
                   natural_chunk(CHUNK_IPV6_DADDR)          = header.daddr; // Destination Address
-         
+
                   // Start of common header
                   natural_chunk(CHUNK_HOMA_COMMON_SPORT)   = header.sport;  // Sender Port
                   natural_chunk(CHUNK_HOMA_COMMON_DPORT)   = header.dport;  // Destination Port
-         
+
                   // Unused
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;                 // Unused
-         
+
                   // Packet block configuration — no data bytes needed
                   out_chunk.type = GRANT;
                   out_chunk.data_bytes = NO_DATA;
@@ -207,13 +210,13 @@ extern "C"{
                   natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                    // Checksum (unused) (2 bytes)
                   natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                    // Unused  (2 bytes) 
                   natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header.id;        // Sender ID
-         
+
                   // Grant header
                   natural_chunk(CHUNK_HOMA_GRANT_OFFSET)   = header.grant_offset; // Byte offset of grant
                   natural_chunk(CHUNK_HOMA_GRANT_PRIORITY) = 0;                       // Priority TODO
-                  
+
                   std::cerr << "GRANT OUT " << header.grant_offset << std::endl;
-         
+
                   // Packet block configuration — no data bytes needed
                   out_chunk.type = GRANT;
                   out_chunk.data_bytes = NO_DATA;
@@ -221,20 +224,20 @@ extern "C"{
                break;
             }
          }
-         
+
          header.processed_bytes += 64;
-         
+
          if (header.processed_bytes >= header.packet_bytes) {
             header.valid = 0;
             out_chunk.last = 1;
-            header.valid = 0;
+            std::cerr << "COMPLETED\n";
          } else {
             out_chunk.last = 0;
          }
-         
+
          network_order(natural_chunk, out_chunk.buff);
          chunk_out_o.write(out_chunk);
-         }
+      }
    }
 
    /**
@@ -316,7 +319,7 @@ extern "C"{
                header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
                header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
                header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
-                                                                                             
+
                // TODO parse acks
 
                data_block.buff(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);

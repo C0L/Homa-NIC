@@ -13,6 +13,7 @@
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 #include "databuff.hh"
+#include "packetmap.hh"
 
 using namespace std;
 
@@ -27,8 +28,10 @@ using namespace std;
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
 extern "C"{
-   void homa(hls::stream<sendmsg_raw_t> & sendmsg_i,
-         hls::stream<recvmsg_raw_t>     & recvmsg_i,
+   void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+         hls::stream<msghdr_send_t>     & msghdr_send_o,
+         hls::stream<msghdr_recv_t>     & msghdr_recv_i,
+         hls::stream<msghdr_recv_t>     & msghdr_recv_o,
          hls::stream<dma_r_req_raw_t>   & dma_r_req_o,
          hls::stream<dbuff_in_raw_t>    & dma_r_resp_i,
          hls::stream<dma_w_req_raw_t>   & dma_w_req_o,
@@ -43,8 +46,10 @@ extern "C"{
        *
        * Synth will claim that this is ignored, but cosim needs it to work.
        */
-#pragma HLS interface axis port=sendmsg_i    depth=2048
-#pragma HLS interface axis port=recvmsg_i    depth=2048
+#pragma HLS interface axis port=msghdr_send_i    depth=2048
+#pragma HLS interface axis port=msghdr_send_o    depth=2048
+#pragma HLS interface axis port=msghdr_recvmsg_i    depth=2048
+#pragma HLS interface axis port=msghdr_recvmsg_o    depth=2048
 #pragma HLS interface axis port=dma_r_req_o  depth=2048
 #pragma HLS interface axis port=dma_r_resp_i depth=2048
 #pragma HLS interface axis port=dma_w_req_o  depth=2048
@@ -62,16 +67,18 @@ extern "C"{
       hls_thread_local hls::stream<srpt_grant_notif_t, STREAM_DEPTH> header_in__rpc_state__srpt_data     ("header_in__rpc_state__srpt_data");
       hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_map   ("header_in__chunk_ingress__rpc_map");
       hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress ("header_in__rpc_state__dbuff_ingress");
-
+      hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__packetmap ("header_in__dbuff_ingress__packetmap");
+      hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__homa_recvmsg ("header_in__packetmap__homa_recvmsg");
+   
       /* recvmsg streams */
-      hls_thread_local hls::stream<recvmsg_t, STREAM_DEPTH> recvmsg__rpc_map__rpc_state    ("recvmsg__rpc_map__rpc_state");
-      hls_thread_local hls::stream<recvmsg_t, STREAM_DEPTH> recvmsg__homa_recvmsg__rpc_map ("recvmsg__homa_recvmsg__rpc_map");
-      hls_thread_local hls::stream<recvmsg_t, STREAM_DEPTH> recvmsg__peer_map              ("recvmsg__peer_map");
+      // hls_thread_local hls::stream<onboard_recv_t, STREAM_DEPTH> recvmsg__rpc_map__rpc_state    ("recvmsg__rpc_map__rpc_state");
+      // hls_thread_local hls::stream<onboard_recv_t, STREAM_DEPTH> recvmsg__homa_recvmsg__rpc_map ("recvmsg__homa_recvmsg__rpc_map");
+      // hls_thread_local hls::stream<onboard_recv_t, STREAM_DEPTH> recvmsg__peer_map              ("recvmsg__peer_map");
 
       /* sendmsg streams */
-      hls_thread_local hls::stream<sendmsg_t, STREAM_DEPTH> sendmsg__homa_sendmsg__dbuff_stack ("sendmsg__homa_sendmsg__dbuff_stack");
-      hls_thread_local hls::stream<sendmsg_t, STREAM_DEPTH> sendmsg__dbuff_stack__rpc_map      ("sendmsg__dbuff_stack__rpc_map");
-      hls_thread_local hls::stream<sendmsg_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state        ("sendmsg__rpc_map__rpc_state");
+      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__dbuff_stack ("sendmsg__homa_sendmsg__dbuff_stack");
+      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__dbuff_stack__rpc_map      ("sendmsg__dbuff_stack__rpc_map");
+      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state        ("sendmsg__rpc_map__rpc_state");
       hls_thread_local hls::stream<srpt_data_in_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data ("sendmsg__rpc_state__srpt_data");
 
       /* out chunk streams */
@@ -93,7 +100,6 @@ extern "C"{
             rpc_state,
             sendmsg__rpc_map__rpc_state,         // sendmsg_i
             sendmsg__rpc_state__srpt_data,       // sendmsg_o
-            recvmsg__rpc_map__rpc_state,         // recvmsg_i
             header_out__egress_sel__rpc_state,   // header_out_i
             header_out__rpc_state__pkt_builder,  // header_out_o
             header_in__rpc_map__rpc_state,       // header_in_i
@@ -106,8 +112,6 @@ extern "C"{
             rpc_map,
             header_in__chunk_ingress__rpc_map, // header_in_i
             header_in__rpc_map__rpc_state,     // header_in_o
-            recvmsg__homa_recvmsg__rpc_map,    // recvmsg_i
-            recvmsg__rpc_map__rpc_state,       // recvmsg_o
             sendmsg__dbuff_stack__rpc_map,     // sendmsg_i
             sendmsg__rpc_map__rpc_state        // sendmsg_o
             );
@@ -167,24 +171,27 @@ extern "C"{
             dbuff_ingress,
             in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_o
             dma_w_req_o,                            // dma_w_req_o
-            header_in__rpc_state__dbuff_ingress     // header_in_i
+            header_in__rpc_state__dbuff_ingress,     // header_in_i
+            header_in__dbuff_ingress__packetmap     // header_in_i
             );
 
       hls_thread_local hls::task packetmap_task(
             packetmap, 
-            header_in__dbuff_ingress__packetmap, // 
-            header_in__packetmap__homa_recvmsg   // 
+            header_in__dbuff_ingress__packetmap, // header_in
+            header_in__packetmap__homa_recvmsg   // complete_messages
             );
 
       hls_thread_local hls::task homa_recvmsg_task(
             homa_recvmsg, 
-            recvmsg_i,                      // recvmsg_i
-            recvmsg__homa_recvmsg__rpc_map  // recvmsg_o
+            msghdr_recv_i,                  // recvmsg_i
+            msghdr_recv_o,                  // recvmsg_o
+            header_in__packetmap__homa_recvmsg 
             );
 
       hls_thread_local hls::task homa_sendmsg_task(
             homa_sendmsg, 
-            sendmsg_i,                           // sendmsg_i
+            msghdr_send_i,                       // sendmsg_i
+            msghdr_send_o,                       // sendmsg_o
             sendmsg__homa_sendmsg__dbuff_stack   // sendmsg_o
             );
    }
