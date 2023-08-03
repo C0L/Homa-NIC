@@ -54,7 +54,7 @@
 #define PREFACE_HEADER 54 // Number of bytes in ethernet + ipv6 header
 #define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
 #define RTT_BYTES (ap_uint<32>) 5000
-                            
+                           
 typedef ap_uint<8> homa_packet_type;
 
 enum data_bytes_e {
@@ -62,7 +62,6 @@ enum data_bytes_e {
    ALL_DATA     = 64,
    PARTIAL_DATA = 14,
 };
-
 
 /* Peer Tab Configuration */
 #define MAX_PEERS_LOG2 14
@@ -122,28 +121,24 @@ typedef ap_uint<SRPT_GRANT_OUT_SIZE> srpt_grant_out_t;
 
 typedef ap_uint<SRPT_GRANT_IN_SIZE> srpt_grant_in_t;
 
-#define SRPT_DATA_SIZE      157
+#define SRPT_DATA_SIZE      76
 #define SRPT_DATA_RPC_ID    15,0
-#define SRPT_DATA_DBUFF_ID  25,16
-#define SRPT_DATA_REMAINING 57,26
-#define SRPT_DATA_GRANTED   89,58
-#define SRPT_DATA_DBUFFERED 121,90
-#define SRPT_DATA_MSG_LEN   153,122
-#define SRPT_DATA_PRIORITY  156,154
+#define SRPT_DATA_REMAINING 35,16
+#define SRPT_DATA_GRANTED   55,36
+#define SRPT_DATA_DBUFFERED 75,56
 
 typedef ap_uint<SRPT_DATA_SIZE> srpt_data_in_t;
 typedef ap_uint<SRPT_DATA_SIZE> srpt_data_out_t;
 
-#define SRPT_DBUFF_NOTIF_SIZE     74
-#define SRPT_DBUFF_NOTIF_DBUFF_ID 9,0
-#define SRPT_DBUFF_NOTIF_MSG_LEN  41,10
-#define SRPT_DBUFF_NOTIF_OFFSET   73,42
+#define SRPT_DBUFF_NOTIF_SIZE   36
+#define SRPT_DBUFF_NOTIF_RPC_ID 15,0
+#define SRPT_DBUFF_NOTIF_OFFSET 35,16
 
 typedef ap_uint<SRPT_DBUFF_NOTIF_SIZE> srpt_dbuff_notif_t;
 
-#define SRPT_GRANT_NOTIF_SIZE     42
-#define SRPT_GRANT_NOTIF_DBUFF_ID 9,0
-#define SRPT_GRANT_NOTIF_OFFSET   41,10
+#define SRPT_GRANT_NOTIF_SIZE   36
+#define SRPT_GRANT_NOTIF_RPC_ID 15,0
+#define SRPT_GRANT_NOTIF_OFFSET 35,16
 
 typedef ap_uint<SRPT_GRANT_NOTIF_SIZE> srpt_grant_notif_t;
 
@@ -172,7 +167,6 @@ struct touch_t {
   // Total length of the message
   packetmap_idx_t length;
 };
-
 
 struct rexmit_t {
   local_id_t rpc_id;
@@ -289,6 +283,8 @@ struct homa_rpc_t {
    ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
    ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg)
    ap_uint<64>  id;       // RPC ID (potentially not local)
+   ap_uint<32>  iov_size; // 
+   ap_uint<32>  iov;      // 
    dbuff_id_t   dbuff_id; // ID for outgoing data
 };
 
@@ -301,15 +297,29 @@ struct homa_rpc_t {
 
 #define MSGHDR_SEND_ID      417,354 // RPC identifier
 #define MSGHDR_SEND_CC      481,418 // Completion Cookie
-#define MSGHDR_SEND_FLAGS   513,482 // TODO: or-ed combination of bits
-#define MSGHDR_SEND_SIZE    514 
+#define MSGHDR_SEND_SIZE    5482
 
 #define MSGHDR_RECV_ID      417,354 // RPC identifier
 #define MSGHDR_RECV_CC      481,418 // Completion Cookie
-#define MSGHDR_RECV_SIZE    482 
+#define MSGHDR_RECV_FLAGS   513,482 // Interest list
+#define MSGHDR_RECV_SIZE    514
 
 typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
 typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
+
+#define HOMA_RECVMSG_REQUEST       0x01
+#define HOMA_RECVMSG_RESPONSE      0x02
+#define HOMA_RECVMSG_NONBLOCKING   0x04
+#define HOMA_RECVMSG_VALID_FLAGS   0x07
+
+#define MAX_RECV_MATCH 1024
+#define MAX_HDR_MATCH  1024
+
+struct recv_interest_t {
+  ap_uint<16>  sport; // Port of the caller
+  ap_uint<32>  flags; // Interest list
+  ap_uint<64>  id;    // ID of interest
+};
 
 struct onboard_send_t {
    ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
@@ -321,8 +331,9 @@ struct onboard_send_t {
 
    ap_uint<64>  id;    // RPC identifier 
    ap_uint<64>  cc;    // Completion Cookie
-   ap_uint<32>  flags; // TODO 
 
+   ap_uint<32> dbuffered;
+   ap_uint<32> granted;
    local_id_t  local_id; // Local RPC ID 
    dbuff_id_t  dbuff_id; // Data buffer ID for outgoing data
    peer_id_t   peer_id;  // Local ID for this destination address
@@ -335,6 +346,7 @@ struct header_t {
    local_id_t  local_id;
    peer_id_t   peer_id;
    dbuff_id_t  dbuff_id;
+   ap_uint<64> completion_cookie;
    ap_uint<32> dma_offset;
    ap_uint<32> processed_bytes;
    ap_uint<32> packet_bytes;

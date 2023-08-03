@@ -52,7 +52,6 @@ extern "C"{
 
       sendmsg(MSGHDR_SEND_ID)    = 0;
       sendmsg(MSGHDR_SEND_CC)    = 0;
-      sendmsg(MSGHDR_SEND_FLAGS) = 0;
 
       char maxi_in[128*64];
       char maxi_out[128*64];
@@ -62,8 +61,11 @@ extern "C"{
 
       strcpy(maxi_in, data.c_str());
    
-      while (maxi_out[3000] == 0) {
+      //while (maxi_out[3000] == 0) {
       // while (maxi_out[2772] == 0) {
+      
+      //while (recvmsg_o.empty() || maxi_out[3000] == 0) {
+      while (recvmsg_o.empty() || maxi_out[2772] == 0) {
          if (!link_egress_o.empty()) {
             link_ingress_i.write(link_egress_o.read());
          }
@@ -79,7 +81,7 @@ extern "C"{
                dbuff_in(DBUFF_IN_RPC_ID)   = dma_r_req(DMA_R_REQ_RPC_ID);
                dbuff_in(DBUFF_IN_CHUNK)    = dma_r_req(DMA_R_REQ_OFFSET) + i;
                dbuff_in(DBUFF_IN_MSG_LEN)  = dma_r_req(DMA_R_REQ_MSG_LEN);
-               // std::cerr << "MESSAGE LEN DMA R REQ " << dma_r_req(DMA_R_REQ_MSG_LEN) << std::endl;
+            // std::cerr << "MESSAGE LEN DMA R REQ " << dma_r_req(DMA_R_REQ_MSG_LEN) << std::endl;
 
                dbuff_in(DBUFF_IN_LAST)    = (i == (dma_r_req(DMA_R_REQ_BURST)-1));
 
@@ -93,6 +95,10 @@ extern "C"{
             (*((integral_t*) (maxi_out + ((ap_uint<32>) dma_w_req(DMA_W_REQ_OFFSET))))) = dma_w_req(DMA_W_REQ_BLOCK);
          }
       }
+
+      std::cerr << "START READ\n";
+      msghdr_recv_t recv = recvmsg_o.read();
+      std::cerr << "END READ\n";
 
       return memcmp(maxi_in, maxi_out, 2772);
    }

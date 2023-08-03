@@ -81,26 +81,23 @@ void dbuff_egress(hls::stream<onboard_send_t> & onboard_send_i,
    static dbuff_t dbuff[NUM_DBUFF];
    // #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
-   if (!onboard_send_i.empty()) {
-      onboard_send_t onboard_send = onboard_send_i.read();
+   static onboard_send_t onboard_send;
 
+   if (!onboard_send_i.empty() && onboard_send.local_id == 0) {
+      onboard_send = onboard_send_i.read();
       onboard_send.dbuff_id = dbuff_stack.pop();
 
       uint32_t num_chunks = onboard_send.iov_size / DBUFF_CHUNK_SIZE;
       if (onboard_send.iov_size % DBUFF_CHUNK_SIZE != 0) num_chunks++;
 
       dma_r_req_raw_t dma_r_req;
-      dma_r_req(DMA_R_REQ_OFFSET)     = onboard_send.iov;
-      dma_r_req(DMA_R_REQ_BURST)      = num_chunks;
-      dma_r_req(DMA_R_REQ_MSG_LEN)    = onboard_send.iov_size;
-      dma_r_req(DMA_R_REQ_DBUFF_ID)   = onboard_send.dbuff_id;
+      dma_r_req(DMA_R_REQ_OFFSET)   = onboard_send.iov;
+      dma_r_req(DMA_R_REQ_BURST)    = num_chunks;
+      dma_r_req(DMA_R_REQ_MSG_LEN)  = onboard_send.iov_size;
+      dma_r_req(DMA_R_REQ_DBUFF_ID) = onboard_send.dbuff_id;
 
       dma_r_req_o.write(dma_r_req);
-
-      onboard_send_o.write(onboard_send);
-   }
-
-   // TODO there is another case here that will trigger the request and receipt of data in response to changes caused by out chunk
+   } 
 
    // Do we need to add any data to data buffer 
    if (!dbuff_egress_i.empty()) {
@@ -108,13 +105,24 @@ void dbuff_egress(hls::stream<onboard_send_t> & onboard_send_i,
 
       dbuff[dbuff_in(DBUFF_IN_DBUFF_ID)][dbuff_in(DBUFF_IN_CHUNK) % DBUFF_NUM_CHUNKS] = dbuff_in(DBUFF_IN_DATA); 
       ap_uint<32> message_offset = (dbuff_in(DBUFF_IN_CHUNK)+1) * DBUFF_CHUNK_SIZE;
+      // dbuff[dbuff_in(DBUFF_IN_DBUFF_ID)] = message_offset;
 
       if (dbuff_in(DBUFF_IN_LAST)) {
+         std::cerr << "MESSAGE OFFSET " << message_offset << std::endl;
+         std::cerr << "MESSAGE IOV " << onboard_send.iov_size << std::endl;
+         onboard_send.dbuffered = onboard_send.iov_size - MIN(message_offset, onboard_send.iov_size);
+         onboard_send_o.write(onboard_send);
+      }
+
+      // TODO reintegrate this
+      if (dbuff_in(DBUFF_IN_LAST)) {
          srpt_dbuff_notif_t dbuff_notif;
-         dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID) = dbuff_in(DBUFF_IN_DBUFF_ID);
-         dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = MIN(message_offset, dbuff_in(DBUFF_IN_MSG_LEN));
+         dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in(DBUFF_IN_RPC_ID);
+         // TODO cannot reference onboard in this process
+         dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET)   = MIN(message_offset, onboard_send.iov_size);
 
          dbuff_notif_o.write(dbuff_notif);
+         // onboard_send_o.write(onboard_send);
       }
    }
 

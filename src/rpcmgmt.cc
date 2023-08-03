@@ -41,6 +41,11 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
       header_out.saddr           = homa_rpc.saddr;
       header_out.sport           = homa_rpc.sport;
       header_out.id              = homa_rpc.id;
+      header_out.dbuff_id        = homa_rpc.dbuff_id;
+
+      header_out.incoming       = homa_rpc.iov_size - header_out.incoming;
+      header_out.data_offset    = homa_rpc.iov_size - header_out.data_offset;
+      header_out.message_length = homa_rpc.iov_size;
 
       header_out_o.write(header_out);
    }
@@ -52,7 +57,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
       switch (header_in.type) {
          case DATA: {
-
+            // TODO bad bad bad
             if (header_in.data_offset == 0) {
                homa_rpc.saddr    = header_in.saddr;
                homa_rpc.daddr    = header_in.daddr;
@@ -85,8 +90,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
          case GRANT: {
             srpt_grant_notif_t srpt_grant_notif;
-            srpt_grant_notif(SRPT_GRANT_NOTIF_DBUFF_ID) = header_in.local_id;
-            srpt_grant_notif(SRPT_GRANT_NOTIF_OFFSET)   = header_in.message_length - header_in.grant_offset;
+            srpt_grant_notif(SRPT_GRANT_NOTIF_RPC_ID) = header_in.local_id;
+            srpt_grant_notif(SRPT_GRANT_NOTIF_OFFSET) = header_in.message_length - header_in.grant_offset;
             data_srpt_o.write(srpt_grant_notif); 
             break;
          }
@@ -101,8 +106,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
       homa_rpc.dport           = onboard_send.dport;
       homa_rpc.saddr           = onboard_send.saddr;
       homa_rpc.sport           = onboard_send.sport;
-      // homa_rpc.iov             = onboard_send.iov;
-      // homa_rpc.iov_size        = onboard_send.iov_size;
+      homa_rpc.iov             = onboard_send.iov;
+      homa_rpc.iov_size        = onboard_send.iov_size;
       homa_rpc.dbuff_id        = onboard_send.dbuff_id;
       homa_rpc.id              = onboard_send.id;
 
@@ -110,10 +115,9 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
       srpt_data_in_t srpt_data_in;
       srpt_data_in(SRPT_DATA_RPC_ID)    = onboard_send.local_id;
-      srpt_data_in(SRPT_DATA_DBUFF_ID)  = onboard_send.dbuff_id;
       srpt_data_in(SRPT_DATA_REMAINING) = onboard_send.iov_size;
-      srpt_data_in(SRPT_DATA_GRANTED)   = (RTT_BYTES > onboard_send.iov_size) ? onboard_send.iov_size : RTT_BYTES;
-      srpt_data_in(SRPT_DATA_MSG_LEN)   = onboard_send.iov_size;
+      srpt_data_in(SRPT_DATA_DBUFFERED) = onboard_send.dbuffered;
+      srpt_data_in(SRPT_DATA_GRANTED)   = (onboard_send.iov_size) - ((RTT_BYTES > onboard_send.iov_size) ? onboard_send.iov_size : RTT_BYTES);
 
       onboard_send_o.write(srpt_data_in);
    } 

@@ -1,7 +1,6 @@
 #ifndef FIFO_H
 #define FIFO_H
 
-// TODO move this
 template<typename T, int FIFO_SIZE>
 struct fifo_t {
    T buffer[FIFO_SIZE];

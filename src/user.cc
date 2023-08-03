@@ -1,4 +1,5 @@
 #include "user.hh"
+#include "fifo.hh"
 
 /**
  * homa_recvmsg() - Maps completed messages to user level homa receive calls. 
@@ -11,44 +12,97 @@
  * made it to DMA?
  */
 void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
-      hls::stream<msghdr_recv_t> & msghdr_recv_o,
-      hls::stream<header_t> & header_in_i) {
+		  hls::stream<msghdr_recv_t> & msghdr_recv_o,
+		  hls::stream<header_t> & header_in_i) {
 
-   // TODO what is the useful piece of information stored in this??
-   // TODO we need to match to a particular peer??
-   static fifo_t<msghdr_recv_t,128> rec_response;
-   static fifo_t<msghdr_recv_t,128> rec_request;
+    static recv_interest_t recv[MAX_RECV_MATCH];
+    static uint32_t recv_head = 0;
+  
+    static msghdr_recv_t msgs[MAX_RECV_MATCH];
+    static uint32_t msgs_head = 0;
 
-   static fifo_t<msghdr_recv_t,128> inc_response;
-   static fifo_t<msghdr_recv_t,128> inc_request;
+    if (!msghdr_recv_i.empty()) {
+	msghdr_recv_t msghdr_recv = msghdr_recv_i.read();
+      
+	msghdr_recv_t match;
+	uint32_t match_index = -1;
 
-   header_t header_in = header_in_i.read();
+	for (uint32_t i = 0; i < recv_head; ++i) {
+#pragma HLS pipeline II=1
+	    // Is there a match
+	    if (msgs[i](MSGHDR_SPORT) == msghdr_recv(MSGHDR_SPORT)
+		&& msgs[i](MSGHDR_RECV_FLAGS) & msghdr_recv(MSGHDR_RECV_FLAGS) == 1) {
+		// Is there an explicit ID match
+		if (msgs[i](MSGHDR_RECV_ID) == msghdr(MSGHDR_RECV_ID)) {
+		    match = msgs[i];
+		    match_index = i;
+		    break;
+		} else if (match_index == -1 || msgs[i](MSGHDR_IOV_SIZE) < match(MSGHDR_IOV_SIZE)) {
+		    match = msgs[i]; 
+		    match_index = i;
+		} 
+	    }
+	}
 
-   msghdr_recv_t msg;
-   msghdr_recv_o.write(msg);
+	// No match was found
+	if (match_index == -1) {
+	    recv_interest_t recv_interst = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
+	    recv[recv_head] = recv_interest;
 
-   // A homa socket is not shared across multiple users?
+	    if (recv_head < MAX_RECV_MATCH) {
+		recv_head++;
+	    }
+	} else {
+	    msgs[match_index] = msgs[msgs_head];
+	    msghdr_recv_o.write(match);
+	    msgs_head--;
+	}
+    }
 
-   // Homa Recv is called on a socket that is bound to a port. 
-   // So we need to do some extra sorting here? So that we can fine
-   // messages destined for the correct port?
+    if (!header_in_i.empty()) {
 
-   //#pragma HLS pipeline II=1
-   //      if (!msghdr_recv_i.empty()) {
-   //         msghdr_recv_t msghdr_recv = msghdr_recv_i.read();
-   //
-   //         // TODO pop from the respective inc fifo if the recv fifo is empty
-   //         // Otherwise block
-   //         
-   //      } else if (!header_in_i) {
-   //         header_in_i header_in = header_in_i.read();
-   //
-   //         // TODO pop from the respective fifo, or block if both are empty
-   //
-   //      } else {
-   //
-   //
-   //      }
+	header_t header_in = header_in_i.read();
+
+	msghdr_recv_t new_msg;
+
+	new_msg(MSGHDR_SADDR)      = header_in.saddr;
+	new_msg(MSGHDR_DADDR)      = header_in.daddr;
+	new_msg(MSGHDR_SPORT)      = header_in.sport;
+	new_msg(MSGHDR_DPORT)      = header_in.dport;
+	new_msg(MSGHDR_IOV)        = header_in.dbuff_id;          // TODO
+	new_msg(MSGHDR_IOV_SIZE)   = header_in.message_length;
+	new_msg(MSGHDR_RECV_ID)    = header_in.local_id; 
+	new_msg(MSGHDR_RECV_CC)    = header_in.completion_cookie; // TODO
+	new_msg(MSGHDR_RECV_FLAGS) = IS_CLIENT(header_in.id) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
+
+	uint32_t match_index = -1;
+
+	for (uint32_t i = 0; i < recv_head; ++i) {
+#pragma HLS pipeline II=1
+	    // Is there a match
+	    if (recv[i].sport == new_msg(MSGHDR_SPORT) && (recv[i].flags & new_msg(MSGHDR_RECV_FLAGS) == 1)) {
+		if (recv[i].id == new_msg(MSGHDR_RECV_ID)) {
+		    match_index = i;
+		    break;
+		} else if (match_index == -1) {
+		    match_index = i;
+		} 
+	    }
+	}
+
+	// No match was found
+	if (match_index == -1) {
+	    msgs[msgs_head] = new_msg;
+
+	    if (msgs_head < MAX_RECV_MATCH) { 
+		msgs_head++;
+	    }
+	} else {
+	    recv[match_index] = recv[recv_head];
+	    msghdr_recv_o.write(new_msg);
+	    recv_head--;
+	}
+    }
 }
 
 /**
@@ -63,25 +117,26 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
  * TODO needs to return the newly assigned ID to the user
  */
 void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
-      hls::stream<msghdr_send_t> & msghdr_send_o,
-      hls::stream<onboard_send_t> & onboard_send_o) {
+		  hls::stream<msghdr_send_t> & msghdr_send_o,
+		  hls::stream<onboard_send_t> & onboard_send_o) {
 
 #pragma HLS pipeline II=1
+    // Bisect the ID space?
 
-   // TODO needs to get the new ID and return to user
+    // TODO needs to get the new ID and return to user
+    // TODO it would be nice if ID construction could be handled here but it is also needed for incoming pktsj?
+    msghdr_send_t msghdr_send = msghdr_send_i.read();
 
-   msghdr_send_t msghdr_send = msghdr_send_i.read();
+    onboard_send_t onboard_send;
+    onboard_send.saddr      = msghdr_send(MSGHDR_SADDR);
+    onboard_send.daddr      = msghdr_send(MSGHDR_DADDR);
+    onboard_send.sport      = msghdr_send(MSGHDR_SPORT);
+    onboard_send.dport      = msghdr_send(MSGHDR_DPORT);
+    onboard_send.iov        = msghdr_send(MSGHDR_IOV);
+    onboard_send.iov_size   = msghdr_send(MSGHDR_IOV_SIZE);
+    onboard_send.id         = msghdr_send(MSGHDR_SEND_ID);
+    onboard_send.cc         = msghdr_send(MSGHDR_SEND_CC);
+    onboard_send.flags      = msghdr_send(MSGHDR_SEND_FLAGS);
 
-   onboard_send_t onboard_send;
-   onboard_send.saddr      = msghdr_send(MSGHDR_SADDR);
-   onboard_send.daddr      = msghdr_send(MSGHDR_DADDR);
-   onboard_send.sport      = msghdr_send(MSGHDR_SPORT);
-   onboard_send.dport      = msghdr_send(MSGHDR_DPORT);
-   onboard_send.iov        = msghdr_send(MSGHDR_IOV);
-   onboard_send.iov_size   = msghdr_send(MSGHDR_IOV_SIZE);
-   onboard_send.id         = msghdr_send(MSGHDR_SEND_ID);
-   onboard_send.cc         = msghdr_send(MSGHDR_SEND_CC);
-   onboard_send.flags      = msghdr_send(MSGHDR_SEND_FLAGS);
-
-   onboard_send_o.write(onboard_send);
+    onboard_send_o.write(onboard_send);
 }

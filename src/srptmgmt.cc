@@ -13,25 +13,26 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
       hls::stream<srpt_data_out_t> & data_pkt_raw_o,
       hls::stream<srpt_grant_notif_t> & grant_notif_raw_i) {
 
-   static srpt_data_in_t entries[NUM_DBUFF];
+   static srpt_data_in_t entries[MAX_RPCS];
 
    if (!dbuff_notif_raw_i.empty()) {
       srpt_dbuff_notif_t dbuff_notif = dbuff_notif_raw_i.read();
-      entries[dbuff_notif(SRPT_DBUFF_NOTIF_DBUFF_ID)](SRPT_DATA_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
+      entries[dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID)](SRPT_DATA_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
    }
 
    if (!grant_notif_raw_i.empty()) {
       srpt_grant_notif_t header_in = grant_notif_raw_i.read();
-      entries[header_in(SRPT_GRANT_NOTIF_DBUFF_ID)](SRPT_DATA_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
+      entries[header_in(SRPT_GRANT_NOTIF_RPC_ID)](SRPT_DATA_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
    }
 
    if (!sendmsg_i.empty()) {
+
       srpt_data_in_t sendmsg = sendmsg_i.read();
-      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_RPC_ID)    = sendmsg(SRPT_DATA_RPC_ID);
-      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_DBUFF_ID)  = sendmsg(SRPT_DATA_DBUFF_ID);
-      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_REMAINING) = sendmsg(SRPT_DATA_REMAINING);
-      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_GRANTED)   = sendmsg(SRPT_DATA_GRANTED);
-      entries[sendmsg(SRPT_DATA_DBUFF_ID)](SRPT_DATA_MSG_LEN)   = sendmsg(SRPT_DATA_MSG_LEN);
+      
+      entries[sendmsg(SRPT_DATA_RPC_ID)](SRPT_DATA_RPC_ID)    = sendmsg(SRPT_DATA_RPC_ID);
+      entries[sendmsg(SRPT_DATA_RPC_ID)](SRPT_DATA_REMAINING) = sendmsg(SRPT_DATA_REMAINING);
+      entries[sendmsg(SRPT_DATA_RPC_ID)](SRPT_DATA_DBUFFERED) = sendmsg(SRPT_DATA_DBUFFERED);
+      entries[sendmsg(SRPT_DATA_RPC_ID)](SRPT_DATA_GRANTED)   = sendmsg(SRPT_DATA_GRANTED);
    }
 
    srpt_data_in_t head;
@@ -45,12 +46,10 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
 
       if (entries[i](SRPT_DATA_REMAINING) < head(SRPT_DATA_REMAINING) && entries[i](SRPT_DATA_RPC_ID) != 0) {
          // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
-         // TODO this is not signed and will fail?
-         bool unblocked = ((entries[i](SRPT_DATA_MSG_LEN) - entries[i](SRPT_DATA_DBUFFERED)) < (entries[i](SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE)) 
-            || (entries[i](SRPT_DATA_DBUFFERED) == entries[i](SRPT_DATA_MSG_LEN));
-         bool granted   = entries[i](SRPT_DATA_REMAINING) > (entries[i](SRPT_DATA_MSG_LEN) - entries[i](SRPT_DATA_GRANTED));
+         bool granted   = (entries[i](SRPT_DATA_GRANTED) + 1 <= entries[i](SRPT_DATA_REMAINING)) | (entries[i](SRPT_DATA_GRANTED) == 0);
+         bool dbuffered = (entries[i](SRPT_DATA_DBUFFERED) + HOMA_PAYLOAD_SIZE <= entries[i](SRPT_DATA_REMAINING)) | (entries[i](SRPT_DATA_DBUFFERED) == 0);
 
-         if (unblocked && granted) { 
+         if (granted && dbuffered) { 
             head = entries[i];
          }
       }
@@ -61,13 +60,12 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
       ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > head(SRPT_DATA_REMAINING)) 
                                  ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head(SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE));
 
-      std::cerr << "RIPE DATA PKT\n";
       data_pkt_raw_o.write(head);
 
-      entries[head(SRPT_DATA_DBUFF_ID)](SRPT_DATA_REMAINING) = remaining;
+      entries[head(SRPT_DATA_RPC_ID)](SRPT_DATA_REMAINING) = remaining;
 
       if (remaining == 0) {
-         entries[head(SRPT_DATA_DBUFF_ID)] = 0;
+         entries[head(SRPT_DATA_RPC_ID)] = 0;
       }
    }
 }

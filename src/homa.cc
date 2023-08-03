@@ -46,10 +46,10 @@ extern "C"{
        *
        * Synth will claim that this is ignored, but cosim needs it to work.
        */
-#pragma HLS interface axis port=msghdr_send_i    depth=2048
-#pragma HLS interface axis port=msghdr_send_o    depth=2048
-#pragma HLS interface axis port=msghdr_recvmsg_i    depth=2048
-#pragma HLS interface axis port=msghdr_recvmsg_o    depth=2048
+#pragma HLS interface axis port=msghdr_send_i depth=2048
+#pragma HLS interface axis port=msghdr_send_o depth=2048
+#pragma HLS interface axis port=msghdr_recv_i depth=2048
+#pragma HLS interface axis port=msghdr_recv_o depth=2048
 #pragma HLS interface axis port=dma_r_req_o  depth=2048
 #pragma HLS interface axis port=dma_r_resp_i depth=2048
 #pragma HLS interface axis port=dma_w_req_o  depth=2048

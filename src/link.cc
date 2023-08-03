@@ -50,18 +50,19 @@ extern "C"{
       } else if (!data_pkt_i.empty()) {
          srpt_data_out_t ready_data_pkt = data_pkt_i.read();
 
+         // TODO why even handle this here?
+
          header_t header_out;
          header_out.type            = DATA;
          header_out.local_id        = ready_data_pkt(SRPT_DATA_RPC_ID);
-         // TODO get rid of incoming?
          header_out.incoming        = ready_data_pkt(SRPT_DATA_GRANTED);
          header_out.grant_offset    = ready_data_pkt(SRPT_DATA_GRANTED);
-         header_out.data_offset     = ready_data_pkt(SRPT_DATA_MSG_LEN) - ready_data_pkt(SRPT_DATA_REMAINING);
+         header_out.data_offset     = ready_data_pkt(SRPT_DATA_REMAINING);
          header_out.segment_length  = MIN(ready_data_pkt(SRPT_DATA_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
          header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
          header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
-         header_out.message_length  = ready_data_pkt(SRPT_DATA_MSG_LEN);
-         header_out.dbuff_id        = ready_data_pkt(SRPT_DATA_DBUFF_ID);
+         // header_out.message_length  = ready_data_pkt(SRPT_DATA_MSG_LEN);
+         // header_out.dbuff_id        = ready_data_pkt(SRPT_DATA_DBUFF_ID);
          header_out.processed_bytes = 0;
 
          header_out.valid           = 1;
@@ -86,11 +87,6 @@ extern "C"{
       static header_t header;
 
       if (header.valid == 1 || (header.valid == 0 && header_out_i.read_nb(header))) {
-         //std::cerr << "PACKET CHUNK OUT\n";
-         //std::cerr << header.packet_bytes << std::endl;
-         //std::cerr << header.processed_bytes << std::endl;
-         //std::cerr << header.valid << std::endl;
-
          out_chunk_t out_chunk;
          out_chunk.offset = header.data_offset;
 

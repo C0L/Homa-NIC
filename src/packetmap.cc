@@ -64,7 +64,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
          // Has the head reached the length?
          if (packetmap.head - packetmap.length == 0) {
             // Notify recv system that the message is fully buffered
-            complete_messages_o.write(header_in);
+            complete_msgs_o.write(header_in);
 
             // Disable this RPC
             //last_touches[header_in.local_id] = 0;

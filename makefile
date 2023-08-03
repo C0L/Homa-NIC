@@ -49,6 +49,7 @@ SRC_C =                       \
     $(C_SRC_DIR)/srptmgmt.cc  \
     $(C_SRC_DIR)/srptmgmt.hh  \
     $(C_SRC_DIR)/stack.hh     \
+    $(C_SRC_DIR)/fifo.hh     \
     $(C_SRC_DIR)/packetmap.hh \
     $(C_SRC_DIR)/packetmap.cc \
 
