@@ -33,7 +33,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    if (msgs[i](MSGHDR_SPORT) == msghdr_recv(MSGHDR_SPORT)
 		&& msgs[i](MSGHDR_RECV_FLAGS) & msghdr_recv(MSGHDR_RECV_FLAGS) == 1) {
 		// Is there an explicit ID match
-		if (msgs[i](MSGHDR_RECV_ID) == msghdr(MSGHDR_RECV_ID)) {
+		if (msgs[i](MSGHDR_RECV_ID) == msghdr_recv(MSGHDR_RECV_ID)) {
 		    match = msgs[i];
 		    match_index = i;
 		    break;
@@ -46,7 +46,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 
 	// No match was found
 	if (match_index == -1) {
-	    recv_interest_t recv_interst = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
+	    recv_interest_t recv_interest = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
 	    recv[recv_head] = recv_interest;
 
 	    if (recv_head < MAX_RECV_MATCH) {
@@ -60,7 +60,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     }
 
     if (!header_in_i.empty()) {
-
 	header_t header_in = header_in_i.read();
 
 	msghdr_recv_t new_msg;
@@ -136,7 +135,6 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
     onboard_send.iov_size   = msghdr_send(MSGHDR_IOV_SIZE);
     onboard_send.id         = msghdr_send(MSGHDR_SEND_ID);
     onboard_send.cc         = msghdr_send(MSGHDR_SEND_CC);
-    onboard_send.flags      = msghdr_send(MSGHDR_SEND_FLAGS);
 
     onboard_send_o.write(onboard_send);
 }

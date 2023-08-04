@@ -297,7 +297,7 @@ struct homa_rpc_t {
 
 #define MSGHDR_SEND_ID      417,354 // RPC identifier
 #define MSGHDR_SEND_CC      481,418 // Completion Cookie
-#define MSGHDR_SEND_SIZE    5482
+#define MSGHDR_SEND_SIZE    482 
 
 #define MSGHDR_RECV_ID      417,354 // RPC identifier
 #define MSGHDR_RECV_CC      481,418 // Completion Cookie

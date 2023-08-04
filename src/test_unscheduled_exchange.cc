@@ -34,14 +34,15 @@ extern "C"{
 
       // Offset in DMA space, receiver address, sender address, receiver port, sender port, RPC ID (0 for match-all)
 
-      recvmsg(MSGHDR_SADDR)    = saddr;
-      recvmsg(MSGHDR_DADDR)    = daddr;
-      recvmsg(MSGHDR_SPORT)    = sport;
-      recvmsg(MSGHDR_DPORT)    = dport;
-      recvmsg(MSGHDR_IOV)      = 0;
-      recvmsg(MSGHDR_IOV_SIZE) = 0;
-      recvmsg(MSGHDR_RECV_ID)  = 0;
-      recvmsg(MSGHDR_RECV_CC)  = 0;
+      recvmsg(MSGHDR_SADDR)      = saddr;
+      recvmsg(MSGHDR_DADDR)      = daddr;
+      recvmsg(MSGHDR_SPORT)      = sport;
+      recvmsg(MSGHDR_DPORT)      = dport;
+      recvmsg(MSGHDR_IOV)        = 0;
+      recvmsg(MSGHDR_IOV_SIZE)   = 0;
+      recvmsg(MSGHDR_RECV_ID)    = 0;
+      recvmsg(MSGHDR_RECV_CC)    = 0;
+      recvmsg(MSGHDR_RECV_FLAGS) = HOMA_RECVMSG_REQUEST;
 
       sendmsg(MSGHDR_SADDR)    = saddr;
       sendmsg(MSGHDR_DADDR)    = daddr;
