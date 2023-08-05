@@ -19,8 +19,11 @@
 #define IS_CLIENT(id) ((id & 1) == 0)
 
 // Convert between representation and index
-#define RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
-#define INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
+#define SEND_RPC_ID_FROM_INDEX(a) ((a + 1 + MAX_RPCS/2) << 1)
+#define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1 - MAX_RPCS/2)
+
+#define RECV_RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
+#define RECV_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
 
 #define PEER_ID_FROM_INDEX(a) (a + 1)
 #define INDEX_FROM_PEER_ID(a) (a - 1)
@@ -54,6 +57,25 @@
 #define PREFACE_HEADER 54 // Number of bytes in ethernet + ipv6 header
 #define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
 #define RTT_BYTES (ap_uint<32>) 5000
+
+/* DMA Configuration */
+
+#define DMA_R_REQ_SIZE     122
+#define DMA_R_REQ_OFFSET   31,0
+#define DMA_R_REQ_BURST    63,32
+#define DMA_R_REQ_MSG_LEN  95,64
+#define DMA_R_REQ_DBUFF_ID 105,96
+#define DMA_R_REQ_RPC_ID   121,106
+
+typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_raw_t;
+
+#define DMA_W_REQ_SIZE   544
+#define DMA_W_REQ_OFFSET 31,0
+#define DMA_W_REQ_BLOCK  543,32
+
+typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
+
+#define MAX_INIT_CACHE_BURST 16384 // Number of initial 64 Byte chunks to cache for a message
                            
 typedef ap_uint<8> homa_packet_type;
 
@@ -243,7 +265,11 @@ typedef ap_uint<512> integral_t;
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
 // One data buffer stores 2^14 bytes
-typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
+// typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
+struct dbuff_t {
+    integral_t data[DBUFF_NUM_CHUNKS];
+    //dma_r_req_raw_t dma_r_req;
+};
 
 // Pointer to a byte in the data buffer
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
@@ -254,10 +280,10 @@ typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 #define DBUFF_IN_SIZE     580
 #define DBUFF_IN_DATA     511,0
 #define DBUFF_IN_DBUFF_ID 521,512
-#define DBUFF_IN_CHUNK    529,522
-#define DBUFF_IN_RPC_ID   545,530
-#define DBUFF_IN_LAST     547,546
-#define DBUFF_IN_MSG_LEN  579,548
+#define DBUFF_IN_RPC_ID   537,522
+#define DBUFF_IN_OFFSET   557,538
+#define DBUFF_IN_MSG_LEN  577,558
+#define DBUFF_IN_LAST     578,578
 
 typedef ap_uint<DBUFF_IN_SIZE> dbuff_in_raw_t;
 
@@ -270,7 +296,9 @@ struct in_chunk_t {
 struct out_chunk_t {
    homa_packet_type type;   // What is the type of this outgoing packet
    dbuff_id_t dbuff_id;     // Which data buffer is the message stored in
+   local_id_t local_id;     // What is the RPC ID associated with this message
    ap_uint<32> offset;      // What byte offset is this output chunk for
+   ap_uint<32> length;      // What is the total length of this message
    data_bytes_e data_bytes; // How many data bytes to add to this block
    integral_t buff;         // Data to be sent onto the link
    ap_uint<1> last;         // Is this the last chunk in the sequence
@@ -285,7 +313,8 @@ struct homa_rpc_t {
    ap_uint<64>  id;       // RPC ID (potentially not local)
    ap_uint<32>  iov_size; // 
    ap_uint<32>  iov;      // 
-   dbuff_id_t   dbuff_id; // ID for outgoing data
+   dbuff_id_t   obuff_id; // ID for outgoing data
+   dbuff_id_t   ibuff_id; // ID for incoming data
 };
 
 #define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg)
@@ -343,14 +372,12 @@ struct onboard_send_t {
 /* forwarding structures */
 struct header_t {
    // Local Values
-   local_id_t  local_id;
-   peer_id_t   peer_id;
-   dbuff_id_t  dbuff_id;
-   ap_uint<64> completion_cookie;
-   ap_uint<32> dma_offset;
-   ap_uint<32> processed_bytes;
+   local_id_t  local_id;           // ID within RPC State
+   peer_id_t   peer_id;            // ID of this peer
+   dbuff_id_t  obuff_id;           // ID of buffer of data to send
+   dbuff_id_t  ibuff_id;           // ID of buffer for received data
+   ap_uint<64> completion_cookie;  // Cookie from the origin sendmsg
    ap_uint<32> packet_bytes;
-   ap_uint<32> rtt_bytes;
 
    // IPv6 + Common Header
    ap_uint<16>      payload_length;
@@ -379,24 +406,7 @@ struct header_t {
    // Grant Header
    ap_uint<32> grant_offset;
    ap_uint<8>  priority;
-
-   ap_uint<1> valid;
 };
-
-#define DMA_R_REQ_SIZE     122
-#define DMA_R_REQ_OFFSET   31,0
-#define DMA_R_REQ_BURST    63,32
-#define DMA_R_REQ_MSG_LEN  95,64
-#define DMA_R_REQ_DBUFF_ID 105,96
-#define DMA_R_REQ_RPC_ID   121,106
-
-typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_raw_t;
-
-#define DMA_W_REQ_SIZE   544
-#define DMA_W_REQ_OFFSET 31,0
-#define DMA_W_REQ_BLOCK  543,32
-
-typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
 
 // WARNING: For C simulation only
 struct srpt_data_t {

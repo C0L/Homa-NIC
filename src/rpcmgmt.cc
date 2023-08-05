@@ -34,14 +34,14 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
    if (!header_out_i.empty()) {
       header_t header_out = header_out_i.read();
 
-      homa_rpc_t homa_rpc = rpcs[INDEX_FROM_RPC_ID(header_out.local_id)];
+      homa_rpc_t homa_rpc = rpcs[SEND_INDEX_FROM_RPC_ID(header_out.local_id)];
 
       header_out.daddr           = homa_rpc.daddr;
       header_out.dport           = homa_rpc.dport;
       header_out.saddr           = homa_rpc.saddr;
       header_out.sport           = homa_rpc.sport;
       header_out.id              = homa_rpc.id;
-      header_out.dbuff_id        = homa_rpc.dbuff_id;
+      header_out.obuff_id        = homa_rpc.obuff_id;
 
       header_out.incoming       = homa_rpc.iov_size - header_out.incoming;
       header_out.data_offset    = homa_rpc.iov_size - header_out.data_offset;
@@ -53,7 +53,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
    /* R/W Paths */
    if (!header_in_i.empty()) {
       header_t header_in = header_in_i.read();
-      homa_rpc_t homa_rpc = rpcs[INDEX_FROM_RPC_ID(header_in.local_id)];
+      homa_rpc_t homa_rpc = rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
 
       switch (header_in.type) {
          case DATA: {
@@ -64,10 +64,10 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
                homa_rpc.dport    = header_in.dport;
                homa_rpc.sport    = header_in.sport;
                homa_rpc.id       = header_in.id;
-               homa_rpc.dbuff_id = header_in.dbuff_id;
+               homa_rpc.obuff_id = header_in.obuff_id;
             } else {
                header_in.id       = homa_rpc.id;
-               header_in.dbuff_id = homa_rpc.dbuff_id;
+               header_in.obuff_id = homa_rpc.obuff_id;
             }
 
             if (header_in.message_length > header_in.incoming) { 
@@ -97,7 +97,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
          }
       }
 
-      rpcs[INDEX_FROM_RPC_ID(header_in.local_id)] = homa_rpc;
+      rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = homa_rpc;
    } else if (!onboard_send_i.empty()) {
       onboard_send_t onboard_send = onboard_send_i.read();
 
@@ -108,10 +108,10 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
       homa_rpc.sport           = onboard_send.sport;
       homa_rpc.iov             = onboard_send.iov;
       homa_rpc.iov_size        = onboard_send.iov_size;
-      homa_rpc.dbuff_id        = onboard_send.dbuff_id;
+      homa_rpc.obuff_id        = onboard_send.dbuff_id;
       homa_rpc.id              = onboard_send.id;
 
-      rpcs[INDEX_FROM_RPC_ID(onboard_send.local_id)] = homa_rpc;
+      rpcs[SEND_INDEX_FROM_RPC_ID(onboard_send.local_id)] = homa_rpc;
 
       srpt_data_in_t srpt_data_in;
       srpt_data_in(SRPT_DATA_RPC_ID)    = onboard_send.local_id;
@@ -150,7 +150,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
       hls::stream<onboard_send_t> & onboard_send_o) {
 
    // Unique local RPC IDs
-   static stack_t<local_id_t, MAX_RPCS> rpc_stack(true);
+   static stack_t<local_id_t, MAX_RPCS/2> recv_ids(true);
 
    // Unique local Peer IDs
    static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
@@ -181,7 +181,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
        */
       if (!IS_CLIENT(header_in.id)) {
          if (header_in.data_offset == 0) {
-            header_in.dbuff_id = dbuff_stack.pop();
+            header_in.ibuff_id = dbuff_stack.pop();
          }
 
          // Check if this peer is already registered
@@ -202,9 +202,10 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
          // If the rpc is not registered, generate a new RPC ID and register it 
          if (header_in.local_id == 0) {
-            header_in.local_id = RPC_ID_FROM_INDEX(rpc_stack.pop());
-            entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
-            rpc_hashmap.queue(rpc_entry);
+	     header_in.local_id = RECV_RPC_ID_FROM_INDEX(recv_ids.pop());
+	     std::cerr << RECV_INDEX_FROM_RPC_ID(header_in.local_id) << std::endl;
+	     entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
+	     rpc_hashmap.queue(rpc_entry);
          }
       } else {
          header_in.local_id = header_in.id;
@@ -213,16 +214,11 @@ void rpc_map(hls::stream<header_t> & header_in_i,
       header_in_o.write(header_in);
    } else if (!onboard_send_i.empty()) {
       onboard_send_t onboard_send = onboard_send_i.read();
-
-      /* If the caller provided an ID of 0 this is a request message and we
-       * need to generate a new local ID. Otherwise, this is a response
-       * message and the ID is already valid in homa_rpc buffer
-       */
-      if (onboard_send.id == 0) {
+      //if (onboard_send.id == 0) {
 
          // Generate a new local ID, and set the RPC ID to be that
-         onboard_send.local_id = RPC_ID_FROM_INDEX(rpc_stack.pop());
-         onboard_send.id       = onboard_send.local_id;
+         //onboard_send.local_id = RPC_ID_FROM_INDEX(rpc_stack.pop());
+         //onboard_send.id       = onboard_send.local_id;
 
          // Check if this peer is already registered
          peer_hashpack_t peer_query = {onboard_send.daddr};
@@ -235,7 +231,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
             entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, onboard_send.peer_id};
             peer_hashmap.queue(peer_entry);
          }
-      } 
+	 //} 
 
       onboard_send_o.write(onboard_send);
    } else {

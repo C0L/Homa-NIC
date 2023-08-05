@@ -70,16 +70,11 @@ extern "C"{
       hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__packetmap ("header_in__dbuff_ingress__packetmap");
       hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__homa_recvmsg ("header_in__packetmap__homa_recvmsg");
    
-      /* recvmsg streams */
-      // hls_thread_local hls::stream<onboard_recv_t, STREAM_DEPTH> recvmsg__rpc_map__rpc_state    ("recvmsg__rpc_map__rpc_state");
-      // hls_thread_local hls::stream<onboard_recv_t, STREAM_DEPTH> recvmsg__homa_recvmsg__rpc_map ("recvmsg__homa_recvmsg__rpc_map");
-      // hls_thread_local hls::stream<onboard_recv_t, STREAM_DEPTH> recvmsg__peer_map              ("recvmsg__peer_map");
-
       /* sendmsg streams */
-      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__dbuff_stack ("sendmsg__homa_sendmsg__dbuff_stack");
-      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__dbuff_stack__rpc_map      ("sendmsg__dbuff_stack__rpc_map");
-      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state        ("sendmsg__rpc_map__rpc_state");
-      hls_thread_local hls::stream<srpt_data_in_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data ("sendmsg__rpc_state__srpt_data");
+      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__rpc_map("sendmsg__homa_sendmsg__msg_cache");
+      // hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__msg_cache__rpc_map ("sendmsg__msg_cache__rpc_map ");
+      hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state     ("sendmsg__rpc_map__rpc_state");
+      hls_thread_local hls::stream<srpt_data_in_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data   ("sendmsg__rpc_state__srpt_data");
 
       /* out chunk streams */
       hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress ("out_chunk__chunk_egress__dbuff_egress");
@@ -95,6 +90,10 @@ extern "C"{
       /* data SRPT streams */
       hls_thread_local hls::stream<srpt_data_out_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel   ("ready_data_pkt__srpt_data__egress_sel");
       hls_thread_local hls::stream<srpt_dbuff_notif_t, STREAM_DEPTH> dbuff_notif__dbuff_egress__srpt_data ("dbuff_notif__dbuff_egress__srpt_data");
+
+      /* dma streams */
+      
+      hls_thread_local hls::stream<dma_r_req_raw_t, STREAM_DEPTH> dma_req__homa_sendmsg__msg_cache;
 
       hls_thread_local hls::task rpc_state_task(
             rpc_state,
@@ -112,7 +111,7 @@ extern "C"{
             rpc_map,
             header_in__chunk_ingress__rpc_map, // header_in_i
             header_in__rpc_map__rpc_state,     // header_in_o
-            sendmsg__dbuff_stack__rpc_map,     // sendmsg_i
+            sendmsg__homa_sendmsg__rpc_map,    // sendmsg_i
             sendmsg__rpc_map__rpc_state        // sendmsg_o
             );
       
@@ -156,22 +155,21 @@ extern "C"{
             in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
             );
 
-      hls_thread_local hls::task dbuff_egress_task(
-            dbuff_egress,
-            sendmsg__homa_sendmsg__dbuff_stack,
-            sendmsg__dbuff_stack__rpc_map,
+      hls_thread_local hls::task msg_cache_task(
+            msg_cache,
             dma_r_resp_i,                          // dbuff_egress_i
             dbuff_notif__dbuff_egress__srpt_data,  // dbuff_notif_o
+	    dma_req__homa_sendmsg__msg_cache,
+	    dma_r_req_o,
             out_chunk__chunk_egress__dbuff_egress, // out_chunk_i
-            out_chunk__dbuff_egress__pkt_egress,   // out_chunk_o
-            dma_r_req_o                         
+            out_chunk__dbuff_egress__pkt_egress    // out_chunk_o
             ); 
 
       hls_thread_local hls::task dbuff_ingress_task(
             dbuff_ingress,
             in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_o
             dma_w_req_o,                            // dma_w_req_o
-            header_in__rpc_state__dbuff_ingress,     // header_in_i
+            header_in__rpc_state__dbuff_ingress,    // header_in_i
             header_in__dbuff_ingress__packetmap     // header_in_i
             );
 
@@ -192,7 +190,8 @@ extern "C"{
             homa_sendmsg, 
             msghdr_send_i,                       // sendmsg_i
             msghdr_send_o,                       // sendmsg_o
-            sendmsg__homa_sendmsg__dbuff_stack   // sendmsg_o
+            sendmsg__homa_sendmsg__rpc_map,    // sendmsg_o
+	    dma_req__homa_sendmsg__msg_cache
             );
    }
 }

@@ -72,22 +72,34 @@ extern "C"{
          }
 
          if (!dma_r_req_o.empty()) {
-            dma_r_req_raw_t dma_r_req = dma_r_req_o.read(); 
+            dma_r_req_raw_t dma_r_req = dma_r_req_o.read();
 
-            for (int i = 0; i < dma_r_req(DMA_R_REQ_BURST); ++i) {
-               integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req(DMA_R_REQ_OFFSET)) + i * 64));
-               dbuff_in_raw_t dbuff_in;
-               dbuff_in(DBUFF_IN_DATA)     = chunk;
-               dbuff_in(DBUFF_IN_DBUFF_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
-               dbuff_in(DBUFF_IN_RPC_ID)   = dma_r_req(DMA_R_REQ_RPC_ID);
-               dbuff_in(DBUFF_IN_CHUNK)    = dma_r_req(DMA_R_REQ_OFFSET) + i;
-               dbuff_in(DBUFF_IN_MSG_LEN)  = dma_r_req(DMA_R_REQ_MSG_LEN);
-            // std::cerr << "MESSAGE LEN DMA R REQ " << dma_r_req(DMA_R_REQ_MSG_LEN) << std::endl;
+	    integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req(DMA_R_REQ_OFFSET))));
+	    // std::cerr << "OFFSET " <<  dma_r_req(DMA_R_REQ_OFFSET) << std::endl;
+            dbuff_in_raw_t dbuff_in;
+            dbuff_in(DBUFF_IN_DATA)     = chunk;
+            dbuff_in(DBUFF_IN_DBUFF_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
+            dbuff_in(DBUFF_IN_RPC_ID)   = dma_r_req(DMA_R_REQ_RPC_ID);
+            dbuff_in(DBUFF_IN_OFFSET)    = dma_r_req(DMA_R_REQ_OFFSET);
+            dbuff_in(DBUFF_IN_MSG_LEN)  = dma_r_req(DMA_R_REQ_MSG_LEN);
 
-               dbuff_in(DBUFF_IN_LAST)    = (i == (dma_r_req(DMA_R_REQ_BURST)-1));
+            // dbuff_in(DBUFF_IN_LAST)    = (i == (dma_r_req(DMA_R_REQ_BURST)-1));
 
-               dma_resp_i.write(dbuff_in);
-            }
+            dma_resp_i.write(dbuff_in);
+
+            //for (int i = 0; i < dma_r_req(DMA_R_REQ_BURST); ++i) {
+            //   integral_t chunk = *((integral_t*) (maxi_in + ((ap_uint<32>) dma_r_req(DMA_R_REQ_OFFSET)) + i * 64));
+            //   dbuff_in_raw_t dbuff_in;
+            //   dbuff_in(DBUFF_IN_DATA)     = chunk;
+            //   dbuff_in(DBUFF_IN_DBUFF_ID) = dma_r_req(DMA_R_REQ_DBUFF_ID);
+            //   dbuff_in(DBUFF_IN_RPC_ID)   = dma_r_req(DMA_R_REQ_RPC_ID);
+            //   dbuff_in(DBUFF_IN_OFFSET)    = dma_r_req(DMA_R_REQ_OFFSET) + (i * 64);
+            //   dbuff_in(DBUFF_IN_MSG_LEN)  = dma_r_req(DMA_R_REQ_MSG_LEN);
+
+            //   dbuff_in(DBUFF_IN_LAST)    = (i == (dma_r_req(DMA_R_REQ_BURST)-1));
+
+            //   dma_resp_i.write(dbuff_in);
+            //}
          }
 
          if (!dma_w_req_o.empty()) {
