@@ -52,61 +52,6 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
     } 
 }
 
-//void dma_req(hls::stream<dma_r_req_raw_t> & sendmsg_reqs_i,
-//	     hls::stream<dma_r_req_raw_t> & refresh_reqs_i,
-//	     hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
-//
-//    if (!refresh_reqs_i.empty()) {
-//	dma_r_req_raw_t dma_r_req = refresh_reqs_i.read();
-//	dma_r_req_o.write(dma_r_req);
-//    } else if (!sendmsg_reqs_i.empty()) {
-//	dma_r_req_raw_t dma_r_req = sendmsg_reqs_i.read();
-//	dma_r_req_o.write(dma_r_req);
-//    }
-//}
-
-//void onboard_send(hls::stream<onboard_send_t> & onboard_send_i,
-//		   hls::stream<onboard_send_t> & onboard_send_o,
-//		   hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
-//
-//    static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
-//
-//    /* TODO There should be a priority queue here for sendmsg requests
-//     * ordered based on the number of bytes left to buffer, bounded by
-//     * the max cache size though
-//     *
-//     * TODO should also stall the onboard message until data is availible
-//     */
-//    static fifo_t<dma_r_req_raw_t, 128> pending_requests;
-//
-//    if (!onboard_send_i.empty() && !pending_requests.full()) {
-//	onboard_send_t onboard_send = onboard_send_i.read();
-//
-//	dma_r_req_raw_t dma_r_req;
-//    	dma_r_req(DMA_R_REQ_OFFSET)   = onboard_send.iov;
-//    	dma_r_req(DMA_R_REQ_BURST)    = MIN((ap_uint<32>) MAX_INIT_CACHE_BURST, onboard_send.iov_size);
-//    	dma_r_req(DMA_R_REQ_MSG_LEN)  = onboard_send.iov_size;
-//    	dma_r_req(DMA_R_REQ_DBUFF_ID) = onboard_send.dbuff_id;
-//    	dma_r_req(DMA_R_REQ_RPC_ID)   = onboard_send.local_id;
-//
-//    	pending_requests.insert(dma_r_req);
-//
-//	onboard_send_o.write(onboard_send);
-//    }
-//
-//    if (!rebuffer_i.empty()) {
-//	dma_r_req_o.write(rebuffer_i.read());
-//    } else if (!pending_requests.empty()){
-//	dma_r_req_raw_t & dma_r_req = pending_requests.head();
-//	// TODO decrement and check for completion
-//	dma_r_req_o.write(dma_r_req);
-//
-//	dma_r_req(DMA_R_REQ_OFFSET) = dma_r_req(DMA_R_REQ_OFFSET) + DBUFF_CHUNK_SIZE;
-//
-//	if (dma_r_req(DMA_R_REQ_OFFSET) >= dma_r_req(DMA_R_REQ_BURST)) pending_requests.remove();
-//    }
-//}
-
 /**
  * dbuff_egress() - Augment outgoing packet chunks with packet data
  * @dbuff_egress_i - Input stream of data that needs to be inserted into the on-chip
@@ -120,10 +65,9 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
  * until the final chunk in a packet is placed on the link with the "last" bit
  * set, indicating a completiton of packet transmission.
  */
-void msg_cache(hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
+void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 	       hls::stream<srpt_dbuff_notif_t> & dbuff_notif_o,
-	       hls::stream<dma_r_req_raw_t> & sendmsg_req_i,
-	       hls::stream<dma_r_req_raw_t> & dma_r_req_o,
+	       hls::stream<dma_r_req_t> & dma_r_req_o,
 	       hls::stream<out_chunk_t> & out_chunk_i,
 	       hls::stream<out_chunk_t> & out_chunk_o) {
 
@@ -136,17 +80,20 @@ void msg_cache(hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
 #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
     // Take input chunks and add them to the data buffer
-    dbuff_in_raw_t dbuff_in;
+    dbuff_in_t dbuff_in;
     if (dbuff_egress_i.read_nb(dbuff_in)) {
-	dbuff_coffset_t chunk_offset = (dbuff_in(DBUFF_IN_OFFSET) % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
-	dbuff[dbuff_in(DBUFF_IN_DBUFF_ID)].data[chunk_offset] = dbuff_in(DBUFF_IN_DATA);
+	dbuff_coffset_t chunk_offset = (dbuff_in.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
+	dbuff[dbuff_in.dbuff_id].data[chunk_offset] = dbuff_in.data;
 
-	ap_uint<32> dbuffered = dbuff_in(DBUFF_IN_MSG_LEN) - MIN(dbuff_in(DBUFF_IN_OFFSET), dbuff_in(DBUFF_IN_MSG_LEN));
+	// std::cerr << "DBUFF IN OFFSET " << dbuff_in.offset << std::endl;
+	// std::cerr << "DBUFF IN LENG " << dbuff_in.msg_len << std::endl;
 
-	// TODO THIS IS A PROBLEM!
-	if (dbuff_in(DBUFF_IN_LAST)) {
+	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.offset + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
+
+	if (dbuff_in.last) {
+	    // std::cerr << "SEND NOTIF\n";
 	    srpt_dbuff_notif_t dbuff_notif;
-	    dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in(DBUFF_IN_RPC_ID);
+	    dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in.local_id;
 	    dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) = dbuffered;
 	    dbuff_notif_o.write(dbuff_notif);
 	}
@@ -167,7 +114,6 @@ void msg_cache(hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
 
 	    // TODO would be nice to reduce what is needed here
 
-
 	    switch(out_chunk.data_bytes) {
 		case ALL_DATA: {
 		    out_chunk.buff(511, 0) = double_buff(((byte_offset + ALL_DATA) * 8)-1, byte_offset * 8);
@@ -183,18 +129,15 @@ void msg_cache(hls::stream<dbuff_in_raw_t> & dbuff_egress_i,
 
 	out_chunk_o.write(out_chunk);
     }
-   
-    if (out_chunk.local_id !=0 && (out_chunk.offset + (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) >= out_chunk.length) {
-	dma_r_req_raw_t dma_r_req;
-	dma_r_req(DMA_R_REQ_OFFSET)   = out_chunk.offset + DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS;
-	dma_r_req(DMA_R_REQ_MSG_LEN)  = out_chunk.length;
-	dma_r_req(DMA_R_REQ_DBUFF_ID) = out_chunk.dbuff_id;
-	dma_r_req(DMA_R_REQ_RPC_ID)   = out_chunk.local_id;
-	// std::cerr << "CHUNK REQ\n";
-    } else if (!sendmsg_req_i.empty()) {
-	dma_r_req_raw_t dma_r_req = sendmsg_req_i.read();
-	dma_r_req_o.write(dma_r_req);
-	// std::cerr << "SENDMSG REQ\n";
-    }
 
+    // TODO can move this back in
+    if (out_chunk.local_id !=0 && (out_chunk.offset + (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) < out_chunk.length) {
+	// std::cerr << "SUBMITTING REQUEST\n";
+	dma_r_req_t dma_r_req;
+	dma_r_req.offset   = out_chunk.offset + DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS;
+	dma_r_req.msg_len  = out_chunk.length;
+	dma_r_req.dbuff_id = out_chunk.dbuff_id;
+	dma_r_req.local_id = out_chunk.local_id;
+	dma_r_req_o.write(dma_r_req);
+    } 
 }

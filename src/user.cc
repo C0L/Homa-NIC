@@ -24,6 +24,8 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 
     if (!msghdr_recv_i.empty()) {
 	msghdr_recv_t msghdr_recv = msghdr_recv_i.read();
+
+	std::cerr << "NEW RECV IN\n";
       
 	msghdr_recv_t match;
 	uint32_t match_index = -1;
@@ -61,7 +63,10 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     }
 
     if (!header_in_i.empty()) {
+
 	header_t header_in = header_in_i.read();
+
+	std::cerr << "NEW HEADER IN\n";
 
 	msghdr_recv_t new_msg;
 
@@ -74,6 +79,8 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	new_msg(MSGHDR_RECV_ID)    = header_in.local_id; 
 	new_msg(MSGHDR_RECV_CC)    = header_in.completion_cookie; // TODO
 	new_msg(MSGHDR_RECV_FLAGS) = IS_CLIENT(header_in.id) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
+
+	std::cerr << "HEADER IN ID " << header_in.id << std::endl;
 
 	uint32_t match_index = -1;
 
@@ -119,7 +126,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 		  hls::stream<msghdr_send_t> & msghdr_send_o,
 		  hls::stream<onboard_send_t> & onboard_send_o,
-                  hls::stream<dma_r_req_raw_t> & dma_r_req_o) {
+                  hls::stream<dma_r_req_t> & dma_r_req_o) {
 
 #pragma HLS pipeline II=1
     static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
@@ -133,7 +140,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
      * TODO should also stall the onboard message until data is availible
      * Maybe handle this in srpt core though? IDK.
      */
-    static fifo_t<dma_r_req_raw_t, 128> pending_requests;
+    static fifo_t<dma_r_req_t, 128> pending_requests;
 
     if (!msghdr_send_i.empty()) {
 	msghdr_send_t msghdr_send = msghdr_send_i.read();
@@ -146,6 +153,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 	onboard_send.iov        = msghdr_send(MSGHDR_IOV);
 	onboard_send.iov_size   = msghdr_send(MSGHDR_IOV_SIZE);
 	onboard_send.cc         = msghdr_send(MSGHDR_SEND_CC);
+	onboard_send.dbuffered  = msghdr_send(MSGHDR_IOV_SIZE);
 	onboard_send.dbuff_id   = dbuff_stack.pop();
 
 	/* If the caller provided an ID of 0 this is a request message and we
@@ -154,8 +162,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 	 */
 	if (msghdr_send(MSGHDR_SEND_ID) == 0) {
 	    // Generate a new local ID, and set the RPC ID to be that
-	    onboard_send.local_id = SEND_RPC_ID_FROM_INDEX(send_ids.pop());
-	    std::cerr << SEND_INDEX_FROM_RPC_ID(onboard_send.local_id) << std::endl;
+	    onboard_send.local_id = SEND_RPC_ID_FROM_INDEX(send_ids.pop() + MAX_RPCS/2);
 	    onboard_send.id       = onboard_send.local_id;
 	    msghdr_send(MSGHDR_SEND_ID) = onboard_send.id;
 	}
@@ -164,33 +171,29 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 
 	onboard_send_o.write(onboard_send);
 
-	dma_r_req_raw_t dma_r_req;
-	dma_r_req(DMA_R_REQ_OFFSET)   = onboard_send.iov;
-	dma_r_req(DMA_R_REQ_BURST)    = MIN((ap_uint<32>) MAX_INIT_CACHE_BURST, onboard_send.iov_size);
-	dma_r_req(DMA_R_REQ_MSG_LEN)  = onboard_send.iov_size;
-	dma_r_req(DMA_R_REQ_DBUFF_ID) = onboard_send.dbuff_id;
-	dma_r_req(DMA_R_REQ_RPC_ID)   = onboard_send.local_id;
+	dma_r_req_t dma_r_req;
+	dma_r_req.offset   = onboard_send.iov;
+	dma_r_req.burst    = MIN((ap_uint<32>) MAX_INIT_CACHE_BURST, onboard_send.iov_size);
+	dma_r_req.msg_len  = onboard_send.iov_size;
+	dma_r_req.dbuff_id = onboard_send.dbuff_id;
+	dma_r_req.local_id = onboard_send.local_id;
 
 	pending_requests.insert(dma_r_req);
-	std::cerr << "INSERT\n";
     }
 
     if (!pending_requests.empty()){
-	dma_r_req_raw_t & dma_r_req = pending_requests.head();
+	dma_r_req_t & dma_r_req = pending_requests.head();
 
-	// TODO need to reintroduce
-	// if ((dma_r_req(DMA_R_REQ_OFFSET) + DBUFF_CHUNK_SIZE) >= dma_r_req(DMA_R_REQ_BURST)) {
-	    // dma_r_req(DMA_R_REQ_LAST) = 1;
-	// }
+	if ((dma_r_req.offset + DBUFF_CHUNK_SIZE) >= dma_r_req.burst) {
+	    std::cerr << "SET LAST\n";
+	    dma_r_req.last = 1;
+	}
 
 	dma_r_req_o.write(dma_r_req);
 
-	dma_r_req(DMA_R_REQ_OFFSET) = dma_r_req(DMA_R_REQ_OFFSET) + DBUFF_CHUNK_SIZE;
+	dma_r_req.offset = dma_r_req.offset + DBUFF_CHUNK_SIZE;
 
-	std::cerr << dma_r_req(DMA_R_REQ_BURST) << std::endl;
-	std::cerr << dma_r_req(DMA_R_REQ_OFFSET) << std::endl;
-	if (dma_r_req(DMA_R_REQ_OFFSET) >= dma_r_req(DMA_R_REQ_BURST)) {
-	    std::cerr << "REMOVE\n";
+	if (dma_r_req.offset >= dma_r_req.burst) {
 	    pending_requests.remove();
 	}
     }

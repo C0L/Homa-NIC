@@ -287,7 +287,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
     // For every type of homa packet we need to read at least two blocks
     if (processed_bytes == 0) {
-	processed_bytes += 64;
 
 	header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
 
@@ -297,11 +296,11 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 	header_in.dport          = natural_chunk(CHUNK_HOMA_COMMON_DPORT);
 
     } else if (processed_bytes == 64) {
-	processed_bytes += 64;
 
 	header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
 	header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
 	header_in.id   = LOCALIZE_ID(header_in.id);
+	std::cerr << "PARSED ID IN " << header_in.id << std::endl
 
 	switch(header_in.type) {
 	    case GRANT: {
@@ -339,6 +338,8 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
 	chunk_in_o.write(data_block);
     }
+
+    processed_bytes += 64;
 
     if (raw_stream.last) {
 	processed_bytes = 0;

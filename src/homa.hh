@@ -58,31 +58,13 @@
 #define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
 #define RTT_BYTES (ap_uint<32>) 5000
 
-/* DMA Configuration */
-
-#define DMA_R_REQ_SIZE     122
-#define DMA_R_REQ_OFFSET   31,0
-#define DMA_R_REQ_BURST    63,32
-#define DMA_R_REQ_MSG_LEN  95,64
-#define DMA_R_REQ_DBUFF_ID 105,96
-#define DMA_R_REQ_RPC_ID   121,106
-
-typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_raw_t;
-
-#define DMA_W_REQ_SIZE   544
-#define DMA_W_REQ_OFFSET 31,0
-#define DMA_W_REQ_BLOCK  543,32
-
-typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
-
-#define MAX_INIT_CACHE_BURST 16384 // Number of initial 64 Byte chunks to cache for a message
-                           
+		  
 typedef ap_uint<8> homa_packet_type;
 
 enum data_bytes_e {
-   NO_DATA      = 0,
-   ALL_DATA     = 64,
-   PARTIAL_DATA = 14,
+    NO_DATA      = 0,
+    ALL_DATA     = 64,
+    PARTIAL_DATA = 14,
 };
 
 /* Peer Tab Configuration */
@@ -94,11 +76,11 @@ enum data_bytes_e {
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
 struct peer_hashpack_t {
-   ap_uint<128> s6_addr;
+    ap_uint<128> s6_addr;
 #define PEER_HP_SIZE 4
-   bool operator==(const peer_hashpack_t & other) const {
-      return (s6_addr == other.s6_addr); 
-   }
+    bool operator==(const peer_hashpack_t & other) const {
+	return (s6_addr == other.s6_addr); 
+    }
 };
 
 /* RPC Store Configuration */
@@ -173,28 +155,28 @@ typedef ap_uint<SRPT_GRANT_NOTIF_SIZE> srpt_grant_notif_t;
 typedef ap_uint<10> packetmap_idx_t;
 
 struct packetmap_t {
-  packetmap_idx_t head;
-  packetmap_idx_t length;
-  ap_uint<64> map;
+    packetmap_idx_t head;
+    packetmap_idx_t length;
+    ap_uint<64> map;
 };
 
 struct touch_t {
-  local_id_t rpc_id;
+    local_id_t rpc_id;
 
-  bool init;
+    bool init;
 
-  // Bit to set in packet map
-  packetmap_idx_t offset;
+    // Bit to set in packet map
+    packetmap_idx_t offset;
 
-  // Total length of the message
-  packetmap_idx_t length;
+    // Total length of the message
+    packetmap_idx_t length;
 };
 
 struct rexmit_t {
-  local_id_t rpc_id;
+    local_id_t rpc_id;
 
-  // Bit to set in packet map
-  packetmap_idx_t offset;
+    // Bit to set in packet map
+    packetmap_idx_t offset;
 };
 
 /* The homa core writes out packets in 64B units. As a result, we need to know
@@ -287,34 +269,43 @@ typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
 typedef ap_uint<DBUFF_IN_SIZE> dbuff_in_raw_t;
 
+struct dbuff_in_t {
+    integral_t data;
+    dbuff_id_t dbuff_id;
+    local_id_t local_id;
+    ap_uint<32> offset;
+    ap_uint<32> msg_len;
+    ap_uint<1> last;
+};
+
 struct in_chunk_t {
-   integral_t  buff;   // Data to be written to DMA
-   ap_uint<32> offset; // Byte offset of this chunk in msg
-   ap_uint<1>  last;   // 1 to notify srpt_data_queue
+    integral_t  buff;   // Data to be written to DMA
+    ap_uint<32> offset; // Byte offset of this chunk in msg
+    ap_uint<1>  last;   // 1 to notify srpt_data_queue
 };
 
 struct out_chunk_t {
-   homa_packet_type type;   // What is the type of this outgoing packet
-   dbuff_id_t dbuff_id;     // Which data buffer is the message stored in
-   local_id_t local_id;     // What is the RPC ID associated with this message
-   ap_uint<32> offset;      // What byte offset is this output chunk for
-   ap_uint<32> length;      // What is the total length of this message
-   data_bytes_e data_bytes; // How many data bytes to add to this block
-   integral_t buff;         // Data to be sent onto the link
-   ap_uint<1> last;         // Is this the last chunk in the sequence
+    homa_packet_type type;   // What is the type of this outgoing packet
+    dbuff_id_t dbuff_id;     // Which data buffer is the message stored in
+    local_id_t local_id;     // What is the RPC ID associated with this message
+    ap_uint<32> offset;      // What byte offset is this output chunk for
+    ap_uint<32> length;      // What is the total length of this message
+    data_bytes_e data_bytes; // How many data bytes to add to this block
+    integral_t buff;         // Data to be sent onto the link
+    ap_uint<1> last;         // Is this the last chunk in the sequence
 };
 
 
 struct homa_rpc_t {
-   ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
-   ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
-   ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
-   ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg)
-   ap_uint<64>  id;       // RPC ID (potentially not local)
-   ap_uint<32>  iov_size; // 
-   ap_uint<32>  iov;      // 
-   dbuff_id_t   obuff_id; // ID for outgoing data
-   dbuff_id_t   ibuff_id; // ID for incoming data
+    ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
+    ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<64>  id;       // RPC ID (potentially not local)
+    ap_uint<32>  iov_size; // 
+    ap_uint<32>  iov;      // 
+    dbuff_id_t   obuff_id; // ID for outgoing data
+    dbuff_id_t   ibuff_id; // ID for incoming data
 };
 
 #define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg)
@@ -345,95 +336,119 @@ typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
 #define MAX_HDR_MATCH  1024
 
 struct recv_interest_t {
-  ap_uint<16>  sport; // Port of the caller
-  ap_uint<32>  flags; // Interest list
-  ap_uint<64>  id;    // ID of interest
+    ap_uint<16>  sport; // Port of the caller
+    ap_uint<32>  flags; // Interest list
+    ap_uint<64>  id;    // ID of interest
 };
 
 struct onboard_send_t {
-   ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
-   ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
-   ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg) 
-   ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
-   ap_uint<32>  iov;      // Message contents DMA offset
-   ap_uint<32>  iov_size; // Size of message in DMA space 
+    ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
+    ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg) 
+    ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<32>  iov;      // Message contents DMA offset
+    ap_uint<32>  iov_size; // Size of message in DMA space 
 
-   ap_uint<64>  id;    // RPC identifier 
-   ap_uint<64>  cc;    // Completion Cookie
+    ap_uint<64>  id;    // RPC identifier 
+    ap_uint<64>  cc;    // Completion Cookie
 
-   ap_uint<32> dbuffered;
-   ap_uint<32> granted;
-   local_id_t  local_id; // Local RPC ID 
-   dbuff_id_t  dbuff_id; // Data buffer ID for outgoing data
-   peer_id_t   peer_id;  // Local ID for this destination address
+    ap_uint<32> dbuffered;
+    ap_uint<32> granted;
+    local_id_t  local_id; // Local RPC ID 
+    dbuff_id_t  dbuff_id; // Data buffer ID for outgoing data
+    peer_id_t   peer_id;  // Local ID for this destination address
 };
 
 
 /* forwarding structures */
 struct header_t {
-   // Local Values
-   local_id_t  local_id;           // ID within RPC State
-   peer_id_t   peer_id;            // ID of this peer
-   dbuff_id_t  obuff_id;           // ID of buffer of data to send
-   dbuff_id_t  ibuff_id;           // ID of buffer for received data
-   ap_uint<64> completion_cookie;  // Cookie from the origin sendmsg
-   ap_uint<32> packet_bytes;
+    // Local Values
+    local_id_t  local_id;           // ID within RPC State
+    peer_id_t   peer_id;            // ID of this peer
+    dbuff_id_t  obuff_id;           // ID of buffer of data to send
+    dbuff_id_t  ibuff_id;           // ID of buffer for received data
+    ap_uint<64> completion_cookie;  // Cookie from the origin sendmsg
+    ap_uint<32> packet_bytes;
 
-   // IPv6 + Common Header
-   ap_uint<16>      payload_length;
-   ap_uint<128>     saddr;
-   ap_uint<128>     daddr;
-   ap_uint<16>      sport;
-   ap_uint<16>      dport;
-   homa_packet_type type;
-   ap_uint<64>      id;
+    // IPv6 + Common Header
+    ap_uint<16>      payload_length;
+    ap_uint<128>     saddr;
+    ap_uint<128>     daddr;
+    ap_uint<16>      sport;
+    ap_uint<16>      dport;
+    homa_packet_type type;
+    ap_uint<64>      id;
 
-   // Data Header
-   ap_uint<32> message_length; 
-   ap_uint<32> incoming;
-   ap_uint<16> cutoff_version;
-   ap_uint<8>  retransmit;
+    // Data Header
+    ap_uint<32> message_length; 
+    ap_uint<32> incoming;
+    ap_uint<16> cutoff_version;
+    ap_uint<8>  retransmit;
 
-   // Data Segment
-   ap_uint<32> data_offset;
-   ap_uint<32> segment_length;
+    // Data Segment
+    ap_uint<32> data_offset;
+    ap_uint<32> segment_length;
 
-   // Ack Header
-   ap_uint<64> client_id;
-   ap_uint<16> client_port;
-   ap_uint<16> server_port;
+    // Ack Header
+    ap_uint<64> client_id;
+    ap_uint<16> client_port;
+    ap_uint<16> server_port;
 
-   // Grant Header
-   ap_uint<32> grant_offset;
-   ap_uint<8>  priority;
+    // Grant Header
+    ap_uint<32> grant_offset;
+    ap_uint<8>  priority;
 };
+
+/* DMA Configuration */
+
+#define DMA_R_REQ_SIZE     122
+#define DMA_R_REQ_OFFSET   31,0
+#define DMA_R_REQ_BURST    63,32
+#define DMA_R_REQ_MSG_LEN  95,64
+#define DMA_R_REQ_DBUFF_ID 105,96
+#define DMA_R_REQ_RPC_ID   121,106
+
+typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_raw_t;
+
+struct dma_r_req_t {
+    ap_uint<32> offset;
+    ap_uint<32> burst; // TODO?
+    ap_uint<32> msg_len;
+    dbuff_id_t dbuff_id;
+    local_id_t local_id;
+    ap_uint<1> last;
+};
+
+#define DMA_W_REQ_SIZE   544
+#define DMA_W_REQ_OFFSET 31,0
+#define DMA_W_REQ_BLOCK  543,32
+
+typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
+
+#define MAX_INIT_CACHE_BURST 16384 // Number of initial 64 Byte chunks to cache for a message
 
 // WARNING: For C simulation only
 struct srpt_data_t {
-   local_id_t rpc_id;
-   dbuff_id_t dbuff_id;
-   ap_uint<32> remaining;
-   ap_uint<32> total;
+    local_id_t rpc_id;
+    dbuff_id_t dbuff_id;
+    ap_uint<32> remaining;
+    ap_uint<32> total;
 };
 
 // WARNING: For C simulation only
 struct srpt_grant_t {
-   peer_id_t peer_id;
-   local_id_t rpc_id;
-   ap_uint<32> recv_bytes;
-   ap_uint<32> grantable_bytes;
+    peer_id_t peer_id;
+    local_id_t rpc_id;
+    ap_uint<32> recv_bytes;
+    ap_uint<32> grantable_bytes;
 };
 
-extern "C"{
-   void homa(hls::stream<msghdr_send_t> & onboard_send_i,
-         hls::stream<msghdr_send_t>     & onboard_send_o,
-         hls::stream<msghdr_recv_t>     & onboard_recv_i,
-         hls::stream<msghdr_recv_t>     & onboard_recv_o,
-         hls::stream<dma_r_req_raw_t>   & dma_r_req_o,
-         hls::stream<dbuff_in_raw_t>    & dma_r_resp_i,
-         hls::stream<dma_w_req_raw_t>   & dma_w_req_o,
-         hls::stream<raw_stream_t>      & link_ingress,
-         hls::stream<raw_stream_t>      & link_egress);
-}
-
+void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+	  hls::stream<msghdr_send_t>     & msghdr_send_o,
+	  hls::stream<msghdr_recv_t>     & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t>     & msghdr_recv_o,
+	  const integral_t * maxi_in,
+	  hls::stream<dma_w_req_raw_t>   & dma_w_req_o,
+	  hls::stream<raw_stream_t>      & link_ingress,
+	  hls::stream<raw_stream_t>      & link_egress);
 #endif

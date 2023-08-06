@@ -52,8 +52,9 @@ SRC_C =                       \
     $(C_SRC_DIR)/fifo.hh     \
     $(C_SRC_DIR)/packetmap.hh \
     $(C_SRC_DIR)/packetmap.cc \
+    $(C_SRC_DIR)/dma.cc \
+    $(C_SRC_DIR)/dma.hh \
 
-    
 PART = xcvu9p-flgb2104-2-i
 
 CSIM = 0

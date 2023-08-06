@@ -34,6 +34,9 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
    if (!header_out_i.empty()) {
       header_t header_out = header_out_i.read();
 
+      std::cerr << "HEADER OUT LOCAL ID " << header_out.local_id << std::endl;
+      std::cerr << "HEADER OUT ACTUAL " << SEND_INDEX_FROM_RPC_ID(header_out.local_id) << std::endl;
+
       homa_rpc_t homa_rpc = rpcs[SEND_INDEX_FROM_RPC_ID(header_out.local_id)];
 
       header_out.daddr           = homa_rpc.daddr;
@@ -42,6 +45,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
       header_out.sport           = homa_rpc.sport;
       header_out.id              = homa_rpc.id;
       header_out.obuff_id        = homa_rpc.obuff_id;
+
+      std::cerr << "HEADER OUT ID " << header_out.id << std::endl;
 
       header_out.incoming       = homa_rpc.iov_size - header_out.incoming;
       header_out.data_offset    = homa_rpc.iov_size - header_out.data_offset;
@@ -53,12 +58,18 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
    /* R/W Paths */
    if (!header_in_i.empty()) {
       header_t header_in = header_in_i.read();
+
+      std::cerr << "READING INPUT ID " << RECV_INDEX_FROM_RPC_ID(header_in.local_id) << std::endl;
+      std::cerr << "HEADER IN ACTUAL " << RECV_INDEX_FROM_RPC_ID(header_in.local_id) << std::endl;
+
       homa_rpc_t homa_rpc = rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
 
       switch (header_in.type) {
          case DATA: {
+
             // TODO bad bad bad
             if (header_in.data_offset == 0) {
+		std::cerr << "SET\n";
                homa_rpc.saddr    = header_in.saddr;
                homa_rpc.daddr    = header_in.daddr;
                homa_rpc.dport    = header_in.dport;
@@ -66,9 +77,12 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
                homa_rpc.id       = header_in.id;
                homa_rpc.obuff_id = header_in.obuff_id;
             } else {
+		std::cerr << "GRABBED\n";
                header_in.id       = homa_rpc.id;
                header_in.obuff_id = homa_rpc.obuff_id;
             }
+
+	    std::cerr << "HEADER IN ID " << header_in.id << std::endl;
 
             if (header_in.message_length > header_in.incoming) { 
                srpt_grant_in_t grant_in;
@@ -111,6 +125,9 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
       homa_rpc.obuff_id        = onboard_send.dbuff_id;
       homa_rpc.id              = onboard_send.id;
 
+      std::cerr << "STORED SEND ID " << onboard_send.id << std::endl;
+
+      std::cerr << "HEADER IN ACTUAL " << SEND_INDEX_FROM_RPC_ID(onboard_send.local_id) << std::endl;
       rpcs[SEND_INDEX_FROM_RPC_ID(onboard_send.local_id)] = homa_rpc;
 
       srpt_data_in_t srpt_data_in;
@@ -198,12 +215,17 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
          // Check if this RPC is already registered
          rpc_hashpack_t rpc_query = {header_in.saddr, header_in.id, header_in.sport, 0};
+
+	 std::cerr << "HASH0 " << header_in.saddr << std::endl;
+	 std::cerr << "HASH1 " <<  header_in.id << std::endl;
+	 std::cerr << "HASH2 " << header_in.sport << std::endl;
+
          header_in.local_id = rpc_hashmap.search(rpc_query);
 
          // If the rpc is not registered, generate a new RPC ID and register it 
          if (header_in.local_id == 0) {
 	     header_in.local_id = RECV_RPC_ID_FROM_INDEX(recv_ids.pop());
-	     std::cerr << RECV_INDEX_FROM_RPC_ID(header_in.local_id) << std::endl;
+	     std::cerr << "GENERATED ID " << header_in.local_id << std::endl;
 	     entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
 	     rpc_hashmap.queue(rpc_entry);
          }

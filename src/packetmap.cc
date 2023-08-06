@@ -42,7 +42,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
          packetmap.head = 0;
          packetmap.length = (header_in.message_length / HOMA_PAYLOAD_SIZE);
       } else {
-         packetmap = packetmaps[header_in.local_id];
+	 packetmap = packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
       }
 
       // TODO need to convert to bit index
@@ -70,8 +70,8 @@ void packetmap(hls::stream<header_t> & header_in_i,
             //last_touches[header_in.local_id] = 0;
          }
 
-         packetmaps[header_in.local_id] = packetmap;
-
+         packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = packetmap;
+	 std::cerr << "PACKET MAP OUT WITH ID " << header_in.id << std::endl;
       }
    }
 
