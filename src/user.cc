@@ -25,13 +25,11 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     if (!msghdr_recv_i.empty()) {
 	msghdr_recv_t msghdr_recv = msghdr_recv_i.read();
 
-	std::cerr << "NEW RECV IN\n";
-      
 	msghdr_recv_t match;
 	uint32_t match_index = -1;
 
 	for (uint32_t i = 0; i < recv_head; ++i) {
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
 	    // Is there a match
 	    if (msgs[i](MSGHDR_SPORT) == msghdr_recv(MSGHDR_SPORT)
 		&& msgs[i](MSGHDR_RECV_FLAGS) & msghdr_recv(MSGHDR_RECV_FLAGS) == 1) {
@@ -66,8 +64,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 
 	header_t header_in = header_in_i.read();
 
-	std::cerr << "NEW HEADER IN\n";
-
 	msghdr_recv_t new_msg;
 
 	new_msg(MSGHDR_SADDR)      = header_in.saddr;
@@ -79,8 +75,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	new_msg(MSGHDR_RECV_ID)    = header_in.local_id; 
 	new_msg(MSGHDR_RECV_CC)    = header_in.completion_cookie; // TODO
 	new_msg(MSGHDR_RECV_FLAGS) = IS_CLIENT(header_in.id) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
-
-	std::cerr << "HEADER IN ID " << header_in.id << std::endl;
 
 	uint32_t match_index = -1;
 
@@ -127,8 +121,8 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 		  hls::stream<msghdr_send_t> & msghdr_send_o,
 		  hls::stream<onboard_send_t> & onboard_send_o,
                   hls::stream<dma_r_req_t> & dma_r_req_o) {
-
-#pragma HLS pipeline II=1
+    // TODO reintroduce
+// #pragma HLS pipeline II=1
     static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
     static stack_t<local_id_t, MAX_RPCS/2> send_ids(true);
@@ -185,7 +179,6 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 	dma_r_req_t & dma_r_req = pending_requests.head();
 
 	if ((dma_r_req.offset + DBUFF_CHUNK_SIZE) >= dma_r_req.burst) {
-	    std::cerr << "SET LAST\n";
 	    dma_r_req.last = 1;
 	}
 

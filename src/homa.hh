@@ -425,6 +425,11 @@ struct dma_r_req_t {
 
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
 
+struct dma_w_req_t {
+    integral_t data;
+    ap_uint<32> offset;
+};
+
 #define MAX_INIT_CACHE_BURST 16384 // Number of initial 64 Byte chunks to cache for a message
 
 // WARNING: For C simulation only
@@ -444,11 +449,11 @@ struct srpt_grant_t {
 };
 
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
-	  hls::stream<msghdr_send_t>     & msghdr_send_o,
-	  hls::stream<msghdr_recv_t>     & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t>     & msghdr_recv_o,
-	  const integral_t * maxi_in,
-	  hls::stream<dma_w_req_raw_t>   & dma_w_req_o,
-	  hls::stream<raw_stream_t>      & link_ingress,
-	  hls::stream<raw_stream_t>      & link_egress);
+	  hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
+	  const integral_t           * maxi_in,
+	  integral_t                 * maxi_out,
+	  hls::stream<raw_stream_t>  & link_ingress,
+	  hls::stream<raw_stream_t>  & link_egress);
 #endif

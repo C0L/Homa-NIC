@@ -8,7 +8,7 @@
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
-void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
+void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_raw_i,
       hls::stream<srpt_dbuff_notif_t> & dbuff_notif_raw_i,
       hls::stream<srpt_data_out_t> & data_pkt_raw_o,
       hls::stream<srpt_grant_notif_t> & grant_notif_raw_i) {
@@ -16,13 +16,8 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
    static srpt_data_in_t entries[MAX_RPCS];
 
    if (!dbuff_notif_raw_i.empty()) {
-       std::cerr << "DBUFF NOTIF IN\n";
       srpt_dbuff_notif_t dbuff_notif = dbuff_notif_raw_i.read();
       entries[SEND_INDEX_FROM_RPC_ID(dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID))](SRPT_DATA_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
-      //std::cerr << dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) << std::endl;
-      //std::cerr << dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) << std::endl;
-      //std::cerr << entries[dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID)](SRPT_DATA_DBUFFERED) << std::endl;
-      //std::cerr << entries[dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID)](SRPT_DATA_GRANTED) << std::endl;
    }
 
    if (!grant_notif_raw_i.empty()) {
@@ -30,17 +25,10 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
       entries[SEND_INDEX_FROM_RPC_ID(header_in(SRPT_GRANT_NOTIF_RPC_ID))](SRPT_DATA_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
    }
 
-   if (!sendmsg_i.empty()) {
+   if (!sendmsg_raw_i.empty()) {
 
-      srpt_data_in_t sendmsg = sendmsg_i.read();
+      srpt_data_in_t sendmsg = sendmsg_raw_i.read();
 
-      std::cerr << "sendmsg in \n";
-
-      std::cerr << sendmsg(SRPT_DATA_RPC_ID) << std::endl;
-      std::cerr << sendmsg(SRPT_DATA_REMAINING) << std::endl;
-      std::cerr << sendmsg(SRPT_DATA_DBUFFERED) << std::endl;
-      std::cerr << sendmsg(SRPT_DATA_GRANTED) << std::endl;
-      
       entries[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_DATA_RPC_ID))](SRPT_DATA_RPC_ID)    = sendmsg(SRPT_DATA_RPC_ID);
       entries[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_DATA_RPC_ID))](SRPT_DATA_REMAINING) = sendmsg(SRPT_DATA_REMAINING);
       entries[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_DATA_RPC_ID))](SRPT_DATA_DBUFFERED) = sendmsg(SRPT_DATA_DBUFFERED);
@@ -61,7 +49,6 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
          bool dbuffered = (entries[i](SRPT_DATA_DBUFFERED) + HOMA_PAYLOAD_SIZE <= entries[i](SRPT_DATA_REMAINING)) | (entries[i](SRPT_DATA_DBUFFERED) == 0);
 
          if (granted && dbuffered) {
-	     std::cerr << "MATCH\n";
             head = entries[i];
          }
       }
@@ -73,8 +60,6 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_i,
                                  ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head(SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE));
 
       data_pkt_raw_o.write(head);
-
-      std::cerr << "SENDMSG OUT\n";
 
       entries[SEND_INDEX_FROM_RPC_ID(head(SRPT_DATA_RPC_ID))](SRPT_DATA_REMAINING) = remaining;
 

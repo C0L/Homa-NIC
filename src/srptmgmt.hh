@@ -1,8 +1,6 @@
 #ifndef SRPTMGMT_H
 #define SRPTMGMT_H
 
-#include <iostream>
-
 #include "homa.hh"
 #include "rpcmgmt.hh"
 

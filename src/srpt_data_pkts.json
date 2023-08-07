@@ -12,7 +12,7 @@
 	],
 	"c_parameters":[
 		{
-			"c_name":"sendmsg_i",
+			"c_name":"sendmsg_raw_i",
 			"c_port_direction":"in",
 			"rtl_ports":{
 				"FIFO_empty_flag":"sendmsg_in_empty_i",

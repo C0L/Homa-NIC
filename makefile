@@ -28,9 +28,12 @@ SRC_V = \
 TB_V = \
         $(V_SRC_DIR)/srpt_grant_pkts.v
 
-SRC_JSON = \
-        $(V_SRC_DIR)/srpt_grant_pkts.json \
-        $(V_SRC_DIR)/srpt_data_pkts.json
+ SRC_JSON = $(V_SRC_DIR)/srpt_data_pkts.json
+
+
+# SRC_JSON = \
+#         $(V_SRC_DIR)/srpt_grant_pkts.json \
+#         $(V_SRC_DIR)/srpt_data_pkts.json
 
 SRC_C =                       \
     $(C_SRC_DIR)/databuff.cc  \
@@ -61,8 +64,12 @@ CSIM = 0
 SYNTH = 1
 COSIM = 2
 
-############ Vitis C Synth ############ 
+############ Bitstream  Gen ############
 
+homa: synth
+	$(VIVADO) -mode batch -source tcl/compile.tcl
+
+############ Vitis C Synth ############ 
 synth:
 	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
 

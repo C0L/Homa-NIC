@@ -89,19 +89,19 @@
  */
 module srpt_data_pkts #(parameter MAX_SRPT = 1024)
      (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
-      input                            sendmsg_in_empty_i,
-      output reg                       sendmsg_in_read_en_o,
+      input			       sendmsg_in_empty_i,
+      output reg		       sendmsg_in_read_en_o,
       input [`SRPT_DATA_SIZE-1:0]      sendmsg_in_data_i,
+      input			       dbuff_in_empty_i,
+      output reg		       dbuff_in_read_en_o,
+      input [`DBUFF_SIZE-1:0]	       dbuff_in_data_i,
+      input			       data_pkt_full_i,
+      output reg		       data_pkt_write_en_o,
+      output reg [`SRPT_DATA_SIZE-1:0] data_pkt_data_o,
       input                            grant_in_empty_i,
       output reg                       grant_in_read_en_o,
       input [`GRANT_SIZE-1:0]          grant_in_data_i,
-      input                            dbuff_in_empty_i,
-      output reg                       dbuff_in_read_en_o,
-      input [`DBUFF_SIZE-1:0]          dbuff_in_data_i,
-      input                            data_pkt_full_i,
-      output reg                       data_pkt_write_en_o,
-      output reg [`SRPT_DATA_SIZE-1:0] data_pkt_data_o, 
-      output                         ap_idle, ap_done, ap_ready);
+      output			       ap_idle, ap_done, ap_ready);
 
    reg [`ENTRY_SIZE-1:0]        srpt_queue[MAX_SRPT-1:0];
    reg [`ENTRY_SIZE-1:0]        srpt_odd  [MAX_SRPT-1:0]; 
@@ -261,337 +261,338 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
 
 endmodule
 
+
 /**
  * srpt_grant_pkts_tb() - Test bench for srpt data queue
  */
 /* verilator lint_off STMTDLY */
-module srpt_data_pkts_tb();
-
-   reg ap_clk=0;
-   reg ap_rst;
-   reg ap_ce;
-   reg ap_start;
-   reg ap_continue;
-
-   wire	ap_idle;
-   wire	ap_done;
-   wire	ap_ready;
-
-   reg                      sendmsg_in_empty_i;
-   wire                     sendmsg_in_read_en_o;
-   reg [`SRPT_DATA_SIZE-1:0]    sendmsg_in_data_i;
-
-   reg                      grant_in_empty_i;
-   wire                     grant_in_read_en_o;
-   reg [`GRANT_SIZE-1:0]    grant_in_data_i;
-
-   reg                      dbuff_in_empty_i;
-   wire                     dbuff_in_read_en_o;
-   reg [`DBUFF_SIZE-1:0]    dbuff_in_data_i;
-
-   reg                      data_pkt_full_i;
-   wire                     data_pkt_write_en_o;
-   wire [`SRPT_DATA_SIZE-1:0] data_pkt_data_o;
-
-   srpt_data_pkts srpt_queue(.ap_clk(ap_clk), 
-			      .ap_rst(ap_rst), 
-			      .ap_ce(ap_ce), 
-			      .ap_start(ap_start), 
-			      .ap_continue(ap_continue), 
-               .sendmsg_in_empty_i(sendmsg_in_empty_i),
-               .sendmsg_in_read_en_o(sendmsg_in_read_en_o),
-               .sendmsg_in_data_i(sendmsg_in_data_i),
-               .grant_in_empty_i(grant_in_empty_i),
-               .grant_in_read_en_o(grant_in_read_en_o),
-               .grant_in_data_i(grant_in_data_i),
-               .dbuff_in_empty_i(dbuff_in_empty_i),
-               .dbuff_in_read_en_o(dbuff_in_read_en_o),
-               .dbuff_in_data_i(dbuff_in_data_i),
-               .data_pkt_full_i(data_pkt_full_i),
-               .data_pkt_write_en_o(data_pkt_write_en_o),
-               .data_pkt_data_o(data_pkt_data_o),
-			      .ap_idle(ap_idle),
-			      .ap_done(ap_done), 
-			      .ap_ready(ap_ready));
-
-   task new_entry(input [15:0] rpc_id, input [19:0] remaining, granted, dbuffered);
-      begin
-      
-	   sendmsg_in_data_i[`SRPT_DATA_RPC_ID]    = rpc_id;
-	   sendmsg_in_data_i[`SRPT_DATA_REMAINING] = remaining;
-	   sendmsg_in_data_i[`SRPT_DATA_GRANTED]   = granted;
-	   sendmsg_in_data_i[`SRPT_DATA_DBUFFERED] = dbuffered;
-
-	   sendmsg_in_empty_i  = 1;
-
-	   #5;
-	   
-	   sendmsg_in_empty_i  = 0;
-   
-      end
-      
-   endtask
-
-   task new_dbuff(input [15:0] rpc_id, input [19:0] dbuffered);
-      begin
-
-         dbuff_in_data_i[`DBUFF_RPC_ID]  = rpc_id;
-         dbuff_in_data_i[`DBUFF_OFFSET]  = dbuffered;
-         
-	      dbuff_in_empty_i  = 1;
-
-	      #5;
-	      
-	      dbuff_in_empty_i  = 0;
-   
-      end
-   endtask
-
-   task new_grant(input [15:0] rpc_id, input [19:0] granted);
-      begin
-
-         grant_in_data_i[`GRANT_RPC_ID] = rpc_id;
-         grant_in_data_i[`GRANT_OFFSET] = granted;
-         
-	      grant_in_empty_i  = 1;
-
-	      #5;
-	      
-	      grant_in_empty_i  = 0;
-   
-      end
-   endtask
-
-   task get_output();
-      begin
-         data_pkt_full_i = 1;
-	      #5;
-	      
-         data_pkt_full_i = 0;
-   
-      end
-   endtask
-
-   /* verilator lint_off INFINITELOOP */
-   
-   initial begin
-      ap_clk = 0;
-
-      forever begin
-	      #2.5 ap_clk = ~ap_clk;
-      end 
-   end
-   
-   initial begin
-      sendmsg_in_data_i = 0;
-      grant_in_data_i   = 0;
-      dbuff_in_data_i   = 0;
-
-	   sendmsg_in_empty_i  = 0;
-	   grant_in_empty_i    = 0;
-	   dbuff_in_empty_i    = 0;
-	   data_pkt_full_i     = 0;
-
-      // Send reset signal
-      ap_ce = 1; 
-      ap_rst = 0;
-      ap_start = 0;
-      ap_rst = 1;
-
-      #5;
-      ap_rst = 0;
-      ap_start = 1;
-
-      #5;
-      new_entry(1, 5000, 5000, 5000);
-
-      // Entry will block and no outputs will be sent
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      #20;
-      new_dbuff(1, 0);
-
-      // Entry is still blocked and no outputs will be sent
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-
-      #20;
-      new_grant(1, 0);
-
-      // Should give an output
-      get_output();
-
-      #20;
-      new_entry(9, 9000, 9000, 9000);
-      new_entry(8, 8000, 8000, 8000);
-      new_entry(7, 7000, 7000, 7000);
-      new_entry(6, 6000, 6000, 6000);
-      new_entry(5, 5000, 5000, 5000);
-      new_entry(4, 4000, 4000, 4000);
-      new_entry(3, 3000, 3000, 3000);
-      new_entry(2, 2000, 2000, 2000);
-
-      #20;
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-
-
-
-
-      //#5;
-      //if (sendmsg_in_read_en_o != 0 || grant_in_read_en_o != 0 || dbuff_in_read_en_o != 0) begin
-      //   $display("Reading data when unavailible");
-      //   $stop;
-      //end
-
-      //#5;
-
-      //if (data_pkt_write_en_o != 0) begin
-      //   $display("Writing data when unavailible");
-      //   $stop;
-      //end
-
-      //#5;
-     
-      //// RPC ID, Dbuff ID, Remaining, Granted, Dbuffered, Length
-      //new_entry(1, 1, 100000, 100000, 0, 100000);
-
-      //#50;
-      //if (data_pkt_write_en_o != 0) begin
-      //   $display("Writing data that is unready");
-      //   $stop;
-      //end
-
-      //#5;
-      //new_dbuff(1, 50000, 100000);
-
-      //#20;
-      //data_pkt_full_i = 1;
-
-      //#20;
-      //data_pkt_full_i = 0;
-
-      //#20;
-      //new_dbuff(1, 100000, 100000);
-
-      //#100;
-      //data_pkt_full_i = 1;
-
-      //#600;
-      //data_pkt_full_i = 0;
-
-
-
-
-      //#5;
-      //new_entry(2, 2, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_entry(3, 3, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_entry(4, 4, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_entry(5, 5, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_entry(6, 6, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_entry(7, 7, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_entry(8, 8, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_entry(9, 9, 10000, 10000, 0, 10000);
-
-      //#5;
-      //new_dbuff(2, 10000, 10000);
-
-      //#5;
-      //new_dbuff(3, 10000, 10000);
-
-      //#5;
-      //new_dbuff(4, 10000, 10000);
-
-      //#5;
-      //new_dbuff(5, 10000, 10000);
-
-      //#5;
-      //new_dbuff(6, 10000, 10000);
-
-      //#5;
-      //new_dbuff(7, 10000, 10000);
-
-      //#5;
-      //new_dbuff(8, 10000, 10000);
-
-      //#5;
-      //new_dbuff(9, 10000, 10000);
-
-      // #5;
-      // new_entry(5, 10000, 5000, 0);
-
-
-      // #5;
-      // new_entry(6, 1, 5000, 1000);
-
-
-      // #5;
-      // new_entry(7, 10000, 10000, 10000);
-
-
-
-      // new_entry(4, 4, 4, 0);
-
-      // #15;
-
-      // new_entry(3, 3, 3, 0);
-
-      // #15;
-
-      // new_entry(1, 1, 1, 0);
-
-      // #15;
-
-      // new_entry(2, 2, 2, 0);
-
-      // #200;
-
-      // new_entry(6, 3, 3, 0);
-
-      // #15;
-
-      // new_entry(7, 4, 4, 0);
-      
-      #1000
-	   $stop;
-   end
-
-endmodule
+//module srpt_data_pkts_tb();
+//
+//   reg ap_clk=0;
+//   reg ap_rst;
+//   reg ap_ce;
+//   reg ap_start;
+//   reg ap_continue;
+//
+//   wire	ap_idle;
+//   wire	ap_done;
+//   wire	ap_ready;
+//
+//   reg                      sendmsg_in_empty_i;
+//   wire                     sendmsg_in_read_en_o;
+//   reg [`SRPT_DATA_SIZE-1:0]    sendmsg_in_data_i;
+//
+//   reg                      grant_in_empty_i;
+//   wire                     grant_in_read_en_o;
+//   reg [`GRANT_SIZE-1:0]    grant_in_data_i;
+//
+//   reg                      dbuff_in_empty_i;
+//   wire                     dbuff_in_read_en_o;
+//   reg [`DBUFF_SIZE-1:0]    dbuff_in_data_i;
+//
+//   reg                      data_pkt_full_i;
+//   wire                     data_pkt_write_en_o;
+//   wire [`SRPT_DATA_SIZE-1:0] data_pkt_data_o;
+//
+//   srpt_data_pkts srpt_queue(.ap_clk(ap_clk), 
+//			      .ap_rst(ap_rst), 
+//			      .ap_ce(ap_ce), 
+//			      .ap_start(ap_start), 
+//			      .ap_continue(ap_continue), 
+//               .sendmsg_in_empty_i(sendmsg_in_empty_i),
+//               .sendmsg_in_read_en_o(sendmsg_in_read_en_o),
+//               .sendmsg_in_data_i(sendmsg_in_data_i),
+//               .grant_in_empty_i(grant_in_empty_i),
+//               .grant_in_read_en_o(grant_in_read_en_o),
+//               .grant_in_data_i(grant_in_data_i),
+//               .dbuff_in_empty_i(dbuff_in_empty_i),
+//               .dbuff_in_read_en_o(dbuff_in_read_en_o),
+//               .dbuff_in_data_i(dbuff_in_data_i),
+//               .data_pkt_full_i(data_pkt_full_i),
+//               .data_pkt_write_en_o(data_pkt_write_en_o),
+//               .data_pkt_data_o(data_pkt_data_o),
+//			      .ap_idle(ap_idle),
+//			      .ap_done(ap_done), 
+//			      .ap_ready(ap_ready));
+//
+//   task new_entry(input [15:0] rpc_id, input [19:0] remaining, granted, dbuffered);
+//      begin
+//      
+//	   sendmsg_in_data_i[`SRPT_DATA_RPC_ID]    = rpc_id;
+//	   sendmsg_in_data_i[`SRPT_DATA_REMAINING] = remaining;
+//	   sendmsg_in_data_i[`SRPT_DATA_GRANTED]   = granted;
+//	   sendmsg_in_data_i[`SRPT_DATA_DBUFFERED] = dbuffered;
+//
+//	   sendmsg_in_empty_i  = 1;
+//
+//	   #5;
+//	   
+//	   sendmsg_in_empty_i  = 0;
+//   
+//      end
+//      
+//   endtask
+//
+//   task new_dbuff(input [15:0] rpc_id, input [19:0] dbuffered);
+//      begin
+//
+//         dbuff_in_data_i[`DBUFF_RPC_ID]  = rpc_id;
+//         dbuff_in_data_i[`DBUFF_OFFSET]  = dbuffered;
+//         
+//	      dbuff_in_empty_i  = 1;
+//
+//	      #5;
+//	      
+//	      dbuff_in_empty_i  = 0;
+//   
+//      end
+//   endtask
+//
+//   task new_grant(input [15:0] rpc_id, input [19:0] granted);
+//      begin
+//
+//         grant_in_data_i[`GRANT_RPC_ID] = rpc_id;
+//         grant_in_data_i[`GRANT_OFFSET] = granted;
+//         
+//	      grant_in_empty_i  = 1;
+//
+//	      #5;
+//	      
+//	      grant_in_empty_i  = 0;
+//   
+//      end
+//   endtask
+//
+//   task get_output();
+//      begin
+//         data_pkt_full_i = 1;
+//	      #5;
+//	      
+//         data_pkt_full_i = 0;
+//   
+//      end
+//   endtask
+//
+//   /* verilator lint_off INFINITELOOP */
+//   
+//   initial begin
+//      ap_clk = 0;
+//
+//      forever begin
+//	      #2.5 ap_clk = ~ap_clk;
+//      end 
+//   end
+//   
+//   initial begin
+//      sendmsg_in_data_i = 0;
+//      grant_in_data_i   = 0;
+//      dbuff_in_data_i   = 0;
+//
+//	   sendmsg_in_empty_i  = 0;
+//	   grant_in_empty_i    = 0;
+//	   dbuff_in_empty_i    = 0;
+//	   data_pkt_full_i     = 0;
+//
+//      // Send reset signal
+//      ap_ce = 1; 
+//      ap_rst = 0;
+//      ap_start = 0;
+//      ap_rst = 1;
+//
+//      #5;
+//      ap_rst = 0;
+//      ap_start = 1;
+//
+//      #5;
+//      new_entry(1, 5000, 5000, 5000);
+//
+//      // Entry will block and no outputs will be sent
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      #20;
+//      new_dbuff(1, 0);
+//
+//      // Entry is still blocked and no outputs will be sent
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//
+//      #20;
+//      new_grant(1, 0);
+//
+//      // Should give an output
+//      get_output();
+//
+//      #20;
+//      new_entry(9, 9000, 9000, 9000);
+//      new_entry(8, 8000, 8000, 8000);
+//      new_entry(7, 7000, 7000, 7000);
+//      new_entry(6, 6000, 6000, 6000);
+//      new_entry(5, 5000, 5000, 5000);
+//      new_entry(4, 4000, 4000, 4000);
+//      new_entry(3, 3000, 3000, 3000);
+//      new_entry(2, 2000, 2000, 2000);
+//
+//      #20;
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//      get_output();
+//
+//
+//
+//
+//      //#5;
+//      //if (sendmsg_in_read_en_o != 0 || grant_in_read_en_o != 0 || dbuff_in_read_en_o != 0) begin
+//      //   $display("Reading data when unavailible");
+//      //   $stop;
+//      //end
+//
+//      //#5;
+//
+//      //if (data_pkt_write_en_o != 0) begin
+//      //   $display("Writing data when unavailible");
+//      //   $stop;
+//      //end
+//
+//      //#5;
+//     
+//      //// RPC ID, Dbuff ID, Remaining, Granted, Dbuffered, Length
+//      //new_entry(1, 1, 100000, 100000, 0, 100000);
+//
+//      //#50;
+//      //if (data_pkt_write_en_o != 0) begin
+//      //   $display("Writing data that is unready");
+//      //   $stop;
+//      //end
+//
+//      //#5;
+//      //new_dbuff(1, 50000, 100000);
+//
+//      //#20;
+//      //data_pkt_full_i = 1;
+//
+//      //#20;
+//      //data_pkt_full_i = 0;
+//
+//      //#20;
+//      //new_dbuff(1, 100000, 100000);
+//
+//      //#100;
+//      //data_pkt_full_i = 1;
+//
+//      //#600;
+//      //data_pkt_full_i = 0;
+//
+//
+//
+//
+//      //#5;
+//      //new_entry(2, 2, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_entry(3, 3, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_entry(4, 4, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_entry(5, 5, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_entry(6, 6, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_entry(7, 7, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_entry(8, 8, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_entry(9, 9, 10000, 10000, 0, 10000);
+//
+//      //#5;
+//      //new_dbuff(2, 10000, 10000);
+//
+//      //#5;
+//      //new_dbuff(3, 10000, 10000);
+//
+//      //#5;
+//      //new_dbuff(4, 10000, 10000);
+//
+//      //#5;
+//      //new_dbuff(5, 10000, 10000);
+//
+//      //#5;
+//      //new_dbuff(6, 10000, 10000);
+//
+//      //#5;
+//      //new_dbuff(7, 10000, 10000);
+//
+//      //#5;
+//      //new_dbuff(8, 10000, 10000);
+//
+//      //#5;
+//      //new_dbuff(9, 10000, 10000);
+//
+//      // #5;
+//      // new_entry(5, 10000, 5000, 0);
+//
+//
+//      // #5;
+//      // new_entry(6, 1, 5000, 1000);
+//
+//
+//      // #5;
+//      // new_entry(7, 10000, 10000, 10000);
+//
+//
+//
+//      // new_entry(4, 4, 4, 0);
+//
+//      // #15;
+//
+//      // new_entry(3, 3, 3, 0);
+//
+//      // #15;
+//
+//      // new_entry(1, 1, 1, 0);
+//
+//      // #15;
+//
+//      // new_entry(2, 2, 2, 0);
+//
+//      // #200;
+//
+//      // new_entry(6, 3, 3, 0);
+//
+//      // #15;
+//
+//      // new_entry(7, 4, 4, 0);
+//      
+//      #1000
+//	   $stop;
+//   end
+//
+//endmodule

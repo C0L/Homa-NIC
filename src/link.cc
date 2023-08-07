@@ -32,7 +32,7 @@ void egress_selector(hls::stream<srpt_data_out_t> & data_pkt_i,
 		     hls::stream<srpt_grant_out_t> & grant_pkt_i,
 		     hls::stream<header_t> & header_out_o) {
 
-#pragma HLS pipeline II=1 style=flp
+#pragma HLS pipeline II=1
 
     if (!grant_pkt_i.empty()) {
 	srpt_grant_out_t grant_out = grant_pkt_i.read();
@@ -81,6 +81,7 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
     static bool valid = false;
 
     if (valid || (!valid && header_out_i.read_nb(header))) {
+
 	valid = true;
 
 	out_chunk_t out_chunk;
@@ -300,7 +301,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 	header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
 	header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
 	header_in.id   = LOCALIZE_ID(header_in.id);
-	std::cerr << "PARSED ID IN " << header_in.id << std::endl
 
 	switch(header_in.type) {
 	    case GRANT: {

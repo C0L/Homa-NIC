@@ -4,7 +4,7 @@
 #include "homa.hh"
 
 void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
-		   hls::stream<dma_w_req_raw_t> & dma_w_req_o,
+		   hls::stream<dma_w_req_t> & dma_w_req_o,
 		   hls::stream<header_t> & header_in_i,
 		   hls::stream<header_t> & header_in_o);
 

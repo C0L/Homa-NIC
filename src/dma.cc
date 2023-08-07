@@ -15,7 +15,6 @@ void dma_read(const integral_t * maxi,
     dma_r_req_t dma_req;
     if (refresh_req_i.read_nb(dma_req)) {
 	dbuff_in_t dbuff_in;
-	std::cerr << "REFRESH READ\n";
 	dbuff_in.data = *(maxi + (dma_req.offset / DBUFF_CHUNK_SIZE));
 	dbuff_in.dbuff_id = dma_req.dbuff_id;
 	dbuff_in.local_id = dma_req.local_id;
@@ -25,7 +24,6 @@ void dma_read(const integral_t * maxi,
 	dbuff_in_o.write(dbuff_in);
     } else if (sendmsg_req_i.read_nb(dma_req)) {
 	dbuff_in_t dbuff_in;
-	std::cerr << "SENDMSG READ " << dma_req.offset << std::endl;
 	dbuff_in.data = *(maxi + (dma_req.offset / DBUFF_CHUNK_SIZE));
 	dbuff_in.dbuff_id = dma_req.dbuff_id;
 	dbuff_in.local_id = dma_req.local_id;
@@ -41,16 +39,14 @@ void dma_read(const integral_t * maxi,
  * @maxi - The MAXI interface connected to DMA space
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
-//void dma_write(char * maxi,
-//      hls::stream<dma_w_req_t, VERIF_DEPTH> & dbuff_ingress__dma_write) {
-//   //TODO this is not really pipelined? 70 cycle layency per req
-//#pragma HLS pipeline II=1
-//   dma_w_req_t dma_req;
-//   if (!dbuff_ingress__dma_write.empty()) {
-//      dma_req = dbuff_ingress__dma_write.read();
-//
-//      std::cerr << "DMA WRITE: " << dma_req.offset << std::endl;
-//      *((integral_t*) (maxi + dma_req.offset)) = dma_req.block;
-//      std::cerr << "DMA WRITE COMPLETE " << dma_req.offset << std::endl;
-//   }
-//}
+void dma_write(integral_t * maxi,
+      hls::stream<dma_w_req_t> & dma_w_req_i) {
+
+#pragma HLS pipeline II=1
+
+   dma_w_req_t dma_req;
+   if (dma_w_req_i.read_nb(dma_req)) {
+      std::cerr << "OFFSET OUT " << dma_req.offset << std::endl;
+      *((integral_t*) (((char*) maxi) + dma_req.offset)) = dma_req.data;
+   }
+}

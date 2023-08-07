@@ -33,7 +33,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 	  const integral_t * maxi_in,
-	  hls::stream<dma_w_req_raw_t> & dma_w_req_o,
+	  integral_t * maxi_out,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress) {
 
@@ -51,14 +51,10 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 #pragma HLS interface axis port=msghdr_send_o depth=2048
 #pragma HLS interface axis port=msghdr_recv_i depth=2048
 #pragma HLS interface axis port=msghdr_recv_o depth=2048
-// #pragma HLS interface axis port=dma_r_req_o  depth=2048
-#pragma HLS interface axis port=dma_r_resp_i depth=2048
-#pragma HLS interface axis port=dma_w_req_o  depth=2048
 #pragma HLS interface axis port=link_ingress depth=2048
 #pragma HLS interface axis port=link_egress  depth=2048
-#pragma HLS interface m_axi bundle=BUS_A port=maxi ...
-#pragma HLS interface mode=m_axi port=maxi_in bundle=BUS_A latency=70 num_read_outstanding=80 max_read_burst_length=1 depth=4096
-// #pragma HLS interface mode=m_axi port=maxi_in bundle=BUS_A latency=70 num_read_outstanding=80 num_write_outstanding=1 max_write_burst_length=2 max_read_burst_length=2  depth=4096
+#pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=80 depth=4096
+#pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=80 depth=4096
 
     /* Naming scheme: {flow}__{source kernel}__{dest kernel} */
 
@@ -99,15 +95,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
     hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__homa_sendmsg__dma_read;
     hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__msg_cache__dma_read;
     hls_thread_local hls::stream<dbuff_in_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache;
+    hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write;
 
-#pragma HLS dataflow
-
-    dma_read(
-	maxi_in,
-	dma_req__msg_cache__dma_read,
-	dma_req__homa_sendmsg__dma_read,
-	dbuff_in__dma_read__msg_cache
-	);
 
     hls_thread_local hls::task rpc_state_task(
 	rpc_state,
@@ -181,7 +170,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
     hls_thread_local hls::task dbuff_ingress_task(
 	dbuff_ingress,
 	in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_o
-	dma_w_req_o,                            // dma_w_req_o
+	dma_req__dbuff_ingress__dma_write,      // dma_w_req_o
 	header_in__rpc_state__dbuff_ingress,    // header_in_i
 	header_in__dbuff_ingress__packetmap     // header_in_i
 	);
@@ -201,9 +190,23 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     hls_thread_local hls::task homa_sendmsg_task(
 	homa_sendmsg, 
-	msghdr_send_i,                       // sendmsg_i
-	msghdr_send_o,                       // sendmsg_o
+	msghdr_send_i,                     // sendmsg_i
+	msghdr_send_o,                     // sendmsg_o
 	sendmsg__homa_sendmsg__rpc_map,    // sendmsg_o
 	dma_req__homa_sendmsg__dma_read
+	);
+
+#pragma HLS dataflow disable_start_propagation
+
+    dma_read(
+	maxi_in,
+	dma_req__msg_cache__dma_read,
+	dma_req__homa_sendmsg__dma_read,
+	dbuff_in__dma_read__msg_cache
+	);
+
+    dma_write(
+	maxi_out,
+	dma_req__dbuff_ingress__dma_write
 	);
 }

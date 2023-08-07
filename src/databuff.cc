@@ -10,7 +10,7 @@
  * @header_in_i - Incoming headers that determine DMA placement
  */
 void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
-		   hls::stream<dma_w_req_raw_t> & dma_w_req_o,
+		   hls::stream<dma_w_req_t> & dma_w_req_o,
 		   hls::stream<header_t> & header_in_i,
 		   hls::stream<header_t> & header_in_o) {
 
@@ -29,10 +29,10 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
 	in_chunk_t in_chunk = rebuff.remove();
 
 	// Place chunk in DMA space at global offset + packet offset
-	dma_w_req_raw_t dma_w_req;
+	dma_w_req_t dma_w_req;
 
-	dma_w_req(DMA_W_REQ_OFFSET) = in_chunk.offset + ((header_in.ibuff_id) * HOMA_MAX_MESSAGE_LENGTH) + header_in.data_offset;
-	dma_w_req(DMA_W_REQ_BLOCK)  = in_chunk.buff;
+	dma_w_req.offset = in_chunk.offset + ((header_in.ibuff_id) * HOMA_MAX_MESSAGE_LENGTH) + header_in.data_offset;
+	dma_w_req.data   = in_chunk.buff;
 
 	dma_w_req_o.write(dma_w_req);
 
@@ -46,6 +46,7 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
     }
 
     if (!valid && !header_in_i.empty()) {
+	std::cerr << "DBUFF INGRESS READ HEADER IN\n";
 	valid = true;
 	header_in = header_in_i.read();
 	header_in_o.write(header_in);
@@ -85,13 +86,9 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 	dbuff_coffset_t chunk_offset = (dbuff_in.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
 	dbuff[dbuff_in.dbuff_id].data[chunk_offset] = dbuff_in.data;
 
-	// std::cerr << "DBUFF IN OFFSET " << dbuff_in.offset << std::endl;
-	// std::cerr << "DBUFF IN LENG " << dbuff_in.msg_len << std::endl;
-
 	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.offset + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
 
 	if (dbuff_in.last) {
-	    // std::cerr << "SEND NOTIF\n";
 	    srpt_dbuff_notif_t dbuff_notif;
 	    dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in.local_id;
 	    dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) = dbuffered;
@@ -103,6 +100,7 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
     out_chunk.local_id = 0;
     // Do we need to process any packet chunks?
     if (out_chunk_i.read_nb(out_chunk)) {
+	std::cerr << "DBUFF OUT CHUNK IN\n";
 	// Is this a data type packet?
 	if (out_chunk.type == DATA && out_chunk.data_bytes != NO_DATA) {
 	    dbuff_coffset_t chunk_offset = (out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
@@ -125,14 +123,16 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 		    break;
 		}
 	    }
-	} 
+	}
 
 	out_chunk_o.write(out_chunk);
+
+	std::cerr << "DBUFF OUT CHUNK OUT\n";
     }
 
     // TODO can move this back in
     if (out_chunk.local_id !=0 && (out_chunk.offset + (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) < out_chunk.length) {
-	// std::cerr << "SUBMITTING REQUEST\n";
+	std::cerr << "REFRESH REQUEST \n";
 	dma_r_req_t dma_r_req;
 	dma_r_req.offset   = out_chunk.offset + DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS;
 	dma_r_req.msg_len  = out_chunk.length;
