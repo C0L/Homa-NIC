@@ -121,11 +121,16 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 		  hls::stream<msghdr_send_t> & msghdr_send_o,
 		  hls::stream<onboard_send_t> & onboard_send_o,
                   hls::stream<dma_r_req_t> & dma_r_req_o) {
+    // TODO could just send notif through here
+
     // TODO reintroduce
 // #pragma HLS pipeline II=1
     static stack_t<dbuff_id_t, NUM_DBUFF> dbuff_stack(true);
 
     static stack_t<local_id_t, MAX_RPCS/2> send_ids(true);
+
+    // TODO?
+    // static onboard_send_t onboard_sends[NUM_DBUFF];
 
     /* TODO There should be a priority queue here for sendmsg requests
      * ordered based on the number of bytes left to buffer, bounded by
@@ -137,6 +142,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
     static fifo_t<dma_r_req_t, 128> pending_requests;
 
     if (!msghdr_send_i.empty()) {
+
 	msghdr_send_t msghdr_send = msghdr_send_i.read();
 
 	onboard_send_t onboard_send;
@@ -164,6 +170,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 	msghdr_send_o.write(msghdr_send);
 
 	onboard_send_o.write(onboard_send);
+	// onboard_sends[onboard_send.dbuff_id] = onboard_send;
 
 	dma_r_req_t dma_r_req;
 	dma_r_req.offset   = onboard_send.iov;

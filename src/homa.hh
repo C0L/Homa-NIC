@@ -236,7 +236,8 @@ struct rexmit_t {
 typedef ap_uint<512> integral_t;
 
 /* Data Buffer Configuration */
-#define NUM_DBUFF        1024 // Number of data buffers (max outgoing RPCs)
+// #define NUM_DBUFF        1024 // Number of data buffers (max outgoing RPCs)
+#define NUM_DBUFF        128// Number of data buffers (max outgoing RPCs)
 #define DBUFF_INDEX      10   // Index into the data buffers
 #define DBUFF_CHUNK_SIZE 64   // Size of a "chunk" of a data buffer
 #define DBUFF_NUM_CHUNKS 256  // Number of "chunks" in one buffer
@@ -247,11 +248,10 @@ typedef ap_uint<512> integral_t;
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
 // One data buffer stores 2^14 bytes
-// typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
-struct dbuff_t {
-    integral_t data[DBUFF_NUM_CHUNKS];
-    //dma_r_req_raw_t dma_r_req;
-};
+typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
+// struct dbuff_t {
+// integral_t data[DBUFF_NUM_CHUNKS];
+// };
 
 // Pointer to a byte in the data buffer
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;

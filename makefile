@@ -58,7 +58,7 @@ SRC_C =                       \
     $(C_SRC_DIR)/dma.cc \
     $(C_SRC_DIR)/dma.hh \
 
-PART = xcvu9p-flgb2104-2-i
+PART = xcu250-figd2104-2L-e
 
 CSIM = 0
 SYNTH = 1

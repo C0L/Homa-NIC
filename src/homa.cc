@@ -64,7 +64,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     /* header_in streams */
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_map__rpc_state       ("header_in__rpc_map__rpc_state"); 
-    hls_thread_local hls::stream<srpt_grant_notif_t, STREAM_DEPTH> header_in__rpc_state__srpt_data     ("header_in__rpc_state__srpt_data");
+    hls_thread_local hls::stream<srpt_grant_notif_t, STREAM_DEPTH> header_in__rpc_state__srpt_data ("header_in__rpc_state__srpt_data");
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_map   ("header_in__chunk_ingress__rpc_map");
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress ("header_in__rpc_state__dbuff_ingress");
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__packetmap ("header_in__dbuff_ingress__packetmap");
@@ -72,8 +72,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
    
     /* sendmsg streams */
     hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__rpc_map("sendmsg__homa_sendmsg__msg_cache");
-    hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state     ("sendmsg__rpc_map__rpc_state");
-    hls_thread_local hls::stream<srpt_data_in_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data   ("sendmsg__rpc_state__srpt_data");
+    hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state   ("sendmsg__rpc_map__rpc_state");
+    hls_thread_local hls::stream<srpt_data_in_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data ("sendmsg__rpc_state__srpt_data");
 
     /* out chunk streams */
     hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress ("out_chunk__chunk_egress__dbuff_egress");
@@ -92,9 +92,9 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     /* dma streams */
       
-    hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__homa_sendmsg__dma_read;
-    hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__msg_cache__dma_read;
-    hls_thread_local hls::stream<dbuff_in_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache;
+    hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__homa_sendmsg__dma_read ("dma_req__homa_sendmsg__dma_read");
+    hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__msg_cache__dma_read("dma_req__msg_cache__dma_read");
+    hls_thread_local hls::stream<dbuff_in_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache ("dbuff_in__dma_read__msg_cache");
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write;
 
 

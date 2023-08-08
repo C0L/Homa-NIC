@@ -151,6 +151,8 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 	     hls::stream<onboard_send_t> & onboard_send_i,
 	     hls::stream<onboard_send_t> & onboard_send_o) {
 
+    // TODO I think headers out will block the onboard of new msgs
+
     // Unique local RPC IDs
     static stack_t<local_id_t, MAX_RPCS/2> recv_ids(true);
 
@@ -169,8 +171,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
     //#pragma HLS dependence variable=hashmap inter WAR false
     //#pragma HLS dependence variable=hashmap inter RAW false
 
-    // TODO this II can be lowered?
-#pragma HLS pipeline II=1
+#pragma HLS pipeline II=2
 
     if (!header_in_i.empty()) {
 	header_t header_in = header_in_i.read();

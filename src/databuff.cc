@@ -84,7 +84,7 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
     dbuff_in_t dbuff_in;
     if (dbuff_egress_i.read_nb(dbuff_in)) {
 	dbuff_coffset_t chunk_offset = (dbuff_in.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
-	dbuff[dbuff_in.dbuff_id].data[chunk_offset] = dbuff_in.data;
+	dbuff[dbuff_in.dbuff_id][chunk_offset] = dbuff_in.data;
 
 	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.offset + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
 
@@ -100,13 +100,12 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
     out_chunk.local_id = 0;
     // Do we need to process any packet chunks?
     if (out_chunk_i.read_nb(out_chunk)) {
-	std::cerr << "DBUFF OUT CHUNK IN\n";
 	// Is this a data type packet?
 	if (out_chunk.type == DATA && out_chunk.data_bytes != NO_DATA) {
 	    dbuff_coffset_t chunk_offset = (out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
 	    dbuff_boffset_t byte_offset  = out_chunk.offset % DBUFF_CHUNK_SIZE;
 
-	    ap_uint<1024> double_buff = (dbuff[out_chunk.dbuff_id].data[chunk_offset+1], dbuff[out_chunk.dbuff_id].data[chunk_offset]);
+	    ap_uint<1024> double_buff = (dbuff[out_chunk.dbuff_id][chunk_offset+1], dbuff[out_chunk.dbuff_id][chunk_offset]);
 
 #pragma HLS array_partition variable=double_buff complete
 

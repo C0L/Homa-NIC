@@ -60,11 +60,7 @@ extern "C"{
 
 	strcpy(maxi_in, data.c_str());
 
-	std::chrono::seconds dura(1);
-   
-	//  while (maxi_out[2772] == 0) {
 	while (sendmsg_o.empty() || recvmsg_o.empty() || maxi_out[2772] == 0) {
-
 	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, (integral_t *) maxi_in, (integral_t *) maxi_out, link_ingress_i, link_egress_o);
 	    if (!link_egress_o.empty()) {
 		link_ingress_i.write(link_egress_o.read());
