@@ -31,44 +31,44 @@
 `define HOMA_PAYLOAD_SIZE 20'h56a
 
 /**
- * srpt_grant_pkts() - Determines which data packet should be transmit next
- * based on the number of remaining bytes to send. Packets however must
- * remain eligible in that they 1) have at least 1 byte of granted data, and
- * 2) the data is availible on chip for their transmission 
+ * srpt_data_pkts() - Determines which data packet should be transmit
+ * next based on the number of remaining bytes to send. Packets
+ * however must remain eligible in that they 1) have at least 1 byte
+ * of granted data, and 2) the data is availible on chip for their
+ * transmission.
  *
- * #MAX_SRPT - The size of the SRPT queue, or the maximum number of RPCs that
- * we could be trying to send to at a single point in time
+ * #MAX_SRPT - The size of the SRPT queue, or the maximum number of
+ * RPCs that we could be trying to send to at a single point in time
  *
- * @sendmsg_in_empty_i   - 0 value indicates there are no new sendmsg requsts
- * to be read from this input stream while 1 indictes there are sendmsgs on the
- * input stream.
- * @sendmsg_in_read_en_o - Acknowledgement that the input data has been read
- * @sendmsg_in_data_i    - The actual data content of the incoming stream
+ * @sendmsg_in_empty_i - 0 value indicates there are no new sendmsg
+ * requsts to be read from this input stream while 1 indictes there
+ * are sendmsgs on the input stream.  @sendmsg_in_read_en_o -
+ * Acknowledgement that the input data has been read
+ * @sendmsg_in_data_i  - The actual data content of the incoming stream
  *
- * @grant_in_empty_i   - 0 value indicates there are no new grants to be read
- * from this stream while a 1 value indicates there are grants which should be
- * read
- * @grant_in_read_en_o - Acknowledgement that the input grant has been read
- * and can be discarded by the FIFO
- * @grant_in_data_i    - The actual grant content that needs to be added to
- * this queue.
- *
- * @dbuff_in_empty_i   - 0 value indicates there are no data buff
- * notifications that are availible on the input stream while 1 indicates
- * there are databuffer notifications we should integrate
- * @dbuff_in_read_en_o - Acknowledgement that the data buffer notification has
- * been read from the input stream
- * @dbuff_in_data_i    - The actual notification content of the incoming
+ * @grant_in_empty_i - 0 value indicates there are no new grants to be
+ * read from this stream while a 1 value indicates there are grants
+ * which should be read @grant_in_read_en_o - Acknowledgement that the
+ * input grant has been read and can be discarded by the FIFO
+ * @grant_in_data_i  - The actual grant content that needs to be added
+ * to this queue.
+ * 
+ * @dbuff_in_empty_i - 0 value indicates there are no data buff
+ * notifications that are availible on the input stream while 1
+ * indicates there are databuffer notifications we should integrate
+ * @dbuff_in_read_en_o - Acknowledgement that the data buffer
+ * notification has been read from the input stream
+ * @dbuff_in_data_i - The actual notification content of the incoming
  * stream
- *
- * @data_pkt_full_o     - 0 value indicates that the outgoing stream has room
- * for another data packet that should be sent while a 1 value indicates that
- * the stream is full
- * @data_pkt_write_en_o - Acknowledgement that the data in data_pkt_data_o
- * should be added to the outgoing stream
- * @data_pkt_data_o     - The actual outgoing pkts that should be sent onto
- * the link.
- *
+ * 
+ * @data_pkt_full_i - 1 value indicates that the outgoing stream has
+ * room for another element while 0 indicates the output stream is
+ * full 
+ * @data_pkt_write_en_o - Acknowledgement that the data in
+ * data_pkt_data_o should be read by the outgoing stream
+ * @data_pkt_data_o - The actual outgoing pkts that should be sent
+ * onto the link.
+ * 
  * There are 4 operations within the data SRPT queue:
  *    1) A sendmsg requests arrives which means there is a new packet whose
  *    data we want to send. A new sendmsg requests always begins with some
@@ -231,6 +231,7 @@ module srpt_data_pkts #(parameter MAX_SRPT = 1024)
                srpt_queue[1][`ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
             end else begin
                srpt_queue[0] <= srpt_queue[1];
+
 
                srpt_queue[1] <= srpt_queue[0];
                srpt_queue[1][`ENTRY_PRIORITY]  <= `SRPT_BLOCKED;

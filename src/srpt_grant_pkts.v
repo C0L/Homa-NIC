@@ -23,30 +23,106 @@
 `define HDR_MSG_LEN 93:62
 `define HDR_INCOMING 125:94
 
-`define CORE_IDLE 0
-`define CORE_NEW_HDR 1
-`define CORE_QUEUE_SWAP 2
-`define CORE_GRANT 3
-
 // 60K byte (RTT_Bytes) * 8 (MAX_OVERCOMMIT)
 `define RTT_BYTES 60000
 `define OVERCOMMIT_BYTES 480000
 `define HOMA_PAYLOAD_SIZE 32'h56a
 
-/*
+/**
+ * srpt_grant_pkts() - Determines the next RPC that should receive a
+ * grant packet. Selections are based on the number of grantable bytes,
+ * where less bytes is more desirable.
  *
+ * #MAX_OVERCOMMIT - The number of simultanous peers that can be actively granted to
  * 
+ * #MAX_OVERCOMMIT_LOG2 - Number of bits needed to index an array of size MAX_OVERCOMMIT
  * 
+ * #MAX_SRPT - The maximum number of elements that could possibly receive grants
  * 
+ * @header_in_empty_i - 0 value indicates that there are no new
+ * headers we need to incorporate into the queue
+ * @header_in_read_en_o - Acknowledgement that the input header data has been read
+ * @header_in_data_i    - The data content of the header
+ *
+ * @data_pkt_full_o     - 1 value indicates that the outgoing stream has room
+ * for another data packet that should be sent while a 0 value indicates that
+ * the stream is full
+ * @data_pkt_write_en_o - Acknowledgement that the data in data_pkt_data_o
+ * should be read by the outgoing stream
+ * @data_pkt_data_o     - The actual outgoing pkts that should be sent onto
+ * the link.
+ *
+ * There are 3 operations within the grant SRPT queue:
+ *     1) There is header data available on the input stream. The new
+ *     header is checked to determine if it is the first header in an RPC
+ *     that we have received. If it is, we construct a new entry in the
+ *     queue which will be inserted at slot MAX_OVERCOMMIT. This entry
+ *     takes the PEER_ID, RPC_ID from the read header. The initial
+ *     RECV_BYTES is set to HOMA_PAYLOAD_SIZE, because this is the first
+ *     header for an RPC that we have received. The initial
+ *     GRANTABLE_BYTES is set to the size of the message minus
+ *     HOMA_PAYLOAD_SIZE (indicating we have a whole message of grantable
+ *     bytes besides this first packet that we have received. We then
+ *     determine if the entry should begin as active or inactive. We check
+ *     to see if peer_match_en is high, which indicates that the PEER_ID
+ *     of the new header matches on some PEER_ID in the first
+ *     MAX_OVERCOMMIT elements of the srpt_queue. If peer_match_en is high,
+ *     we compare the number of grantable bytes of the new header with
+ *     that of the entry that matched on peer. If the new header is a more
+ *     desirable option in that it has less grantable bytes, then we will
+ *     disable the matched entry in the queue, and set the new header
+ *     entry to be ACTIVE. If the new header was worse in grantable bytes
+ *     than the current entry, then we insert the header in a blocked
+ *     state. If peer_match_en was not set, then we can just insert
+ *     the new header as active.
  * 
+ *     If this header was not the first packet that we have received for 
+ *     an RPC then we need to determine where to send an update on the
+ *     number of RECV_BYTES and the GRANTABLE_BYTES. This coherency is
+ *     required so that the most desirable RPC in terms of grantable
+ *     bytes changes in response to the arrival of new packets. There
+ *     are two cases: 1) the RPC corresponding to the incoming packet
+ *     is in the MAX_OVERCOMMIT elements, as indicated by the
+ *     rpc_match_en flag, 2) the RPC corresponding to the incoming
+ *     packet is not in MAX_OVERCOMMIT elements. If (1) is true then
+ *     we will just update the entry in place. If (2) is true then we
+ *     will submit an update message at the MAX_OVERCOMMIT entry.
  * 
+ *     2) If there is not a new header then we check if we can send
+ *     out a new grant packet. The eligibility to send a packet is
+ *     determined by the grant_pkt_full_i signal being high which
+ *     indicates that there is room on the output stream and
+ *     ready_match_en being high which indicates there is an entry in
+ *     the first MAX_OVERCOMMIT elements that is ready to be sent (is
+ *     ACTIVE and has non-zero RECV_BYTES). We are limited in the
+ *     number of grants we can send by the number MAX_OVERCOMMIT
+ *     bytes. We track the number of "free bytes" in the avail_pkts
+ *     variable. If we go to send a grant that has more RECV_BYTES than
+ *     avail_pkts, then we will only send a grant for avail_pkts number
+ *     of bytes. If not, we can send up to RECV_BYTES. If we are
+ *     limited by the avail packets, then we are going to decrement
+ *     RECV_BYTES and GRANTABLE_BYTES by the avail_pkts, set avail_pkts
+ *     to 0, and construct an output on the output stream with the
+ *     PEER_ID, RPC_ID, from the entry and set RECV_BYTES to 0. We use
+ *     the GRANTABLE_BYTES on the output to communicate how many bytes
+ *     this grant is for which depends on if we are limited by
+ *     avail_pkts or not. If we are not limited by avail_bytes, then we
+ *     also must check to see if the GRANTABLE_BYTES - RECV_BYTES == 0
+ *     which indicates the message has been fully granted and we can
+ *     set it to EMPTY and forget it. If it is not empty then we update
+ *     the entry and avail_pkts.
+ *      
+ *     3) If there is not a new header, and we are not eligible to
+ *     send a grant, we will check to see if a new entry needs to be moved
+ *     from the upper part of the queue into the lower MAX_OVERCOMMIT set,
+ *     and thus block on the PEER_ID of the moved entry. If new_active is
+ *     set, then we will swap in the new entry, and submit a BLOCK message
+ *     to the upper queue so that entries with the same PEER_ID become
+ *     blocked.
  * 
- * 
- * TODO this needs to handle OOO packets (how does that effect SRPT entry creation?).
- * TODO this needs to consider duplicate packets (can't just increment recv bytes?).
- * TODO need upper bound on number of grantable bytes at any given point
+ * TODO this needs to handle OOO packets (packetmap?)
+ * TODO this needs to consider duplicate packets (packetmap?)
  * TODO rtt bytes is hardcoded into this design
- * The packet map core may need to be involved somehow
  */
 module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 			 parameter MAX_OVERCOMMIT_LOG2 = 3,
@@ -61,6 +137,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
     output			 ap_idle, ap_done, ap_ready);
 
    reg [`ENTRY_SIZE-1:0]	 srpt_queue[MAX_SRPT-1:0];
+   wire [`ENTRY_SIZE-1:0]	 srpt_active[MAX_OVERCOMMIT-1:0];
 
    reg [`ENTRY_SIZE-1:0]	 srpt_odd[MAX_SRPT-1:0]; 
    reg [`ENTRY_SIZE-1:0]	 srpt_even[MAX_SRPT-1:0]; 
@@ -75,20 +152,19 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    reg				 rpc_match_en;
    reg				 ready_match_en;
 
-   reg [MAX_OVERCOMMIT_LOG2-1:0] peer_match_latch;   
-   reg [MAX_OVERCOMMIT_LOG2-1:0] rpc_match_latch;   
-   reg [MAX_OVERCOMMIT_LOG2-1:0] ready_match_latch;
-
-   reg				 peer_match_en_latch;
-   reg				 rpc_match_en_latch;
-   reg				 ready_match_en_latch;
-
-   reg [`HEADER_SIZE-1:0]	 header_in_data_latch;
-
    reg [31:0]			 avail_pkts;
 
    reg [1:0]			 state;
+   
+   reg				 new_header;
+   reg				 new_grant;
+   reg				 new_active;
+   
 
+   assign ap_ready = 1;
+   assign ap_idle = 0;
+   assign ap_done = 1;
+  
    task prioritize;
       output [`ENTRY_SIZE-1:0] low_o, high_o;
       input [`ENTRY_SIZE-1:0]  low_i, high_i;
@@ -121,6 +197,10 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
    always @* begin
 
+      grant_pkt_data_o     = 0;
+      grant_pkt_write_en_o = 0;
+      header_in_read_en_o  = 0;
+
       // Init all values so that no latches are inferred. All control paths assign a value.
       peer_match     = {MAX_OVERCOMMIT_LOG2{1'b1}};
       rpc_match      = {MAX_OVERCOMMIT_LOG2{1'b1}};
@@ -129,6 +209,14 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       rpc_match_en   = 1'b0;
       ready_match_en = 1'b0;
 
+      new_header = header_in_empty_i;
+
+      new_active = ((srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] != srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) ?
+			(srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] < srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) :
+			(srpt_queue[MAX_OVERCOMMIT-1][`GRANTABLE_BYTES] > srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES])) && 
+		       (srpt_queue[MAX_OVERCOMMIT][`PRIORITY] == `SRPT_ACTIVE);
+ 
+     
       // Check every entry in the active set
       for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
 	 // Does the new header have the same peer as the entry in the active set
@@ -157,7 +245,31 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	 end else begin
 	    ready_match = ready_match;
 	 end
-      end
+      end // for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1)
+
+      new_grant  = grant_pkt_full_i && ready_match_en;
+       
+      /* verilator lint_off WIDTH */
+      if (new_header) begin
+	 header_in_read_en_o  = 1;
+	 grant_pkt_write_en_o = 0;
+      end else if (new_grant) begin // if (new_header)
+	 grant_pkt_data_o[`PEER_ID]    = srpt_queue[ready_match][`PEER_ID];
+	 grant_pkt_data_o[`RPC_ID]     = srpt_queue[ready_match][`RPC_ID];
+	 grant_pkt_data_o[`RECV_BYTES] = 32'b0;
+	 
+	 // Do we want to send more packets than 8 * MAX_OVERCOMMIT PKTS?
+	 if (srpt_queue[ready_match][`RECV_BYTES] > avail_pkts) begin
+	    // Just send avail_pkts of data
+	    grant_pkt_data_o[`GRANTABLE_BYTES] = srpt_queue[ready_match][`GRANTABLE_BYTES] - avail_pkts;
+	 end else begin 
+	    grant_pkt_data_o[`GRANTABLE_BYTES] = srpt_queue[ready_match][`GRANTABLE_BYTES] - srpt_queue[ready_match][`RECV_BYTES];
+	 end 
+	 
+	 header_in_read_en_o = 0;
+	 grant_pkt_write_en_o = 1;
+      end // if (new_grant)
+      /* verilator lint_on WIDTH */
 
       srpt_odd[0] = srpt_queue[0];
       srpt_odd[MAX_SRPT-1] = srpt_queue[MAX_SRPT-1];
@@ -169,6 +281,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       for (entry = 1; entry < MAX_SRPT; entry=entry+2) begin
 	 prioritize(srpt_even[entry-1], srpt_even[entry], srpt_queue[entry-1], srpt_queue[entry]);
       end
+
+
    end
 
    integer rst_entry;
@@ -176,18 +290,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    always @(posedge ap_clk) begin
 
       if (ap_rst) begin
-	 grant_pkt_data_o     <= 0;
-	 grant_pkt_write_en_o <= 0;
-	 header_in_read_en_o  <= 0;
-	 state 		      <= `CORE_IDLE;
-	 swap_type 	      <= 0;
-	 peer_match_latch     <= 0;
-	 rpc_match_latch      <= 0;
-	 ready_match_latch    <= 0;
-	 peer_match_en_latch  <= 0;
-	 rpc_match_en_latch   <= 0;
-	 ready_match_en_latch <= 0;
-	 header_in_data_latch <= 0;
+	 swap_type <= 0;
 
 	 avail_pkts <= `OVERCOMMIT_BYTES;
 
@@ -195,260 +298,110 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	    srpt_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
 	 end
       end else if (ap_ce && ap_start) begin
+	 if (new_header) begin
 
-	 // Latch the last match values
-	 peer_match_latch  <= peer_match;
-	 rpc_match_latch   <= rpc_match;
-	 ready_match_latch <= ready_match;
+	    // Make room for that new entry 
+	    for (entry = MAX_OVERCOMMIT+1; entry < MAX_SRPT-1; entry=entry+1) begin
+	       srpt_queue[entry] <= srpt_queue[entry-1];
+	    end
 
-	 peer_match_en_latch  <= peer_match_en;
-	 rpc_match_en_latch   <= rpc_match_en;
-	 ready_match_en_latch <= ready_match_en;
+	    // TODO cannot base off of the first unscheduled packet
+	    // It is the first unscheduled packet that creates the entry in the SRPT queue.
+	    if (header_in_data_i[`HDR_OFFSET] == 0) begin
+	       
+	       /* verilator lint_on WIDTH */
+	       srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_i[`HDR_PEER_ID];
+	       srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_i[`HDR_RPC_ID];
+	       srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= `HOMA_PAYLOAD_SIZE;
+	       srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= header_in_data_i[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE;
+	       
+	       // Is the new header's peer one of the active entries?
+	       if (peer_match_en) begin
 
-	 // Latch the last header data input
-	 header_in_data_latch <= header_in_data_i;
+		  /* verilator lint_off WIDTH */
+		  if ((header_in_data_i[`HDR_MSG_LEN] -`HOMA_PAYLOAD_SIZE) < srpt_queue[peer_match][`GRANTABLE_BYTES]) begin
+		     srpt_queue[peer_match][`PRIORITY]     <= `SRPT_BLOCKED;
+		     srpt_queue[MAX_OVERCOMMIT][`PRIORITY] <= `SRPT_ACTIVE;
 
-	 case (state) 
-	   `CORE_IDLE: begin
-	      if (header_in_empty_i) begin
+		  end else begin
+		     // Insert the new RPC into the big queue
+		     srpt_queue[MAX_OVERCOMMIT][`PRIORITY] <= `SRPT_BLOCKED;
+		  end
+		  
+		  /* verilator lint_on WIDTH */
+	       end else begin 
+		  avail_pkts <= avail_pkts + `HOMA_PAYLOAD_SIZE;
+		  // Insert the new RPC into the big queue
+		  srpt_queue[MAX_OVERCOMMIT][`PRIORITY] <= `SRPT_ACTIVE;
+	       end
+	    end else begin // if (header_in_data_i[`HDR_OFFSET] == 0)
+	       /* verilator lint_off WIDTH */
+	       if (rpc_match_en) begin
+		  srpt_queue[rpc_match][`RECV_BYTES]      <= srpt_queue[rpc_match][`RECV_BYTES] + `HOMA_PAYLOAD_SIZE;
+		  srpt_queue[rpc_match][`GRANTABLE_BYTES] <= srpt_queue[rpc_match][`GRANTABLE_BYTES] - `HOMA_PAYLOAD_SIZE;
+	       end else begin
+		  srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_i[`HDR_PEER_ID];
+		  srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_i[`HDR_RPC_ID];
+		  srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= 0;
+		  srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= 0;
+		  srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_UPDATE;
+	       end
+	       /* verilator lint_on WIDTH */
+	    end
+	 end else if (new_grant) begin // if (header_in_empty_i)
+	    /* verilator lint_off WIDTH */
+	    // Do we want to send more packets than 8 * MAX_OVERCOMMIT PKTS?
+	    if (srpt_queue[ready_match][`RECV_BYTES] > avail_pkts) begin
+	       srpt_queue[ready_match][`RECV_BYTES]      <= srpt_queue[ready_match][`RECV_BYTES] - avail_pkts;
+	       srpt_queue[ready_match][`GRANTABLE_BYTES] <= srpt_queue[ready_match][`GRANTABLE_BYTES] - avail_pkts;
 
-		 // Make room for that new entry 
-		 for (entry = MAX_OVERCOMMIT+1; entry < MAX_SRPT-1; entry=entry+1) begin
-		    srpt_queue[entry] <= srpt_queue[entry-1];
-		 end
+	       avail_pkts <= 0;  
+	    end else begin 
+	       // Is this going to result in a fully granted message?
+	       if ((srpt_queue[ready_match][`GRANTABLE_BYTES] - srpt_queue[ready_match][`RECV_BYTES]) == 0) begin
+		  srpt_queue[ready_match][`PRIORITY] <= `SRPT_EMPTY;
+	       end
 
-		 // We need one more cycle to cmp the new entry
-		 state <= `CORE_NEW_HDR;
+	       srpt_queue[ready_match][`RECV_BYTES]      <= 0;
+	       srpt_queue[ready_match][`GRANTABLE_BYTES] <= srpt_queue[ready_match][`GRANTABLE_BYTES] - srpt_queue[ready_match][`RECV_BYTES];
 
-		 // TODO combinatorially assign this
-		 // Acknoledge that we read the data 
-		 header_in_read_en_o <= 1;
+	       avail_pkts <= avail_pkts - srpt_queue[ready_match][`RECV_BYTES];
+	    end // else: !if(srpt_queue[ready_match][`RECV_BYTES] > avail_pkts)
+	    /* verilator lint_on WIDTH */
+	 end else if (new_active) begin // if (new_grant)
+	    // Make room for that new entry 
+	    for (entry = MAX_OVERCOMMIT+2; entry < MAX_SRPT-1; entry=entry+1) begin
+	       srpt_queue[entry] <= srpt_queue[entry-1];
+	    end
 
-		 // We did not write a grant packet
-		 grant_pkt_write_en_o <= 0;
+	    srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= srpt_queue[MAX_OVERCOMMIT-1][`PEER_ID];
+	    srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= srpt_queue[MAX_OVERCOMMIT-1][`RPC_ID];
+	    srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= 32'b0;
+	    srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= 32'b0;
+	    srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_BLOCK;
 
-		 // TODO extra time to SRPT on the lower entries
+	    srpt_queue[MAX_OVERCOMMIT-1] <= srpt_queue[MAX_OVERCOMMIT];
+	    srpt_queue[MAX_OVERCOMMIT+1] <= srpt_queue[MAX_OVERCOMMIT-1];
 
-		 // Are there new grants we should send
-	      end else if (grant_pkt_full_i && ready_match_en == 1'b1) begin 
+	 end else begin
+	    if (swap_type == 1'b0) begin
+	       for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
+		  srpt_queue[entry] <= srpt_even[entry];
+	       end
 
-		 state <= `CORE_GRANT;
+	       swap_type <= 1'b1;
+	    end else begin
+	       for (entry = 0; entry < MAX_OVERCOMMIT-1; entry=entry+1) begin
+		  srpt_queue[entry] <= srpt_odd[entry];
+	       end
 
-		 // TODO combinatorially assign this
-		 // We did not read the data 
-		 header_in_read_en_o <= 0;
+	       for (entry = MAX_OVERCOMMIT+1; entry < MAX_SRPT; entry=entry+1) begin
+		  srpt_queue[entry] <= srpt_odd[entry];
+	       end
 
-		 // We did not write a grant packet
-		 grant_pkt_write_en_o <= 0;
-
-		 // TODO Can still SRPT on the top
-
-		 // Do we need to send any block messages 
-	      end else if (((srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] != srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) 
-			    ? (srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] < srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) 
-			    : (srpt_queue[MAX_OVERCOMMIT-1][`GRANTABLE_BYTES] > srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES]))
-			   && (srpt_queue[MAX_OVERCOMMIT][`PRIORITY] == `SRPT_ACTIVE)) begin
-
-		 // We need one more cycle to send out the block request
-		 state <= `CORE_QUEUE_SWAP;
-
-		 // TODO combinatorially assign this
-		 // We did not read the data 
-		 header_in_read_en_o <= 0;
-
-		 // We did not write a grant packet
-		 grant_pkt_write_en_o <= 0;
-
-		 // Swap in the new best element
-		 for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
-		    srpt_queue[entry] <= srpt_odd[entry];
-		 end
-
-		 // Otherwise just sort the two queues
-	      end else begin
-		 state <= `CORE_IDLE;
-
-		 // TODO combinatorially assign this
-		 // We did not read the data 
-		 header_in_read_en_o <= 0;
-
-		 // We did not write a grant packet
-		 grant_pkt_write_en_o <= 0;
-
-		 if (swap_type == 1'b0) begin
-		    // Assumes that write does not keep data around
-		    for (entry = 0; entry < MAX_SRPT; entry=entry+1) begin
-		       srpt_queue[entry] <= srpt_even[entry];
-		    end
-
-		    swap_type <= 1'b1;
-		 end else begin
-		    for (entry = 0; entry < MAX_OVERCOMMIT-1; entry=entry+1) begin
-		       srpt_queue[entry] <= srpt_odd[entry];
-		    end
-
-		    for (entry = MAX_OVERCOMMIT+1; entry < MAX_SRPT; entry=entry+1) begin
-		       srpt_queue[entry] <= srpt_odd[entry];
-		    end
-
-		    swap_type <= 1'b0;
-		 end
-	      end
-	   end
-
-	   `CORE_GRANT: begin
-	      state <= `CORE_IDLE;
-
-	      // We did not read the data 
-	      header_in_read_en_o <= 0;
-
-	      // We did write a grant packet
-	      grant_pkt_write_en_o <= 1;
-
-	      /*
-	       * If we have reached this state:
-	       *   1) There are some recv pkts 
-	       *   2) There are some avail pkts
-	       */
-
-	      /* verilator lint_off WIDTH */
-
-	      // Do we want to send more packets than 8 * MAX_OVERCOMMIT PKTS?
-	      if (srpt_queue[ready_match_latch][`RECV_BYTES] > avail_pkts) begin
-		 // Just send avail_pkts of data
-		 grant_pkt_data_o[`PEER_ID]         <= srpt_queue[ready_match_latch][`PEER_ID];
-		 grant_pkt_data_o[`RPC_ID]          <= srpt_queue[ready_match_latch][`RPC_ID];
-		 grant_pkt_data_o[`RECV_BYTES]      <= 32'b0;
-		 grant_pkt_data_o[`GRANTABLE_BYTES] <= srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - avail_pkts;
-		 grant_pkt_data_o[`PRIORITY]        <= 3'b0;
-
-		 srpt_queue[ready_match_latch][`RECV_BYTES]      <= srpt_queue[ready_match_latch][`RECV_BYTES] - avail_pkts;
-		 srpt_queue[ready_match_latch][`GRANTABLE_BYTES] <= srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - avail_pkts;
-
-		 avail_pkts <= 0;  
-	      end else begin 
-		 // Is this going to result in a fully granted message?
-		 if ((srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - srpt_queue[ready_match_latch][`RECV_BYTES]) == 0) begin
-		    srpt_queue[ready_match_latch][`PRIORITY] <= `SRPT_EMPTY;
-		 end
-
-		 grant_pkt_data_o[`PEER_ID]         <= srpt_queue[ready_match_latch][`PEER_ID];
-		 grant_pkt_data_o[`RPC_ID]          <= srpt_queue[ready_match_latch][`RPC_ID];
-		 grant_pkt_data_o[`RECV_BYTES]      <= 32'b0;
-		 grant_pkt_data_o[`GRANTABLE_BYTES] <= srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - srpt_queue[ready_match_latch][`RECV_BYTES];
-		 grant_pkt_data_o[`PRIORITY]        <= 3'b0;
-
-		 srpt_queue[ready_match_latch][`RECV_BYTES]      <= 0;
-		 srpt_queue[ready_match_latch][`GRANTABLE_BYTES] <= srpt_queue[ready_match_latch][`GRANTABLE_BYTES] - srpt_queue[ready_match_latch][`RECV_BYTES];
-
-		 avail_pkts <= avail_pkts - srpt_queue[ready_match_latch][`RECV_BYTES];
-	      end
-	      /* verilator lint_on WIDTH */
-	   end
-
-	   `CORE_QUEUE_SWAP: begin
-	      state <= `CORE_IDLE;
-
-	      // TODO combinatorially assign this
-	      // We did not read the data 
-	      header_in_read_en_o <= 0;
-
-	      // We did not write a grant packet
-	      grant_pkt_write_en_o <= 0;
-
-	      // Make room for that new entry 
-	      for (entry = MAX_OVERCOMMIT+1; entry < MAX_SRPT-1; entry=entry+1) begin
-		 srpt_queue[entry] <= srpt_queue[entry-1];
-	      end
-
-	      srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= srpt_queue[MAX_OVERCOMMIT-1][`PEER_ID];
-	      srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= srpt_queue[MAX_OVERCOMMIT-1][`RPC_ID];
-	      srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= 32'b0;
-	      srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= 32'b0;
-	      srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_BLOCK;
-	   end
-
-	   `CORE_NEW_HDR: begin
-	      // TODO cannot base off of the first unscheduled packet
-	      // It is the first unscheduled packet that creates the entry in the SRPT queue.
-	      if (header_in_data_latch[`HDR_OFFSET] == 0) begin
-		 // Is the new header's peer one of the active entries?
-		 if (peer_match_en_latch) begin
-
-		    // Is the grantable packets of the new RPC better than that of the active entry?
-		    
-		    /* verilator lint_off WIDTH */
-		    if ((header_in_data_latch[`HDR_MSG_LEN] -`HOMA_PAYLOAD_SIZE) < srpt_queue[peer_match_latch][`GRANTABLE_BYTES]) begin
-		       srpt_queue[peer_match_latch][`PRIORITY] <= `SRPT_BLOCKED;
-
-		       /* verilator lint_on WIDTH */
-		       srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
-		       srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
-		       srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= `HOMA_PAYLOAD_SIZE;
-		       srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE;
-		       srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_ACTIVE;
-
-		       // The grantable packets of the new RPC is worse than that of the active entry
-		    end else begin
-		       // Insert the new RPC into the big queue
-		       srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
-		       srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
-		       srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= `HOMA_PAYLOAD_SIZE;
-		       srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE;
-		       srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_BLOCKED;
-		    end
-
-		    // The header's peer is not one of the active entries
-		 end else begin 
-		    avail_pkts <= avail_pkts + `HOMA_PAYLOAD_SIZE;
-		    // Insert the new RPC into the big queue
-		    srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
-		    srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
-		    srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= `HOMA_PAYLOAD_SIZE;
-		    srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= header_in_data_latch[`HDR_MSG_LEN] - `HOMA_PAYLOAD_SIZE;
-		    srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_ACTIVE;
-		 end
-
-		 // A general DATA packet, not the first packet of the unscheduled bytes (which creates the original SRPT entry)
-	      end else begin
-		 /*
-		  * When an entry is encountered in the queue that matches on
-		  * peer and rpc, it will update the recv packets value of that
-		  * entry. 
-		  */
-		 if (rpc_match_en_latch == 1'b1) begin
-
-		    /* verilator lint_off WIDTH */
-		    srpt_queue[rpc_match_latch][`RECV_BYTES] <= srpt_queue[rpc_match_latch][`RECV_BYTES] + `HOMA_PAYLOAD_SIZE;
-		    srpt_queue[rpc_match_latch][`GRANTABLE_BYTES] <= srpt_queue[rpc_match_latch][`GRANTABLE_BYTES] - `HOMA_PAYLOAD_SIZE;
-		    /* verilator lint_on WIDTH */
-
-		 end else begin
-		    srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_latch[`HDR_PEER_ID];
-		    srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= header_in_data_latch[`HDR_RPC_ID];
-		    srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= 32'b0;
-		    srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= 32'b0;
-		    srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_UPDATE;
-		 end
-	      end
-
-	      state <= `CORE_IDLE;
-
-	      // TODO we should combinatorially assign this
-	      // We did not read the data 
-	      header_in_read_en_o <= 0;
-
-	      // We did not write a grant packet
-	      grant_pkt_write_en_o <= 0;
-
-	      // TODO extra time here to send a grant packet
-	   end
-	 endcase
+	       swap_type <= 1'b0;
+	    end
+	 end
       end
    end 
-
-   assign ap_ready = 1;
-   assign ap_idle = 0;
-   assign ap_done = 1;
-
 endmodule // srpt_grant_queue
