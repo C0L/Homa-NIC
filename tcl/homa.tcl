@@ -24,7 +24,7 @@ add_files -blackbox $json_src
 
 open_solution -reset "solution" -flow_target vivado 
 set_part $part
-create_clock -period 2.5 -name default
+create_clock -period 4 -name default
 
 # This is the neccesary pipeline style for tasks
 config_compile -pipeline_style flp
