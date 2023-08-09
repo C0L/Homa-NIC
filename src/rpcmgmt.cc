@@ -25,7 +25,9 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
     static homa_rpc_t rpcs[MAX_RPCS];
 
-#pragma HLS pipeline II=1
+#pragma HLS pipeline II=2
+
+#pragma HLS bind_storage variable=rpcs type=RAM_1WNR
 
 #pragma HLS dependence variable=rpcs inter WAR false
 #pragma HLS dependence variable=rpcs inter RAW false
@@ -168,8 +170,8 @@ void rpc_map(hls::stream<header_t> & header_in_i,
     // hash(dest addr, sender ID, dest port) -> rpc ID
     static hashmap_t<rpc_hashpack_t, local_id_t, RPC_SUB_TABLE_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE, MAX_OPS> rpc_hashmap;
 
-    //#pragma HLS dependence variable=hashmap inter WAR false
-    //#pragma HLS dependence variable=hashmap inter RAW false
+// #pragma HLS dependence variable=hashmap inter WAR false
+// #pragma HLS dependence variable=hashmap inter RAW false
 
 #pragma HLS pipeline II=2
 

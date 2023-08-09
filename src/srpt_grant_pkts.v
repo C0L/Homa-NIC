@@ -164,7 +164,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    assign ap_ready = 1;
    assign ap_idle = 0;
    assign ap_done = 1;
-  
+   
    task prioritize;
       output [`ENTRY_SIZE-1:0] low_o, high_o;
       input [`ENTRY_SIZE-1:0]  low_i, high_i;
@@ -205,6 +205,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       peer_match     = {MAX_OVERCOMMIT_LOG2{1'b1}};
       rpc_match      = {MAX_OVERCOMMIT_LOG2{1'b1}};
       ready_match    = {MAX_OVERCOMMIT_LOG2{1'b1}};
+      
       peer_match_en  = 1'b0;
       rpc_match_en   = 1'b0;
       ready_match_en = 1'b0;
@@ -212,10 +213,10 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       new_header = header_in_empty_i;
 
       new_active = ((srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] != srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) ?
-			(srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] < srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) :
-			(srpt_queue[MAX_OVERCOMMIT-1][`GRANTABLE_BYTES] > srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES])) && 
-		       (srpt_queue[MAX_OVERCOMMIT][`PRIORITY] == `SRPT_ACTIVE);
- 
+		    (srpt_queue[MAX_OVERCOMMIT-1][`PRIORITY] < srpt_queue[MAX_OVERCOMMIT][`PRIORITY]) :
+		    (srpt_queue[MAX_OVERCOMMIT-1][`GRANTABLE_BYTES] > srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES])) && 
+		   (srpt_queue[MAX_OVERCOMMIT][`PRIORITY] == `SRPT_ACTIVE);
+      
      
       // Check every entry in the active set
       for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1) begin
@@ -238,8 +239,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	 // Is the entry in the active set empty, and so, should it be filled and a GRANT packet sent?
 	 if (srpt_queue[entry][`PRIORITY] == `SRPT_ACTIVE 
 	     && srpt_queue[entry][`RECV_BYTES] != 0 
-	     && ready_match_en == 1'b0
-	     && avail_pkts != 0) begin
+	     && ready_match_en == 1'b0) begin
+// && avail_pkts != 0) begin
 	    ready_match = entry[MAX_OVERCOMMIT_LOG2-1:0];
 	    ready_match_en = 1'b1;
 	 end else begin
@@ -247,8 +248,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	 end
       end // for (entry = 0; entry < MAX_OVERCOMMIT; entry=entry+1)
 
-      new_grant  = grant_pkt_full_i && ready_match_en;
-       
+      new_grant = grant_pkt_full_i && ready_match_en && avail_pkts != 0;
+      
       /* verilator lint_off WIDTH */
       if (new_header) begin
 	 header_in_read_en_o  = 1;
@@ -275,14 +276,12 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       srpt_odd[MAX_SRPT-1] = srpt_queue[MAX_SRPT-1];
       
       for (entry = 2; entry < MAX_SRPT-1; entry=entry+2) begin
-	 prioritize(srpt_odd[entry], srpt_odd[entry+1], srpt_queue[entry-1], srpt_queue[entry]);
+	 prioritize(srpt_odd[entry-1], srpt_odd[entry], srpt_queue[entry-1], srpt_queue[entry]);
       end
       
       for (entry = 1; entry < MAX_SRPT; entry=entry+2) begin
 	 prioritize(srpt_even[entry-1], srpt_even[entry], srpt_queue[entry-1], srpt_queue[entry]);
       end
-
-
    end
 
    integer rst_entry;
@@ -295,7 +294,11 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	 avail_pkts <= `OVERCOMMIT_BYTES;
 
 	 for (rst_entry = 0; rst_entry < MAX_SRPT; rst_entry=rst_entry+1) begin
-	    srpt_queue[rst_entry][`ENTRY_SIZE-1:0] <= {{(`ENTRY_SIZE-3){1'b0}}, `SRPT_EMPTY};
+	    srpt_queue[rst_entry][`PEER_ID]         <= 0;
+	    srpt_queue[rst_entry][`RPC_ID]          <= 0;
+	    srpt_queue[rst_entry][`RECV_BYTES]      <= 0;
+	    srpt_queue[rst_entry][`GRANTABLE_BYTES] <= 0;
+	    srpt_queue[rst_entry][`PRIORITY]        <= `SRPT_EMPTY;
 	 end
       end else if (ap_ce && ap_start) begin
 	 if (new_header) begin
@@ -317,7 +320,6 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	       
 	       // Is the new header's peer one of the active entries?
 	       if (peer_match_en) begin
-
 		  /* verilator lint_off WIDTH */
 		  if ((header_in_data_i[`HDR_MSG_LEN] -`HOMA_PAYLOAD_SIZE) < srpt_queue[peer_match][`GRANTABLE_BYTES]) begin
 		     srpt_queue[peer_match][`PRIORITY]     <= `SRPT_BLOCKED;
@@ -374,8 +376,8 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	       srpt_queue[entry] <= srpt_queue[entry-1];
 	    end
 
-	    srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= srpt_queue[MAX_OVERCOMMIT-1][`PEER_ID];
-	    srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= srpt_queue[MAX_OVERCOMMIT-1][`RPC_ID];
+	    srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= srpt_queue[MAX_OVERCOMMIT][`PEER_ID];
+	    srpt_queue[MAX_OVERCOMMIT][`RPC_ID]          <= srpt_queue[MAX_OVERCOMMIT][`RPC_ID];
 	    srpt_queue[MAX_OVERCOMMIT][`RECV_BYTES]      <= 32'b0;
 	    srpt_queue[MAX_OVERCOMMIT][`GRANTABLE_BYTES] <= 32'b0;
 	    srpt_queue[MAX_OVERCOMMIT][`PRIORITY]        <= `SRPT_BLOCK;
@@ -405,3 +407,113 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
       end
    end 
 endmodule // srpt_grant_queue
+
+/**
+ * srpt_data_pkts_tb() - Test bench for srpt data queue
+ */
+/* verilator lint_off STMTDLY */
+module srpt_grant_pkts_tb();
+   reg ap_clk=0;
+   reg ap_rst;
+   reg ap_ce;
+   reg ap_start;
+   reg ap_continue;
+
+   wire	ap_idle;
+   wire	ap_done;
+   wire	ap_ready;
+
+   reg	header_in_empty_i;
+   wire	header_in_read_en_o;
+   reg [`HEADER_SIZE-1:0] header_in_data_i;
+   
+   reg			  grant_pkt_full_i;
+   wire [`ENTRY_SIZE-1:0] grant_pkt_data_o; 
+   wire			  grant_pkt_write_en_o;
+
+   srpt_grant_pkts srpt_queue(.ap_clk(ap_clk), 
+			      .ap_rst(ap_rst), 
+			      .ap_ce(ap_ce), 
+			      .ap_start(ap_start), 
+			      .ap_continue(ap_continue), 
+			      .header_in_empty_i(header_in_empty_i), 
+			      .header_in_read_en_o(header_in_read_en_o), 
+			      .header_in_data_i(header_in_data_i), 
+			      .grant_pkt_full_i(grant_pkt_full_i), 
+			      .grant_pkt_write_en_o(grant_pkt_write_en_o), 
+			      .grant_pkt_data_o(grant_pkt_data_o),
+			      .ap_idle(ap_idle), 
+			      .ap_done(ap_done), 
+			      .ap_ready(ap_ready));
+
+   task new_entry(input [15:0] rpc_id, input [13:0] peer_id, input [31:0] msg_len, offset);
+      begin
+	 
+	 header_in_data_i[`HDR_PEER_ID]  = peer_id;
+	 header_in_data_i[`HDR_RPC_ID]   = rpc_id;
+	 header_in_data_i[`HDR_MSG_LEN]  = msg_len;
+	 header_in_data_i[`HDR_OFFSET]   = offset;
+	 header_in_data_i[`HDR_INCOMING] = 0;
+	 
+	 header_in_empty_i = 1;
+
+	 #5;
+	 
+	 header_in_empty_i = 0;
+	 
+      end
+      
+   endtask // new_entry
+   
+   task get_output();
+      begin
+	 grant_pkt_full_i = 1;
+	 #5;
+	 
+	 grant_pkt_full_i = 0;
+      end
+   endtask
+
+
+   /* verilator lint_off INFINITELOOP */
+   
+   initial begin
+      ap_clk = 0;
+
+      forever begin
+	 #2.5 ap_clk = ~ap_clk;
+      end 
+   end
+   
+   initial begin
+      header_in_data_i = {`HEADER_SIZE{1'b0}};
+      header_in_empty_i = 0;
+      grant_pkt_full_i = 0;
+      
+      // Send reset signal
+      ap_ce = 1; 
+      ap_rst = 0;
+      ap_start = 0;
+      ap_rst = 1;
+
+      #5;
+      ap_rst = 0;
+      ap_start = 1;
+
+      #5;
+      
+      new_entry(5, 5, 5, 0);
+      new_entry(4, 4, 4, 0);
+      new_entry(3, 3, 3, 0);
+      new_entry(1, 1, 1, 0);
+      new_entry(2, 2, 2, 0);
+      new_entry(6, 3, 3, 0);
+
+      #200;
+      new_entry(7, 4, 4, 0);
+      
+      #1000;
+      $stop;
+   end
+
+endmodule

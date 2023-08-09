@@ -4,7 +4,7 @@ LINTER = verilator -lint-only +1364-2001ext+v --unroll-count 1024
 # C synthesis tool (2023.1 currently tested)
 VITIS  = vitis_hls
 
-# Synthesis, Placement, Routing, Bitstream Generation (2023.1 currentl tested)
+# Synthesis, Placement, Routing, Bitstream Generation (2023.1 current tested)
 VIVADO = vivado
 
 # Verilog Simulator
@@ -28,12 +28,10 @@ SRC_V = \
 TB_V = \
         $(V_SRC_DIR)/srpt_grant_pkts.v
 
- SRC_JSON = $(V_SRC_DIR)/srpt_data_pkts.json
 
-
-# SRC_JSON = \
-#         $(V_SRC_DIR)/srpt_grant_pkts.json \
-#         $(V_SRC_DIR)/srpt_data_pkts.json
+SRC_JSON = \
+        $(V_SRC_DIR)/srpt_grant_pkts.json \
+        $(V_SRC_DIR)/srpt_data_pkts.json
 
 SRC_C =                       \
     $(C_SRC_DIR)/databuff.cc  \
@@ -80,9 +78,6 @@ csim_unscheduled_exchange:
 
 csim_scheduled_exchange:
 	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
-
-csim_srpt_data_pkts:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_srpt_data_pkts.cc
 
 ############ Vitis Cosim ############ 
 

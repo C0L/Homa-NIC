@@ -78,7 +78,7 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 
     static dbuff_t dbuff[NUM_DBUFF];
 
-#pragma HLS bind_storage variable=dbuff type=RAM_1WNR
+// #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
 
     // Take input chunks and add them to the data buffer
     dbuff_in_t dbuff_in;

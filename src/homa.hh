@@ -236,8 +236,8 @@ struct rexmit_t {
 typedef ap_uint<512> integral_t;
 
 /* Data Buffer Configuration */
-// #define NUM_DBUFF        1024 // Number of data buffers (max outgoing RPCs)
-#define NUM_DBUFF        128// Number of data buffers (max outgoing RPCs)
+#define NUM_DBUFF        1024 // Number of data buffers (max outgoing RPCs)
+// #define NUM_DBUFF        128// Number of data buffers (max outgoing RPCs)
 #define DBUFF_INDEX      10   // Index into the data buffers
 #define DBUFF_CHUNK_SIZE 64   // Size of a "chunk" of a data buffer
 #define DBUFF_NUM_CHUNKS 256  // Number of "chunks" in one buffer
