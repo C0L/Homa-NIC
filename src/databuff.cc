@@ -46,7 +46,6 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
     }
 
     if (!valid && !header_in_i.empty()) {
-	std::cerr << "DBUFF INGRESS READ HEADER IN\n";
 	valid = true;
 	header_in = header_in_i.read();
 	header_in_o.write(header_in);
@@ -74,11 +73,17 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 
 #pragma HLS pipeline II=1
 
-    // TODO need a way to handle dropped packet events
-
     static dbuff_t dbuff[NUM_DBUFF];
 
-// #pragma HLS bind_storage variable=dbuff type=RAM_1WNR
+    #pragma HLS array_partition variable=dbuff type=cyclic factor=2 dim=2
+
+    // TODO test manual partitioning?
+
+#pragma HLS dependence variable=dbuff inter WAR false
+#pragma HLS dependence variable=dbuff inter RAW false
+
+#pragma HLS dependence variable=dbuff intra WAR false
+#pragma HLS dependence variable=dbuff intra RAW false
 
     // Take input chunks and add them to the data buffer
     dbuff_in_t dbuff_in;
@@ -125,13 +130,10 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 	}
 
 	out_chunk_o.write(out_chunk);
-
-	std::cerr << "DBUFF OUT CHUNK OUT\n";
     }
 
     // TODO can move this back in
     if (out_chunk.local_id !=0 && (out_chunk.offset + (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) < out_chunk.length) {
-	std::cerr << "REFRESH REQUEST \n";
 	dma_r_req_t dma_r_req;
 	dma_r_req.offset   = out_chunk.offset + DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS;
 	dma_r_req.msg_len  = out_chunk.length;

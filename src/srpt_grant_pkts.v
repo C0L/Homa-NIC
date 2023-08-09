@@ -159,7 +159,6 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    reg				 new_header;
    reg				 new_grant;
    reg				 new_active;
-   
 
    assign ap_ready = 1;
    assign ap_idle = 0;
@@ -240,7 +239,6 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 	 if (srpt_queue[entry][`PRIORITY] == `SRPT_ACTIVE 
 	     && srpt_queue[entry][`RECV_BYTES] != 0 
 	     && ready_match_en == 1'b0) begin
-// && avail_pkts != 0) begin
 	    ready_match = entry[MAX_OVERCOMMIT_LOG2-1:0];
 	    ready_match_en = 1'b1;
 	 end else begin

@@ -52,7 +52,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
       if (diff < 64) {
          packetmap.map[63-diff] = 1;
 
-         // TODO should this be pipelined?
+         // TODO should this be unrolled?
          int shift = 0;
          for (int i = 63; i >= 0; --i) {
             if (packetmap.map[63-i] == 0) shift = i;
