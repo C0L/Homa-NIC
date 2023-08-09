@@ -248,9 +248,6 @@ typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
 // One data buffer stores 2^14 bytes
 typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
-// struct dbuff_t {
-// integral_t data[DBUFF_NUM_CHUNKS];
-// };
 
 // Pointer to a byte in the data buffer
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
