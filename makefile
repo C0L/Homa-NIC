@@ -64,7 +64,8 @@ COSIM = 2
 
 ############ Bitstream  Gen ############
 
-homa: synth
+# homa: synth
+homa: 
 	$(VIVADO) -mode batch -source tcl/compile.tcl
 
 ############ Vitis C Synth ############ 
