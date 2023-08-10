@@ -436,13 +436,13 @@ module srpt_data_pkts_tb();
 			     .ap_done(ap_done), 
 			     .ap_ready(ap_ready));
 
-   task sendmsg(input [15:0] rpc_id, input [9:0] dbuff_id, input [19:0] remaining, granted, dbuffered, dma_offset);
+   task sendmsg(input [15:0] rpc_id, input [9:0] dbuff_id, input [19:0] msg_len, dma_offset);
       begin
 	 
 	 sendmsg_in_data_i[`SENDMSG_RPC_ID]     = rpc_id;
-	 sendmsg_in_data_i[`SENDMSG_REMAINING]  = remaining;
-	 sendmsg_in_data_i[`SENDMSG_GRANTED]    = granted;
-	 sendmsg_in_data_i[`SENDMSG_DBUFFERED]  = dbuffered;
+	 sendmsg_in_data_i[`SENDMSG_REMAINING]  = msg_len;
+	 sendmsg_in_data_i[`SENDMSG_GRANTED]    = msg_len;
+	 sendmsg_in_data_i[`SENDMSG_DBUFFERED]  = msg_len;
 	 sendmsg_in_data_i[`SENDMSG_DBUFF_ID]   = dbuff_id;
 	 sendmsg_in_data_i[`SENDMSG_DMA_OFFSET] = dma_offset;
 
@@ -450,6 +450,7 @@ module srpt_data_pkts_tb();
 
 	 #5;
 	 sendmsg_in_empty_i  = 0;
+	 wait(sendmsg_in_read_en_o == 1);
       end
       
    endtask
@@ -461,7 +462,7 @@ module srpt_data_pkts_tb();
 	 
 	 dbuff_in_empty_i  = 1;
 	 
-	 #5;
+	 wait(dbuff_in_read_en_o == 1);
 	 dbuff_in_empty_i  = 0;
       end
    endtask
@@ -473,8 +474,7 @@ module srpt_data_pkts_tb();
 	 grant_in_data_i[`GRANT_OFFSET] = granted;
 	 
 	 grant_in_empty_i  = 1;
-
-	 #5;
+	 wait(dbuff_in_read_en_o == 1);
 	 grant_in_empty_i  = 0;
       end
    endtask
@@ -483,8 +483,8 @@ module srpt_data_pkts_tb();
       begin
 	 data_pkt_full_i = 1;
 	 #5;
-	 
 	 data_pkt_full_i = 0;
+	 wait(data_pkt_write_en_o == 1);
       end
    endtask // get_pkt
 
@@ -494,7 +494,32 @@ module srpt_data_pkts_tb();
 	 #5;
 	 
 	 cache_req_full_i = 0;
+	 wait(cache_req_write_en_o == 1);
       end
+   endtask // get_req
+
+   task test_empty_req();
+     begin
+	cache_req_full_i = 1;
+	#5;
+	if(cache_req_write_en_o) begin
+           $display("FAILURE: Data pkts should be empty");
+	   $stop;
+	end
+	cache_req_full_i = 0;
+     end
+   endtask 
+
+   task test_empty_pkt();
+     begin
+	 data_pkt_full_i = 1;
+	 #5;
+	 if(data_pkt_write_en_o) begin
+          $display("FAILURE: Data pkts should be empty");
+	    $stop;
+	 end
+	 data_pkt_full_i = 0;
+     end
    endtask
 
    /* verilator lint_off INFINITELOOP */
@@ -529,80 +554,25 @@ module srpt_data_pkts_tb();
       ap_start = 1;
 
       #5;
-      sendmsg(1, 1, 5000, 5000, 5000, 0);
+      /* Add a bunch of user sendmsg requests */
+      
+      // RPC ID, DBUFF ID, MSG LEN, DMA OFFSET
+      sendmsg(1, 1, 5000, 0);
+      sendmsg(2, 2, 4000, 4000);
+      sendmsg(5, 5, 5000, 5000);
+      sendmsg(3, 3, 3000, 3000);
 
-      // Entry will block and no outputs will be sent
-      // get_output();
-      // get_output();
-      // get_output();
-      // get_output();
-      // get_output();
-      // get_output();
-      #20;
-      sendmsg(2, 2, 400, 400, 400, 0);
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      get_req();
-      // new_dbuff(1, 0);
+      #30;
+      
+      // Not dbuff notifs have been provided, so no data pkts out
+      test_empty_pkt();
+      test_empty_req();
 
-      // Entry is still blocked and no outputs will be sent
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
+      // Get the req and ensure it comes from the SRPT
+      // get_req();
 
-      #20;
-      // new_grant(1, 0);
-
-      // Should give an output
-      // get_output();
-
-      #20;
-      // new_entry(9, 9000, 9000, 9000);
-      // new_entry(8, 8000, 8000, 8000);
-      // new_entry(7, 7000, 7000, 7000);
-      // new_entry(6, 6000, 6000, 6000);
-      // new_entry(5, 5000, 5000, 5000);
-      // new_entry(4, 4000, 4000, 4000);
-      // new_entry(3, 3000, 3000, 3000);
-      // new_entry(2, 2000, 2000, 2000);
-
-      #20;
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
-      //get_output();
+      
+      
       
       #1000;
       $stop;
