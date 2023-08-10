@@ -29,14 +29,15 @@ update_compile_order -fileset sim_1
 launch_runs synth_1
 wait_on_run synth_1
 open_run synth_1 -name netlist_1
-### Generate a timing and power reports and write to disk
-#report_timing_summary -delay_type max -report_unconstrained -check_timing_verbose -max_paths 10 -input_pins -file ./Tutorial_Created_Data/project_bft/syn_timing.rpt
-### Launch Implementation
-#launch_runs impl_1 -to_step write_bitstream
-#wait_on_run impl_1 
-### Generate a timing and power reports and write to disk
-### comment out the open_run for batch mode
-#open_run impl_1
-#report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose \
-#-max_paths 10 -input_pins -file ./Tutorial_Created_Data/project_bft/imp_timing.rpt
-#report_power -file ./Tutorial_Created_Data/project_bft/imp_power.rpt
+
+# Generate a timing and power reports and write to disk
+# report_timing_summary -delay_type max -report_unconstrained -check_timing_verbose -max_paths 10 -input_pins -file ...
+
+# Launch Implementation
+launch_runs impl_1 -to_step write_bitstream
+wait_on_run impl_1
+
+# Generate a timing and power reports and write to disk
+open_run impl_1
+
+# report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose -max_paths 10 -input_pins -file ./Tutorial_Created_Data/project_bft/imp_timing.rpt report_power -file ./Tutorial_Created_Data/project_bft/imp_power.rpt
