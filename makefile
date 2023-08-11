@@ -70,23 +70,23 @@ homa:
 
 ############ Vitis C Synth ############ 
 synth:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
 
 ############ Vitis C Simulation ############ 
 
 csim_unscheduled_exchange:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
 
 csim_scheduled_exchange:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
+	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
 
 ############ Vitis Cosim ############ 
 
 cosim_unscheduled_exchange:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
 
 cosim_scheduled_exchange:
-	$(VITIS) tcl/homa.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
+	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
 
 ############ Verilog Synthesis ############ 
 

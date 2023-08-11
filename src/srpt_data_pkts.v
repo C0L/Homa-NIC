@@ -107,7 +107,7 @@
  * 
  * TODO use a LAST bit to handle when notifications are sent?
  */
-module srpt_data_pkts #(parameter MAX_RPCS = 512)
+module srpt_data_pkts #(parameter MAX_RPCS = 128)
    (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
     
     input			  sendmsg_in_empty_i,

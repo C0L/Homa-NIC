@@ -10,6 +10,8 @@ set_property board_part xilinx.com:au250:part0:1.3 [current_project]
 
 add_files -fileset constrs_1 ./xdc/homa.xdc
 set_property is_enabled true [get_files ./xdc/homa.xdc]
+add_files -fileset constrs_1 ./xdc/alveo-u250-xdc.xdc
+set_property is_enabled true [get_files ./xdc/alveo-u250-xdc.xdc]
 
 set cur_ip_paths [get_property ip_repo_paths [current_project]]
 set_property ip_repo_paths [lappend new_ip_paths $cur_ip_paths] [current_project]

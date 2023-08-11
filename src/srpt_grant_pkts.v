@@ -126,7 +126,7 @@
  */
 module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 			 parameter MAX_OVERCOMMIT_LOG2 = 3,
-			 parameter MAX_SRPT = 1024)
+			 parameter MAX_SRPT = 128)
    (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
     input			 header_in_empty_i,
     output reg			 header_in_read_en_o,
