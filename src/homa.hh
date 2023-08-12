@@ -19,8 +19,11 @@
 #define IS_CLIENT(id) ((id & 1) == 0)
 
 // Convert between representation and index
-#define SEND_RPC_ID_FROM_INDEX(a) ((a + 1 + MAX_RPCS/2) << 1)
-#define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1 - MAX_RPCS/2)
+// #define SEND_RPC_ID_FROM_INDEX(a) ((a + 1 + MAX_RPCS/2) << 1)
+// #define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1 - MAX_RPCS/2)
+
+#define SEND_RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
+#define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
 
 #define RECV_RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
 #define RECV_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
@@ -121,18 +124,38 @@ typedef ap_uint<SRPT_GRANT_OUT_SIZE> srpt_grant_out_t;
 #define SRPT_GRANT_IN_RPC_ID  29,14
 #define SRPT_GRANT_IN_OFFSET  61,30
 #define SRPT_GRANT_IN_MSG_LEN 93,62
-#define SRPT_GRANT_IN_INC     125,94
+#define SRPT_GRANT_IN_INC     125,94 // TODO still needed?
 
 typedef ap_uint<SRPT_GRANT_IN_SIZE> srpt_grant_in_t;
 
-#define SRPT_DATA_SIZE      76
-#define SRPT_DATA_RPC_ID    15,0
-#define SRPT_DATA_REMAINING 35,16
-#define SRPT_DATA_GRANTED   55,36
-#define SRPT_DATA_DBUFFERED 75,56
+#define SRPT_SENDMSG_SIZE       86
+#define SRPT_SENDMSG_RPC_ID     15,0
+#define SRPT_SENDMSG_MSG_LEN    35,16
+#define SRPT_SENDMSG_GRANTED    55,36
+#define SRPT_SENDMSG_DBUFF_ID   65,56
+#define SRPT_SENDMSG_DMA_OFFSET 85,66
 
-typedef ap_uint<SRPT_DATA_SIZE> srpt_data_in_t;
-typedef ap_uint<SRPT_DATA_SIZE> srpt_data_out_t;
+typedef ap_uint<SRPT_SENDMSG_SIZE> srpt_sendmsg_t;
+
+#define PKTQ_SIZE      99
+#define PKTQ_RPC_ID    15,0
+#define PKTQ_DBUFF_ID  24,16
+#define PKTQ_REMAINING 45,26
+#define PKTQ_DBUFFERED 65,46
+#define PKTQ_GRANTED   85,66
+#define PKTQ_PRIORITY  98,86
+
+typedef ap_uint<PKTQ_SIZE> srpt_pktq_t;
+
+#define SENDQ_SIZE      101
+#define SENDQ_RPC_ID    15,0
+#define SENDQ_DBUFF_ID  25,16
+#define SENDQ_OFFSET    57,26
+#define SENDQ_DBUFFERED 77,58
+#define SENDQ_MSG_LEN   97,78
+#define SENDQ_PRIORITY  100,98
+
+typedef ap_uint<SENDQ_SIZE> srpt_sendq_t;
 
 #define SRPT_DBUFF_NOTIF_SIZE   36
 #define SRPT_DBUFF_NOTIF_RPC_ID 15,0

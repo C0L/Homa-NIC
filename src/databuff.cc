@@ -34,6 +34,8 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
 	dma_w_req.offset = in_chunk.offset + ((header_in.ibuff_id) * HOMA_MAX_MESSAGE_LENGTH) + header_in.data_offset;
 	dma_w_req.data   = in_chunk.buff;
 
+	std::cerr << "WROTE DBUFF CHUNK\n";
+
 	dma_w_req_o.write(dma_w_req);
 
 	if (in_chunk.last) valid = false;
@@ -43,11 +45,13 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
     if (!chunk_in_o.empty()) {
 	in_chunk = chunk_in_o.read(); 
 	rebuff.insert(in_chunk);
+	std::cerr << "INSERT CHUNK\n";
     }
 
     if (!valid && !header_in_i.empty()) {
 	valid = true;
 	header_in = header_in_i.read();
+	std::cerr << "INSERT HEADER\n";
 	header_in_o.write(header_in);
     } 
 }
@@ -67,7 +71,6 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
  */
 void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 	       hls::stream<srpt_dbuff_notif_t> & dbuff_notif_o,
-	       hls::stream<dma_r_req_t> & dma_r_req_o,
 	       hls::stream<out_chunk_t> & out_chunk_i,
 	       hls::stream<out_chunk_t> & out_chunk_o) {
 
@@ -75,9 +78,7 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 
     static dbuff_t dbuff[NUM_DBUFF];
 
-    #pragma HLS array_partition variable=dbuff type=cyclic factor=2 dim=2
-
-    // TODO test manual partitioning?
+    // #pragma HLS array_partition variable=dbuff type=cyclic factor=2 dim=2
 
 #pragma HLS dependence variable=dbuff inter WAR false
 #pragma HLS dependence variable=dbuff inter RAW false
@@ -88,17 +89,21 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
     // Take input chunks and add them to the data buffer
     dbuff_in_t dbuff_in;
     if (dbuff_egress_i.read_nb(dbuff_in)) {
+
 	dbuff_coffset_t chunk_offset = (dbuff_in.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
+
 	dbuff[dbuff_in.dbuff_id][chunk_offset] = dbuff_in.data;
 
 	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.offset + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
 
-	if (dbuff_in.last) {
+	// TODO fix this
+	// if (dbuff_in.last) {
 	    srpt_dbuff_notif_t dbuff_notif;
 	    dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in.local_id;
 	    dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) = dbuffered;
 	    dbuff_notif_o.write(dbuff_notif);
-	}
+	    // }
+
     }
 
     out_chunk_t out_chunk;
@@ -128,17 +133,15 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 		}
 	    }
 	}
-
 	out_chunk_o.write(out_chunk);
     }
-
     // TODO can move this back in
-    if (out_chunk.local_id !=0 && (out_chunk.offset + (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) < out_chunk.length) {
-	dma_r_req_t dma_r_req;
-	dma_r_req.offset   = out_chunk.offset + DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS;
-	dma_r_req.msg_len  = out_chunk.length;
-	dma_r_req.dbuff_id = out_chunk.dbuff_id;
-	dma_r_req.local_id = out_chunk.local_id;
-	dma_r_req_o.write(dma_r_req);
-    } 
+    // if (out_chunk.local_id !=0 && (out_chunk.offset + (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) < out_chunk.length) {
+    // 	dma_r_req_t dma_r_req;
+    // 	dma_r_req.offset   = out_chunk.offset + DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS;
+    // 	dma_r_req.msg_len  = out_chunk.length;
+    // 	dma_r_req.dbuff_id = out_chunk.dbuff_id;
+    // 	dma_r_req.local_id = out_chunk.local_id;
+    // 	dma_r_req_o.write(dma_r_req);
+    // } 
 }

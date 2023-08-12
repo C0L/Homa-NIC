@@ -5,7 +5,7 @@
 #include "srptmgmt.hh"
 #include "rpcmgmt.hh"
 extern "C"{
-   void egress_selector(hls::stream<srpt_data_out_t> & data_pkt_i,
+   void egress_selector(hls::stream<srpt_pktq_t> & data_pkt_i,
          hls::stream<srpt_grant_out_t> & grant_pkt_i,
          hls::stream<header_t> & out_pkt_o);
 

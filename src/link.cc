@@ -1,6 +1,7 @@
 #include "link.hh"
 
-/** network_order() - Convert the "natural" bit vector to a network order
+/**
+ * network_order() - Convert the "natural" bit vector to a network order
  * where the LSByte is at bit 7,0 and the MSByte is at bit 511, 504.
  *
  * https://docs.xilinx.com/r/en-US/pg203-cmac-usplus:
@@ -28,7 +29,7 @@ void network_order(integral_t & in, integral_t & out) {
  * @header_out_o - Output stream to the RPC store to get info about the RPC
  * before the packet can be sent
  */
-void egress_selector(hls::stream<srpt_data_out_t> & data_pkt_i,
+void egress_selector(hls::stream<srpt_pktq_t> & data_pkt_i,
 		     hls::stream<srpt_grant_out_t> & grant_pkt_i,
 		     hls::stream<header_t> & header_out_o) {
 
@@ -45,17 +46,17 @@ void egress_selector(hls::stream<srpt_data_out_t> & data_pkt_i,
 
 	header_out_o.write(header_out);
     } else if (!data_pkt_i.empty()) {
-	srpt_data_out_t ready_data_pkt = data_pkt_i.read();
+	srpt_pktq_t ready_data_pkt = data_pkt_i.read();
 
 	// TODO why even handle this here?
 
 	header_t header_out;
 	header_out.type            = DATA;
-	header_out.local_id        = ready_data_pkt(SRPT_DATA_RPC_ID);
-	header_out.incoming        = ready_data_pkt(SRPT_DATA_GRANTED);
-	header_out.grant_offset    = ready_data_pkt(SRPT_DATA_GRANTED);
-	header_out.data_offset     = ready_data_pkt(SRPT_DATA_REMAINING);
-	header_out.segment_length  = MIN(ready_data_pkt(SRPT_DATA_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
+	header_out.local_id        = ready_data_pkt(PKTQ_RPC_ID);
+	header_out.incoming        = ready_data_pkt(PKTQ_GRANTED);
+	header_out.grant_offset    = ready_data_pkt(PKTQ_GRANTED);
+	header_out.data_offset     = ready_data_pkt(PKTQ_REMAINING);
+	header_out.segment_length  = MIN(ready_data_pkt(PKTQ_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
 	header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
 	header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
 
@@ -254,6 +255,7 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
     // network_order(chunk.buff, raw_stream.data);
     raw_stream.data = chunk.buff;
     raw_stream.last = chunk.last;
+    std::cerr << "CHUNK OUT\n";
     link_egress.write(raw_stream);
 }
 
@@ -328,7 +330,9 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 	    }
 	}
 
+	std::cerr << "header in write\n";
 	header_in_o.write(header_in);
+	std::cerr << "complete\n";
     } else {
 	// TODO need to test TKEEP and change raw_stream def
 

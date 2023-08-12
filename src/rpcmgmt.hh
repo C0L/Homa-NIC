@@ -21,7 +21,7 @@ struct rpc_hashpack_t {
 extern "C"{
 
    void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
-         hls::stream<srpt_data_in_t> & onboard_send_o,
+         hls::stream<srpt_sendmsg_t> & onboard_send_o,
          hls::stream<header_t> & header_out_i, 
          hls::stream<header_t> & header_out_o,
          hls::stream<header_t> & header_in_i,

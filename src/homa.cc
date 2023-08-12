@@ -37,7 +37,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress) {
 
-#pragma HLS interface mode=ap_ctrl_none port=return
+#pragma HLS interface mode=ap_ctrl_chain port=return
+// #pragma HLS interface mode=ap_ctrl_none port=return
        
     /* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
      * verification depth controls the size of the "RTL verification adapter" This
@@ -47,14 +48,14 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      *
      * Synth will claim that this is ignored, but cosim needs it to work.
      */
-#pragma HLS interface axis port=msghdr_send_i depth=2048
-#pragma HLS interface axis port=msghdr_send_o depth=2048
-#pragma HLS interface axis port=msghdr_recv_i depth=2048
-#pragma HLS interface axis port=msghdr_recv_o depth=2048
-#pragma HLS interface axis port=link_ingress depth=2048
-#pragma HLS interface axis port=link_egress  depth=2048
-#pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=80 depth=4096
-#pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=80 depth=4096
+#pragma HLS interface axis port=msghdr_send_i depth=256
+#pragma HLS interface axis port=msghdr_send_o depth=256
+#pragma HLS interface axis port=msghdr_recv_i depth=256
+#pragma HLS interface axis port=msghdr_recv_o depth=256
+#pragma HLS interface axis port=link_ingress depth=256
+#pragma HLS interface axis port=link_egress  depth=256
+#pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=80 depth=256
+#pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=80 depth=256
 
     /* Naming scheme: {flow}__{source kernel}__{dest kernel} */
 
@@ -73,7 +74,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
     /* sendmsg streams */
     hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__rpc_map("sendmsg__homa_sendmsg__msg_cache");
     hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__rpc_map__rpc_state   ("sendmsg__rpc_map__rpc_state");
-    hls_thread_local hls::stream<srpt_data_in_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data ("sendmsg__rpc_state__srpt_data");
+    hls_thread_local hls::stream<srpt_sendmsg_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data ("sendmsg__rpc_state__srpt_data");
 
     /* out chunk streams */
     hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress ("out_chunk__chunk_egress__dbuff_egress");
@@ -87,16 +88,13 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
     hls_thread_local hls::stream<srpt_grant_out_t, STREAM_DEPTH> grant__srpt_grant__egress_sel ("grant__srpt_grant__egress_sel");
 
     /* data SRPT streams */
-    hls_thread_local hls::stream<srpt_data_out_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel   ("ready_data_pkt__srpt_data__egress_sel");
+    hls_thread_local hls::stream<srpt_pktq_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel   ("ready_data_pkt__srpt_data__egress_sel");
     hls_thread_local hls::stream<srpt_dbuff_notif_t, STREAM_DEPTH> dbuff_notif__dbuff_egress__srpt_data ("dbuff_notif__dbuff_egress__srpt_data");
 
     /* dma streams */
-      
-    hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__homa_sendmsg__dma_read ("dma_req__homa_sendmsg__dma_read");
-    hls_thread_local hls::stream<dma_r_req_t, STREAM_DEPTH> dma_req__msg_cache__dma_read("dma_req__msg_cache__dma_read");
-    hls_thread_local hls::stream<dbuff_in_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache ("dbuff_in__dma_read__msg_cache");
-    hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write;
-
+    hls_thread_local hls::stream<dbuff_in_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache      ("dbuff_in__dma_read__msg_cache");
+    hls_thread_local hls::stream<srpt_sendq_t, STREAM_DEPTH> dma_req__srpt_data__dma_read      ("dma_req__srpt_data__dma_read");
+    hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write ("dma_req__dbuff_ingress__dma_write");
 
     hls_thread_local hls::task rpc_state_task(
 	rpc_state,
@@ -123,7 +121,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	sendmsg__rpc_state__srpt_data,         // sendmsg_i
 	dbuff_notif__dbuff_egress__srpt_data,  // dbuff_notif_i
 	ready_data_pkt__srpt_data__egress_sel, // data_pkt_o  // TODO tidy this name up
-	header_in__rpc_state__srpt_data        // header_in_i
+	header_in__rpc_state__srpt_data,       // header_in_i
+	dma_req__srpt_data__dma_read           // 
 	);
 
     hls_thread_local hls::task srpt_grant_pkts_task(
@@ -162,7 +161,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	msg_cache,
 	dbuff_in__dma_read__msg_cache,
 	dbuff_notif__dbuff_egress__srpt_data,  // dbuff_notif_o
-	dma_req__msg_cache__dma_read,
 	out_chunk__chunk_egress__dbuff_egress, // out_chunk_i
 	out_chunk__dbuff_egress__pkt_egress    // out_chunk_o
 	); 
@@ -192,16 +190,14 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	homa_sendmsg, 
 	msghdr_send_i,                     // sendmsg_i
 	msghdr_send_o,                     // sendmsg_o
-	sendmsg__homa_sendmsg__rpc_map,    // sendmsg_o
-	dma_req__homa_sendmsg__dma_read
+	sendmsg__homa_sendmsg__rpc_map    // sendmsg_o
 	);
 
 #pragma HLS dataflow disable_start_propagation
 
     dma_read(
 	maxi_in,
-	dma_req__msg_cache__dma_read,
-	dma_req__homa_sendmsg__dma_read,
+	dma_req__srpt_data__dma_read,
 	dbuff_in__dma_read__msg_cache
 	);
 

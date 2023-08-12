@@ -1,7 +1,8 @@
 #include "homa.hh"
 
-#include <chrono>
-#include <thread>
+#include <unistd.h>
+
+
 
 using namespace std;
 
@@ -60,15 +61,19 @@ extern "C"{
 
 	strcpy(maxi_in, data.c_str());
 
+	// usleep(1000000);
+
 	while (sendmsg_o.empty() || recvmsg_o.empty() || maxi_out[2772] == 0) {
+	    usleep(100000);
 	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, (integral_t *) maxi_in, (integral_t *) maxi_out, link_ingress_i, link_egress_o);
 	    if (!link_egress_o.empty()) {
+		std::cerr << "CARRIED DATA OVER\n";
 		link_ingress_i.write(link_egress_o.read());
 	    }
 	}
 
-	 msghdr_recv_t recv = recvmsg_o.read();
-	 msghdr_send_t send = sendmsg_o.read();
+	msghdr_recv_t recv = recvmsg_o.read();
+	msghdr_send_t send = sendmsg_o.read();
 
 	return memcmp(maxi_in, maxi_out, 2772);
     }

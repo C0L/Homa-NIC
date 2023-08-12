@@ -15,7 +15,7 @@
  * @data_srpt_o      - Output for forwarding data to the SRPT data queue
  */
 void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
-	       hls::stream<srpt_data_in_t> & onboard_send_o,
+	       hls::stream<srpt_sendmsg_t> & onboard_send_o,
 	       hls::stream<header_t> & header_out_i, 
 	       hls::stream<header_t> & header_out_o,
 	       hls::stream<header_t> & header_in_i,
@@ -36,6 +36,9 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
     if (!header_out_i.empty()) {
 	header_t header_out = header_out_i.read();
 
+	// TODO we dont know here if the ID was assigned in the send or recv process
+	// TODO why should it matter, why does macro subtract???
+
 	homa_rpc_t homa_rpc = rpcs[SEND_INDEX_FROM_RPC_ID(header_out.local_id)];
 
 	header_out.daddr           = homa_rpc.daddr;
@@ -55,6 +58,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
     /* R/W Paths */
     if (!header_in_i.empty()) {
 	header_t header_in = header_in_i.read();
+
+	std::cerr << "STATE HEADER IN READ\n";
 
 	homa_rpc_t homa_rpc = rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
 
@@ -77,6 +82,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 		if (header_in.message_length > header_in.incoming) { 
 		    srpt_grant_in_t grant_in;
 		    grant_in(SRPT_GRANT_IN_OFFSET)  = header_in.data_offset;
+		    // grant_in(SRPT_GRANT_IN_OFFSET)  = header_in.message_length - header_in.data_offset;
 		    grant_in(SRPT_GRANT_IN_INC)     = header_in.incoming;
 		    grant_in(SRPT_GRANT_IN_MSG_LEN) = header_in.message_length;
 		    grant_in(SRPT_GRANT_IN_RPC_ID)  = header_in.local_id;
@@ -86,6 +92,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 		    grant_srpt_o.write(grant_in); 
 		} 
 
+		std::cerr << "STATE HEADER IN WRITE\n";
 		// Instruct the data buffer where to write this messages' data
 		header_in_dbuff_o.write(header_in); 
 
@@ -95,7 +102,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	    case GRANT: {
 		srpt_grant_notif_t srpt_grant_notif;
 		srpt_grant_notif(SRPT_GRANT_NOTIF_RPC_ID) = header_in.local_id;
-		srpt_grant_notif(SRPT_GRANT_NOTIF_OFFSET) = header_in.message_length - header_in.grant_offset;
+		srpt_grant_notif(SRPT_GRANT_NOTIF_OFFSET) = header_in.grant_offset;
 		data_srpt_o.write(srpt_grant_notif); 
 		break;
 	    }
@@ -117,11 +124,11 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
 	rpcs[SEND_INDEX_FROM_RPC_ID(onboard_send.local_id)] = homa_rpc;
 
-	srpt_data_in_t srpt_data_in;
-	srpt_data_in(SRPT_DATA_RPC_ID)    = onboard_send.local_id;
-	srpt_data_in(SRPT_DATA_REMAINING) = onboard_send.iov_size;
-	srpt_data_in(SRPT_DATA_DBUFFERED) = onboard_send.dbuffered;
-	srpt_data_in(SRPT_DATA_GRANTED)   = (onboard_send.iov_size) - ((RTT_BYTES > onboard_send.iov_size) ? onboard_send.iov_size : RTT_BYTES);
+	srpt_sendmsg_t srpt_data_in;
+	srpt_data_in(SRPT_SENDMSG_RPC_ID)   = onboard_send.local_id;
+	srpt_data_in(SRPT_SENDMSG_MSG_LEN)  = onboard_send.iov_size;
+	// srpt_data_in(SRPT_SENDMSG_DBUFFERED) = onboard_send.dbuffered;
+	srpt_data_in(SRPT_SENDMSG_GRANTED)   = (onboard_send.iov_size) - ((RTT_BYTES > onboard_send.iov_size) ? onboard_send.iov_size : RTT_BYTES);
 
 	onboard_send_o.write(srpt_data_in);
     } 
@@ -177,6 +184,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
     if (!header_in_i.empty()) {
 	header_t header_in = header_in_i.read();
+	std::cerr << "MAP READ HEADER\n";
 	/* Check if we are the server for this RPC. If we are the RPC ID is
 	 * not in a local form and we need to map it to a local ID.
 	 *
@@ -216,6 +224,8 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 	}
 
 	header_in_o.write(header_in);
+
+	std::cerr << "MAP WRITE HEADER\n";
     } else if (!onboard_send_i.empty()) {
 	onboard_send_t onboard_send = onboard_send_i.read();
 

@@ -7,13 +7,12 @@
 `define SRPT_BLOCKED      3'b100
 `define SRPT_ACTIVE       3'b101
 
-`define SENDMSG_SIZE       118
+`define SENDMSG_SIZE       86
 `define SENDMSG_RPC_ID     15:0
-`define SENDMSG_REMAINING  35:16
+`define SENDMSG_MSG_LEN    35:16
 `define SENDMSG_GRANTED    55:36
-`define SENDMSG_DBUFFERED  75:56
-`define SENDMSG_DBUFF_ID   85:76
-`define SENDMSG_DMA_OFFSET 117:86
+`define SENDMSG_DBUFF_ID   65:56
+`define SENDMSG_DMA_OFFSET 85:66
 
 `define PKTQ_SIZE      79
 `define PKTQ_RPC_ID    15:0
@@ -22,11 +21,21 @@
 `define PKTQ_GRANTED   75:56
 `define PKTQ_PRIORITY  78:76
 
-`define SENDQ_SIZE      65
-`define SENDQ_DBUFF_ID  9:0
-`define SENDQ_OFFSET    41:10
-`define SENDQ_DBUFFERED 61:42
-`define SENDQ_PRIORITY  64:62
+`define PKTQ_SIZE      99
+`define PKTQ_RPC_ID    15,0
+`define PKTQ_DBUFF_ID  24,16
+`define PKTQ_REMAINING 45,26
+`define PKTQ_DBUFFERED 65,46
+`define PKTQ_GRANTED   85,66
+`define PKTQ_PRIORITY  98,86
+
+`define SENDQ_SIZE      101
+`define SENDQ_RPC_ID    15,0
+`define SENDQ_DBUFF_ID  25,16
+`define SENDQ_OFFSET    57,26
+`define SENDQ_DBUFFERED 77,58
+`define SENDQ_MSG_LEN   97,78
+`define SENDQ_PRIORITY  100,98
 
 `define DBUFF_SIZE   36
 `define DBUFF_RPC_ID 15:0
@@ -96,15 +105,10 @@
  *    sent. The values in that entry are updated to reflect that a single
  *    payload size of data has been sent
  * 
+ * TODO Need feed back from pktq to sendq
  * 
- * TODO: Two queues. One queue is ordered by remaining DBUFFERED. The other is ordered by REMAINING bytes to send
- * 
- * TODO: The only major problem here I can see is that the initial sendmsg that gets added into the data queue is just 
- * going to block immediately. When the dbuff update arrives it is going to traverse up and down.
- * 
- * TODO: could eventually wait till enough bytes have been dbuffered and then copy the entry from the dbuff queue into 
- * the data queue. This would avoid the need for this extra traversal
- * 
+ * TODO immediate block for short messages is not optimal?
+ *  
  * TODO use a LAST bit to handle when notifications are sent?
  */
 module srpt_data_pkts #(parameter MAX_RPCS = 128)
@@ -158,7 +162,6 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
       output [`PKTQ_SIZE-1:0] low_o, high_o;
       input [`PKTQ_SIZE-1:0]  low_i, high_i;
       begin
-	 // If the priority differs or grantable bytes
 	 if ((low_i[`PKTQ_PRIORITY] != high_i[`PKTQ_PRIORITY]) 
 	     ? (low_i[`PKTQ_PRIORITY] < high_i[`PKTQ_PRIORITY]) 
 	     : (low_i[`PKTQ_REMAINING] > high_i[`PKTQ_REMAINING])) begin
@@ -184,7 +187,6 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
       output [`SENDQ_SIZE-1:0] low_o, high_o;
       input [`SENDQ_SIZE-1:0]  low_i, high_i;
       begin
-	 // If the priority differs or grantable bytes
 	 if ((low_i[`SENDQ_PRIORITY] != high_i[`SENDQ_PRIORITY]) 
 	     ? (low_i[`SENDQ_PRIORITY] < high_i[`SENDQ_PRIORITY]) 
 	     : (low_i[`SENDQ_DBUFFERED] > high_i[`SENDQ_DBUFFERED])) begin
@@ -195,7 +197,7 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
 	    low_o  = low_i;
 	 end 
       end
-   endtask // prioritize_sendq
+   endtask 
 
    assign sendq_head          = sendq[0];
 
@@ -224,13 +226,17 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
 
       if (sendmsg_in_empty_i) begin
 	 pktq_ins[`PKTQ_RPC_ID]    = sendmsg_in_data_i[`SENDMSG_RPC_ID];
-	 pktq_ins[`PKTQ_REMAINING] = sendmsg_in_data_i[`SENDMSG_REMAINING];
-	 pktq_ins[`PKTQ_DBUFFERED] = sendmsg_in_data_i[`SENDMSG_DBUFFERED];
+	 pktq_ins[`PKTQ_DBUFF_ID]  = sendmsg_in_data_i[`SENDMSG_DBUFF_ID];
+	 pktq_ins[`PKTQ_REMAINING] = sendmsg_in_data_i[`SENDMSG_MSG_LEN];
+	 pktq_ins[`PKTQ_DBUFFERED] = sendmsg_in_data_i[`SENDMSG_MSG_LEN];
+	 pktq_ins[`PKTQ_GRANTED]   = sendmsg_in_data_i[`SENDMSG_GRANTED];
 	 pktq_ins[`PKTQ_PRIORITY]  = `SRPT_ACTIVE;
 	 
+	 sendq_ins[`SENDQ_RPC_ID]    = sendmsg_in_data_i[`SENDMSG_RPC_ID];
 	 sendq_ins[`SENDQ_DBUFF_ID]  = sendmsg_in_data_i[`SENDMSG_DBUFF_ID];
 	 sendq_ins[`SENDQ_OFFSET]    = sendmsg_in_data_i[`SENDMSG_DMA_OFFSET]; 
-	 sendq_ins[`SENDQ_DBUFFERED] = sendmsg_in_data_i[`SENDMSG_DBUFFERED];
+	 sendq_ins[`SENDQ_DBUFFERED] = sendmsg_in_data_i[`SENDMSG_MSG_LEN];
+	 sendq_ins[`SENDQ_MSG_LEN]   = sendmsg_in_data_i[`SENDMSG_MSG_LEN];
 	 sendq_ins[`SENDQ_PRIORITY]  = `SRPT_ACTIVE;
 	 
 	 sendmsg_in_read_en_o = 1;
@@ -293,7 +299,7 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
 
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    pktq[rst_entry] <= 0;
-	    pktq[rst_entry][`PKTQ_PRIORITY]  <= `SRPT_EMPTY;
+	    pktq[rst_entry][`PKTQ_PRIORITY]    <= `SRPT_EMPTY;
 	   
 	    sendq[rst_entry] <= 0;
 	    sendq[rst_entry][`SENDQ_PRIORITY]  <= `SRPT_EMPTY;

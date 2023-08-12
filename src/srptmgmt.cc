@@ -5,67 +5,103 @@
  * WARNING: For C simulation only
  * srpt_data_pkts() - Determines what DATA packet to send next.
  * @sendmsg_i - New request or response messages from the user
+
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
-void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_raw_i,
-      hls::stream<srpt_dbuff_notif_t> & dbuff_notif_raw_i,
-      hls::stream<srpt_data_out_t> & data_pkt_raw_o,
-      hls::stream<srpt_grant_notif_t> & grant_notif_raw_i) {
+void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
+		    hls::stream<srpt_dbuff_notif_t> & dbuff_notif_i,
+		    hls::stream<srpt_pktq_t> & data_pkt_o,
+		    hls::stream<srpt_grant_notif_t> & grant_notif_i,
+		    hls::stream<srpt_sendq_t> & cache_req_o) {
 
-   static srpt_data_in_t entries[MAX_RPCS];
+    static srpt_pktq_t pktq[MAX_RPCS];
+    static srpt_sendq_t sendq[MAX_RPCS];
 
-   if (!dbuff_notif_raw_i.empty()) {
-      srpt_dbuff_notif_t dbuff_notif = dbuff_notif_raw_i.read();
-      entries[SEND_INDEX_FROM_RPC_ID(dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID))](SRPT_DATA_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
-   }
+    if (!dbuff_notif_i.empty()) {
+	srpt_dbuff_notif_t dbuff_notif = dbuff_notif_i.read();
+	pktq[SEND_INDEX_FROM_RPC_ID(dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID))](PKTQ_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
+	std::cerr << "dbuff notif\n";
+    }
 
-   if (!grant_notif_raw_i.empty()) {
-      srpt_grant_notif_t header_in = grant_notif_raw_i.read();
-      entries[SEND_INDEX_FROM_RPC_ID(header_in(SRPT_GRANT_NOTIF_RPC_ID))](SRPT_DATA_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
-   }
+    if (!grant_notif_i.empty()) {
+	srpt_grant_notif_t header_in = grant_notif_i.read();
+	pktq[SEND_INDEX_FROM_RPC_ID(header_in(SRPT_GRANT_NOTIF_RPC_ID))](PKTQ_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
+	std::cerr << "grant notif\n";
+    }
 
-   if (!sendmsg_raw_i.empty()) {
+    if (!sendmsg_i.empty()) {
+	srpt_sendmsg_t sendmsg = sendmsg_i.read();
 
-      srpt_data_in_t sendmsg = sendmsg_raw_i.read();
+	pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_RPC_ID)    = sendmsg(SRPT_SENDMSG_RPC_ID);
+	pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_DBUFF_ID)  = sendmsg(SRPT_SENDMSG_DBUFF_ID);
+	pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_REMAINING) = sendmsg(SRPT_SENDMSG_MSG_LEN);
+	pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_DBUFFERED) = sendmsg(SRPT_SENDMSG_MSG_LEN);
+	pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_GRANTED)   = sendmsg(SRPT_SENDMSG_GRANTED);
 
-      entries[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_DATA_RPC_ID))](SRPT_DATA_RPC_ID)    = sendmsg(SRPT_DATA_RPC_ID);
-      entries[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_DATA_RPC_ID))](SRPT_DATA_REMAINING) = sendmsg(SRPT_DATA_REMAINING);
-      // entries[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_DATA_RPC_ID))](SRPT_DATA_DBUFFERED) = sendmsg(SRPT_DATA_DBUFFERED);
-      entries[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_DATA_RPC_ID))](SRPT_DATA_GRANTED)   = sendmsg(SRPT_DATA_GRANTED);
-   }
+	sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_RPC_ID)    = sendmsg(SRPT_SENDMSG_RPC_ID);
+	sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_DBUFF_ID)  = sendmsg(SRPT_SENDMSG_DBUFF_ID);
+	sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_OFFSET)    = sendmsg(SRPT_SENDMSG_DMA_OFFSET);
+	sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_DBUFFERED) = sendmsg(SRPT_SENDMSG_MSG_LEN);
+	sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_MSG_LEN)   = sendmsg(SRPT_SENDMSG_MSG_LEN);
 
-   srpt_data_in_t head;
+	std::cerr << "sendmsg in\n";
+    }
 
-   head(SRPT_DATA_RPC_ID)    = 0;
-   head(SRPT_DATA_REMAINING) = 0xFFFFFFFF;
-   head(SRPT_DATA_GRANTED)   = 0xFFFFFFFF;
-   head(SRPT_DATA_DBUFFERED) = 0xFFFFFFFF;
+    srpt_pktq_t pkt;
+    pkt(PKTQ_RPC_ID)    = 0;
+    pkt(PKTQ_REMAINING) = 0xFFFFFFFF;
 
-   for (int i = 0; i < MAX_RPCS; ++i) {
-      if (entries[i](SRPT_DATA_REMAINING) < head(SRPT_DATA_REMAINING) && entries[i](SRPT_DATA_RPC_ID) != 0) {
-         // Is the offset of availible data 1 packetsize or more greater than the offset we have sent up to?
-         bool granted   = (entries[i](SRPT_DATA_GRANTED) + 1 <= entries[i](SRPT_DATA_REMAINING)) | (entries[i](SRPT_DATA_GRANTED) == 0);
-         bool dbuffered = (entries[i](SRPT_DATA_DBUFFERED) + HOMA_PAYLOAD_SIZE <= entries[i](SRPT_DATA_REMAINING)) | (entries[i](SRPT_DATA_DBUFFERED) == 0);
+    for (int i = 0; i < MAX_RPCS; ++i) {
+    	if (pktq[i](PKTQ_REMAINING) < pkt(PKTQ_REMAINING) && pktq[i](PKTQ_RPC_ID) != 0) {
+    	    bool granted   = (pktq[i](PKTQ_GRANTED) + 1 <= pktq[i](PKTQ_REMAINING)) || (pktq[i](PKTQ_GRANTED) == 0);
+    	    bool dbuffered = (pktq[i](PKTQ_DBUFFERED) + HOMA_PAYLOAD_SIZE <= pktq[i](PKTQ_REMAINING)) || (pktq[i](PKTQ_DBUFFERED) == 0);
 
-         if (granted && dbuffered) {
-            head = entries[i];
-         }
-      }
-   }
+    	    if (granted && dbuffered) {
+    		pkt = pktq[i];
+    	    }
+    	}
+    }
 
-   if (head(SRPT_DATA_RPC_ID) != 0) {
+    if (pkt(PKTQ_RPC_ID) != 0) {
+    	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > pkt(PKTQ_REMAINING)) 
+    	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (pkt(PKTQ_REMAINING) - HOMA_PAYLOAD_SIZE));
 
-      ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > head(SRPT_DATA_REMAINING)) 
-                                 ? ((ap_uint<32>) 0) : ((ap_uint<32>) (head(SRPT_DATA_REMAINING) - HOMA_PAYLOAD_SIZE));
+	std::cerr << "data pkt out\n";
+    	data_pkt_o.write(pkt);
+    	pktq[SEND_INDEX_FROM_RPC_ID(pkt(PKTQ_RPC_ID))](PKTQ_REMAINING) = remaining;
 
-      data_pkt_raw_o.write(head);
-      entries[SEND_INDEX_FROM_RPC_ID(head(SRPT_DATA_RPC_ID))](SRPT_DATA_REMAINING) = remaining;
+    	if (remaining == 0) {
+    	    pktq[SEND_INDEX_FROM_RPC_ID(pkt(PKTQ_RPC_ID))] = 0;
+    	}
+    }
 
-      if (remaining == 0) {
-	  entries[SEND_INDEX_FROM_RPC_ID(head(SRPT_DATA_RPC_ID))] = 0;
-      }
-   }
+    // TODO can clean this up
+    uint32_t match_index;
+    srpt_sendq_t req;
+    req(SENDQ_DBUFFERED) = 0;
+
+    for (int i = 0; i < MAX_RPCS; ++i) {
+    	if (sendq[i](SENDQ_DBUFFERED) == 0) continue;
+    	if (sendq[i](SENDQ_DBUFFERED) < req(SENDQ_DBUFFERED) || req(SENDQ_DBUFFERED) == 0) {
+    	    match_index = i;
+    	    req = sendq[i];
+    	}
+    }
+
+    if (req(SENDQ_DBUFFERED) != 0) {
+    	ap_uint<32> dbuffered = (64 > req(SENDQ_DBUFFERED)) 
+    	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (req(SENDQ_DBUFFERED) - 64));
+
+    	sendq[match_index](SENDQ_DBUFFERED) = dbuffered;
+    	sendq[match_index](SENDQ_OFFSET)    = sendq[match_index](SENDQ_OFFSET) + 64;
+
+    	cache_req_o.write(req);
+    	
+    	if (dbuffered == 0) {
+	    sendq[match_index] = 0;
+    	}
+    }
 }
 
 /**
@@ -79,92 +115,90 @@ void srpt_data_pkts(hls::stream<srpt_data_in_t> & sendmsg_raw_i,
  *
  */
 void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
-      hls::stream<srpt_grant_out_t> & grant_out_o) {
+		     hls::stream<srpt_grant_out_t> & grant_out_o) {
 
-   // Because this is only used for sim we brute force grants
-   static srpt_grant_t entries[MAX_RPCS];
-   static ap_uint<32> avail_bytes = OVERCOMMIT_BYTES; 
+    // Because this is only used for sim we brute force grants
+    static srpt_grant_t entries[MAX_RPCS];
+    static ap_uint<32> avail_bytes = OVERCOMMIT_BYTES; 
 
-   // Headers from incoming DATA packets
-   if (!grant_in_i.empty()) {
-      srpt_grant_in_t grant_in = grant_in_i.read();
+    // Headers from incoming DATA packets
+    if (!grant_in_i.empty()) {
+	srpt_grant_in_t grant_in = grant_in_i.read();
 
-      // The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
-      if (grant_in(SRPT_GRANT_IN_OFFSET) == 0) {
-         entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)] = {grant_in(SRPT_GRANT_IN_PEER_ID), grant_in(SRPT_GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
-      } else {
-         entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)].recv_bytes += HOMA_PAYLOAD_SIZE;
-         entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)].grantable_bytes -= HOMA_PAYLOAD_SIZE;
-      } 
-   } else {
-      srpt_grant_t best[8];
+	// The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
+	if (grant_in(SRPT_GRANT_IN_OFFSET) == 0) {
+	    entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)] = {grant_in(SRPT_GRANT_IN_PEER_ID), grant_in(SRPT_GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
+	} else {
+	    entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)].recv_bytes += HOMA_PAYLOAD_SIZE;
+	} 
+    } else {
+	srpt_grant_t best[8];
 
-      for (int i = 0; i < 8; ++i) {
-         best[i] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF}; 
-      }
+	for (int i = 0; i < 8; ++i) {
+	    best[i] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF}; 
+	}
 
-      // Fill each entry in the best queue
-      for (int i = 0; i < 8; ++i) {
-         srpt_grant_t curr_best = entries[0];
-         for (int e = 0; e < MAX_RPCS; ++e) {
+	// Fill each entry in the best queue
+	for (int i = 0; i < 8; ++i) {
+	    srpt_grant_t curr_best = entries[0];
+	    for (int e = 0; e < MAX_RPCS; ++e) {
 
-            if (entries[e].rpc_id == 0) continue; 
+		if (entries[e].rpc_id == 0) continue; 
 
-            // Is this entry better than our current best
-            if (entries[e].grantable_bytes < curr_best.grantable_bytes || curr_best.rpc_id == 0) {
-               bool dupe = false;
-               for (int s = 0; s < 8; s++) {
-                  if (entries[e].peer_id == best[s].peer_id) {
-                     dupe = true;
-                  }
-               }
+		// Is this entry better than our current best
+		if (entries[e].grantable_bytes < curr_best.grantable_bytes || curr_best.rpc_id == 0) {
+		    bool dupe = false;
+		    for (int s = 0; s < 8; s++) {
+			if (entries[e].peer_id == best[s].peer_id) {
+			    dupe = true;
+			}
+		    }
 
-               curr_best = (!dupe) ? entries[e] : curr_best;
-            }
-         }
-         best[i] = curr_best;
-      }
+		    curr_best = (!dupe) ? entries[e] : curr_best;
+		}
+	    }
+	    best[i] = curr_best;
+	}
 
-      srpt_grant_t next_grant = best[0];
+	srpt_grant_t next_grant = best[0];
 
-      // Who to grant to next?
-      for (int i = 0; i < 8; ++i) {
-         if (best[i].grantable_bytes < next_grant.grantable_bytes && best[i].recv_bytes != 0) {
-            next_grant = best[i];
-         }
-      }
+	// Who to grant to next?
+	for (int i = 0; i < 8; ++i) {
+	    if (best[i].grantable_bytes < next_grant.grantable_bytes && best[i].recv_bytes != 0) {
+		next_grant = best[i];
+	    }
+	}
 
-      if (next_grant.recv_bytes > 0 && next_grant.rpc_id != 0) {
-         srpt_grant_out_t grant_out;
+	if (next_grant.recv_bytes > 0 && next_grant.rpc_id != 0) {
+	    srpt_grant_out_t grant_out;
 
-         if (next_grant.recv_bytes > avail_bytes) {
-            // Just send avail_pkts of data
-            entries[(next_grant.rpc_id >> 1) - 1].recv_bytes -= avail_bytes;
-            entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= avail_bytes;
+	    if (next_grant.recv_bytes > avail_bytes) {
+		// Just send avail_pkts of data
+		entries[(next_grant.rpc_id >> 1) - 1].recv_bytes -= avail_bytes;
+		entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= avail_bytes;
 
-            grant_out(SRPT_GRANT_OUT_GRANT) = avail_bytes;
-            grant_out(SRPT_GRANT_OUT_RPC_ID) = next_grant.rpc_id;
-            grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
+		grant_out(SRPT_GRANT_OUT_GRANT) = avail_bytes;
+		grant_out(SRPT_GRANT_OUT_RPC_ID) = next_grant.rpc_id;
+		grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
-            grant_out_o.write(grant_out);
+		grant_out_o.write(grant_out);
 
-         } else { 
-            // Is this going to result in a fully granted message?
-            if ((next_grant.grantable_bytes - next_grant.recv_bytes) == 0) { 
-               entries[(next_grant.rpc_id >> 1) - 1] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF}; 
-            }
+	    } else {
+		entries[(next_grant.rpc_id >> 1) - 1].recv_bytes = 0;
+		entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= MIN(next_grant.recv_bytes, entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes);
 
-            entries[(next_grant.rpc_id >> 1) - 1].recv_bytes = 0;
-            entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes -= next_grant.recv_bytes;
+		srpt_grant_out_t grant_out;
 
-            srpt_grant_out_t grant_out;
+		grant_out(SRPT_GRANT_OUT_GRANT)   = entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes;
+		grant_out(SRPT_GRANT_OUT_RPC_ID)  = next_grant.rpc_id;
+		grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
-            grant_out(SRPT_GRANT_OUT_GRANT)   = entries[(next_grant.rpc_id >> 1) - 1].grantable_bytes;
-            grant_out(SRPT_GRANT_OUT_RPC_ID)  = next_grant.rpc_id;
-            grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
+		grant_out_o.write(grant_out);
 
-            grant_out_o.write(grant_out);
-         } 
-      }
-   }
+		if (next_grant.grantable_bytes == 0) {
+		    entries[(next_grant.rpc_id >> 1) - 1] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
+		}
+	    } 
+	}
+    }
 }
