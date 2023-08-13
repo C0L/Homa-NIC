@@ -145,6 +145,7 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    // Data Segment
 		    natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header.data_offset;    // Offset
 		    natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = header.segment_length; // Segment Length
+		    std::cerr << "SENT CHUNK OFFSET " << header.data_offset << std::endl;
 
 		    // Ack header
 		    natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;  // Client ID (8 bytes) TODO
@@ -248,15 +249,15 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @link_egress - Outgoign AXI Stream to the link
  */
 void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
-		      hls::stream<raw_stream_t> & link_egress) {
-    // TODO need to set the TKEEP bits
+		      hls::stream<raw_stream_t, STREAM_DEPTH> & link_egress) {
     out_chunk_t chunk = out_chunk_i.read();
     raw_stream_t raw_stream;
     // network_order(chunk.buff, raw_stream.data);
     raw_stream.data = chunk.buff;
     raw_stream.last = chunk.last;
-    std::cerr << "CHUNK OUT\n";
     link_egress.write(raw_stream);
+    std::cerr << "BLOCK OUT\n";
+    
 }
 
 /**
@@ -273,7 +274,7 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
-void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
+void pkt_chunk_ingress(hls::stream<raw_stream_t, STREAM_DEPTH> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
 		       hls::stream<in_chunk_t> & chunk_in_o) {
 #pragma HLS pipeline II=1 style=flp
@@ -281,8 +282,8 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
     static header_t header_in;
     static ap_uint<32> processed_bytes = 0;
 
+    if (!chunk_in_o.full() && !header_in_o.full()) {
     raw_stream_t raw_stream = link_ingress.read();
-
     in_chunk_t data_block;
     ap_uint<512> natural_chunk;
 
@@ -319,6 +320,8 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
 		header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
 
+		std::cerr << "READ DATA OFFSET " << header_in.data_offset << std::endl;
+
 		// TODO parse acks
 
 		data_block.buff(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
@@ -346,6 +349,8 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
     processed_bytes += 64;
 
     if (raw_stream.last) {
+	std::cerr << "LB RECV\n";
 	processed_bytes = 0;
+    }
     }
 }

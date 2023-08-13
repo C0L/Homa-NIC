@@ -9,7 +9,7 @@
 #include "hls_stream.h"
 
 // Configure the size of the stream/fifo depths
-#define STREAM_DEPTH 2
+#define STREAM_DEPTH 128
 
 /* Helper Macros */
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -61,6 +61,8 @@
 #define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
 #define RTT_BYTES (ap_uint<32>) 5000
 
+// Internal 64B chunk of data (for streams in, out, storing data internally...etc)
+typedef ap_uint<512> integral_t;
 		  
 typedef ap_uint<8> homa_packet_type;
 
@@ -105,7 +107,11 @@ typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
  * 
  * Need to leave side-channel signals enabled to avoid linker error?
  */
-typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+// typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+struct raw_stream_t {
+    integral_t data;
+    ap_uint<1> last;
+};
 
 /* SRPT Configuration */
 #define MAX_OVERCOMMIT 8
@@ -254,9 +260,6 @@ struct rexmit_t {
 #define FREEZE   0x16
 #define NEED_ACK 0x17
 #define ACK      0x18
-
-// Internal 64B chunk of data (for streams in, out, storing data internally...etc)
-typedef ap_uint<512> integral_t;
 
 /* Data Buffer Configuration */
 #define NUM_DBUFF        64  // Number of data buffers (max outgoing RPCs)
@@ -467,12 +470,12 @@ struct srpt_grant_t {
     ap_uint<32> grantable_bytes;
 };
 
-void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
-	  hls::stream<msghdr_send_t> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  const integral_t           * maxi_in,
-	  integral_t                 * maxi_out,
-	  hls::stream<raw_stream_t>  & link_ingress,
-	  hls::stream<raw_stream_t>  & link_egress);
+void homa(hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_i,
+	  hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_o,
+	  integral_t        * maxi_in,
+	  integral_t        * maxi_out,
+	  hls::stream<raw_stream_t, STREAM_DEPTH>  & link_ingress,
+	  hls::stream<raw_stream_t, STREAM_DEPTH>  & link_egress);
 #endif

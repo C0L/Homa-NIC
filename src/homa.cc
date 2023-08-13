@@ -28,17 +28,16 @@ using namespace std;
  * @link_ingress: The incoming AXI Stream of ethernet frames from the link
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
-void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
-	  hls::stream<msghdr_send_t> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  const integral_t * maxi_in,
+void homa(hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_i,
+	  hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_o,
+	  integral_t * maxi_in,
 	  integral_t * maxi_out,
-	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress) {
+	  hls::stream<raw_stream_t, STREAM_DEPTH> & link_ingress,
+	  hls::stream<raw_stream_t, STREAM_DEPTH> & link_egress) {
 
 #pragma HLS interface mode=ap_ctrl_chain port=return
-// #pragma HLS interface mode=ap_ctrl_none port=return
        
     /* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
      * verification depth controls the size of the "RTL verification adapter" This
@@ -48,10 +47,10 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      *
      * Synth will claim that this is ignored, but cosim needs it to work.
      */
-#pragma HLS interface axis port=msghdr_send_i depth=256
-#pragma HLS interface axis port=msghdr_send_o depth=256
-#pragma HLS interface axis port=msghdr_recv_i depth=256
-#pragma HLS interface axis port=msghdr_recv_o depth=256
+#pragma HLS interface axis port=msghdr_send_i depth=16
+#pragma HLS interface axis port=msghdr_send_o depth=16
+#pragma HLS interface axis port=msghdr_recv_i depth=16
+#pragma HLS interface axis port=msghdr_recv_o depth=16
 #pragma HLS interface axis port=link_ingress depth=256
 #pragma HLS interface axis port=link_egress  depth=256
 #pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=80 depth=256

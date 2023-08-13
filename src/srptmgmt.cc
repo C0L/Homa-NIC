@@ -63,7 +63,7 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
     	}
     }
 
-    if (pkt(PKTQ_RPC_ID) != 0) {
+    if (pkt(PKTQ_RPC_ID) != 0 && !data_pkt_o.full()) {
     	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > pkt(PKTQ_REMAINING)) 
     	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (pkt(PKTQ_REMAINING) - HOMA_PAYLOAD_SIZE));
 
@@ -89,7 +89,7 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
     	}
     }
 
-    if (req(SENDQ_DBUFFERED) != 0) {
+    if (req(SENDQ_DBUFFERED) != 0 && !cache_req_o.full()) {
     	ap_uint<32> dbuffered = (64 > req(SENDQ_DBUFFERED)) 
     	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (req(SENDQ_DBUFFERED) - 64));
 
@@ -169,7 +169,7 @@ void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
 	    }
 	}
 
-	if (next_grant.recv_bytes > 0 && next_grant.rpc_id != 0) {
+	if (next_grant.recv_bytes > 0 && next_grant.rpc_id != 0 && !grant_out_o.full()) {
 	    srpt_grant_out_t grant_out;
 
 	    if (next_grant.recv_bytes > avail_bytes) {

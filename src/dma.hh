@@ -3,7 +3,7 @@
 
 #include "homa.hh"
 
-void dma_read(const integral_t * maxi,
+void dma_read(integral_t * maxi,
 	      hls::stream<srpt_sendq_t> & dma_req_i,
 	      hls::stream<dbuff_in_t> & dbuff_in_o);
 

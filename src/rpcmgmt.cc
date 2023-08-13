@@ -33,7 +33,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 #pragma HLS dependence variable=rpcs inter RAW false
 
     /* RO Paths */
-    if (!header_out_i.empty()) {
+    if (!header_out_i.empty() && !header_out_o.full()) {
 	header_t header_out = header_out_i.read();
 
 	// TODO we dont know here if the ID was assigned in the send or recv process
@@ -56,7 +56,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
     }
 
     /* R/W Paths */
-    if (!header_in_i.empty()) {
+    if (!header_in_i.empty() && !header_in_dbuff_o.full() && !grant_srpt_o.full() && !data_srpt_o.full()) {
 	header_t header_in = header_in_i.read();
 
 	std::cerr << "STATE HEADER IN READ\n";
@@ -109,7 +109,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	}
 
 	rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = homa_rpc;
-    } else if (!onboard_send_i.empty()) {
+    } else if (!onboard_send_i.empty() && !onboard_send_o.full()) {
 	onboard_send_t onboard_send = onboard_send_i.read();
 
 	homa_rpc_t homa_rpc;
@@ -182,7 +182,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
 #pragma HLS pipeline II=2
 
-    if (!header_in_i.empty()) {
+    if (!header_in_i.empty() && !header_in_o.full()) {
 	header_t header_in = header_in_i.read();
 	std::cerr << "MAP READ HEADER\n";
 	/* Check if we are the server for this RPC. If we are the RPC ID is
@@ -226,7 +226,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 	header_in_o.write(header_in);
 
 	std::cerr << "MAP WRITE HEADER\n";
-    } else if (!onboard_send_i.empty()) {
+    } else if (!onboard_send_i.empty() && !onboard_send_o.full()) {
 	onboard_send_t onboard_send = onboard_send_i.read();
 
 	// Check if this peer is already registered

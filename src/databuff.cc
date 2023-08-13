@@ -16,7 +16,7 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
 
 #pragma HLS pipeline II=1
 
-    static fifo_t<in_chunk_t, 16> rebuff;
+    static fifo_t<in_chunk_t, 256> rebuff;
 
     // TODO can this be problematic?
     //#pragma HLS dependence variable=rebuff inter WAR false
@@ -25,7 +25,7 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
     static header_t header_in;
     static bool valid = false;
 
-    if (valid && !rebuff.empty()) {
+    if (valid && !rebuff.empty() && !dma_w_req_o.full()) {
 	in_chunk_t in_chunk = rebuff.remove();
 
 	// Place chunk in DMA space at global offset + packet offset
@@ -38,17 +38,21 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
 
 	dma_w_req_o.write(dma_w_req);
 
-	if (in_chunk.last) valid = false;
+	if (in_chunk.last) {
+	    valid = false;
+	    std::cerr << "RESET INGRESS\n";
+	}
     }
 
     in_chunk_t in_chunk;
+    // TODO need to readdress the size of this FIFO!!!
     if (!chunk_in_o.empty()) {
 	in_chunk = chunk_in_o.read(); 
 	rebuff.insert(in_chunk);
-	std::cerr << "INSERT CHUNK\n";
+	std::cerr << "INSERT CHUNK " << rebuff.size() << std::endl;
     }
 
-    if (!valid && !header_in_i.empty()) {
+    if (!valid && !header_in_i.empty() && !header_in_o.full()) {
 	valid = true;
 	header_in = header_in_i.read();
 	std::cerr << "INSERT HEADER\n";
@@ -88,7 +92,7 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 
     // Take input chunks and add them to the data buffer
     dbuff_in_t dbuff_in;
-    if (dbuff_egress_i.read_nb(dbuff_in)) {
+    if (!dbuff_notif_o.full() && dbuff_egress_i.read_nb(dbuff_in)) {
 
 	dbuff_coffset_t chunk_offset = (dbuff_in.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
 
@@ -109,7 +113,7 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
     out_chunk_t out_chunk;
     out_chunk.local_id = 0;
     // Do we need to process any packet chunks?
-    if (out_chunk_i.read_nb(out_chunk)) {
+    if (!out_chunk_o.full() && out_chunk_i.read_nb(out_chunk)) {
 	// Is this a data type packet?
 	if (out_chunk.type == DATA && out_chunk.data_bytes != NO_DATA) {
 	    dbuff_coffset_t chunk_offset = (out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;

@@ -13,9 +13,9 @@ extern "C"{
          hls::stream<out_chunk_t> & chunk_out_o);
 
    void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
-         hls::stream<raw_stream_t> & link_egress);
+			 hls::stream<raw_stream_t, STREAM_DEPTH> & link_egress);
 
-   void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
+    void pkt_chunk_ingress(hls::stream<raw_stream_t, STREAM_DEPTH> & link_ingress,
          hls::stream<header_t> & chunk_ingress__peer_map,
          hls::stream<in_chunk_t> & chunk_ingress__dbuff_ingress);
 }
