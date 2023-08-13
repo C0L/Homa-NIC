@@ -249,7 +249,7 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @link_egress - Outgoign AXI Stream to the link
  */
 void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
-		      hls::stream<raw_stream_t, STREAM_DEPTH> & link_egress) {
+		      hls::stream<raw_stream_t> & link_egress) {
     out_chunk_t chunk = out_chunk_i.read();
     raw_stream_t raw_stream;
     // network_order(chunk.buff, raw_stream.data);
@@ -274,7 +274,7 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
-void pkt_chunk_ingress(hls::stream<raw_stream_t, STREAM_DEPTH> & link_ingress,
+void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
 		       hls::stream<in_chunk_t> & chunk_in_o) {
 #pragma HLS pipeline II=1 style=flp

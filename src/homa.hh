@@ -9,7 +9,7 @@
 #include "hls_stream.h"
 
 // Configure the size of the stream/fifo depths
-#define STREAM_DEPTH 128
+#define STREAM_DEPTH 2
 
 /* Helper Macros */
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -470,12 +470,12 @@ struct srpt_grant_t {
     ap_uint<32> grantable_bytes;
 };
 
-void homa(hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_i,
-	  hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_o,
+void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 	  integral_t        * maxi_in,
 	  integral_t        * maxi_out,
-	  hls::stream<raw_stream_t, STREAM_DEPTH>  & link_ingress,
-	  hls::stream<raw_stream_t, STREAM_DEPTH>  & link_egress);
+	  hls::stream<raw_stream_t>  & link_ingress,
+	  hls::stream<raw_stream_t>  & link_egress);
 #endif

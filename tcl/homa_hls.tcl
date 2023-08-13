@@ -37,7 +37,7 @@ if {$job_type == 0} {
     csynth_design
     export_design -output ip/ -format ip_catalog
 } elseif {$job_type == 2} {
-    config_dataflow -fifo_depth 512 -start_fifo_depth 512 -scalar_fifo_depth 512 -task_level_fifo_depth 512 -override_user_fifo_depth 512
+    # config_dataflow -fifo_depth 512 -start_fifo_depth 512 -scalar_fifo_depth 512 -task_level_fifo_depth 512 -override_user_fifo_depth 512
 
 
     #config_dataflow -start_fifo_depth 512 -scalar_fifo_depth 512 -task_level_fifo_depth 512 -override_user_fifo_depth 512 fails

@@ -12,8 +12,8 @@
  * buffered? If so the user could get the return recvmsg before the data has
  * made it to DMA?
  */
-void homa_recvmsg(hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_i,
-		  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_o,
+void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
+		  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 		  hls::stream<header_t> & header_in_i) {
 
     static recv_interest_t recv[MAX_RECV_MATCH];
@@ -117,8 +117,8 @@ void homa_recvmsg(hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_i,
  * @onboard_send_o - Path to prime the system to send the new message
  * TODO needs to return the newly assigned ID to the user
  */
-void homa_sendmsg(hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_i,
-		  hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_o,
+void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
+		  hls::stream<msghdr_send_t> & msghdr_send_o,
 		  hls::stream<onboard_send_t> & onboard_send_o) {
                   // hls::stream<dma_r_req_t> & dma_r_req_o) {
     // TODO could just send notif through here

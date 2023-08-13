@@ -28,14 +28,14 @@ using namespace std;
  * @link_ingress: The incoming AXI Stream of ethernet frames from the link
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
-void homa(hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_i,
-	  hls::stream<msghdr_send_t, STREAM_DEPTH> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t, STREAM_DEPTH> & msghdr_recv_o,
+void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 	  integral_t * maxi_in,
 	  integral_t * maxi_out,
-	  hls::stream<raw_stream_t, STREAM_DEPTH> & link_ingress,
-	  hls::stream<raw_stream_t, STREAM_DEPTH> & link_egress) {
+	  hls::stream<raw_stream_t> & link_ingress,
+	  hls::stream<raw_stream_t> & link_egress) {
 
 #pragma HLS interface mode=ap_ctrl_chain port=return
        
