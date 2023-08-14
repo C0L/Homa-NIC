@@ -49,11 +49,11 @@
 	},
 	{
 	    "c_name":"cache_req_o",
-	    "c_port_direction":"in",
+	    "c_port_direction":"out",
 	    "rtl_ports":{
-		"FIFO_empty_flag":"cache_req_full_i",
-		"FIFO_read_enable":"cache_req_write_en_o",
-		"FIFO_data_read_in":"cache_req_data_o"
+		"FIFO_full_flag":"cache_req_full_i",
+		"FIFO_write_enable":"cache_req_write_en_o",
+		"FIFO_data_write_out":"cache_req_data_o"
 	    }
 	}
     ],

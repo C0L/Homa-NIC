@@ -11,12 +11,12 @@ extern "C"{
 	std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
 	// 256 is needed for the verification adapter!?!
-	hls::stream<raw_stream_t, 256> link_ingress_i;
-	hls::stream<raw_stream_t, 256> link_egress_o;
-	hls::stream<msghdr_send_t, 256> sendmsg_i;
-	hls::stream<msghdr_send_t, 256> sendmsg_o;
-	hls::stream<msghdr_recv_t, 256> recvmsg_i;
-	hls::stream<msghdr_recv_t, 256> recvmsg_o;
+	hls::stream<raw_stream_t, 512> link_ingress_i;
+	hls::stream<raw_stream_t, 512> link_egress_o;
+	hls::stream<msghdr_send_t, 512> sendmsg_i;
+	hls::stream<msghdr_send_t, 512> sendmsg_o;
+	hls::stream<msghdr_recv_t, 512> recvmsg_i;
+	hls::stream<msghdr_recv_t, 512> recvmsg_o;
 
 	msghdr_send_t sendmsg;
 	msghdr_recv_t recvmsg;

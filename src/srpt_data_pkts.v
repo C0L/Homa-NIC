@@ -14,28 +14,21 @@
 `define SENDMSG_DBUFF_ID   65:56
 `define SENDMSG_DMA_OFFSET 85:66
 
-`define PKTQ_SIZE      79
-`define PKTQ_RPC_ID    15:0
-`define PKTQ_REMAINING 35:16
-`define PKTQ_DBUFFERED 55:36
-`define PKTQ_GRANTED   75:56
-`define PKTQ_PRIORITY  78:76
-
 `define PKTQ_SIZE      99
-`define PKTQ_RPC_ID    15,0
-`define PKTQ_DBUFF_ID  24,16
-`define PKTQ_REMAINING 45,26
-`define PKTQ_DBUFFERED 65,46
-`define PKTQ_GRANTED   85,66
-`define PKTQ_PRIORITY  98,86
+`define PKTQ_RPC_ID    15:0
+`define PKTQ_DBUFF_ID  24:16
+`define PKTQ_REMAINING 45:26
+`define PKTQ_DBUFFERED 65:46
+`define PKTQ_GRANTED   85:66
+`define PKTQ_PRIORITY  98:86
 
 `define SENDQ_SIZE      101
-`define SENDQ_RPC_ID    15,0
-`define SENDQ_DBUFF_ID  25,16
-`define SENDQ_OFFSET    57,26
-`define SENDQ_DBUFFERED 77,58
-`define SENDQ_MSG_LEN   97,78
-`define SENDQ_PRIORITY  100,98
+`define SENDQ_RPC_ID    15:0
+`define SENDQ_DBUFF_ID  25:16
+`define SENDQ_OFFSET    57:26
+`define SENDQ_DBUFFERED 77:58
+`define SENDQ_MSG_LEN   97:78
+`define SENDQ_PRIORITY  100:98
 
 `define DBUFF_SIZE   36
 `define DBUFF_RPC_ID 15:0
@@ -446,9 +439,8 @@ module srpt_data_pkts_tb();
       begin
 	 
 	 sendmsg_in_data_i[`SENDMSG_RPC_ID]     = rpc_id;
-	 sendmsg_in_data_i[`SENDMSG_REMAINING]  = msg_len;
+	 sendmsg_in_data_i[`SENDMSG_MSG_LEN]    = msg_len;
 	 sendmsg_in_data_i[`SENDMSG_GRANTED]    = msg_len;
-	 sendmsg_in_data_i[`SENDMSG_DBUFFERED]  = msg_len;
 	 sendmsg_in_data_i[`SENDMSG_DBUFF_ID]   = dbuff_id;
 	 sendmsg_in_data_i[`SENDMSG_DMA_OFFSET] = dma_offset;
 
