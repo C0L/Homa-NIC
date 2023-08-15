@@ -9,7 +9,7 @@
 #include "hls_stream.h"
 
 // Configure the size of the stream/fifo depths
-#define STREAM_DEPTH 16
+#define STREAM_DEPTH 2
 
 /* Helper Macros */
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -469,14 +469,25 @@ struct srpt_grant_t {
     ap_uint<32> recv_bytes;
     ap_uint<32> grantable_bytes;
 };
+
+// #ifdef STEPPED
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  ap_uint<512> * maxi_in,
-	  ap_uint<512> * maxi_out,
+	  volatile ap_uint<512> * maxi_in, volatile ap_uint<512> * maxi_out,
+	  bool dma_read_en, bool dma_write_en,
 	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress);
-
+	  hls::stream<raw_stream_t> & link_egress,
+          bool ingress_en, bool egress_en);
+//#else
+//void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+//	  hls::stream<msghdr_send_t> & msghdr_send_o,
+//	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+//	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
+//	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
+//	  hls::stream<raw_stream_t> & link_ingress,
+//	  hls::stream<raw_stream_t> & link_egress);
+//#endif
 
 #endif

@@ -28,17 +28,29 @@ using namespace std;
  * @link_ingress: The incoming AXI Stream of ethernet frames from the link
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
+#ifdef STEPPED
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  ap_uint<512> * maxi_in,
-	  ap_uint<512> * maxi_out,
+	  volatile ap_uint<512> * maxi_in, volatile ap_uint<512> * maxi_out,
+	  bool dma_read_en, bool dma_write_en,
 	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress) {
+	  hls::stream<raw_stream_t> & link_egress,
+          bool ingress_en, bool egress_en) {
 
 #pragma HLS interface mode=ap_ctrl_hs port=return
-       
+#else
+void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
+	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
+	  hls::stream<raw_stream_t> & link_ingress,
+	  hls::stream<raw_stream_t> & link_egress) {
+#pragma HLS interface mode=ap_ctrl_none port=return
+#endif
+
     /* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
      * verification depth controls the size of the "RTL verification adapter" This
      * needs to be configured to be the maximum size of any stream encountered
@@ -48,9 +60,12 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      * Synth will claim that this is ignored, but cosim needs it to work.
      */
 
-//#pragma HLS interface ap_none port=max_reads depth=128
-//#pragma HLS interface ap_none port=max_writes depth=128
+#pragma HLS interface ap_hs port=dma_read_en depth=256
+#pragma HLS interface ap_hs port=dma_write_en depth=256
+#pragma HLS interface ap_hs port=ingress_en depth=256
+#pragma HLS interface ap_hs port=egress_en depth=256
 
+#pragma HLS interface axis port=msghdr_send_i  depth=256
 #pragma HLS interface axis port=msghdr_send_i  depth=256
 #pragma HLS interface axis port=msghdr_send_o  depth=256
 #pragma HLS interface axis port=msghdr_recv_i  depth=256
@@ -59,10 +74,13 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 #pragma HLS interface axis port=link_egress    depth=256
 // #pragma HLS interface mode=m_axi port=maxi_in  depth=128
 // #pragma HLS interface mode=m_axi port=maxi_out depth=128
-#pragma HLS interface m_axi max_read_burst_length=256 depth=1024 port=maxi_in
+#pragma HLS interface m_axi max_read_burst_length=1 depth=256 port=maxi_in
 // #pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=256 max_read_burst=256 depth=1024
-#pragma HLS interface m_axi max_write_burst_length=256 depth=1024 port=maxi_out
+#pragma HLS interface m_axi max_write_burst_length=1 depth=256 port=maxi_out
 // #pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=80 depth=1024
+
+
+#pragma HLS dataflow disable_start_propagation 
 
     /* Naming scheme: {flow}__{source kernel}__{dest kernel} */
 
@@ -103,8 +121,29 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
     hls_thread_local hls::stream<srpt_sendq_t, STREAM_DEPTH> dma_req__srpt_data__dma_read      ("dma_req__srpt_data__dma_read");
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write ("dma_req__dbuff_ingress__dma_write");
 
+    /* Tasks must be declared after the processes or regions that
+     * produce their input streams, and before the processes or regions
+     * that consume their output streams.
+     */
 
-#pragma HLS dataflow disable_start_propagation
+
+// #pragma HLS dataflow disable_start_propagation
+
+#ifdef STEPPED
+    pkt_chunk_ingress(
+	ingress_en,
+	link_ingress,                           // link_ingress
+	header_in__chunk_ingress__rpc_map,      // header_in_o 
+	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
+	);
+#elif
+    hls_thread_local hls::task pkt_chunk_ingress_task(
+	pkt_chunk_ingress,
+	link_ingress,                           // link_ingress
+	header_in__chunk_ingress__rpc_map,      // header_in_o 
+	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
+	);
+#endif
 
     hls_thread_local hls::task rpc_state_task(
 	rpc_state,
@@ -135,6 +174,21 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	dma_req__srpt_data__dma_read           // 
 	);
 
+#ifdef STEPPED
+    dma_read(
+	dma_read_en,
+	maxi_in,
+	dma_req__srpt_data__dma_read,
+	dbuff_in__dma_read__msg_cache
+	);
+#elif
+    dma_read(
+	maxi_in,
+	dma_req__srpt_data__dma_read,
+	dbuff_in__dma_read__msg_cache
+	);
+#endif
+
     hls_thread_local hls::task srpt_grant_pkts_task(
 	srpt_grant_pkts,
 	grant__rpc_state__srpt_grant, // grant_in_i
@@ -154,18 +208,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	out_chunk__chunk_egress__dbuff_egress // chunk_out_o
 	);
 
-    hls_thread_local hls::task pkt_chunk_egress_task(
-	pkt_chunk_egress,
-	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
-	link_egress                          // link_egress
-	);
-
-    hls_thread_local hls::task pkt_chunk_ingress_task(
-	pkt_chunk_ingress,
-	link_ingress,                           // link_ingress
-	header_in__chunk_ingress__rpc_map,      // header_in_o 
-	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
-	);
 
     hls_thread_local hls::task msg_cache_task(
 	msg_cache,
@@ -203,24 +245,30 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	sendmsg__homa_sendmsg__rpc_map    // sendmsg_o
 	);
 
+#ifdef STEPPED
+    pkt_chunk_egress(
+	egress_en,
+	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
+	link_egress                          // link_egress
+	);
+#elif
+    hls_thread_local hls::task pkt_chunk_egress_task(
+	pkt_chunk_egress,
+	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
+	link_egress                          // link_egress
+	);
+#endif
 
-    dma(maxi_in,
-	dma_req__srpt_data__dma_read,
-	dbuff_in__dma_read__msg_cache,
+#ifdef STEPPED
+    dma_write(
+	dma_write_en,
 	maxi_out,
 	dma_req__dbuff_ingress__dma_write
 	);
-
-//    dma_read(
-//	maxi_in,
-//	maxi_read_en,
-//	dma_req__srpt_data__dma_read,
-//	dbuff_in__dma_read__msg_cache
-//	);
-//
-//    dma_write(
-//	maxi_out,
-//	maxi_write_en,
-//	dma_req__dbuff_ingress__dma_write
-//	);
+#elif
+    dma_write(
+	maxi_out,
+	dma_req__dbuff_ingress__dma_write
+	);
+#endif 
 }

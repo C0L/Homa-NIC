@@ -55,23 +55,22 @@ extern "C"{
 	static ap_uint<512> maxi_in[64];
 	static ap_uint<512> maxi_out[64];
 
-	recvmsg_i.write(recvmsg);
-	sendmsg_i.write(sendmsg);
+	//recvmsg_i.write(recvmsg);
+	//sendmsg_i.write(sendmsg);
 
 	// strcpy((char*) maxi_in, data.c_str());
 
-	homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	for (int i = 0; i < 44; ++i) 
+	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, false, false, link_ingress_i, link_egress_o, false, false);
+	    //homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, true, false, link_ingress_i, link_egress_o, false, false);
 
-	// TODO Maybe because this is exiting??
-
-	for (int i = 0; i < 48; ++i) {
-	    std::cerr << "LINK READ " << i << std::endl;
-	    while (link_egress_o.empty()) homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	    raw_stream_t rd = link_egress_o.read();
-	}
+//	for (int i = 0; i < 48; ++i) {
+//	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, false, false, link_ingress_i, link_egress_o, false, true);
+	    // raw_stream_t rd = link_egress_o.read();
+//	}
 
 	// msghdr_recv_t recv = recvmsg_o.read();
-	msghdr_send_t send = sendmsg_o.read();
+	// msghdr_send_t send = sendmsg_o.read();
 
 	return 0; 
 	// return memcmp(maxi_in, maxi_out, 2772);

@@ -248,9 +248,19 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
+
+#ifdef STEPPED
+void pkt_chunk_egress(bool egress_en,
+		      hls::stream<out_chunk_t> & out_chunk_i,
+		      hls::stream<raw_stream_t> & link_egress) {
+#else
 void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
-    static int count = 0;
+#endif
+
+    #ifdef STEPPED
+    if (egress_en) {
+    #endif
     out_chunk_t chunk = out_chunk_i.read();
     raw_stream_t raw_stream;
     // network_order(chunk.buff, raw_stream.data);
@@ -258,7 +268,9 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
     raw_stream.last = 0;
     // raw_stream.last = chunk.last;
     link_egress.write(raw_stream);
-    std::cerr << "WROTE OUT " << count++ << std::endl;
+    #ifdef STEPPED
+    }
+    #endif
 }
 
 /**
@@ -275,83 +287,100 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
+#ifdef STEPPED
+void pkt_chunk_ingress(bool ingress_en,
+		       hls::stream<raw_stream_t> & link_ingress,
+		       hls::stream<header_t> & header_in_o,
+		       hls::stream<in_chunk_t> & chunk_in_o) {
+#else
 void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
 		       hls::stream<in_chunk_t> & chunk_in_o) {
+#endif
+
 #pragma HLS pipeline II=1 style=flp
 
     static header_t header_in;
     static ap_uint<32> processed_bytes = 0;
 
-    if (!chunk_in_o.full() && !header_in_o.full()) {
-    raw_stream_t raw_stream = link_ingress.read();
-    in_chunk_t data_block;
-    ap_uint<512> natural_chunk;
+#ifdef STEPPED
+    if (ingress_en) {
+#endif
 
-    network_order(raw_stream.data, natural_chunk);
+	//if (!chunk_in_o.full() && !header_in_o.full()) {
+	    raw_stream_t raw_stream = link_ingress.read();
+	    in_chunk_t data_block;
+	    ap_uint<512> natural_chunk;
 
-    // For every type of homa packet we need to read at least two blocks
-    if (processed_bytes == 0) {
+	    network_order(raw_stream.data, natural_chunk);
 
-	header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
+	    // For every type of homa packet we need to read at least two blocks
+	    if (processed_bytes == 0) {
 
-	header_in.saddr          = natural_chunk(CHUNK_IPV6_SADDR);
-	header_in.daddr          = natural_chunk(CHUNK_IPV6_DADDR);
-	header_in.sport          = natural_chunk(CHUNK_HOMA_COMMON_SPORT);
-	header_in.dport          = natural_chunk(CHUNK_HOMA_COMMON_DPORT);
+		header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
 
-    } else if (processed_bytes == 64) {
+		header_in.saddr          = natural_chunk(CHUNK_IPV6_SADDR);
+		header_in.daddr          = natural_chunk(CHUNK_IPV6_DADDR);
+		header_in.sport          = natural_chunk(CHUNK_HOMA_COMMON_SPORT);
+		header_in.dport          = natural_chunk(CHUNK_HOMA_COMMON_DPORT);
 
-	header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
-	header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
-	header_in.id   = LOCALIZE_ID(header_in.id);
+	    } else if (processed_bytes == 64) {
 
-	switch(header_in.type) {
-	    case GRANT: {
-		// Grant header
-		header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
-		header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
+		header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
+		header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
+		header_in.id   = LOCALIZE_ID(header_in.id);
 
-		break;
-	    }
+		switch(header_in.type) {
+		    case GRANT: {
+			// Grant header
+			header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
+			header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
 
-	    case DATA: {
-		header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
-		header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
-		header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
-		header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
+			break;
+		    }
 
-		std::cerr << "READ DATA OFFSET " << header_in.data_offset << std::endl;
+		    case DATA: {
+			header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
+			header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
+			header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
+			header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
 
-		// TODO parse acks
+			std::cerr << "READ DATA OFFSET " << header_in.data_offset << std::endl;
 
-		data_block.buff(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
-		data_block.offset = 0;
+			// TODO parse acks
+
+			data_block.buff(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
+			data_block.offset = 0;
+			data_block.last   = raw_stream.last;
+			chunk_in_o.write(data_block);
+
+			break;
+		    }
+		}
+
+		std::cerr << "header in write\n";
+		header_in_o.write(header_in);
+		std::cerr << "complete\n";
+	    } else {
+		// TODO need to test TKEEP and change raw_stream def
+
+		data_block.offset = processed_bytes - DATA_PKT_HEADER;
+		data_block.buff   = raw_stream.data;
 		data_block.last   = raw_stream.last;
+
 		chunk_in_o.write(data_block);
-
-		break;
 	    }
-	}
 
-	std::cerr << "header in write\n";
-	header_in_o.write(header_in);
-	std::cerr << "complete\n";
-    } else {
-	// TODO need to test TKEEP and change raw_stream def
+	    processed_bytes += 64;
 
-	data_block.offset = processed_bytes - DATA_PKT_HEADER;
-	data_block.buff   = raw_stream.data;
-	data_block.last   = raw_stream.last;
+	    if (raw_stream.last) {
+		std::cerr << "LB RECV\n";
+		processed_bytes = 0;
+	    }
+	    // }
 
-	chunk_in_o.write(data_block);
+#ifdef STEPPED
     }
+#endif
 
-    processed_bytes += 64;
-
-    if (raw_stream.last) {
-	std::cerr << "LB RECV\n";
-	processed_bytes = 0;
-    }
-    }
 }

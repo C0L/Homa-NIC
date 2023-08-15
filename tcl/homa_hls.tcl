@@ -14,7 +14,7 @@ set test_bench [lindex $argv 4]
 open_project -reset homa_kern
 set_top homa
 
-add_files $c_src
+add_files $c_src -cflags "-DSTEPPED"
 
 if {$job_type == 0 || $job_type == 2 } {
     add_files -tb $test_bench
