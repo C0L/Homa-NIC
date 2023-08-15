@@ -108,10 +108,6 @@ typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
  * Need to leave side-channel signals enabled to avoid linker error?
  */
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
-//struct raw_stream_t {
-//    integral_t data;
-//    ap_uint<1> last;
-//};
 
 /* SRPT Configuration */
 #define MAX_OVERCOMMIT 8
@@ -470,24 +466,24 @@ struct srpt_grant_t {
     ap_uint<32> grantable_bytes;
 };
 
-// #ifdef STEPPED
+#ifdef STEPPED
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  volatile ap_uint<512> * maxi_in, volatile ap_uint<512> * maxi_out,
+	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
 	  bool dma_read_en, bool dma_write_en,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress,
           bool ingress_en, bool egress_en);
-//#else
-//void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
-//	  hls::stream<msghdr_send_t> & msghdr_send_o,
-//	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-//	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-//	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
-//	  hls::stream<raw_stream_t> & link_ingress,
-//	  hls::stream<raw_stream_t> & link_egress);
-//#endif
+#else
+void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
+	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
+	  hls::stream<raw_stream_t> & link_ingress,
+	  hls::stream<raw_stream_t> & link_egress);
+#endif
 
 #endif

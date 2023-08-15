@@ -25,6 +25,8 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     if (!msghdr_recv_i.empty()) {
 	msghdr_recv_t msghdr_recv = msghdr_recv_i.read();
 
+	std::cerr << "RECV HEADER INGRESS\n";
+
 	msghdr_recv_t match;
 	uint32_t match_index = -1;
 
@@ -64,6 +66,8 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 
 	header_t header_in = header_in_i.read();
 
+	std::cerr << "RECV HEADER IN\n";
+
 	msghdr_recv_t new_msg;
 
 	new_msg(MSGHDR_SADDR)      = header_in.saddr;
@@ -100,6 +104,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
+	    std::cerr << "RECV MATCH OUT\n";
 	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}
@@ -120,8 +125,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 		  hls::stream<msghdr_send_t> & msghdr_send_o,
 		  hls::stream<onboard_send_t> & onboard_send_o) {
-                  // hls::stream<dma_r_req_t> & dma_r_req_o) {
-    // TODO could just send notif through here
 
     // TODO reintroduce
 // #pragma HLS pipeline II=1

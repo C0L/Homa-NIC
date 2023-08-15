@@ -33,7 +33,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  volatile ap_uint<512> * maxi_in, volatile ap_uint<512> * maxi_out,
+	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
 	  bool dma_read_en, bool dma_write_en,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress,
@@ -60,24 +60,21 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      * Synth will claim that this is ignored, but cosim needs it to work.
      */
 
-#pragma HLS interface ap_hs port=dma_read_en depth=256
-#pragma HLS interface ap_hs port=dma_write_en depth=256
-#pragma HLS interface ap_hs port=ingress_en depth=256
-#pragma HLS interface ap_hs port=egress_en depth=256
+#ifdef STEPPED
+#pragma HLS interface ap_hs port=dma_read_en  depth=512 
+#pragma HLS interface ap_hs port=dma_write_en depth=512
+#pragma HLS interface ap_hs port=ingress_en   depth=512
+#pragma HLS interface ap_hs port=egress_en    depth=512
+#endif
 
-#pragma HLS interface axis port=msghdr_send_i  depth=256
-#pragma HLS interface axis port=msghdr_send_i  depth=256
-#pragma HLS interface axis port=msghdr_send_o  depth=256
-#pragma HLS interface axis port=msghdr_recv_i  depth=256
-#pragma HLS interface axis port=msghdr_recv_o  depth=256
-#pragma HLS interface axis port=link_ingress   depth=256
-#pragma HLS interface axis port=link_egress    depth=256
-// #pragma HLS interface mode=m_axi port=maxi_in  depth=128
-// #pragma HLS interface mode=m_axi port=maxi_out depth=128
-#pragma HLS interface m_axi max_read_burst_length=1 depth=256 port=maxi_in
-// #pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=256 max_read_burst=256 depth=1024
-#pragma HLS interface m_axi max_write_burst_length=1 depth=256 port=maxi_out
-// #pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=80 depth=1024
+#pragma HLS interface axis port=msghdr_send_i  depth=512
+#pragma HLS interface axis port=msghdr_send_o  depth=512
+#pragma HLS interface axis port=msghdr_recv_i  depth=512
+#pragma HLS interface axis port=msghdr_recv_o  depth=512
+#pragma HLS interface axis port=link_ingress   depth=512
+#pragma HLS interface axis port=link_egress    depth=512
+#pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=70 depth=1024
+#pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=70 depth=1024
 
 
 #pragma HLS dataflow disable_start_propagation 
@@ -126,9 +123,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      * that consume their output streams.
      */
 
-
-// #pragma HLS dataflow disable_start_propagation
-
 #ifdef STEPPED
     pkt_chunk_ingress(
 	ingress_en,
@@ -136,7 +130,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	header_in__chunk_ingress__rpc_map,      // header_in_o 
 	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
 	);
-#elif
+#else
     hls_thread_local hls::task pkt_chunk_ingress_task(
 	pkt_chunk_ingress,
 	link_ingress,                           // link_ingress
@@ -181,7 +175,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	dma_req__srpt_data__dma_read,
 	dbuff_in__dma_read__msg_cache
 	);
-#elif
+#else
     dma_read(
 	maxi_in,
 	dma_req__srpt_data__dma_read,
@@ -251,7 +245,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
 	link_egress                          // link_egress
 	);
-#elif
+#else
     hls_thread_local hls::task pkt_chunk_egress_task(
 	pkt_chunk_egress,
 	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
@@ -265,7 +259,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	maxi_out,
 	dma_req__dbuff_ingress__dma_write
 	);
-#elif
+#else
     dma_write(
 	maxi_out,
 	dma_req__dbuff_ingress__dma_write

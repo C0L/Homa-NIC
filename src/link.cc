@@ -265,8 +265,7 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
     raw_stream_t raw_stream;
     // network_order(chunk.buff, raw_stream.data);
     raw_stream.data = chunk.buff;
-    raw_stream.last = 0;
-    // raw_stream.last = chunk.last;
+    raw_stream.last = chunk.last;
     link_egress.write(raw_stream);
     #ifdef STEPPED
     }
