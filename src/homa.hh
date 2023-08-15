@@ -9,7 +9,7 @@
 #include "hls_stream.h"
 
 // Configure the size of the stream/fifo depths
-#define STREAM_DEPTH 2
+#define STREAM_DEPTH 16
 
 /* Helper Macros */
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -107,11 +107,11 @@ typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
  * 
  * Need to leave side-channel signals enabled to avoid linker error?
  */
-// typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
-struct raw_stream_t {
-    integral_t data;
-    ap_uint<1> last;
-};
+typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+//struct raw_stream_t {
+//    integral_t data;
+//    ap_uint<1> last;
+//};
 
 /* SRPT Configuration */
 #define MAX_OVERCOMMIT 8
@@ -469,13 +469,14 @@ struct srpt_grant_t {
     ap_uint<32> recv_bytes;
     ap_uint<32> grantable_bytes;
 };
-
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  integral_t        * maxi_in,
-	  integral_t        * maxi_out,
-	  hls::stream<raw_stream_t>  & link_ingress,
-	  hls::stream<raw_stream_t>  & link_egress);
+	  ap_uint<512> * maxi_in,
+	  ap_uint<512> * maxi_out,
+	  hls::stream<raw_stream_t> & link_ingress,
+	  hls::stream<raw_stream_t> & link_egress);
+
+
 #endif

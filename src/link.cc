@@ -250,14 +250,15 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  */
 void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
+    static int count = 0;
     out_chunk_t chunk = out_chunk_i.read();
     raw_stream_t raw_stream;
     // network_order(chunk.buff, raw_stream.data);
     raw_stream.data = chunk.buff;
-    raw_stream.last = chunk.last;
+    raw_stream.last = 0;
+    // raw_stream.last = chunk.last;
     link_egress.write(raw_stream);
-    std::cerr << "BLOCK OUT\n";
-    
+    std::cerr << "WROTE OUT " << count++ << std::endl;
 }
 
 /**

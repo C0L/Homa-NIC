@@ -11,12 +11,12 @@ extern "C"{
 	std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
 	// 256 is needed for the verification adapter!?!
-	hls::stream<raw_stream_t, 512> link_ingress_i;
-	hls::stream<raw_stream_t, 512> link_egress_o;
-	hls::stream<msghdr_send_t, 512> sendmsg_i;
-	hls::stream<msghdr_send_t, 512> sendmsg_o;
-	hls::stream<msghdr_recv_t, 512> recvmsg_i;
-	hls::stream<msghdr_recv_t, 512> recvmsg_o;
+	hls::stream<raw_stream_t, 256> link_ingress_i;
+	hls::stream<raw_stream_t, 256> link_egress_o;
+	hls::stream<msghdr_send_t, 256> sendmsg_i;
+	hls::stream<msghdr_send_t, 256> sendmsg_o;
+	hls::stream<msghdr_recv_t, 256> recvmsg_i;
+	hls::stream<msghdr_recv_t, 256> recvmsg_o;
 
 	msghdr_send_t sendmsg;
 	msghdr_recv_t recvmsg;
@@ -52,34 +52,28 @@ extern "C"{
 	sendmsg(MSGHDR_SEND_ID)    = 0;
 	sendmsg(MSGHDR_SEND_CC)    = 0;
 
-	char maxi_in[128*64];
-	char maxi_out[128*64];
+	static ap_uint<512> maxi_in[64];
+	static ap_uint<512> maxi_out[64];
 
 	recvmsg_i.write(recvmsg);
 	sendmsg_i.write(sendmsg);
 
-	strcpy(maxi_in, data.c_str());
+	// strcpy((char*) maxi_in, data.c_str());
 
-	// usleep(1000000);
+	homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 
-	int count = 0;
-	while (sendmsg_o.empty() || recvmsg_o.empty() || maxi_out[2772] == 0) {
-	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, (integral_t *) maxi_in, (integral_t *) maxi_out, link_ingress_i, link_egress_o);
+	// TODO Maybe because this is exiting??
 
-	    usleep(100000);
-	    while (!link_egress_o.empty() && !link_ingress_i.full()) {
-		std::cerr << "STARTING CARRY OVER\n";
-		 link_ingress_i.write(link_egress_o.read());
-		std::cerr << "COMPLETED CARRY OVER\n";
-	    }
-
-	    std::cerr << "CHECK\n";
+	for (int i = 0; i < 48; ++i) {
+	    std::cerr << "LINK READ " << i << std::endl;
+	    while (link_egress_o.empty()) homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	    raw_stream_t rd = link_egress_o.read();
 	}
 
-	msghdr_recv_t recv = recvmsg_o.read();
+	// msghdr_recv_t recv = recvmsg_o.read();
 	msghdr_send_t send = sendmsg_o.read();
 
 	return 0; 
-	//return memcmp(maxi_in, maxi_out, 2772);
+	// return memcmp(maxi_in, maxi_out, 2772);
     }
 }
