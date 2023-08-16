@@ -11,12 +11,12 @@ extern "C"{
 	std::cerr << "****************************** START TEST BENCH ******************************" << endl;
 
 	// 256 is needed for the verification adapter!?!
-	hls::stream<raw_stream_t, 256> link_ingress_i;
-	hls::stream<raw_stream_t, 256> link_egress_o;
-	hls::stream<msghdr_send_t, 256> sendmsg_i;
-	hls::stream<msghdr_send_t, 256> sendmsg_o;
-	hls::stream<msghdr_recv_t, 256> recvmsg_i;
-	hls::stream<msghdr_recv_t, 256> recvmsg_o;
+	hls::stream<raw_stream_t, 512> link_ingress_i;
+	hls::stream<raw_stream_t, 512> link_egress_o;
+	hls::stream<msghdr_send_t, 512> sendmsg_i;
+	hls::stream<msghdr_send_t, 512> sendmsg_o;
+	hls::stream<msghdr_recv_t, 512> recvmsg_i;
+	hls::stream<msghdr_recv_t, 512> recvmsg_o;
 
 	msghdr_send_t sendmsg;
 	msghdr_recv_t recvmsg;
@@ -52,43 +52,52 @@ extern "C"{
 	sendmsg(MSGHDR_SEND_ID)    = 0;
 	sendmsg(MSGHDR_SEND_CC)    = 0;
 
-	static ap_uint<512> maxi_in[64];
-	static ap_uint<512> maxi_out[64];
+	ap_uint<512> maxi_in[128];
+	ap_uint<512> maxi_out[128];
 
 	recvmsg_i.write(recvmsg);
 	sendmsg_i.write(sendmsg);
 
-	homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, false, false, link_ingress_i, link_egress_o, false, false);
+	homa(false, false, false, false, true, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	homa(false, false, false, false, false, false, true, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 
 	// strcpy((char*) maxi_in, data.c_str());
 
 	for (int i = 0; i < 44; ++i) {
 	    std::cerr << "DMA IN " << i << std::endl;
-	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, true, false, link_ingress_i, link_egress_o, false, false);
+	    // homa(DMA_READ_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	    homa(false, true, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	}
 
 	for (int i = 0; i < 48; ++i) {
 	    std::cerr << "CARRY OVER " << i << std::endl;
-	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, false, false, link_ingress_i, link_egress_o, false, true);
+	    // homa(EGRESS_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+
+	    homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	    link_ingress_i.write(link_egress_o.read());
 	}
 
 	for (int i = 0; i < 48; ++i) {
 	    std::cerr << "READ IN " << i << std::endl;
-	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, false, false, link_ingress_i, link_egress_o, true, false);
+	    homa(false, false, false, true, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	    // homa(INGRESS_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	}
 
 	for (int i = 0; i < 46; ++i) {
 	    std::cerr << "DMA OUT " << i << std::endl;
-	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, false, true, link_ingress_i, link_egress_o, false, false);
+	    homa(true, false, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	    // homa(DMA_WRITE_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	}
 
-	// std::cerr << "WAITING FOR RECV\n";
 
-	//msghdr_recv_t recv = recvmsg_o.read();
+	homa(false, false, false, false, false, false, false, true, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	// homa(RECV_OUT_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 
-	//std::cerr << "WAITING FOR SEND\n";
-	//msghdr_send_t send = sendmsg_o.read();
+	std::cerr << "WAITING FOR RECV\n";
+	msghdr_recv_t recv = recvmsg_o.read();
+
+	std::cerr << "WAITING FOR SEND\n";
+	msghdr_send_t send = sendmsg_o.read();
 
 	return 0; 
 	// return memcmp(maxi_in, maxi_out, 2772);

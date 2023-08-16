@@ -91,7 +91,8 @@ struct peer_hashpack_t {
 /* RPC Store Configuration */
 
 #define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
-#define MAX_RPCS            9000  // TODO Maximum number of RPCs
+#define MAX_RPCS            16384 // TODO Maximum number of RPCs
+// #define MAX_RPCS            9000  // TODO Maximum number of RPCs
 #define RPC_SUB_TABLE_SIZE  16384 // Size of cuckoo hash sub-tables
 #define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
 #define MAX_OPS             64 // TODO rename this
@@ -350,8 +351,8 @@ typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
 #define HOMA_RECVMSG_NONBLOCKING   0x04
 #define HOMA_RECVMSG_VALID_FLAGS   0x07
 
-#define MAX_RECV_MATCH 1024
-#define MAX_HDR_MATCH  1024
+#define MAX_RECV_MATCH 16
+// #define MAX_HDR_MATCH  1024
 
 struct recv_interest_t {
     ap_uint<16>  sport; // Port of the caller
@@ -467,15 +468,17 @@ struct srpt_grant_t {
 };
 
 #ifdef STEPPED
-void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
+void homa(bool dma_write_en, bool dma_read_en,
+	  bool egress_en, bool ingress_en,
+	  bool send_in_en, bool send_out_en,
+	  bool recv_in_en, bool recv_out_en,
+	  hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
-	  bool dma_read_en, bool dma_write_en,
 	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress,
-          bool ingress_en, bool egress_en);
+	  hls::stream<raw_stream_t> & link_egress);
 #else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,

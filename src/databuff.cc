@@ -96,6 +96,7 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 
 	dbuff_coffset_t chunk_offset = (dbuff_in.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
 
+	std::cerr << "DBUFF ID " <<  dbuff_in.dbuff_id << " CHUNK OFFSET " <<  chunk_offset << std::endl;
 	dbuff[dbuff_in.dbuff_id][chunk_offset] = dbuff_in.data;
 
 	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.offset + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
@@ -139,13 +140,4 @@ void msg_cache(hls::stream<dbuff_in_t> & dbuff_egress_i,
 	}
 	out_chunk_o.write(out_chunk);
     }
-    // TODO can move this back in
-    // if (out_chunk.local_id !=0 && (out_chunk.offset + (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) < out_chunk.length) {
-    // 	dma_r_req_t dma_r_req;
-    // 	dma_r_req.offset   = out_chunk.offset + DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS;
-    // 	dma_r_req.msg_len  = out_chunk.length;
-    // 	dma_r_req.dbuff_id = out_chunk.dbuff_id;
-    // 	dma_r_req.local_id = out_chunk.local_id;
-    // 	dma_r_req_o.write(dma_r_req);
-    // } 
 }

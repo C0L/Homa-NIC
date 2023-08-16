@@ -18,12 +18,17 @@ void dma_read(ap_uint<512> * maxi,
     
 #pragma HLS pipeline II=1
 
+    static int call_count = 0;
+
+    std::cerr << "READ CC " << call_count++ << std::endl;
+
     srpt_sendq_t dma_req;
 #ifdef STEPPED
     if (dma_read_en) {
 #endif
 	dma_req_i.read(dma_req);
 	dbuff_in_t dbuff_in;
+	std::cerr << "DMA READ OFFSET " << (dma_req(SENDQ_OFFSET) / DBUFF_CHUNK_SIZE) << std::endl;
 	dbuff_in.data = *(maxi + (dma_req(SENDQ_OFFSET) / DBUFF_CHUNK_SIZE));
 	dbuff_in.dbuff_id = dma_req(SENDQ_DBUFF_ID);
 	dbuff_in.local_id = dma_req(SENDQ_RPC_ID);
@@ -59,7 +64,7 @@ void dma_write(ap_uint<512> * maxi,
    if (dma_write_en) {
 #endif
        dma_w_req_i.read(dma_req);
-       std::cerr << "OFFSET " << (dma_req.offset / DBUFF_CHUNK_SIZE) << std::endl;
+       std::cerr << "DMA WRITE OFFSET " << (dma_req.offset / DBUFF_CHUNK_SIZE) << std::endl;
        *(maxi + (dma_req.offset / DBUFF_CHUNK_SIZE)) = dma_req.data;
 
 #ifdef STEPPED

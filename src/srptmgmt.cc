@@ -48,7 +48,7 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
 	std::cerr << "sendmsg in\n";
     }
 
-    srpt_pktq_t pkt;
+    srpt_pktq_t pkt = 0;
     pkt(PKTQ_RPC_ID)    = 0;
     pkt(PKTQ_REMAINING) = 0xFFFFFFFF;
 
@@ -77,7 +77,7 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
     }
 
     // TODO can clean this up
-    uint32_t match_index;
+    uint32_t match_index = 0;
     srpt_sendq_t req;
     req(SENDQ_DBUFFERED) = 0;
 
@@ -94,6 +94,7 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
     	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (req(SENDQ_DBUFFERED) - 64));
 
     	sendq[match_index](SENDQ_DBUFFERED) = dbuffered;
+	std::cerr << "MATCH INDEX " << match_index << std::endl;
     	sendq[match_index](SENDQ_OFFSET)    = sendq[match_index](SENDQ_OFFSET) + 64;
 
     	cache_req_o.write(req);
