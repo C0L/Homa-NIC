@@ -21,13 +21,11 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
     if (!dbuff_notif_i.empty()) {
 	srpt_dbuff_notif_t dbuff_notif = dbuff_notif_i.read();
 	pktq[SEND_INDEX_FROM_RPC_ID(dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID))](PKTQ_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
-	std::cerr << "dbuff notif\n";
     }
 
     if (!grant_notif_i.empty()) {
 	srpt_grant_notif_t header_in = grant_notif_i.read();
 	pktq[SEND_INDEX_FROM_RPC_ID(header_in(SRPT_GRANT_NOTIF_RPC_ID))](PKTQ_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
-	std::cerr << "grant notif\n";
     }
 
     if (!sendmsg_i.empty()) {
@@ -45,7 +43,6 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
 	sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_DBUFFERED) = sendmsg(SRPT_SENDMSG_MSG_LEN);
 	sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_MSG_LEN)   = sendmsg(SRPT_SENDMSG_MSG_LEN);
 
-	std::cerr << "sendmsg in\n";
     }
 
     srpt_pktq_t pkt = 0;
@@ -67,7 +64,6 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
     	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > pkt(PKTQ_REMAINING)) 
     	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (pkt(PKTQ_REMAINING) - HOMA_PAYLOAD_SIZE));
 
-	std::cerr << "data pkt out\n";
     	data_pkt_o.write(pkt);
     	pktq[SEND_INDEX_FROM_RPC_ID(pkt(PKTQ_RPC_ID))](PKTQ_REMAINING) = remaining;
 
@@ -94,7 +90,6 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
     	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (req(SENDQ_DBUFFERED) - 64));
 
     	sendq[match_index](SENDQ_DBUFFERED) = dbuffered;
-	std::cerr << "MATCH INDEX " << match_index << std::endl;
     	sendq[match_index](SENDQ_OFFSET)    = sendq[match_index](SENDQ_OFFSET) + 64;
 
     	cache_req_o.write(req);

@@ -31,10 +31,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     static msghdr_recv_t msgs[MAX_RECV_MATCH];
     static int msgs_head = 0;
 
-     std::cerr << recv[0].sport  << std::endl;
-     std::cerr << recv[0].flags << std::endl;
-     std::cerr << recv_head  << std::endl;
-
     msghdr_recv_t msghdr_recv;
     header_t header_in;
 
@@ -69,19 +65,11 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    recv_interest_t recv_interest = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
 	    recv[recv_head] = recv_interest;
 
-	    std::cerr << "NEW ENTRY AT " << recv_head << std::endl;
-
-	    std::cerr << recv[recv_head].sport << std::endl;
-	    std::cerr << recv[recv_head].flags << std::endl;
-
 	    if (recv_head < MAX_RECV_MATCH) {
-		std::cerr << "INCR\n";
 		recv_head++;
-		std::cerr << "SET RECV HEAD " << recv_head << std::endl;
 	    }
 	}
 	//else {
-	//    std::cerr << "DECR\n";
 	//    msgs[match_index] = msgs[msgs_head];
 	//    msghdr_recv_o.write(match);
 	//    msgs_head--;
@@ -173,7 +161,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
     if (send_in_en) {
 	msghdr_send = msghdr_send_i.read();
 #else
-    if (msghdr_send_i.read_nb(header_in)) {
+    if (msghdr_send_i.read_nb(msghdr_send)) {
 #endif
 
 	onboard_send_t onboard_send;

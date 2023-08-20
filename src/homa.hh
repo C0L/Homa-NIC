@@ -8,15 +8,18 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
-// Configure the size of the stream/fifo depths
-#define STREAM_DEPTH 2
-
 /* Helper Macros */
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 // Client RPC IDs are even, servers are odd 
 #define IS_CLIENT(id) ((id & 1) == 0)
+
+#ifdef STEPPED
+#define STREAM_DEPTH 24
+#else
+#define STREAM_DEPTH 2
+#endif
 
 // Convert between representation and index
 // #define SEND_RPC_ID_FROM_INDEX(a) ((a + 1 + MAX_RPCS/2) << 1)
@@ -73,9 +76,10 @@ enum data_bytes_e {
 };
 
 /* Peer Tab Configuration */
-#define MAX_PEERS_LOG2 14
-#define MAX_PEERS 16383
-#define PEER_SUB_TABLE_SIZE 16384
+#define MAX_PEERS_LOG2       14
+#define MAX_PEERS            16383 // 0 is reserved
+#define PEER_BUCKETS         16384
+#define PEER_BUCKET_SIZE     8
 #define PEER_SUB_TABLE_INDEX 14
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
@@ -92,10 +96,9 @@ struct peer_hashpack_t {
 
 #define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
 #define MAX_RPCS            16384 // TODO Maximum number of RPCs
-// #define MAX_RPCS            9000  // TODO Maximum number of RPCs
-#define RPC_SUB_TABLE_SIZE  16384 // Size of cuckoo hash sub-tables
+#define RPC_BUCKETS         16384 // Size of cuckoo hash sub-tables
+#define RPC_BUCKET_SIZE     8     // Size of cuckoo hash sub-tables
 #define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
-#define MAX_OPS             64 // TODO rename this
 
 typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 

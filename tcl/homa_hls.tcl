@@ -29,7 +29,7 @@ if {$job_type == 0} {
 } elseif {$job_type == 1} {
     add_files $c_src 
     add_files -tb $test_bench 
-    add_files -blackbox $json_src
+    add_files -blackbox $json_src 
 
     csynth_design
     export_design -output ip/ -format ip_catalog
@@ -37,7 +37,6 @@ if {$job_type == 0} {
     add_files $c_src -cflags "-DSTEPPED"
     add_files -tb $test_bench -cflags "-DSTEPPED"
     add_files -blackbox $json_src
-    config_dataflow -fifo_depth 512 -start_fifo_depth 512 -scalar_fifo_depth 512 -task_level_fifo_depth 512 -override_user_fifo_depth 512
     csynth_design
     cosim_design 
 }

@@ -18,18 +18,20 @@ void dma_read(ap_uint<512> * maxi,
     
 #pragma HLS pipeline II=1
 
-    static int call_count = 0;
-
-    std::cerr << "READ CC " << call_count++ << std::endl;
-
     srpt_sendq_t dma_req;
 #ifdef STEPPED
     if (dma_read_en) {
 #endif
 	dma_req_i.read(dma_req);
+
+	ap_uint<8> * byte_offset = (ap_uint<8> *) maxi;
+
+	byte_offset += dma_req(SENDQ_OFFSET);
+
 	dbuff_in_t dbuff_in;
-	std::cerr << "DMA READ OFFSET " << (dma_req(SENDQ_OFFSET) / DBUFF_CHUNK_SIZE) << std::endl;
-	dbuff_in.data = *(maxi + (dma_req(SENDQ_OFFSET) / DBUFF_CHUNK_SIZE));
+	dbuff_in.data = *((ap_uint<512> *) byte_offset);
+
+	std::cerr << "DMA READ " << dbuff_in.data << std::endl;
 	dbuff_in.dbuff_id = dma_req(SENDQ_DBUFF_ID);
 	dbuff_in.local_id = dma_req(SENDQ_RPC_ID);
 	dbuff_in.offset = dma_req(SENDQ_OFFSET);
@@ -64,8 +66,15 @@ void dma_write(ap_uint<512> * maxi,
    if (dma_write_en) {
 #endif
        dma_w_req_i.read(dma_req);
-       std::cerr << "DMA WRITE OFFSET " << (dma_req.offset / DBUFF_CHUNK_SIZE) << std::endl;
-       *(maxi + (dma_req.offset / DBUFF_CHUNK_SIZE)) = dma_req.data;
+
+       ap_uint<8> * byte_offset = (ap_uint<8> *) maxi;
+
+       byte_offset += dma_req.offset;
+
+       std::cerr << "WROTE OFFSET " << dma_req.offset << std::endl;
+       std::cerr << "WROTE " << dma_req.data << std::endl;
+
+       *((ap_uint<512> *) byte_offset) = dma_req.data;
 
 #ifdef STEPPED
    }

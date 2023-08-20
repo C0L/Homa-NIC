@@ -61,45 +61,52 @@ extern "C"{
 	homa(false, false, false, false, true, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	homa(false, false, false, false, false, false, true, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 
-	// strcpy((char*) maxi_in, data.c_str());
+	strcpy((char*) maxi_in, data.c_str());
 
-	for (int i = 0; i < 44; ++i) {
-	    std::cerr << "DMA IN " << i << std::endl;
-	    // homa(DMA_READ_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	// Buffer 1 packet
+	for (int i = 0; i < 22; ++i) {
 	    homa(false, true, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	}
 
-	for (int i = 0; i < 48; ++i) {
-	    std::cerr << "CARRY OVER " << i << std::endl;
-	    // homa(EGRESS_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-
+        // Read out packet
+	for (int i = 0; i < 24; ++i) {
 	    homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	    link_ingress_i.write(link_egress_o.read());
 	}
 
-	for (int i = 0; i < 48; ++i) {
-	    std::cerr << "READ IN " << i << std::endl;
+	for (int i = 0; i < 24; ++i) {
 	    homa(false, false, false, true, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	    // homa(INGRESS_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	}
 
-	for (int i = 0; i < 46; ++i) {
-	    std::cerr << "DMA OUT " << i << std::endl;
+	for (int i = 0; i < 23; ++i) {
 	    homa(true, false, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	    // homa(DMA_WRITE_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	}
 
+	for (int i = 0; i < 22; ++i) {
+	    homa(false, true, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	}
+
+        // Read out packet
+	for (int i = 0; i < 24; ++i) {
+	    homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	    link_ingress_i.write(link_egress_o.read());
+	}
+
+	for (int i = 0; i < 24; ++i) {
+	    homa(false, false, false, true, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	}
+
+	for (int i = 0; i < 23; ++i) {
+	    homa(true, false, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	}
 
 	homa(false, false, false, false, false, false, false, true, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	// homa(RECV_OUT_EN, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 
-	std::cerr << "WAITING FOR RECV\n";
 	msghdr_recv_t recv = recvmsg_o.read();
 
-	std::cerr << "WAITING FOR SEND\n";
 	msghdr_send_t send = sendmsg_o.read();
 
-	return 0; 
-	// return memcmp(maxi_in, maxi_out, 2772);
+	// return 0; 
+	return memcmp(maxi_in, maxi_out, 2772);
     }
 }

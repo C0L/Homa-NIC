@@ -25,7 +25,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
     static homa_rpc_t rpcs[MAX_RPCS];
 
-#pragma HLS pipeline II=2
+#pragma HLS pipeline II=1
 
 #pragma HLS bind_storage variable=rpcs type=RAM_1WNR
 
@@ -33,12 +33,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 #pragma HLS dependence variable=rpcs inter RAW false
 
     /* RO Paths */
-    if (!header_out_i.empty() && !header_out_o.full()) {
-	header_t header_out = header_out_i.read();
-
-	// TODO we dont know here if the ID was assigned in the send or recv process
-	// TODO why should it matter, why does macro subtract???
-
+    header_t header_out;
+    if (header_out_i.read_nb(header_out)) {
 	homa_rpc_t homa_rpc = rpcs[SEND_INDEX_FROM_RPC_ID(header_out.local_id)];
 
 	header_out.daddr           = homa_rpc.daddr;
@@ -52,13 +48,13 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	header_out.data_offset    = homa_rpc.iov_size - header_out.data_offset;
 	header_out.message_length = homa_rpc.iov_size;
 
-	header_out_o.write(header_out);
-    }
+	header_out_o.write_nb(header_out);
+    } 
 
     /* R/W Paths */
-    if (!header_in_i.empty() && !header_in_dbuff_o.full() && !grant_srpt_o.full() && !data_srpt_o.full()) {
-	header_t header_in = header_in_i.read();
-
+    header_t header_in;
+    onboard_send_t onboard_send;
+    if (header_in_i.read_nb(header_in)) {
 	std::cerr << "STATE HEADER IN READ\n";
 
 	homa_rpc_t homa_rpc = rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
@@ -82,7 +78,6 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 		if (header_in.message_length > header_in.incoming) { 
 		    srpt_grant_in_t grant_in;
 		    grant_in(SRPT_GRANT_IN_OFFSET)  = header_in.data_offset;
-		    // grant_in(SRPT_GRANT_IN_OFFSET)  = header_in.message_length - header_in.data_offset;
 		    grant_in(SRPT_GRANT_IN_INC)     = header_in.incoming;
 		    grant_in(SRPT_GRANT_IN_MSG_LEN) = header_in.message_length;
 		    grant_in(SRPT_GRANT_IN_RPC_ID)  = header_in.local_id;
@@ -92,7 +87,6 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 		    grant_srpt_o.write(grant_in); 
 		} 
 
-		std::cerr << "STATE HEADER IN WRITE\n";
 		// Instruct the data buffer where to write this messages' data
 		header_in_dbuff_o.write(header_in); 
 
@@ -109,9 +103,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	}
 
 	rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = homa_rpc;
-    } else if (!onboard_send_i.empty() && !onboard_send_o.full()) {
-	onboard_send_t onboard_send = onboard_send_i.read();
-
+    } else if (onboard_send_i.read_nb(onboard_send)) {
 	homa_rpc_t homa_rpc;
 	homa_rpc.daddr           = onboard_send.daddr;
 	homa_rpc.dport           = onboard_send.dport;
@@ -170,21 +162,22 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
     // Output buffers 
     static stack_t<local_id_t, MAX_PEERS> dbuff_stack(true);
-
+  
     // hash(dest addr) -> peer ID
-    static hashmap_t<peer_hashpack_t, peer_id_t, PEER_SUB_TABLE_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE, MAX_OPS> peer_hashmap;
+    static hashmap_t<peer_hashpack_t, peer_id_t, PEER_BUCKETS, PEER_BUCKET_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE> peer_hashmap;
 
     // hash(dest addr, sender ID, dest port) -> rpc ID
-    static hashmap_t<rpc_hashpack_t, local_id_t, RPC_SUB_TABLE_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE, MAX_OPS> rpc_hashmap;
+    static hashmap_t<rpc_hashpack_t, local_id_t, RPC_BUCKETS, RPC_BUCKET_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE> rpc_hashmap;
 
 // #pragma HLS dependence variable=hashmap inter WAR false
 // #pragma HLS dependence variable=hashmap inter RAW false
 
 #pragma HLS pipeline II=2
 
-    if (!header_in_i.empty() && !header_in_o.full()) {
-	header_t header_in = header_in_i.read();
-	std::cerr << "MAP READ HEADER\n";
+    onboard_send_t onboard_send;
+    header_t header_in;
+
+    if (header_in_i.read_nb(header_in)) {
 	/* Check if we are the server for this RPC. If we are the RPC ID is
 	 * not in a local form and we need to map it to a local ID.
 	 *
@@ -205,7 +198,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 		header_in.peer_id = PEER_ID_FROM_INDEX(peer_stack.pop());
 
 		entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, header_in.peer_id};
-		peer_hashmap.queue(peer_entry);
+		peer_hashmap.insert(peer_entry);
 	    }
 
 	    // Check if this RPC is already registered
@@ -217,20 +210,18 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 	    if (header_in.local_id == 0) {
 		header_in.local_id = RECV_RPC_ID_FROM_INDEX(recv_ids.pop());
 		entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
-		rpc_hashmap.queue(rpc_entry);
+		rpc_hashmap.insert(rpc_entry);
 	    }
 	} else {
 	    header_in.local_id = header_in.id;
 	}
 
 	header_in_o.write(header_in);
-
-	std::cerr << "MAP WRITE HEADER\n";
-    } else if (!onboard_send_i.empty() && !onboard_send_o.full()) {
-	onboard_send_t onboard_send = onboard_send_i.read();
-
+    } else if (onboard_send_i.read_nb(onboard_send)) {
 	// Check if this peer is already registered
 	peer_hashpack_t peer_query = {onboard_send.daddr};
+
+	// TODO have only 1 operation that searches and inserts if not there
 	onboard_send.peer_id       = peer_hashmap.search(peer_query);
 
 	// If the peer is not registered, generate new ID and register it
@@ -238,12 +229,9 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 	    onboard_send.peer_id = PEER_ID_FROM_INDEX(peer_stack.pop());
 
 	    entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, onboard_send.peer_id};
-	    peer_hashmap.queue(peer_entry);
+	    peer_hashmap.insert(peer_entry);
 	}
 
 	onboard_send_o.write(onboard_send);
-    } else {
-	rpc_hashmap.process();
-	peer_hashmap.process();
     }
 }

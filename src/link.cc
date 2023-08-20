@@ -235,6 +235,7 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 	}
 
 	network_order(natural_chunk, out_chunk.buff);
+	std::cerr << "WROTE CHUNK OUT " << processed_bytes << std::endl;
 	chunk_out_o.write(out_chunk);
     }
 }
@@ -308,6 +309,9 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
 	//if (!chunk_in_o.full() && !header_in_o.full()) {
 	    raw_stream_t raw_stream = link_ingress.read();
+
+	    std::cerr << "READ CHUNK IN " << processed_bytes << std::endl;
+
 	    in_chunk_t data_block;
 	    ap_uint<512> natural_chunk;
 
