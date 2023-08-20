@@ -78,8 +78,12 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 #pragma HLS interface axis port=msghdr_recv_o depth=256
 #pragma HLS interface axis port=link_ingress  depth=256
 #pragma HLS interface axis port=link_egress   depth=256
-#pragma HLS interface mode=m_axi offset=direct port=maxi_in bundle=MAXI latency=70 num_read_outstanding=1 depth=256 
-#pragma HLS interface mode=m_axi offset=direct port=maxi_out bundle=MAXI latency=70 num_write_outstanding=1 depth=256
+#pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=1 depth=256 
+#pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=1 depth=256
+
+
+// #pragma HLS interface mode=m_axi offset=direct port=maxi_in bundle=MAXI latency=70 num_read_outstanding=1 depth=256 
+// #pragma HLS interface mode=m_axi offset=direct port=maxi_out bundle=MAXI latency=70 num_write_outstanding=1 depth=256
 
 
 #pragma HLS dataflow disable_start_propagation 
