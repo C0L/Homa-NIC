@@ -31,14 +31,12 @@ void dma_read(ap_uint<512> * maxi,
 	dbuff_in_t dbuff_in;
 	dbuff_in.data = *((ap_uint<512> *) byte_offset);
 
-	std::cerr << "DMA READ " << dbuff_in.data << std::endl;
 	dbuff_in.dbuff_id = dma_req(SENDQ_DBUFF_ID);
 	dbuff_in.local_id = dma_req(SENDQ_RPC_ID);
 	dbuff_in.offset = dma_req(SENDQ_OFFSET);
 	dbuff_in.msg_len = dma_req(SENDQ_MSG_LEN);
-	// dbuff_in.last = dma_req.last;
+	// dbuff_in.last = dma_req.last; // TODO unused
 	dbuff_in_o.write(dbuff_in);
-	// }
 #ifdef STEPPED
     }
 #endif
@@ -70,9 +68,6 @@ void dma_write(ap_uint<512> * maxi,
        ap_uint<8> * byte_offset = (ap_uint<8> *) maxi;
 
        byte_offset += dma_req.offset;
-
-       std::cerr << "WROTE OFFSET " << dma_req.offset << std::endl;
-       std::cerr << "WROTE " << dma_req.data << std::endl;
 
        *((ap_uint<512> *) byte_offset) = dma_req.data;
 

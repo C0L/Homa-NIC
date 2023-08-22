@@ -18,10 +18,6 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
 
     static fifo_t<in_chunk_t, 32> rebuff;
 
-    // TODO can this be problematic?
-    //#pragma HLS dependence variable=rebuff inter WAR false
-    //#pragma HLS dependence variable=rebuff inter RAW false
-
     static header_t header_in;
     static bool valid = false;
 
@@ -34,27 +30,25 @@ void dbuff_ingress(hls::stream<in_chunk_t> & chunk_in_o,
 	dma_w_req.offset = in_chunk.offset + ((header_in.ibuff_id) * HOMA_MAX_MESSAGE_LENGTH) + header_in.data_offset;
 	dma_w_req.data   = in_chunk.buff;
 
-	// std::cerr << "WROTE DBUFF CHUNK\n";
-
 	dma_w_req_o.write(dma_w_req);
 
 	if (in_chunk.last) {
 	    valid = false;
-	    // std::cerr << "RESET INGRESS\n";
 	}
     }
 
     in_chunk_t in_chunk;
-    // TODO need to readdress the size of this FIFO!!!
     static int num_chunk = 0;
     if (chunk_in_o.read_nb(in_chunk)) {
-	// std::cerr << "CHUNK IN " << num_chunk++ << std::endl;
 	rebuff.insert(in_chunk);
     }
 
     if (!valid && header_in_i.read_nb(header_in)) {
 	valid = true;
-	header_in_o.write(header_in);
+
+	if (header_in.packetmap == PMAP_COMPLETE) {
+	    header_in_o.write(header_in);
+	}
     } 
 }
 

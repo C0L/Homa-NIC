@@ -104,52 +104,52 @@
  *  
  * TODO use a LAST bit to handle when notifications are sent?
  */
-module srpt_data_pkts #(parameter MAX_RPCS = 128)
+module srpt_data_pkts #(parameter MAX_RPCS = 64)
    (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
     
-    input			  sendmsg_in_empty_i,
-    output reg			  sendmsg_in_read_en_o,
-    input [`SENDMSG_SIZE-1:0]	  sendmsg_in_data_i,
+    input			 sendmsg_in_empty_i,
+    output reg			 sendmsg_in_read_en_o,
+    input [`SENDMSG_SIZE-1:0]	 sendmsg_in_data_i,
    
-    input			  dbuff_in_empty_i,
-    output reg			  dbuff_in_read_en_o,
-    input [`DBUFF_SIZE-1:0]	  dbuff_in_data_i,
-       
-    input			  grant_in_empty_i,
-    output reg			  grant_in_read_en_o,
-    input [`GRANT_SIZE-1:0]	  grant_in_data_i,
-
-    input			  data_pkt_full_i,
-    output reg			  data_pkt_write_en_o,
-    output reg [`PKTQ_SIZE-1:0]	  data_pkt_data_o,
-
-    input			  cache_req_full_i,
-    output reg			  cache_req_write_en_o,
-    output reg [`SENDQ_SIZE-1:0]  cache_req_data_o,
-
-    output			  ap_idle, ap_done, ap_ready);
-
-   reg [`PKTQ_SIZE-1:0]		     pktq[MAX_RPCS-1:0];
-   reg [`PKTQ_SIZE-1:0]		     pktq_swpo[MAX_RPCS-1:0]; 
-   reg [`PKTQ_SIZE-1:0]		     pktq_swpe[MAX_RPCS-1:0];
-
-   reg [`SENDQ_SIZE-1:0]	     sendq[MAX_RPCS-1:0];
-   reg [`SENDQ_SIZE-1:0]	     sendq_swpo[MAX_RPCS-1:0]; 
-   reg [`SENDQ_SIZE-1:0]	     sendq_swpe[MAX_RPCS-1:0];
+    input			 dbuff_in_empty_i,
+    output reg			 dbuff_in_read_en_o,
+    input [`DBUFF_SIZE-1:0]	 dbuff_in_data_i,
    
-   reg [`PKTQ_SIZE-1:0]		     pktq_ins;
-   reg [`SENDQ_SIZE-1:0]	     sendq_ins;
+    input			 grant_in_empty_i,
+    output reg			 grant_in_read_en_o,
+    input [`GRANT_SIZE-1:0]	 grant_in_data_i,
 
-   reg				     pktq_pol;
-   reg				     sendq_pol;
+    input			 data_pkt_full_i,
+    output reg			 data_pkt_write_en_o,
+    output reg [`PKTQ_SIZE-1:0]	 data_pkt_data_o,
 
-   wire [`PKTQ_SIZE-1:0]	     pktq_head;
-   wire [`SENDQ_SIZE-1:0]	     sendq_head;
+    input			 cache_req_full_i,
+    output reg			 cache_req_write_en_o,
+    output reg [`SENDQ_SIZE-1:0] cache_req_data_o,
 
-   wire				     pktq_granted;
-   wire				     pktq_dbuffered;
-   wire				     pktq_ripe;
-   wire				     pktq_empty;
+    output			 ap_idle, ap_done, ap_ready);
+
+   reg [`PKTQ_SIZE-1:0]		 pktq[MAX_RPCS-1:0];
+   reg [`PKTQ_SIZE-1:0]		 pktq_swpo[MAX_RPCS-1:0]; 
+   reg [`PKTQ_SIZE-1:0]		 pktq_swpe[MAX_RPCS-1:0];
+
+   reg [`SENDQ_SIZE-1:0]	 sendq[MAX_RPCS-1:0];
+   reg [`SENDQ_SIZE-1:0]	 sendq_swpo[MAX_RPCS-1:0]; 
+   reg [`SENDQ_SIZE-1:0]	 sendq_swpe[MAX_RPCS-1:0];
+   
+   reg [`PKTQ_SIZE-1:0]		 pktq_ins;
+   reg [`SENDQ_SIZE-1:0]	 sendq_ins;
+
+   reg				 pktq_pol;
+   reg				 sendq_pol;
+
+   wire [`PKTQ_SIZE-1:0]	 pktq_head;
+   wire [`SENDQ_SIZE-1:0]	 sendq_head;
+
+   wire				 pktq_granted;
+   wire				 pktq_dbuffered;
+   wire				 pktq_ripe;
+   wire				 pktq_empty;
    
    task prioritize_pktq;
       output [`PKTQ_SIZE-1:0] low_o, high_o;
@@ -192,9 +192,9 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
       end
    endtask 
 
-   assign sendq_head          = sendq[0];
+   assign sendq_head     = sendq[0];
 
-   assign pktq_head           = pktq[0];
+   assign pktq_head      = pktq[0];
    assign pktq_granted   = (pktq_head[`PKTQ_GRANTED] + 1 <= pktq_head[`PKTQ_REMAINING])
      | (pktq_head[`PKTQ_GRANTED] == 0);
    assign pktq_dbuffered = (pktq_head[`PKTQ_DBUFFERED] + `HOMA_PAYLOAD_SIZE <= pktq_head[`PKTQ_REMAINING]) 
@@ -269,7 +269,6 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
       end
 
       
-
       prioritize_sendq(sendq_swpo[0], sendq_swpo[1], sendq_ins, sendq[0]);
 
       // Compute send_swp_odd
@@ -292,10 +291,10 @@ module srpt_data_pkts #(parameter MAX_RPCS = 128)
 
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    pktq[rst_entry] <= 0;
-	    pktq[rst_entry][`PKTQ_PRIORITY]    <= `SRPT_EMPTY;
-	   
+	    pktq[rst_entry][`PKTQ_PRIORITY] <= `SRPT_EMPTY;
+	    
 	    sendq[rst_entry] <= 0;
-	    sendq[rst_entry][`SENDQ_PRIORITY]  <= `SRPT_EMPTY;
+	    sendq[rst_entry][`SENDQ_PRIORITY] <= `SRPT_EMPTY;
 	 end
       end else if (ap_ce && ap_start) begin // if (ap_rst)
 	 if (sendmsg_in_empty_i) begin
@@ -392,24 +391,24 @@ module srpt_data_pkts_tb();
    wire	ap_ready;
 
    reg	sendmsg_in_empty_i;
-   wire sendmsg_in_read_en_o;
+   wire	sendmsg_in_read_en_o;
    reg [`SENDMSG_SIZE-1:0] sendmsg_in_data_i;
 
-   reg			  grant_in_empty_i;
-   wire			  grant_in_read_en_o;
-   reg [`GRANT_SIZE-1:0]  grant_in_data_i;
+   reg			   grant_in_empty_i;
+   wire			   grant_in_read_en_o;
+   reg [`GRANT_SIZE-1:0]   grant_in_data_i;
 
-   reg			  dbuff_in_empty_i;
-   wire			  dbuff_in_read_en_o;
-   reg [`DBUFF_SIZE-1:0]  dbuff_in_data_i;
+   reg			   dbuff_in_empty_i;
+   wire			   dbuff_in_read_en_o;
+   reg [`DBUFF_SIZE-1:0]   dbuff_in_data_i;
 
-   reg			  data_pkt_full_i;
-   wire			  data_pkt_write_en_o;
-   wire [`SENDQ_SIZE-1:0] data_pkt_data_o;
+   reg			   data_pkt_full_i;
+   wire			   data_pkt_write_en_o;
+   wire [`SENDQ_SIZE-1:0]  data_pkt_data_o;
    
-   reg			 cache_req_full_i;
-   wire			 cache_req_write_en_o;
-   wire [`PKTQ_SIZE-1:0] cache_req_data_o;
+   reg			   cache_req_full_i;
+   wire			   cache_req_write_en_o;
+   wire [`PKTQ_SIZE-1:0]   cache_req_data_o;
 
    srpt_data_pkts srpt_queue(.ap_clk(ap_clk), 
 			     .ap_rst(ap_rst), 
@@ -497,27 +496,27 @@ module srpt_data_pkts_tb();
    endtask // get_req
 
    task test_empty_req();
-     begin
-	cache_req_full_i = 1;
-	#5;
-	if(cache_req_write_en_o) begin
-           $display("FAILURE: Data pkts should be empty");
-	   $stop;
-	end
-	cache_req_full_i = 0;
-     end
+      begin
+	 cache_req_full_i = 1;
+	 #5;
+	 if(cache_req_write_en_o) begin
+	    $display("FAILURE: Data pkts should be empty");
+	    $stop;
+	 end
+	 cache_req_full_i = 0;
+      end
    endtask 
 
    task test_empty_pkt();
-     begin
+      begin
 	 data_pkt_full_i = 1;
 	 #5;
 	 if(data_pkt_write_en_o) begin
-          $display("FAILURE: Data pkts should be empty");
+	    $display("FAILURE: Data pkts should be empty");
 	    $stop;
 	 end
 	 data_pkt_full_i = 0;
-     end
+      end
    endtask
 
    /* verilator lint_off INFINITELOOP */

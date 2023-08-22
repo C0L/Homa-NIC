@@ -203,10 +203,10 @@ proc create_root_design { parentCell } {
 
   set pci_express_x16 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:pcie_7x_mgt_rtl:1.0 pci_express_x16 ]
 
-  set diff_clock_rtl [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 diff_clock_rtl ]
+  set pcie_refclk [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:diff_clock_rtl:1.0 pcie_refclk ]
   set_property -dict [ list \
    CONFIG.FREQ_HZ {100000000} \
-   ] $diff_clock_rtl
+   ] $pcie_refclk
 
 
   # Create ports
@@ -270,15 +270,15 @@ proc create_root_design { parentCell } {
   set mainClk [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 mainClk ]
   set_property -dict [list \
     CONFIG.CLKIN1_JITTER_PS {33.330000000000005} \
-    CONFIG.CLKOUT1_JITTER {97.190} \
-    CONFIG.CLKOUT1_PHASE_ERROR {87.466} \
-    CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {250} \
+    CONFIG.CLKOUT1_JITTER {88.577} \
+    CONFIG.CLKOUT1_PHASE_ERROR {77.836} \
+    CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {200} \
     CONFIG.CLK_IN1_BOARD_INTERFACE {default_300mhz_clk0} \
-    CONFIG.MMCM_CLKFBOUT_MULT_F {11.875} \
+    CONFIG.MMCM_CLKFBOUT_MULT_F {4.000} \
     CONFIG.MMCM_CLKIN1_PERIOD {3.333} \
     CONFIG.MMCM_CLKIN2_PERIOD {10.0} \
-    CONFIG.MMCM_CLKOUT0_DIVIDE_F {4.750} \
-    CONFIG.MMCM_DIVCLK_DIVIDE {3} \
+    CONFIG.MMCM_CLKOUT0_DIVIDE_F {6.000} \
+    CONFIG.MMCM_DIVCLK_DIVIDE {1} \
     CONFIG.PRIM_SOURCE {Differential_clock_capable_pin} \
     CONFIG.RESET_BOARD_INTERFACE {resetn} \
     CONFIG.USE_BOARD_FLOW {true} \
@@ -322,8 +322,7 @@ proc create_root_design { parentCell } {
   # Create instance: util_ds_buf_1, and set properties
   set util_ds_buf_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:util_ds_buf:2.2 util_ds_buf_1 ]
   set_property -dict [list \
-    CONFIG.C_BUF_TYPE {IBUFDSGTE} \
-    CONFIG.DIFF_CLK_IN_BOARD_INTERFACE {Custom} \
+    CONFIG.DIFF_CLK_IN_BOARD_INTERFACE {pcie_refclk} \
     CONFIG.USE_BOARD_FLOW {true} \
   ] $util_ds_buf_1
 
@@ -343,11 +342,11 @@ proc create_root_design { parentCell } {
   connect_bd_intf_net -intf_net axis_dwidth_converter_2_M_AXIS [get_bd_intf_pins axis_dwidth_converter_2/M_AXIS] [get_bd_intf_pins homa_0/msghdr_recv_i]
   connect_bd_intf_net -intf_net axis_dwidth_converter_3_M_AXIS [get_bd_intf_pins axis_dwidth_converter_3/M_AXIS] [get_bd_intf_pins axi_fifo_mm_s_1/AXI_STR_RXD]
   connect_bd_intf_net -intf_net default_300mhz_clk0_1 [get_bd_intf_ports default_300mhz_clk0] [get_bd_intf_pins mainClk/CLK_IN1_D]
-  connect_bd_intf_net -intf_net diff_clock_rtl_1 [get_bd_intf_ports diff_clock_rtl] [get_bd_intf_pins util_ds_buf_1/CLK_IN_D]
   connect_bd_intf_net -intf_net homa_0_link_egress [get_bd_intf_pins homa_0/link_egress] [get_bd_intf_pins homa_0/link_ingress]
   connect_bd_intf_net -intf_net homa_0_m_axi_MAXI [get_bd_intf_pins axi_clock_converter_1/S_AXI] [get_bd_intf_pins homa_0/m_axi_MAXI]
   connect_bd_intf_net -intf_net homa_0_msghdr_recv_o [get_bd_intf_pins axis_dwidth_converter_3/S_AXIS] [get_bd_intf_pins homa_0/msghdr_recv_o]
   connect_bd_intf_net -intf_net homa_0_msghdr_send_o [get_bd_intf_pins axis_dwidth_converter_1/S_AXIS] [get_bd_intf_pins homa_0/msghdr_send_o]
+  connect_bd_intf_net -intf_net pcie_refclk_1 [get_bd_intf_ports pcie_refclk] [get_bd_intf_pins util_ds_buf_1/CLK_IN_D]
   connect_bd_intf_net -intf_net xdma_0_M_AXI_B [get_bd_intf_pins xdma_0/M_AXI_B] [get_bd_intf_pins axi_clock_converter_0/S_AXI]
   connect_bd_intf_net -intf_net xdma_0_pcie_mgt [get_bd_intf_ports pci_express_x16] [get_bd_intf_pins xdma_0/pcie_mgt]
 
@@ -363,12 +362,17 @@ proc create_root_design { parentCell } {
   connect_bd_net -net xdma_0_axi_aresetn [get_bd_pins xdma_0/axi_aresetn] [get_bd_pins axi_clock_converter_0/s_axi_aresetn] [get_bd_pins axi_clock_converter_1/m_axi_aresetn]
 
   # Create address segments
+  assign_bd_address -offset 0x76000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces homa_0/Data_m_axi_MAXI] [get_bd_addr_segs xdma_0/S_AXI_B/BAR0] -force
+  assign_bd_address -offset 0x00011000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs axi_fifo_mm_s_0/S_AXI/Mem0] -force
+  assign_bd_address -offset 0x00012000 -range 0x00002000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs axi_fifo_mm_s_0/S_AXI_FULL/Mem1] -force
+  assign_bd_address -offset 0x00020000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs axi_fifo_mm_s_1/S_AXI/Mem0] -force
+  assign_bd_address -offset 0x00014000 -range 0x00002000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs axi_fifo_mm_s_1/S_AXI_FULL/Mem1] -force
+  assign_bd_address -offset 0x00000000 -range 0x00010000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_0/s_axi_control/Reg] -force
 
 
   # Restore current instance
   current_bd_instance $oldCurInst
 
-  validate_bd_design
   save_bd_design
 }
 # End of create_root_design()
@@ -380,4 +384,6 @@ proc create_root_design { parentCell } {
 
 create_root_design ""
 
+
+common::send_gid_msg -ssname BD::TCL -id 2053 -severity "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 

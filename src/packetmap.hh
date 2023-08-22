@@ -4,6 +4,6 @@
 #include "homa.hh"
 
 void packetmap(hls::stream<header_t> & header_in, 
-   hls::stream<header_t> & complete_messages);
+	       hls::stream<header_t> & complete_messages);
 
 #endif

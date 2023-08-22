@@ -1,27 +1,31 @@
 `timescale 1ns / 1ps
 
-`define SRPT_UPDATE 3'b000
-`define SRPT_BLOCK 3'b001
+`define SRPT_UPDATE     3'b000
+`define SRPT_BLOCK      3'b001
 `define SRPT_INVALIDATE 3'b010
-`define SRPT_UNBLOCK 3'b011
-`define SRPT_EMPTY 3'b100
-`define SRPT_BLOCKED 3'b101
-`define SRPT_ACTIVE 3'b110
+`define SRPT_UNBLOCK    3'b011
+`define SRPT_EMPTY      3'b100
+`define SRPT_BLOCKED    3'b101
+`define SRPT_ACTIVE     3'b110
 
-`define ENTRY_SIZE 97
-`define PEER_ID 13:0
-`define RPC_ID 29:14
-`define RECV_BYTES 61:30
+`define PMAP_INIT     2'b00
+`define PMAP_BODY     2'b01
+`define PMAP_COMPLETE 2'b10
+
+`define ENTRY_SIZE      97
+`define PEER_ID         13:0
+`define RPC_ID          29:14
+`define RECV_BYTES      61:30
 `define GRANTABLE_BYTES 93:62
-`define PRIORITY 96:94
-`define PRIORITY_SIZE 3
+`define PRIORITY        96:94
+`define PRIORITY_SIZE   3
 
 `define HEADER_SIZE 126
 `define HDR_PEER_ID 13:0
-`define HDR_RPC_ID 29:14
-`define HDR_OFFSET 61:30
+`define HDR_RPC_ID  29:14
+`define HDR_OFFSET  61:30
 `define HDR_MSG_LEN 93:62
-`define HDR_INCOMING 125:94
+`define HDR_PMAP    95:94
 
 // 60K byte (RTT_Bytes) * 8 (MAX_OVERCOMMIT)
 `define RTT_BYTES 60000
@@ -120,13 +124,11 @@
  *     to the upper queue so that entries with the same PEER_ID become
  *     blocked.
  * 
- * TODO this needs to handle OOO packets (packetmap?)
- * TODO this needs to consider duplicate packets (packetmap?)
  * TODO rtt bytes is hardcoded into this design
  */
 module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 			 parameter MAX_OVERCOMMIT_LOG2 = 3,
-			 parameter MAX_SRPT = 128)
+			 parameter MAX_SRPT = 64)
    (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
     input			 header_in_empty_i,
     output reg			 header_in_read_en_o,
@@ -308,7 +310,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 
 	    // TODO cannot base off of the first unscheduled packet
 	    // It is the first unscheduled packet that creates the entry in the SRPT queue.
-	    if (header_in_data_i[`HDR_OFFSET] == 0) begin
+	    if (header_in_data_i[`HDR_PMAP] == `PMAP_INIT) begin
 	       
 	       /* verilator lint_on WIDTH */
 	       srpt_queue[MAX_OVERCOMMIT][`PEER_ID]         <= header_in_data_i[`HDR_PEER_ID];
@@ -334,7 +336,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
 		  // Insert the new RPC into the big queue
 		  srpt_queue[MAX_OVERCOMMIT][`PRIORITY] <= `SRPT_ACTIVE;
 	       end
-	    end else begin // if (header_in_data_i[`HDR_OFFSET] == 0)
+	    end else begin // if (header_in_data_i[`HDR_PMAP] == `PMAP_INIT)
 	       /* verilator lint_off WIDTH */
 	       if (rpc_match_en) begin
 		  srpt_queue[rpc_match][`RECV_BYTES]      <= srpt_queue[rpc_match][`RECV_BYTES] + `HOMA_PAYLOAD_SIZE;
@@ -447,11 +449,11 @@ module srpt_grant_pkts_tb();
    task new_entry(input [15:0] rpc_id, input [13:0] peer_id, input [31:0] msg_len, offset);
       begin
 	 
-	 header_in_data_i[`HDR_PEER_ID]  = peer_id;
-	 header_in_data_i[`HDR_RPC_ID]   = rpc_id;
-	 header_in_data_i[`HDR_MSG_LEN]  = msg_len;
-	 header_in_data_i[`HDR_OFFSET]   = offset;
-	 header_in_data_i[`HDR_INCOMING] = 0;
+	 header_in_data_i[`HDR_PEER_ID] = peer_id;
+	 header_in_data_i[`HDR_RPC_ID]  = rpc_id;
+	 header_in_data_i[`HDR_MSG_LEN] = msg_len;
+	 header_in_data_i[`HDR_OFFSET]  = offset;
+	 header_in_data_i[`HDR_PMAP]    = 0;
 	 
 	 header_in_empty_i = 1;
 

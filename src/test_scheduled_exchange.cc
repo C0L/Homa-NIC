@@ -50,23 +50,77 @@ int main() {
     sendmsg(MSGHDR_SEND_ID)    = 0;
     sendmsg(MSGHDR_SEND_CC)    = 0;
 
-    char maxi_in[128*64];
-    char maxi_out[128*64];
+    ap_uint<512> maxi_in[128];
+    ap_uint<512> maxi_out[128];
 
     recvmsg_i.write(recvmsg);
     sendmsg_i.write(sendmsg);
 
-    strcpy(maxi_in, data.c_str());
-   
-    while (sendmsg_o.empty() || recvmsg_o.empty() || maxi_out[5500] == 0) {
-	homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, (integral_t *) maxi_in, (integral_t *) maxi_out, link_ingress_i, link_egress_o);
-	if (!link_egress_o.empty()) {
-	    link_ingress_i.write(link_egress_o.read());
-	}
+    homa(false, false, false, false, true, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+    homa(false, false, false, false, false, false, true, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+
+    strcpy((char*) maxi_in, data.c_str());
+
+    std::cerr << "Write 1 packet out" << std::endl;
+    // Read data from DMA
+    for (int i = 0; i < 22; ++i) {
+	homa(false, true, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+    }
+
+    std::cerr << "Transfer 1 packet over" << std::endl;
+    // Transfer 1 packet over the link
+    for (int i = 0; i < 24; ++i) {
+	homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	link_ingress_i.write(link_egress_o.read());
+    }
+
+    std::cerr << "Read in transfered packet" << std::endl;
+    // Read in the transfered packet
+    for (int i = 0; i < 24; ++i) {
+	homa(false, false, false, true, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+    }
+
+    std::cerr << "Write data to DMA" << std::endl;
+    // Write its data to DMA
+    for (int i = 0; i < 23; ++i) {
+	homa(true, false, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+    }
+
+    std::cerr << "Transfer 1 grant over link" << std::endl;
+    // Transfer the grant packet
+    for (int i = 0; i < 2; ++i) {
+	homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	link_ingress_i.write(link_egress_o.read());
+    }
+
+    std::cerr << "Read the data for the next packet" << std::endl;
+    // Read the data
+    for (int i = 0; i < 22; ++i) {
+	homa(false, true, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+    }
+
+    std::cerr << "Transfer 1 packet over" << std::endl;
+    // Transfer 1 packet over the link
+    for (int i = 0; i < 24; ++i) {
+	homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	link_ingress_i.write(link_egress_o.read());
+    }
+
+    std::cerr << "Read in transfered packet" << std::endl;
+    // Read in the transfered packet
+    for (int i = 0; i < 24; ++i) {
+	homa(false, false, false, true, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+    }
+
+    std::cerr << "Write data to DMA" << std::endl;
+    // Write its data to DMA
+    for (int i = 0; i < 23; ++i) {
+	homa(true, false, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
     }
 
     msghdr_recv_t recv = recvmsg_o.read();
     msghdr_send_t send = sendmsg_o.read();
 
     return memcmp(maxi_in, maxi_out, 2772);
+    // return 0;
 }

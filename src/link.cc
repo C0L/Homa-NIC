@@ -107,7 +107,7 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    natural_chunk(CHUNK_IPV6_FLOW)        = IPV6_FLOW;        // Flow Label
 		    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN) = payload_length;   // Payload Length
 		    natural_chunk(CHUNK_IPV6_NEXT_HEADER) = IPPROTO_HOMA;     // Next Header
-		    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = HOP_LIMIT;        // Hop Limit
+		    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;   // Hop Limit
 		    natural_chunk(CHUNK_IPV6_SADDR)       = header.saddr; // Sender Address
 		    natural_chunk(CHUNK_IPV6_DADDR)       = header.daddr; // Destination Address
 

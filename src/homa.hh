@@ -8,47 +8,37 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
-/* Helper Macros */
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-
-// Client RPC IDs are even, servers are odd 
-#define IS_CLIENT(id) ((id & 1) == 0)
-
+/* For cosimulation purposes it is easier to allow a full packet to be
+ * buffered in the internal queues.
+ */ 
 #ifdef STEPPED
 #define STREAM_DEPTH 24
 #else
 #define STREAM_DEPTH 2
 #endif
 
-// Convert between representation and index
-// #define SEND_RPC_ID_FROM_INDEX(a) ((a + 1 + MAX_RPCS/2) << 1)
-// #define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1 - MAX_RPCS/2)
+/* IPv6 Constants
+ */
+#define IPV6_VERSION      6
+#define IPV6_TRAFFIC      0
+#define IPV6_FLOW         0xFFFF
+#define IPV6_ETHERTYPE    0x86DD
+#define IPV6_HOP_LIMIT    0x00
+#define IPPROTO_HOMA      0xFD
 
-#define SEND_RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
-#define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
 
-#define RECV_RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
-#define RECV_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
 
-#define PEER_ID_FROM_INDEX(a) (a + 1)
-#define INDEX_FROM_PEER_ID(a) (a - 1)
+/* Ethernet Constants
+ *
+ * TODO: Who is responsible for setting the MAX_DST and MAX_SRC? The
+ * PHY?
+ */
+#define MAC_DST           0xAAAAAAAAAAAA
+#define MAC_SRC           0xBBBBBBBBBBBB
 
-// Sender->Client and Client->Sender rpc ID conversion
-#define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
+// TODO 
 
-/* Homa Configuration */
-
-// TODO this wall of defs needs to be organized
-#define IPV6_VERSION 6
-#define IPV6_TRAFFIC 0
-#define IPV6_FLOW    0xFFFF
-#define IPV6_ETHERTYPE 0x86DD
-#define MAC_DST 0xAAAAAAAAAAAA
-#define MAC_SRC 0xBBBBBBBBBBBB
-#define IPPROTO_HOMA 0xFD
-#define HOP_LIMIT 0x00
-#define DOFF 160
+#define DOFF              160
 #define HOMA_PAYLOAD_SIZE 1386
 #define HOMA_MAX_MESSAGE_LENGTH 1000000 // Maximum Homa message size
 #define IPV6_HEADER_LENGTH 40
@@ -104,18 +94,19 @@ typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 
 #define RPC_HP_SIZE 7 // Number of 32 bit chunks to hash for RPC table
 
-/* Link Configuration:
- * This defines an actual axi stream type, in contrast to the internal streams
- * which are all ap_fifo types. The actual data that will be passed by this
- * stream is 512 bit chunks.
+/**
+ * raw_stream_t - This defines an actual axi stream type, in contrast
+ * to the internal streams which are all ap_fifo types. The actual
+ * data that will be passed by this stream is 512 bit chunks.
  * 
- * Need to leave side-channel signals enabled to avoid linker error?
+ * TODO: Need to leave side-channel signals enabled to avoid linker error?
  */
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 
-/* SRPT Configuration */
-#define MAX_OVERCOMMIT 8
-
+/**
+ * srpt_grant_in_t - Output of the grant SRPT core which indicates the
+ * next best grant packet to be sent.
+ */
 #define SRPT_GRANT_OUT_SIZE     97
 #define SRPT_GRANT_OUT_PEER_ID  13,0
 #define SRPT_GRANT_OUT_RPC_ID   29,14
@@ -125,15 +116,24 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 
 typedef ap_uint<SRPT_GRANT_OUT_SIZE> srpt_grant_out_t;
 
+/**
+ * srpt_grant_in_t - Output of the grant SRPT core which indicates the
+ * next best grant packet to be sent.
+ */
 #define SRPT_GRANT_IN_SIZE    126
 #define SRPT_GRANT_IN_PEER_ID 13,0
 #define SRPT_GRANT_IN_RPC_ID  29,14
 #define SRPT_GRANT_IN_OFFSET  61,30
 #define SRPT_GRANT_IN_MSG_LEN 93,62
-#define SRPT_GRANT_IN_INC     125,94 // TODO still needed?
+#define SRPT_GRANT_IN_PMAP    95,94 
 
 typedef ap_uint<SRPT_GRANT_IN_SIZE> srpt_grant_in_t;
 
+/**
+ * srpt_sendmsg_t - Input to the srpt data core which creates a new
+ * entry, indicating the RPC is eligible to be transmitted as long as
+ * it is granted and buffered.
+ */
 #define SRPT_SENDMSG_SIZE       86
 #define SRPT_SENDMSG_RPC_ID     15,0
 #define SRPT_SENDMSG_MSG_LEN    35,16
@@ -143,6 +143,10 @@ typedef ap_uint<SRPT_GRANT_IN_SIZE> srpt_grant_in_t;
 
 typedef ap_uint<SRPT_SENDMSG_SIZE> srpt_sendmsg_t;
 
+/**
+ * srpt_pktq_t - An output from the srpt data core which communicates
+ * the next best data chunk to grab from DMA.
+ */
 #define PKTQ_SIZE      99
 #define PKTQ_RPC_ID    15,0
 #define PKTQ_DBUFF_ID  24,16
@@ -153,6 +157,10 @@ typedef ap_uint<SRPT_SENDMSG_SIZE> srpt_sendmsg_t;
 
 typedef ap_uint<PKTQ_SIZE> srpt_pktq_t;
 
+/**
+ * srpt_sendq_t - An output from the srpt data core which communicates
+ * the best RPC to be sent.
+ */
 #define SENDQ_SIZE      101
 #define SENDQ_RPC_ID    15,0
 #define SENDQ_DBUFF_ID  25,16
@@ -163,53 +171,68 @@ typedef ap_uint<PKTQ_SIZE> srpt_pktq_t;
 
 typedef ap_uint<SENDQ_SIZE> srpt_sendq_t;
 
+/**
+ * srpt_dbuff_notif_t - Bitvector input into the srpt data core. This
+ * provides the offset of new data that has been incorporated into the
+ * on chip data buffer which can be used to update the internal RPC
+ * state of the queue and determine its eligibility.
+ */
 #define SRPT_DBUFF_NOTIF_SIZE   36
 #define SRPT_DBUFF_NOTIF_RPC_ID 15,0
 #define SRPT_DBUFF_NOTIF_OFFSET 35,16
 
 typedef ap_uint<SRPT_DBUFF_NOTIF_SIZE> srpt_dbuff_notif_t;
 
+/**
+ * srpt_grant_notif_t - Bitvector input into the srpt grant core. The
+ * very first packet creates the entry in the grant queue. After that,
+ * arrived packets are used to notify the core of arrived packets so
+ * that it may update its internal state of the RPC to reflect that
+ * change.
+ */
 #define SRPT_GRANT_NOTIF_SIZE   36
 #define SRPT_GRANT_NOTIF_RPC_ID 15,0
 #define SRPT_GRANT_NOTIF_OFFSET 35,16
 
 typedef ap_uint<SRPT_GRANT_NOTIF_SIZE> srpt_grant_notif_t;
 
-/* Packet Map */
-
-// 1ms == 1000000ns == 200000 cycles
+/* Cutoff for retramsission
+ * 1ms == 1000000ns == 200000 cycles
+ */
 #define REXMIT_CUTOFF 200000
 
-// Index into a packetmap bitmap
-typedef ap_uint<10> packetmap_idx_t;
+#define PMAP_INIT 0
+#define PMAP_BODY 1
+#define PMAP_COMPLETE 2
 
-struct packetmap_t {
+typedef ap_uint<2> pmap_state_t;
+
+// Index into a packetmap bitmap
+typedef ap_uint<10> packetmap_idx_t; // TODO rename
+
+/** 
+ * pmap_entry_t - Entry associated with each incoming RPC to determine
+ * packets that have already arrived. Uses a 64 bit sliding
+ * window. Window only slides when bit 0 is set and it slides as far
+ * as there are 1 values.
+ */
+struct pmap_entry_t {
     packetmap_idx_t head;
     packetmap_idx_t length;
     ap_uint<64> map;
 };
 
+// TODO 
 struct touch_t {
     local_id_t rpc_id;
-
     bool init;
-
-    // Bit to set in packet map
-    packetmap_idx_t offset;
-
-    // Total length of the message
-    packetmap_idx_t length;
+    packetmap_idx_t offset; // Bit to set in packet map
+    packetmap_idx_t length; // Total length of the message
 };
 
-struct rexmit_t {
-    local_id_t rpc_id;
-
-    // Bit to set in packet map
-    packetmap_idx_t offset;
-};
-
-/* The homa core writes out packets in 64B units. As a result, we need to know
- * the local offsets for header data in the 64B chunks 
+/* Offsets within the first 64B chunk of all packets that contain the general header.
+ * These offsets are relative to the second 64B
+ * chunk! Not the packet as a whole.
  */
 #define CHUNK_IPV6_MAC_DEST         511,464
 #define CHUNK_IPV6_MAC_SRC          463,416
@@ -226,6 +249,10 @@ struct rexmit_t {
 #define CHUNK_HOMA_COMMON_DPORT     63,48
 #define CHUNK_HOMA_COMMON_UNUSED0   47,0
 
+/* Offsets within the second 64B chunk of all packets that contain the
+ * general header data. These offsets are relative to the second 64B
+ * chunk! Not the packet as a whole.
+ */
 #define CHUNK_HOMA_COMMON_UNUSED1   511,496
 #define CHUNK_HOMA_COMMON_DOFF      495,488
 #define CHUNK_HOMA_COMMON_TYPE      487,480
@@ -234,7 +261,10 @@ struct rexmit_t {
 #define CHUNK_HOMA_COMMON_UNUSED4   447,432
 #define CHUNK_HOMA_COMMON_SENDER_ID 431,368
 
-/* DATA Packet */
+/* Offsets within the second 64B chunk of a packet where DATA header
+ * infomration will be placed. These offsets are relative to the second
+ * 64B chunk! Not the packet as a whole.
+ */
 #define CHUNK_HOMA_DATA_MSG_LEN     367,336
 #define CHUNK_HOMA_DATA_INCOMING    335,304
 #define CHUNK_HOMA_DATA_CUTOFF      303,288
@@ -250,7 +280,11 @@ struct rexmit_t {
 #define CHUNK_HOMA_GRANT_OFFSET     111,80
 #define CHUNK_HOMA_GRANT_PRIORITY   79,72
 
-/* Homa packet types */
+/*
+ * Homa packet types
+ *
+ * TODO Only DATA and GRANT implemented
+ */
 #define DATA     0x10
 #define GRANT    0x11
 #define RESEND   0x12
@@ -261,7 +295,12 @@ struct rexmit_t {
 #define NEED_ACK 0x17
 #define ACK      0x18
 
-/* Data Buffer Configuration */
+/* Data Buffer Configuration:
+ * The data buffer stores message data on chip so that it can be
+ * quickly accessed when an RPC is selected to sent. There should be
+ * sufficient data on chip such that if an RPC is selected it can run
+ * to completion without stalling for data.
+ */
 #define NUM_DBUFF        64  // Number of data buffers (max outgoing RPCs)
 #define DBUFF_INDEX      10  // Index into the data buffers
 #define DBUFF_CHUNK_SIZE 64  // Size of a "chunk" of a data buffer
@@ -269,28 +308,33 @@ struct rexmit_t {
 #define DBUFF_CHUNK_INDEX 8  // Index into 256 chunks
 #define DBUFF_BYTE_INDEX 14  // Byte index within data buffer
 
-// Index into data buffers
+/**
+ * dbuff_id_t - An DBUFF_INDEX bitwidth index into the NUM_BUFF number
+ * of data buffers
+ */
 typedef ap_uint<DBUFF_INDEX> dbuff_id_t;
 
-// One data buffer stores 2^14 bytes
+/**
+ * dbuff_t - A single data buffer is an array of DBUFF_NUM_CHUNK 512
+ * bit vectors. So, DBUFF_NUM_CHUNKS * 64 bytes in size
+ */
 typedef integral_t dbuff_t[DBUFF_NUM_CHUNKS];
 
-// Pointer to a byte in the data buffer
+/**
+ * dbuff_boffset_t - Byte offset into a dbuff_t
+ */
 typedef ap_uint<DBUFF_BYTE_INDEX> dbuff_boffset_t;
 
-// Pointer to a 64B chunk in the data buffer
+/**
+ * dbuff_coffset_t - Chunk offset into a dbuff_t
+ */
 typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
 
-#define DBUFF_IN_SIZE     580
-#define DBUFF_IN_DATA     511,0
-#define DBUFF_IN_DBUFF_ID 521,512
-#define DBUFF_IN_RPC_ID   537,522
-#define DBUFF_IN_OFFSET   557,538
-#define DBUFF_IN_MSG_LEN  577,558
-#define DBUFF_IN_LAST     578,578
-
-typedef ap_uint<DBUFF_IN_SIZE> dbuff_in_raw_t;
-
+/**
+ * struct dbuff_in_t - After data is retrieved from DMA it is placed
+ * in one of these structures to be passed to the data buffer core
+ * which will store that DMA data until it is ready to be sent.
+ */
 struct dbuff_in_t {
     integral_t data;
     dbuff_id_t dbuff_id;
@@ -300,12 +344,25 @@ struct dbuff_in_t {
     ap_uint<1> last;
 };
 
+/**
+ * struct in_chunk_t - incoming packets arrive one chunk at a time and
+ * so as the data arrives that needs to DMA'd, it is passed in one of
+ * these structures which carries the data and offset in DMA space to
+ * be placed.
+ */
 struct in_chunk_t {
     integral_t  buff;   // Data to be written to DMA
     ap_uint<32> offset; // Byte offset of this chunk in msg
     ap_uint<1>  last;   // 1 to notify srpt_data_queue
 };
 
+/**
+ * struct out_chunk_t - outgoing headers are broken up into 64B chunks
+ * that will read from the data buffer to grab message data and then
+ * eventually be placed onto the link. This structure includes space
+ * for the chunk of data that needs to be sent, and the local data
+ * needed to retrieve that information.
+ */
 struct out_chunk_t {
     homa_packet_type type;   // What is the type of this outgoing packet
     dbuff_id_t dbuff_id;     // Which data buffer is the message stored in
@@ -317,7 +374,9 @@ struct out_chunk_t {
     ap_uint<1> last;         // Is this the last chunk in the sequence
 };
 
-
+/**
+ * struct homa_rpc_t - input bitvector from the user for sendmsg requests
+ */
 struct homa_rpc_t {
     ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
     ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
@@ -330,39 +389,68 @@ struct homa_rpc_t {
     dbuff_id_t   ibuff_id; // ID for incoming data
 };
 
+/* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
+ * recvmsg requests that form the msghdr
+ */
 #define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg)
 #define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg)
 #define MSGHDR_SPORT        273,256 // Port of sender (sendmsg) or receiver (recvmsg)
 #define MSGHDR_DPORT        289,274 // Address of receiver (sendmsg) or sender (recvmsg) 
 #define MSGHDR_IOV          321,290 // Message contents DMA offset
-#define MSGHDR_IOV_SIZE     353,322 // Size of message in DMA space 
+#define MSGHDR_IOV_SIZE     353,322 // Size of message in DMA space
 
+/* Offsets within the sendmsg bitvector for the sendmsg specific information */
 #define MSGHDR_SEND_ID      417,354 // RPC identifier
 #define MSGHDR_SEND_CC      481,418 // Completion Cookie
-#define MSGHDR_SEND_SIZE    482 
+#define MSGHDR_SEND_SIZE    482
 
+/* Offsets within the recvmsg bitvector for the recvmsg specific information */
 #define MSGHDR_RECV_ID      417,354 // RPC identifier
 #define MSGHDR_RECV_CC      481,418 // Completion Cookie
 #define MSGHDR_RECV_FLAGS   513,482 // Interest list
 #define MSGHDR_RECV_SIZE    514
 
+/**
+ * msghdr_send_t - input bitvector from the user for sendmsg requests
+ */
 typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
+
+/**
+ * msghdr_recv_t - input bitvector from the user for recvmsg requests
+ */
 typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
 
+/* Flags which specify the interest and behavior of the recvmsg call
+ * from the user.
+ * 
+ * TODO not all implemented
+ */
 #define HOMA_RECVMSG_REQUEST       0x01
 #define HOMA_RECVMSG_RESPONSE      0x02
 #define HOMA_RECVMSG_NONBLOCKING   0x04
 #define HOMA_RECVMSG_VALID_FLAGS   0x07
 
+/* Maximum number of recvmsgs that can be queued pending a match with
+ * a completed packet and the maximum number of completed packets that
+ * can be queued pending a match with a recvmsg request.
+ */
 #define MAX_RECV_MATCH 16
-// #define MAX_HDR_MATCH  1024
 
+/**
+ * struct recv_interest_t - Matched with a an incoming completed RPC
+ * to be returned to the user who invoked the recvmsg request/
+ */ 
 struct recv_interest_t {
     ap_uint<16>  sport; // Port of the caller
     ap_uint<32>  flags; // Interest list
     ap_uint<64>  id;    // ID of interest
 };
 
+/**
+ * struct onboard_send_t - Structure for onboarding new sendmsg
+ * requests into the system. This data is distributed to the rpc_map,
+ * rpc_state, and eventually the srpt_data core to be sent.
+ */
 struct onboard_send_t {
     ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
     ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
@@ -381,8 +469,15 @@ struct onboard_send_t {
     peer_id_t   peer_id;  // Local ID for this destination address
 };
 
-
-/* forwarding structures */
+/**
+ * struct header_t - This structure is passed around for outgoing and
+ * incoming packets * A number of local parameters store the where
+ * information is located * for this packet and the state of this
+ * packet. For outgoing packets, * the fields are populated as the header
+ * is passed through cores. For * incoming packets, the fields are
+ * populated from the data read from the * link, and then is passed
+ * through the cores for dispersion.
+ */
 struct header_t {
     // Local Values
     local_id_t  local_id;           // ID within RPC State
@@ -391,6 +486,7 @@ struct header_t {
     dbuff_id_t  ibuff_id;           // ID of buffer for received data
     ap_uint<64> completion_cookie;  // Cookie from the origin sendmsg
     ap_uint<32> packet_bytes;
+    pmap_state_t packetmap;
 
     // IPv6 + Common Header
     ap_uint<16>      payload_length;
@@ -421,40 +517,20 @@ struct header_t {
     ap_uint<8>  priority;
 };
 
-/* DMA Configuration */
-
-#define DMA_R_REQ_SIZE     122
-#define DMA_R_REQ_OFFSET   31,0
-#define DMA_R_REQ_BURST    63,32
-#define DMA_R_REQ_MSG_LEN  95,64
-#define DMA_R_REQ_DBUFF_ID 105,96
-#define DMA_R_REQ_RPC_ID   121,106
-
-typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_raw_t;
-
-struct dma_r_req_t {
-    ap_uint<32> offset;
-    ap_uint<32> burst; // TODO?
-    ap_uint<32> msg_len;
-    dbuff_id_t dbuff_id;
-    local_id_t local_id;
-    ap_uint<1> last;
-};
-
-#define DMA_W_REQ_SIZE   544
-#define DMA_W_REQ_OFFSET 31,0
-#define DMA_W_REQ_BLOCK  543,32
-
-typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_raw_t;
-
+/**
+ * struct dma_w_req_t - DMA write request require the actual data that
+ * needs to be written and a global offset in the DMA space where that
+ * data needs to be written
+ */
 struct dma_w_req_t {
     integral_t data;
     ap_uint<32> offset;
 };
 
-#define MAX_INIT_CACHE_BURST 16384 // Number of initial 64 Byte chunks to cache for a message
-
-// WARNING: For C simulation only
+/**
+ * WARNING: C Simulation Only
+ * Internal storage for an RPC that needs to be sent onto the link
+ */
 struct srpt_data_t {
     local_id_t rpc_id;
     dbuff_id_t dbuff_id;
@@ -462,13 +538,62 @@ struct srpt_data_t {
     ap_uint<32> total;
 };
 
-// WARNING: For C simulation only
+/**
+ * WARNING: C Simulation Only
+ * Internal storage for an RPC that may need grants
+ */
 struct srpt_grant_t {
     peer_id_t peer_id;
     local_id_t rpc_id;
     ap_uint<32> recv_bytes;
     ap_uint<32> grantable_bytes;
 };
+
+/**
+ * WARNING: C Simulation Only
+ * How many simultaneous peers can have active grants.
+ */
+#define MAX_OVERCOMMIT 8
+
+/* Helper Macros */
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+
+/* Translates between the RPC ID assigned to Send message requests,
+ * and its index within the RPC table. Send message requests are
+ * allocated the upper half of the ID space. The last bit is reserved
+ * to determine if the core is the client or the server, and the 0
+ * value is reserved as a "null" rpc ID.
+ */
+#define SEND_RPC_ID_FROM_INDEX(a) ((a + 1 + MAX_RPCS/2) << 1)
+#define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
+
+/* Translates between the RPC ID assigned to receive message requests,
+ * and its index within the RPC table. Receive message requsts are
+ * allocated the lower half of the ID space. The last bit is reserved
+ * to determine if the core is the client or the server, and the 0
+ * value is reserved as a "null" rpc ID.
+ */
+#define RECV_RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
+#define RECV_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
+
+/* Translates between the peer ID, and its index within the peer table
+ * A peer ID of 0 is the "null" peer that has no slot in the peer table
+ */
+#define PEER_ID_FROM_INDEX(a) (a + 1)
+#define INDEX_FROM_PEER_ID(a) (a - 1)
+
+/* The last bit determines if the core is the client or the server in
+ * an interaction * This can be called on an RPC ID to convert
+ * Sender->Client and Client->Sender
+ */
+#define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
+
+/* Used to determine if an ID is a client ID or a server ID which is
+ * encoded in the last bit of the RPC ID
+ */
+#define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd 
+
 
 #ifdef STEPPED
 void homa(bool dma_write_en, bool dma_read_en,

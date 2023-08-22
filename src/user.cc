@@ -8,11 +8,7 @@
  * @msghdr_recv_o - Returned recvmsg responsed with DMA offset
  * @header_in_i   - The final header received for a completed message. This
  * indicates the message has been fully received and buffering is complete.
- * TODO Should we for some notification that the message has been fully
- * buffered? If so the user could get the return recvmsg before the data has
- * made it to DMA?
  */
-
 #ifdef STEPPED
 void homa_recvmsg(bool recv_in_en,
 		  bool recv_out_en,
@@ -135,7 +131,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
  * @msghdr_send_o - Result returned to user that includes the ID assigned to
  * the previous sendmsg request
  * @onboard_send_o - Path to prime the system to send the new message
- * TODO needs to return the newly assigned ID to the user
  */
 #ifdef STEPPED
 void homa_sendmsg(bool send_in_en,
@@ -181,7 +176,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 	 */
 	if (msghdr_send(MSGHDR_SEND_ID) == 0) {
 	    // Generate a new local ID, and set the RPC ID to be that
-	    onboard_send.local_id = SEND_RPC_ID_FROM_INDEX(send_ids.pop() + MAX_RPCS/2);
+	    onboard_send.local_id = SEND_RPC_ID_FROM_INDEX(send_ids.pop());
 	    onboard_send.id       = onboard_send.local_id;
 	    msghdr_send(MSGHDR_SEND_ID) = onboard_send.id;
 	}

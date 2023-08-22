@@ -122,7 +122,7 @@ void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
 	srpt_grant_in_t grant_in = grant_in_i.read();
 
 	// The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
-	if (grant_in(SRPT_GRANT_IN_OFFSET) == 0) {
+	if (grant_in(SRPT_GRANT_IN_PMAP) == PMAP_INIT) {
 	    entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)] = {grant_in(SRPT_GRANT_IN_PEER_ID), grant_in(SRPT_GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
 	} else {
 	    entries[((grant_in(SRPT_GRANT_IN_RPC_ID) >> 1) - 1)].recv_bytes += HOMA_PAYLOAD_SIZE;
