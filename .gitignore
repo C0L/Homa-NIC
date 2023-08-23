@@ -4,3 +4,4 @@ xelab*
 .*
 !.gitignore
 ignore
+xdc/alveo-u250-xdc.xdc
