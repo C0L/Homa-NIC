@@ -9,7 +9,6 @@
 #include "homa.hh"
 #include "user.hh"
 #include "link.hh"
-#include "peer.hh"
 #include "rpcmgmt.hh"
 #include "srptmgmt.hh"
 #include "databuff.hh"

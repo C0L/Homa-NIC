@@ -8,6 +8,23 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
+/**
+ * integral_t - The homa core operates in 64B chunks. Data in the data
+ * buffer is stored in 64B entries. Chunks are sent to the link 64B at
+ * a time. DMA reads and writes at 64B in size to maximize the
+ * throughput.
+ */
+typedef ap_uint<512> integral_t;
+
+/**
+ * raw_stream_t - This defines an actual axi stream type, in contrast
+ * to the internal streams which are all ap_fifo types. The actual
+ * data that will be passed by this stream is 512 bit chunks.
+ * 
+ * TODO: Need to leave side-channel signals enabled to avoid linker error?
+ */
+typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+
 /* For cosimulation purposes it is easier to allow a full packet to be
  * buffered in the internal queues.
  */ 
@@ -17,57 +34,97 @@
 #define STREAM_DEPTH 2
 #endif
 
-/* IPv6 Constants
+/* IPv6 Header Constants
  */
-#define IPV6_VERSION      6
-#define IPV6_TRAFFIC      0
-#define IPV6_FLOW         0xFFFF
-#define IPV6_ETHERTYPE    0x86DD
-#define IPV6_HOP_LIMIT    0x00
-#define IPPROTO_HOMA      0xFD
+#define IPV6_VERSION       6
+#define IPV6_TRAFFIC       0
+#define IPV6_FLOW          0xFFFF
+#define IPV6_ETHERTYPE     0x86DD
+#define IPV6_HOP_LIMIT     0x00
+#define IPPROTO_HOMA       0xFD
+#define IPV6_HEADER_LENGTH 40
 
-
-
-/* Ethernet Constants
+/* Ethernet Header Constants
  *
  * TODO: Who is responsible for setting the MAX_DST and MAX_SRC? The
  * PHY?
  */
-#define MAC_DST           0xAAAAAAAAAAAA
-#define MAC_SRC           0xBBBBBBBBBBBB
+#define MAC_DST 0xAAAAAAAAAAAA
+#define MAC_SRC 0xBBBBBBBBBBBB
 
-// TODO 
-
-#define DOFF              160
-#define HOMA_PAYLOAD_SIZE 1386
-#define HOMA_MAX_MESSAGE_LENGTH 1000000 // Maximum Homa message size
-#define IPV6_HEADER_LENGTH 40
-#define HOMA_ETH_OVERHEAD 24
-#define HOMA_MIN_PKT_LENGTH 26
-#define HOMA_MAX_HEADER 90
-#define ETHERNET_MAX_PAYLOAD 1500
-#define HOMA_MAX_PRIORITIES 8
-#define OVERCOMMIT_BYTES 480000
-#define DATA_PKT_HEADER 114 // Number of bytes in ethernet + ipv6 + common header + data header
-#define GRANT_PKT_HEADER 87 // Number of bytes in ethernet + ipv6 + common header + grant header
-#define PREFACE_HEADER 54 // Number of bytes in ethernet + ipv6 header
+/* Homa Header Constants
+ * #DEOFF            - Number of 4 byte chunks in the data header (<< 2)
+ * #DATA_PKT_HEADER - How many bytes the Homa DATA packet header takes
+ * (ethernet + ipv6 + common header + data header)
+ * #GRANT_PKT_HEADER - How many bytes the Homa GRANT packet header
+ * takes (ethernet + ipv6 + common header + data header)
+ * #PREFACE_HEADER   - Number of bytes in ethernet + ipv6 header
+ * #HOMA_DATA_HEADER - Number of bytes in a hoima data ethernet header
+ */
+#define DOFF             160
+#define DATA_PKT_HEADER  114
+#define GRANT_PKT_HEADER 87 
+#define PREFACE_HEADER   54 
 #define HOMA_DATA_HEADER 60 // Number of bytes in homa data ethernet header
+
+/* Homa Configuration: These parameters configure the behavior of the
+ * Homa core. These parameters are a part of the design and can not be
+ * runtime configured.
+ *
+ * #HOMA_PAYLOAD_SIZE       - How many bytes maxmimum of message data can fit in a packet
+ * #HOMA_MAX_MESSAGE_LENGTH - The maximum number of bytes in a single message
+ * #OVERCOMMIT_BYTES        - The maximum number of bytes that can be
+ * actively granted to. WARNING: This will only effect simulation and
+ * the def needs to be modified in the verilog module for this to
+ * change in hardware
+ * #RTT_BYTES - How many bytes can be sent in the time it takes a
+ * packet to make a round trip
+ */
+#define HOMA_PAYLOAD_SIZE       1386    
+#define HOMA_MAX_MESSAGE_LENGTH 1000000 
+#define OVERCOMMIT_BYTES        480000
 #define RTT_BYTES (ap_uint<32>) 5000
 
-// Internal 64B chunk of data (for streams in, out, storing data internally...etc)
-typedef ap_uint<512> integral_t;
-		  
+/*
+ * Homa packet types
+ *
+ * TODO Only DATA and GRANT implemented
+ */
+#define DATA     0x10
+#define GRANT    0x11
+#define RESEND   0x12
+#define UNKNOWN  0x13
+#define BUSY     0x14
+#define CUTOFFS  0x15
+#define FREEZE   0x16
+#define NEED_ACK 0x17
+#define ACK      0x18
+
+/**
+ * homa_packet_type_t - Store one of the homa packet types
+ */
 typedef ap_uint<8> homa_packet_type;
 
+/**
+ * data_bytes_e - Stored in an outgoing chunk to instruct the data
+ * buffer how many bytes need to be captured and stored in the chunk
+ */
 enum data_bytes_e {
     NO_DATA      = 0,
     ALL_DATA     = 64,
     PARTIAL_DATA = 14,
 };
 
-/* Peer Tab Configuration */
+/* Peer Configuration: Used for storing state associated with a peer
+ * and performing lookups on incoming header data to determine the local
+ * peer ID.
+ *
+ * #MAX_PEERS      - The number of distinct peers the home core can track
+ * #MAX_PEERS_LOG2 - An index into the set of peers (leaving room for +1 adjustment).
+ * 
+ */
+#define MAX_PEERS            16384
 #define MAX_PEERS_LOG2       14
-#define MAX_PEERS            16383 // 0 is reserved
 #define PEER_BUCKETS         16384
 #define PEER_BUCKET_SIZE     8
 #define PEER_SUB_TABLE_INDEX 14
@@ -83,7 +140,6 @@ struct peer_hashpack_t {
 };
 
 /* RPC Store Configuration */
-
 #define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
 #define MAX_RPCS            16384 // TODO Maximum number of RPCs
 #define RPC_BUCKETS         16384 // Size of cuckoo hash sub-tables
@@ -92,16 +148,20 @@ struct peer_hashpack_t {
 
 typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 
+
+struct rpc_hashpack_t {
+   ap_uint<128> s6_addr;
+   ap_uint<64> id;
+   ap_uint<16> port;
+   ap_uint<16> empty;
+
 #define RPC_HP_SIZE 7 // Number of 32 bit chunks to hash for RPC table
 
-/**
- * raw_stream_t - This defines an actual axi stream type, in contrast
- * to the internal streams which are all ap_fifo types. The actual
- * data that will be passed by this stream is 512 bit chunks.
- * 
- * TODO: Need to leave side-channel signals enabled to avoid linker error?
- */
-typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+   bool operator==(const rpc_hashpack_t & other) const {
+      return (s6_addr == other.s6_addr && id == other.id && port == other.port);
+   }
+};
+
 
 /**
  * srpt_grant_in_t - Output of the grant SRPT core which indicates the
@@ -280,20 +340,6 @@ struct touch_t {
 #define CHUNK_HOMA_GRANT_OFFSET     111,80
 #define CHUNK_HOMA_GRANT_PRIORITY   79,72
 
-/*
- * Homa packet types
- *
- * TODO Only DATA and GRANT implemented
- */
-#define DATA     0x10
-#define GRANT    0x11
-#define RESEND   0x12
-#define UNKNOWN  0x13
-#define BUSY     0x14
-#define CUTOFFS  0x15
-#define FREEZE   0x16
-#define NEED_ACK 0x17
-#define ACK      0x18
 
 /* Data Buffer Configuration:
  * The data buffer stores message data on chip so that it can be
@@ -364,7 +410,7 @@ struct in_chunk_t {
  * needed to retrieve that information.
  */
 struct out_chunk_t {
-    homa_packet_type type;   // What is the type of this outgoing packet
+    homa_packet_type_t type;   // What is the type of this outgoing packet
     dbuff_id_t dbuff_id;     // Which data buffer is the message stored in
     local_id_t local_id;     // What is the RPC ID associated with this message
     ap_uint<32> offset;      // What byte offset is this output chunk for
@@ -489,13 +535,13 @@ struct header_t {
     pmap_state_t packetmap;
 
     // IPv6 + Common Header
-    ap_uint<16>      payload_length;
-    ap_uint<128>     saddr;
-    ap_uint<128>     daddr;
-    ap_uint<16>      sport;
-    ap_uint<16>      dport;
-    homa_packet_type type;
-    ap_uint<64>      id;
+    ap_uint<16>        payload_length;
+    ap_uint<128>       saddr;
+    ap_uint<128>       daddr;
+    ap_uint<16>        sport;
+    ap_uint<16>        dport;
+    homa_packet_type_t type;
+    ap_uint<64>        id;
 
     // Data Header
     ap_uint<32> message_length; 
