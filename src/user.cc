@@ -9,18 +9,9 @@
  * @header_in_i   - The final header received for a completed message. This
  * indicates the message has been fully received and buffering is complete.
  */
-#ifdef STEPPED
-void homa_recvmsg(bool recv_in_en,
-		  bool recv_out_en,
-		  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-		  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-		  hls::stream<header_t> & header_in_i) {
-#else
 void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 		  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 		  hls::stream<header_t> & header_in_i) {
-#endif
-
     static int recv_head = 0;
     static recv_interest_t recv[MAX_RECV_MATCH];
   
@@ -30,12 +21,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     msghdr_recv_t msghdr_recv;
     header_t header_in;
 
-#ifdef STEPPED
-    if (recv_in_en) {
-	msghdr_recv = msghdr_recv_i.read();
-#else
     if (msghdr_recv_i.read_nb(msghdr_recv)) {
-#endif
 
 	// msghdr_recv_t match;
 	int match_index = -1;
@@ -70,16 +56,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	//    msghdr_recv_o.write(match);
 	//    msgs_head--;
 	//}
-    }
-
-
-#ifdef STEPPED
-    if (recv_out_en) {
-	header_in = header_in_i.read();
-#else
-    if (header_in_i.read_nb(header_in)) {
-#endif
-	std::cerr << "RECV CHECKING\n";
+    } else if (header_in_i.read_nb(header_in)) {
 	msghdr_recv_t new_msg;
 
 	new_msg(MSGHDR_SADDR)      = header_in.saddr;
@@ -132,17 +109,9 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
  * the previous sendmsg request
  * @onboard_send_o - Path to prime the system to send the new message
  */
-#ifdef STEPPED
-void homa_sendmsg(bool send_in_en,
-		  bool send_out_en,
-		  hls::stream<msghdr_send_t> & msghdr_send_i,
-		  hls::stream<msghdr_send_t> & msghdr_send_o,
-		  hls::stream<onboard_send_t> & onboard_send_o) {
-#else
 void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 		  hls::stream<msghdr_send_t> & msghdr_send_o,
 		  hls::stream<onboard_send_t> & onboard_send_o) {
-#endif
 
 // #pragma HLS pipeline II=1
 
@@ -152,13 +121,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     msghdr_send_t msghdr_send;
 
-#ifdef STEPPED
-    if (send_in_en) {
-	msghdr_send = msghdr_send_i.read();
-#else
     if (msghdr_send_i.read_nb(msghdr_send)) {
-#endif
-
 	onboard_send_t onboard_send;
 	onboard_send.saddr      = msghdr_send(MSGHDR_SADDR);
 	onboard_send.daddr      = msghdr_send(MSGHDR_DADDR);

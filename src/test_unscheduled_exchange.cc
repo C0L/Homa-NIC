@@ -58,55 +58,16 @@ extern "C"{
 	recvmsg_i.write(recvmsg);
 	sendmsg_i.write(sendmsg);
 
-	homa(false, false, false, false, true, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	homa(false, false, false, false, false, false, true, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-
 	strcpy((char*) maxi_in, data.c_str());
 
-	// Buffer 1 packet
-	for (int i = 0; i < 22; ++i) {
-	    homa(false, true, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, 2772) != 0) {
+	    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	    if (!link_egress_o.empty()) link_ingress_i.write(link_egress_o.read());
 	}
 
-        // Read out packet
-	for (int i = 0; i < 24; ++i) {
-	    homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	    link_ingress_i.write(link_egress_o.read());
-	}
+	recvmsg_o.read();
+	sendmsg_o.read();
 
-	for (int i = 0; i < 24; ++i) {
-	    homa(false, false, false, true, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	}
-
-	for (int i = 0; i < 23; ++i) {
-	    homa(true, false, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	}
-
-	for (int i = 0; i < 22; ++i) {
-	    homa(false, true, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	}
-
-        // Read out packet
-	for (int i = 0; i < 24; ++i) {
-	    homa(false, false, true, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	    link_ingress_i.write(link_egress_o.read());
-	}
-
-	for (int i = 0; i < 24; ++i) {
-	    homa(false, false, false, true, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	}
-
-	for (int i = 0; i < 23; ++i) {
-	    homa(true, false, false, false, false, false, false, false, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-	}
-
-	homa(false, false, false, false, false, false, false, true, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
-
-	msghdr_recv_t recv = recvmsg_o.read();
-
-	msghdr_send_t send = sendmsg_o.read();
-
-	// return 0; 
-	return memcmp(maxi_in, maxi_out, 2772);
+	return 0;
     }
 }

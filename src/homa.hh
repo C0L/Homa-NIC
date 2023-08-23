@@ -103,7 +103,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 /**
  * homa_packet_type_t - Store one of the homa packet types
  */
-typedef ap_uint<8> homa_packet_type;
+typedef ap_uint<8> homa_packet_type_t;
 
 /**
  * data_bytes_e - Stored in an outgoing chunk to instruct the data
@@ -640,20 +640,6 @@ struct srpt_grant_t {
  */
 #define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd 
 
-
-#ifdef STEPPED
-void homa(bool dma_write_en, bool dma_read_en,
-	  bool egress_en, bool ingress_en,
-	  bool send_in_en, bool send_out_en,
-	  bool recv_in_en, bool recv_out_en,
-	  hls::stream<msghdr_send_t> & msghdr_send_i,
-	  hls::stream<msghdr_send_t> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
-	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress);
-#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
@@ -661,6 +647,4 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress);
-#endif
-
 #endif

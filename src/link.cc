@@ -249,28 +249,15 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
-
-#ifdef STEPPED
-void pkt_chunk_egress(bool egress_en,
-		      hls::stream<out_chunk_t> & out_chunk_i,
-		      hls::stream<raw_stream_t> & link_egress) {
-#else
 void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
-#endif
 
-    #ifdef STEPPED
-    if (egress_en) {
-    #endif
     out_chunk_t chunk = out_chunk_i.read();
     raw_stream_t raw_stream;
     // network_order(chunk.buff, raw_stream.data);
     raw_stream.data = chunk.buff;
     raw_stream.last = chunk.last;
     link_egress.write(raw_stream);
-    #ifdef STEPPED
-    }
-    #endif
 }
 
 /**
@@ -287,25 +274,14 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
-#ifdef STEPPED
-void pkt_chunk_ingress(bool ingress_en,
-		       hls::stream<raw_stream_t> & link_ingress,
-		       hls::stream<header_t> & header_in_o,
-		       hls::stream<in_chunk_t> & chunk_in_o) {
-#else
 void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
 		       hls::stream<in_chunk_t> & chunk_in_o) {
-#endif
 
 #pragma HLS pipeline II=1 style=flp
 
     static header_t header_in;
     static ap_uint<32> processed_bytes = 0;
-
-#ifdef STEPPED
-    if (ingress_en) {
-#endif
 
 	//if (!chunk_in_o.full() && !header_in_o.full()) {
 	    raw_stream_t raw_stream = link_ingress.read();
@@ -381,9 +357,4 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		processed_bytes = 0;
 	    }
 	    // }
-
-#ifdef STEPPED
-    }
-#endif
-
 }

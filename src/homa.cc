@@ -17,6 +17,74 @@
 
 using namespace std;
 
+
+
+/**
+ * stepper() - Performs a single blocking action on the interface. Use in simulation ONLY
+ */
+// TODO move?
+void stepper(hls::stream<msghdr_send_t> & msghdr_send_i,
+	     hls::stream<msghdr_send_t> & msghdr_send_o,
+	     hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	     hls::stream<msghdr_recv_t> & msghdr_recv_o,
+	     ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
+	     hls::stream<raw_stream_t> & link_ingress,
+	     hls::stream<raw_stream_t> & link_egress,
+	     hls::stream<header_t> & homa_recvmsg_header_in_i,
+	     hls::stream<onboard_send_t> & homa_sendmsg_onboard_send_o,
+	     hls::stream<srpt_sendq_t> & dma_read_dma_req_i,
+	     hls::stream<dbuff_in_t> & dma_read_dbuff_in_o,
+	     hls::stream<dma_w_req_t> & dma_write_dma_w_req_i,
+	     hls::stream<out_chunk_t> & link_egress_out_chunk_i,
+	     hls::stream<header_t> & link_ingress_header_in_o,
+	     hls::stream<in_chunk_t> & link_ingress_chunk_in_o) {
+
+    for (;;) {
+	if (!msghdr_send_i.empty()) {
+	    homa_sendmsg(
+		msghdr_send_i,             
+		msghdr_send_o,              
+		homa_sendmsg_onboard_send_o 
+		);
+	    break;
+	} else if (!msghdr_recv_i.empty() || !homa_recvmsg_header_in_i.empty()) {
+	    homa_recvmsg(
+		msghdr_recv_i,
+		msghdr_recv_o,
+		homa_recvmsg_header_in_i
+		);
+	    break;
+	} else if (!link_ingress.empty()) {
+	    pkt_chunk_ingress(
+		link_ingress,                         
+		link_ingress_header_in_o,
+		link_ingress_chunk_in_o
+		);
+	    break;
+	} else if (!link_egress_out_chunk_i.empty()) {
+	    pkt_chunk_egress(
+		link_egress_out_chunk_i,
+		link_egress                         
+		);
+	    break;
+	} else if (!dma_read_dma_req_i.empty()) {
+	    dma_read(
+		maxi_in,
+		dma_read_dma_req_i,
+		dma_read_dbuff_in_o
+		);
+	    break;
+	} else if (!dma_write_dma_w_req_i.empty()) {
+	    dma_write(
+		maxi_out,
+		dma_write_dma_w_req_i
+		);
+	    break;
+	}
+    }
+}
+
+
 /**
  * homa() - Top level homa packet processor
  * @sendmsg_i    - Incoming requests to send a message (either request or response)
@@ -27,20 +95,6 @@ using namespace std;
  * @link_ingress: The incoming AXI Stream of ethernet frames from the link
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
-#ifdef STEPPED
-void homa(bool dma_write_en, bool dma_read_en,
-	  bool egress_en, bool ingress_en,
-	  bool send_in_en, bool send_out_en,
-	  bool recv_in_en, bool recv_out_en,
-	  hls::stream<msghdr_send_t> & msghdr_send_i,
-	  hls::stream<msghdr_send_t> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
-	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress) {
-#pragma HLS interface mode=ap_ctrl_hs port=return
-#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
@@ -48,6 +102,9 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress) {
+#ifdef STEPPED
+#pragma HLS interface mode=ap_ctrl_hs port=return
+#else
 #pragma HLS interface mode=ap_ctrl_none port=return
 #endif
 
@@ -59,17 +116,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      *
      * Synth will claim that this is ignored, but cosim needs it to work.
      */
-
-#ifdef STEPPED
-#pragma HLS interface ap_hs port=dma_write_en  depth=256
-#pragma HLS interface ap_hs port=dma_read_en   depth=256 
-#pragma HLS interface ap_hs port=egress_en     depth=256
-#pragma HLS interface ap_hs port=ingress_en    depth=256
-#pragma HLS interface ap_hs port=send_in_en    depth=256
-#pragma HLS interface ap_hs port=send_out_en   depth=256
-#pragma HLS interface ap_hs port=recv_in_en    depth=256
-#pragma HLS interface ap_hs port=recv_out_en   depth=256
-#endif
 
 #pragma HLS interface axis port=msghdr_send_i depth=256 
 #pragma HLS interface axis port=msghdr_send_o depth=256
@@ -97,7 +143,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress ("header_in__rpc_state__dbuff_ingress");
 
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__homa_recvmsg ("header_in__dbuff_ingress__homa_recvmsg");
-    // hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__homa_recvmsg ("header_in__packetmap__homa_recvmsg");
    
     /* sendmsg streams */
     hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__rpc_map("sendmsg__homa_sendmsg__msg_cache");
@@ -129,31 +174,14 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      * that consume their output streams.
      */
 
-#ifdef STEPPED
-    pkt_chunk_ingress(
-	ingress_en,
-	link_ingress,                           // link_ingress
-	header_in__chunk_ingress__rpc_map,      // header_in_o 
-	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
-	);
-#else
-    hls_thread_local hls::task pkt_chunk_ingress_task(
+#ifndef STEPPED
+    hls_thread_local hls::task _task(
 	pkt_chunk_ingress,
 	link_ingress,                           // link_ingress
 	header_in__chunk_ingress__rpc_map,      // header_in_o 
 	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
 	);
-#endif
 
-#ifdef STEPPED
-    homa_sendmsg(
-	send_in_en,
-	send_out_en,
-	msghdr_send_i,                    // sendmsg_i
-	msghdr_send_o,                    // sendmsg_o
-	sendmsg__homa_sendmsg__rpc_map    // sendmsg_o
-	);
-#else
     hls_thread_local hls::task homa_sendmsg_task(
 	homa_sendmsg, 
 	msghdr_send_i,                     // sendmsg_i
@@ -192,14 +220,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	dma_req__srpt_data__dma_read           // 
 	);
 
-#ifdef STEPPED
-    dma_read(
-	dma_read_en,
-	maxi_in,
-	dma_req__srpt_data__dma_read,
-	dbuff_in__dma_read__msg_cache
-	);
-#else
+#ifndef STEPPED
     dma_read(
 	maxi_in,
 	dma_req__srpt_data__dma_read,
@@ -248,43 +269,18 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	header_in__packetmap__rpc_state // complete_messages
 	);
 
-#ifdef STEPPED
-    pkt_chunk_egress(
-	egress_en,
-	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
-	link_egress                          // link_egress
-	);
-#else
+#ifndef STEPPED
     hls_thread_local hls::task pkt_chunk_egress_task(
 	pkt_chunk_egress,
 	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
 	link_egress                          // link_egress
 	);
-#endif
 
-#ifdef STEPPED
-    dma_write(
-	dma_write_en,
-	maxi_out,
-	dma_req__dbuff_ingress__dma_write
-	);
-#else
     dma_write(
 	maxi_out,
 	dma_req__dbuff_ingress__dma_write
 	);
-#endif
 
-
-#ifdef STEPPED
-    homa_recvmsg(
-	recv_in_en,
-	recv_out_en,
-	msghdr_recv_i,                  // recvmsg_i
-	msghdr_recv_o,                  // recvmsg_o
-	header_in__dbuff_ingress__homa_recvmsg 
-	);
-#else
     hls_thread_local hls::task homa_recvmsg_task(
 	homa_recvmsg, 
 	msghdr_recv_i,                  // recvmsg_i
@@ -293,5 +289,24 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	);
 #endif
 
-
+#ifdef STEPPED
+    stepper(msghdr_send_i,
+	    msghdr_send_o,
+	    msghdr_recv_i,
+	    msghdr_recv_o,
+	    maxi_in,
+	    maxi_out,
+	    link_ingress,
+	    link_egress,
+	    header_in__dbuff_ingress__homa_recvmsg,
+	    sendmsg__homa_sendmsg__rpc_map,
+	    dma_req__srpt_data__dma_read,
+	    dbuff_in__dma_read__msg_cache,
+	    dma_req__dbuff_ingress__dma_write,
+	    out_chunk__dbuff_egress__pkt_egress,
+	    header_in__chunk_ingress__rpc_map,     
+	    in_chunk__chunk_ingress__dbuff_ingress
+	);
+#endif
 }
+
