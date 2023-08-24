@@ -1,5 +1,10 @@
 #include "link.hh"
 
+#include <iostream>
+#include <fstream>
+
+using namespace std;
+
 /**
  * network_order() - Convert the "natural" bit vector to a network order
  * where the LSByte is at bit 7,0 and the MSByte is at bit 511, 504.
@@ -154,17 +159,16 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 
 		    // Packet block configuration — 14 data bytes needed
 		    out_chunk.type = DATA;
-		    out_chunk.data_bytes = PARTIAL_DATA;
-		    out_chunk.length   = header.message_length;
-		    out_chunk.dbuff_id = header.obuff_id;
-		    out_chunk.local_id = header.local_id;
+		    out_chunk.data_bytes      = PARTIAL_DATA;
+		    out_chunk.length          = header.message_length;
+		    out_chunk.egress_buff_id  = header.egress_buff_id;
+		    out_chunk.local_id        = header.local_id;
 		    header.data_offset += PARTIAL_DATA;
 		} else {
 		    out_chunk.type = DATA;
-		    out_chunk.data_bytes = ALL_DATA;
-		    out_chunk.length   = header.message_length;
-		    out_chunk.dbuff_id = header.obuff_id;
-		    out_chunk.dbuff_id = header.obuff_id;
+		    out_chunk.data_bytes      = ALL_DATA;
+		    out_chunk.length          = header.message_length;
+		    out_chunk.egress_buff_id  = header.egress_buff_id;
 		    out_chunk.local_id = header.local_id;
 		    header.data_offset += ALL_DATA;
 		}
@@ -240,6 +244,27 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
     }
 }
 
+//void pkt_chunk_egress_wrapper(uint32_t action,
+//		      hls::stream<out_chunk_t> & out_chunk_i,
+//		      hls::stream<raw_stream_t> & link_egress) {
+//
+//#ifdef CSIM 
+//    if (!out_chunk_i.empty()) {
+//	ofstream trace_file;
+//	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+//	trace_file << 3 << std::endl;
+//	trace_file.close();
+//	pkt_chunk_egress(out_chunk_i, link_egress);
+//    }
+//#endif
+//#ifdef COSIM
+//    if (action == 3) {
+//	while (out_chunk_i.empty());
+//	pkt_chunk_egress(out_chunk_i, link_egress);
+//    }
+//#endif
+//}
+
 /**
  * pkt_chunk_egress() - Take care of final configuration before packet
  * chunks are placed on the link. Set TKEEP and TLAST bits for AXI Stream
@@ -249,15 +274,30 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
-void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
+void pkt_chunk_egress(uint32_t active, hls::stream<out_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
 
-    out_chunk_t chunk = out_chunk_i.read();
-    raw_stream_t raw_stream;
-    // network_order(chunk.buff, raw_stream.data);
-    raw_stream.data = chunk.buff;
-    raw_stream.last = chunk.last;
-    link_egress.write(raw_stream);
+
+#ifdef CSIM
+    if (!out_chunk_i.empty()) {
+	out_chunk_t chunk = out_chunk_i.read();
+	ofstream trace_file;
+	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file << 3 << std::endl;
+	trace_file.close();
+#endif
+
+#ifdef COSIM
+    if (active == 3) {
+	out_chunk_t chunk = out_chunk_i.read();
+#endif
+
+	raw_stream_t raw_stream;
+	// network_order(chunk.buff, raw_stream.data);
+	raw_stream.data = chunk.buff;
+	raw_stream.last = chunk.last;
+	link_egress.write(raw_stream);
+    }
 }
 
 /**
@@ -274,7 +314,7 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
-void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
+void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
 		       hls::stream<in_chunk_t> & chunk_in_o) {
 
@@ -284,19 +324,32 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
     static ap_uint<32> processed_bytes = 0;
 
 	//if (!chunk_in_o.full() && !header_in_o.full()) {
-	    raw_stream_t raw_stream = link_ingress.read();
 
-	    std::cerr << "READ CHUNK IN " << processed_bytes << std::endl;
 
-	    in_chunk_t data_block;
-	    ap_uint<512> natural_chunk;
+#ifdef CSIM
+    if (!link_ingress.empty()) {
+	raw_stream_t raw_stream = link_ingress.read();
+	ofstream trace_file;
+	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file << 2 << std::endl;
+	trace_file.close();
+#endif
 
-	    network_order(raw_stream.data, natural_chunk);
+#ifdef COSIM
+    if (active == 2) {
+	raw_stream_t raw_stream = link_ingress.read();
+#endif
+	std::cerr << "READ CHUNK IN " << processed_bytes << std::endl;
+	
+	in_chunk_t data_block;
+	ap_uint<512> natural_chunk;
 
-	    // For every type of homa packet we need to read at least two blocks
-	    if (processed_bytes == 0) {
+	network_order(raw_stream.data, natural_chunk);
 
-		header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
+	// For every type of homa packet we need to read at least two blocks
+	if (processed_bytes == 0) {
+
+	    header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
 
 		header_in.saddr          = natural_chunk(CHUNK_IPV6_SADDR);
 		header_in.daddr          = natural_chunk(CHUNK_IPV6_DADDR);
@@ -356,5 +409,5 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		std::cerr << "LB RECV\n";
 		processed_bytes = 0;
 	    }
-	    // }
+    }
 }

@@ -34,6 +34,9 @@ void packetmap(hls::stream<header_t> & header_in_i,
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {
+	std::cerr << "HEADER INTO PACKET MAP" << std::endl;
+	std::cerr << RECV_INDEX_FROM_RPC_ID(header_in.local_id) << std::endl;
+	
 	pmap_entry_t packetmap = packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
 
 	header_in.packetmap = PMAP_BODY;
@@ -46,6 +49,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
 	    packetmap.map = 0;
 	    packetmap.head = 0;
 	    packetmap.length = (header_in.message_length / HOMA_PAYLOAD_SIZE);
+	    std::cerr << "SET LENGTH " << packetmap.length << std::endl;
 	} 
 
 	int diff = (header_in.data_offset / HOMA_PAYLOAD_SIZE) - packetmap.head;

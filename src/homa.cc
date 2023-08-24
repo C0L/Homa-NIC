@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 
 #include "ap_int.h"
 
@@ -17,73 +18,7 @@
 
 using namespace std;
 
-
-
-/**
- * stepper() - Performs a single blocking action on the interface. Use in simulation ONLY
- */
-// TODO move?
-void stepper(hls::stream<msghdr_send_t> & msghdr_send_i,
-	     hls::stream<msghdr_send_t> & msghdr_send_o,
-	     hls::stream<msghdr_recv_t> & msghdr_recv_i,
-	     hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	     ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
-	     hls::stream<raw_stream_t> & link_ingress,
-	     hls::stream<raw_stream_t> & link_egress,
-	     hls::stream<header_t> & homa_recvmsg_header_in_i,
-	     hls::stream<onboard_send_t> & homa_sendmsg_onboard_send_o,
-	     hls::stream<srpt_sendq_t> & dma_read_dma_req_i,
-	     hls::stream<dbuff_in_t> & dma_read_dbuff_in_o,
-	     hls::stream<dma_w_req_t> & dma_write_dma_w_req_i,
-	     hls::stream<out_chunk_t> & link_egress_out_chunk_i,
-	     hls::stream<header_t> & link_ingress_header_in_o,
-	     hls::stream<in_chunk_t> & link_ingress_chunk_in_o) {
-
-    for (;;) {
-	if (!msghdr_send_i.empty()) {
-	    homa_sendmsg(
-		msghdr_send_i,             
-		msghdr_send_o,              
-		homa_sendmsg_onboard_send_o 
-		);
-	    break;
-	} else if (!msghdr_recv_i.empty() || !homa_recvmsg_header_in_i.empty()) {
-	    homa_recvmsg(
-		msghdr_recv_i,
-		msghdr_recv_o,
-		homa_recvmsg_header_in_i
-		);
-	    break;
-	} else if (!link_ingress.empty()) {
-	    pkt_chunk_ingress(
-		link_ingress,                         
-		link_ingress_header_in_o,
-		link_ingress_chunk_in_o
-		);
-	    break;
-	} else if (!link_egress_out_chunk_i.empty()) {
-	    pkt_chunk_egress(
-		link_egress_out_chunk_i,
-		link_egress                         
-		);
-	    break;
-	} else if (!dma_read_dma_req_i.empty()) {
-	    dma_read(
-		maxi_in,
-		dma_read_dma_req_i,
-		dma_read_dbuff_in_o
-		);
-	    break;
-	} else if (!dma_write_dma_w_req_i.empty()) {
-	    dma_write(
-		maxi_out,
-		dma_write_dma_w_req_i
-		);
-	    break;
-	}
-    }
-}
-
+// TODO some types to make stream names more readable
 
 /**
  * homa() - Top level homa packet processor
@@ -95,6 +30,19 @@ void stepper(hls::stream<msghdr_send_t> & msghdr_send_i,
  * @link_ingress: The incoming AXI Stream of ethernet frames from the link
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
+
+// TODO remove STEPPED?
+
+#ifdef STEPPED
+void homa(uint32_t action,
+          hls::stream<msghdr_send_t> & msghdr_send_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
+	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
+	  hls::stream<raw_stream_t> & link_ingress,
+	  hls::stream<raw_stream_t> & link_egress) {
+#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
@@ -102,8 +50,13 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress) {
+#endif
+
+    // TODO Need AXI write stobe
+
 #ifdef STEPPED
 #pragma HLS interface mode=ap_ctrl_hs port=return
+#pragma HLS interface ap_none port=action
 #else
 #pragma HLS interface mode=ap_ctrl_none port=return
 #endif
@@ -123,6 +76,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 #pragma HLS interface axis port=msghdr_recv_o depth=256
 #pragma HLS interface axis port=link_ingress  depth=256
 #pragma HLS interface axis port=link_egress   depth=256
+
+    // TODO increase num outstanding??
 #pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=1 depth=256 
 #pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=1 depth=256
 
@@ -151,6 +106,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     /* out chunk streams */
     hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress ("out_chunk__chunk_egress__dbuff_egress");
+
     hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__dbuff_egress__pkt_egress   ("out_chunk__dbuff_egress__pkt_egress");
 
     /* in chunk streams */
@@ -175,7 +131,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      */
 
 #ifndef STEPPED
-    hls_thread_local hls::task _task(
+    hls_thread_local hls::task ingress_task(
 	pkt_chunk_ingress,
 	link_ingress,                           // link_ingress
 	header_in__chunk_ingress__rpc_map,      // header_in_o 
@@ -186,9 +142,21 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	homa_sendmsg, 
 	msghdr_send_i,                     // sendmsg_i
 	msghdr_send_o,                     // sendmsg_o
-	sendmsg__homa_sendmsg__rpc_map    // sendmsg_o
+	sendmsg__homa_sendmsg__rpc_map     // onboard_sendmsg_o
 	);
 #endif
+
+    pkt_chunk_ingress(action,
+	link_ingress,                           // link_ingress
+	header_in__chunk_ingress__rpc_map,      // header_in_o 
+	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
+	);
+
+    homa_sendmsg(action,
+	msghdr_send_i,                     // sendmsg_i
+	msghdr_send_o,                     // sendmsg_o
+	sendmsg__homa_sendmsg__rpc_map     // onboard_sendmsg_o
+	);
 
     hls_thread_local hls::task rpc_state_task(
 	rpc_state,
@@ -202,7 +170,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	header_in__rpc_state__srpt_data      // header_in_srpt_o
 	);
 
-
     hls_thread_local hls::task rpc_map_task(
 	rpc_map,
 	header_in__chunk_ingress__rpc_map, // header_in_i
@@ -210,7 +177,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	sendmsg__homa_sendmsg__rpc_map,    // sendmsg_i
 	sendmsg__rpc_map__rpc_state        // sendmsg_o
 	);
-      
+
     hls_thread_local hls::task srpt_data_pkts_task(
 	srpt_data_pkts,
 	sendmsg__rpc_state__srpt_data,         // sendmsg_i
@@ -227,6 +194,12 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	dbuff_in__dma_read__msg_cache
 	);
 #endif
+
+    dma_read(action,
+	maxi_in,
+	dma_req__srpt_data__dma_read,
+	dbuff_in__dma_read__msg_cache
+	);
 
     hls_thread_local hls::task srpt_grant_pkts_task(
 	srpt_grant_pkts,
@@ -252,15 +225,15 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	dbuff_in__dma_read__msg_cache,
 	dbuff_notif__dbuff_egress__srpt_data,  // dbuff_notif_o
 	out_chunk__chunk_egress__dbuff_egress, // out_chunk_i
-	out_chunk__dbuff_egress__pkt_egress    // out_chunk_o
+	out_chunk__dbuff_egress__pkt_egress  // out_chunk_o
 	); 
 
     hls_thread_local hls::task dbuff_ingress_task(
 	dbuff_ingress,
-	in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_o
+	in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_i
 	dma_req__dbuff_ingress__dma_write,      // dma_w_req_o
 	header_in__rpc_state__dbuff_ingress,    // header_in_i
-	header_in__dbuff_ingress__homa_recvmsg // header_in_i
+	header_in__dbuff_ingress__homa_recvmsg  // header_in_o
 	);
 
     hls_thread_local hls::task packetmap_task(
@@ -285,28 +258,22 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	homa_recvmsg, 
 	msghdr_recv_i,                  // recvmsg_i
 	msghdr_recv_o,                  // recvmsg_o
-	header_in__packetmap__homa_recvmsg 
+	header_in__dbuff_ingress__homa_recvmsg 
 	);
 #endif
+    pkt_chunk_egress(action,
+	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
+	link_egress                          // link_egress
+	);
 
-#ifdef STEPPED
-    stepper(msghdr_send_i,
-	    msghdr_send_o,
-	    msghdr_recv_i,
-	    msghdr_recv_o,
-	    maxi_in,
-	    maxi_out,
-	    link_ingress,
-	    link_egress,
-	    header_in__dbuff_ingress__homa_recvmsg,
-	    sendmsg__homa_sendmsg__rpc_map,
-	    dma_req__srpt_data__dma_read,
-	    dbuff_in__dma_read__msg_cache,
-	    dma_req__dbuff_ingress__dma_write,
-	    out_chunk__dbuff_egress__pkt_egress,
-	    header_in__chunk_ingress__rpc_map,     
-	    in_chunk__chunk_ingress__dbuff_ingress
+    dma_write(action,
+	maxi_out,
+	dma_req__dbuff_ingress__dma_write
 	);
-#endif
+
+    homa_recvmsg(action,
+	msghdr_recv_i,                  // recvmsg_i
+	msghdr_recv_o,                  // recvmsg_o
+	header_in__dbuff_ingress__homa_recvmsg
+	);
 }
-

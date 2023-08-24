@@ -43,6 +43,10 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	       hls::stream<srpt_grant_in_t> & grant_srpt_o,
 	       hls::stream<srpt_grant_notif_t> & data_srpt_o) {
 
+    // DMA buffers
+    // Put this in DMA write?
+    // static stack_t<local_id_t, NUM_INGRESS_DMA> ingress_dma_stack(true);
+
     static homa_rpc_t rpcs[MAX_RPCS];
 
 #pragma HLS pipeline II=1
@@ -62,7 +66,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	header_out.saddr           = homa_rpc.saddr;
 	header_out.sport           = homa_rpc.sport;
 	header_out.id              = homa_rpc.id;
-	header_out.obuff_id        = homa_rpc.obuff_id;
+	header_out.egress_buff_id = homa_rpc.egress_buff_id;
 
 	header_out.incoming       = homa_rpc.iov_size - header_out.incoming;
 	header_out.data_offset    = homa_rpc.iov_size - header_out.data_offset;
@@ -83,15 +87,18 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
 		// TODO should be based on first unqiue packet
 		if (header_in.packetmap == PMAP_INIT) {
-		    homa_rpc.saddr    = header_in.saddr;
-		    homa_rpc.daddr    = header_in.daddr;
-		    homa_rpc.dport    = header_in.dport;
-		    homa_rpc.sport    = header_in.sport;
-		    homa_rpc.id       = header_in.id;
-		    homa_rpc.obuff_id = header_in.obuff_id;
+		    homa_rpc.saddr           = header_in.saddr;
+		    homa_rpc.daddr           = header_in.daddr;
+		    homa_rpc.dport           = header_in.dport;
+		    homa_rpc.sport           = header_in.sport;
+		    homa_rpc.id              = header_in.id;
+		    homa_rpc.ingress_dma_id  = ingress_dma_stack.pop();
+		    header_in.ingress_dma_id = homa_rpc.ingress_dma_id;
+		    std::cerr << "NEW DMA ID\n";
 		} else {
-		    header_in.id       = homa_rpc.id;
-		    header_in.obuff_id = homa_rpc.obuff_id;
+		    header_in.id             = homa_rpc.id;
+		    header_in.ingress_dma_id = homa_rpc.ingress_dma_id;
+		    std::cerr << "READ DMA ID \n";
 		}
 
 		if (header_in.message_length > header_in.incoming) { 
@@ -130,7 +137,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	homa_rpc.sport           = onboard_send.sport;
 	homa_rpc.iov             = onboard_send.iov;
 	homa_rpc.iov_size        = onboard_send.iov_size;
-	homa_rpc.obuff_id        = onboard_send.dbuff_id;
+	homa_rpc.egress_buff_id  = onboard_send.egress_buff_id;
 	homa_rpc.id              = onboard_send.id;
 
 	rpcs[SEND_INDEX_FROM_RPC_ID(onboard_send.local_id)] = homa_rpc;
@@ -167,10 +174,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
     // Unique local Peer IDs
     static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
-
-    // Output buffers 
-    static stack_t<local_id_t, MAX_PEERS> dbuff_stack(true);
-  
+ 
     // hash(dest addr) -> peer ID
     static hashmap_t<peer_hashpack_t, peer_id_t, PEER_BUCKETS, PEER_BUCKET_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE> peer_hashmap;
 
@@ -183,17 +187,13 @@ void rpc_map(hls::stream<header_t> & header_in_i,
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {
-	/* Check if we are the server for this RPC. If we are the RPC ID is
+	/* Check if we are the server for this RPC. If we are, the RPC ID is
 	 * not in a local form and we need to map it to a local ID.
 	 *
 	 * If we are the client, the locally meaningful ID can be derived
 	 * directly from the RPC ID in the header
 	 */
 	if (!IS_CLIENT(header_in.id)) {
-	    if (header_in.data_offset == 0) {
-		header_in.ibuff_id = dbuff_stack.pop();
-	    }
-
 	    // Check if this peer is already registered
 	    peer_hashpack_t peer_query = {header_in.saddr};
 	    header_in.peer_id          = peer_hashmap.search(peer_query);
@@ -217,6 +217,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 		entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
 		rpc_hashmap.insert(rpc_entry);
 	    }
+
 	} else {
 	    header_in.local_id = header_in.id;
 	}

@@ -162,7 +162,6 @@ struct rpc_hashpack_t {
    }
 };
 
-
 /**
  * srpt_grant_in_t - Output of the grant SRPT core which indicates the
  * next best grant packet to be sent.
@@ -347,12 +346,16 @@ struct touch_t {
  * sufficient data on chip such that if an RPC is selected it can run
  * to completion without stalling for data.
  */
-#define NUM_DBUFF        64  // Number of data buffers (max outgoing RPCs)
+#define NUM_EGRESS_BUFFS 64  // Number of data buffers (max outgoing RPCs) TODO change name
 #define DBUFF_INDEX      10  // Index into the data buffers
 #define DBUFF_CHUNK_SIZE 64  // Size of a "chunk" of a data buffer
 #define DBUFF_NUM_CHUNKS 256 // Number of "chunks" in one buffer
 #define DBUFF_CHUNK_INDEX 8  // Index into 256 chunks
 #define DBUFF_BYTE_INDEX 14  // Byte index within data buffer
+ 
+#define NUM_INGRESS_BUFFS 64  // How many ingress DMA buffers are availible
+
+#define NUM_INGRESS_DMA   64  // How many ingress DMA slots are availible
 
 /**
  * dbuff_id_t - An DBUFF_INDEX bitwidth index into the NUM_BUFF number
@@ -411,7 +414,7 @@ struct in_chunk_t {
  */
 struct out_chunk_t {
     homa_packet_type_t type;   // What is the type of this outgoing packet
-    dbuff_id_t dbuff_id;     // Which data buffer is the message stored in
+    dbuff_id_t egress_buff_id;     // Which data buffer is the message stored in
     local_id_t local_id;     // What is the RPC ID associated with this message
     ap_uint<32> offset;      // What byte offset is this output chunk for
     ap_uint<32> length;      // What is the total length of this message
@@ -430,9 +433,10 @@ struct homa_rpc_t {
     ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg)
     ap_uint<64>  id;       // RPC ID (potentially not local)
     ap_uint<32>  iov_size; // 
-    ap_uint<32>  iov;      // 
-    dbuff_id_t   obuff_id; // ID for outgoing data
-    dbuff_id_t   ibuff_id; // ID for incoming data
+    ap_uint<32>  iov;      //
+
+    dbuff_id_t   ingress_dma_id; // ID for offset of packet data -> DMA
+    dbuff_id_t   egress_buff_id; // ID for cache of DMA -> packet datra
 };
 
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
@@ -510,9 +514,9 @@ struct onboard_send_t {
 
     ap_uint<32> dbuffered;
     ap_uint<32> granted;
-    local_id_t  local_id; // Local RPC ID 
-    dbuff_id_t  dbuff_id; // Data buffer ID for outgoing data
-    peer_id_t   peer_id;  // Local ID for this destination address
+    local_id_t  local_id;       // Local RPC ID 
+    dbuff_id_t  egress_buff_id; // Data buffer ID for outgoing data
+    peer_id_t   peer_id;        // Local ID for this destination address
 };
 
 /**
@@ -528,8 +532,8 @@ struct header_t {
     // Local Values
     local_id_t  local_id;           // ID within RPC State
     peer_id_t   peer_id;            // ID of this peer
-    dbuff_id_t  obuff_id;           // ID of buffer of data to send
-    dbuff_id_t  ibuff_id;           // ID of buffer for received data
+    dbuff_id_t  egress_buff_id;     // ID of buffer for DMA -> packet data
+    dbuff_id_t  ingress_dma_id;     // ID of buffer for packet data -> DMA 
     ap_uint<64> completion_cookie;  // Cookie from the origin sendmsg
     ap_uint<32> packet_bytes;
     pmap_state_t packetmap;
@@ -640,6 +644,16 @@ struct srpt_grant_t {
  */
 #define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd 
 
+#ifdef STEPPED
+void homa(uint32_t action,
+          hls::stream<msghdr_send_t> & msghdr_send_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
+	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
+	  hls::stream<raw_stream_t> & link_ingress,
+	  hls::stream<raw_stream_t> & link_egress);
+#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
@@ -647,4 +661,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
 	  hls::stream<raw_stream_t> & link_ingress,
 	  hls::stream<raw_stream_t> & link_egress);
+#endif 
+
 #endif
+
+
