@@ -97,7 +97,7 @@ void dma_write(uint32_t action, ap_uint<512> * maxi,
        // std::cerr << "DATA: " << test << std::endl;
        std::cerr << "DATA: ";
        for (int i = 0; i < 64; ++i) {
-	   std::cerr << test[i]; 
+	   std::cerr << i << " " << test[i]; 
        }
 
        std::cerr << std::endl;

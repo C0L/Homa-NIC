@@ -19,134 +19,62 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
     static header_t     header_in;      // Header that corresponds to in_chunk_t
     static ap_uint<512> aligned_chunk;  // Data block to write to DMA
     static ap_uint<32>  buffered_bytes = 0; // 
-    static ap_uint<32>  next_alignment; // How many bytes from next 64 bytes alignment
+    static ap_int<32>   next_alignment; // How many bytes from next 64 bytes alignment
     static ap_uint<32>  local_offset;   //
 
     static bool active = false;
 
     // TODO replace use of all bytes
-
-    // TODO buffered bytes and next alignment are NOT the same
-    // TODO alignment refers to the distance from the next 64 byte divide
-    // TODO while buffered bytes is how many bytes we have put into the aligned chunk
-    // TODO on the first packet these will not be inverses
-
-    // We want the message data to always be in the lowest bytes of the chunk.
-
-
     // TODO is this performant enough for keep constant packet ingress??
-
     // TODO do not like active flag
-    if (!header_in_i.empty() && !active && buffered_bytes == 0) {
-	std::cerr << "MSG SPOOL IN\n";
-	header_in = header_in_i.read();
 
-	active = true;
+    in_chunk_t in_chunk;
 
-	// What is the current byte offset within an aligned chunk?
-	next_alignment = ALL_DATA - (header_in.data_offset % ALL_DATA);
-	buffered_bytes = 0;
-	local_offset   = header_in.data_offset;
+    if (active && !chunk_in_i.read_nb(in_chunk)) {
+	dma_w_req_t dma_w_req;
 
-	aligned_chunk = 0;
+	// TODO naive buffer management
+	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
 
-	if (header_in.packetmap == PMAP_COMPLETE) {
-	    header_in_o.write(header_in);
-	}
-    }
+	dma_w_req.offset = local_offset + dma_offset;
 
-    // TODO need to write the last chunk!?!?!
+	ap_int<32> overflow_bytes = 0;
+	ap_int<32> writable_bytes = 0;
 
-    if (!chunk_in_i.empty() && active) {
-	std::cerr << "MSG CHUNK IN\n";
-    	in_chunk_t in_chunk = chunk_in_i.read();
-
-	// TODO Unify some of this logic?
-	// TODO just really need to compute indicies in switch
+	ap_uint<512> next_chunk;
 
 	switch (in_chunk.type) {
 	    case ALL_DATA: {
-		std::cerr << "ALL DATA\n";
-		aligned_chunk(((buffered_bytes + next_alignment) * 8) - 1, (buffered_bytes * 8)) = in_chunk.buff((next_alignment * 8) - 1, 0);
-
-		buffered_bytes += next_alignment;
-
-		dma_w_req_t dma_w_req;
-
-		// TODO naive buffer management
-		ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
-
-		dma_w_req.offset = local_offset + dma_offset;
-		dma_w_req.data   = aligned_chunk;
-
-		// TODO am going to need to set strobe anyway because initial byte alignment is off
-		// TODO no this does not seem like the case for now
-		// dma_w_req.strobe = (in_chunk.offset + offset++) % 64;
-		    
-		dma_w_req_o.write(dma_w_req);
-
-		local_offset += buffered_bytes;
-
-		// How many bytes did we overshoot this last chunk?
-		buffered_bytes = ALL_DATA - next_alignment;
-
-		// Did we overshoot this last aligned block?
-		if (buffered_bytes != 0) {
-		    // TODO load overshoot bytes in
-		    aligned_chunk((buffered_bytes * 8) - 1, 0) = in_chunk.buff((ALL_DATA * 8) - 1, (next_alignment * 8));
-		}
-
-		next_alignment = ALL_DATA - buffered_bytes;
-
+		writable_bytes = MIN(next_alignment, ((ap_int<32>) 64));
+		overflow_bytes = 64 - next_alignment;
 		break;
 	    }
 	   
 	    case PARTIAL_DATA: {
-		std::cerr << "PARTIAL DATA\n";
-
-		std::cerr << next_alignment << std::endl;
-
-		if (next_alignment > PARTIAL_DATA) {
-		    std::cerr << "PARTIAL WRITE: " << buffered_bytes << std::endl;
-		    aligned_chunk(((buffered_bytes + PARTIAL_DATA) * 8) - 1, buffered_bytes * 8) = in_chunk.buff((PARTIAL_DATA * 8) - 1, 0);
-
-		    buffered_bytes += PARTIAL_DATA;
-		    next_alignment -= PARTIAL_DATA;
-
-		    // Local offset does not change because we are still in the same aligned block
-		} else {
-	
-		    aligned_chunk(((buffered_bytes + next_alignment) * 8) - 1, buffered_bytes * 8) = in_chunk.buff((next_alignment * 8) - 1, 0);
-
-		    buffered_bytes += next_alignment;
-
-		    dma_w_req_t dma_w_req;
-
-		    // TODO naive buffer management
-		    ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
-
-		    dma_w_req.offset = local_offset + dma_offset;
-		    dma_w_req.data   = aligned_chunk;
-
-		    dma_w_req_o.write(dma_w_req);
-
-		    local_offset += buffered_bytes;
-
-		    // How many bytes did we overshoot this last chunk?
-		    buffered_bytes = PARTIAL_DATA - next_alignment;
-
-		    // Did we overshoot this last aligned block?
-		    if (buffered_bytes != 0) {
-			// TODO load overshoot bytes in
-			aligned_chunk((buffered_bytes * 8) - 1, 0) = in_chunk.buff((PARTIAL_DATA * 8) - 1, next_alignment * 8);
-		    }
-
-		    next_alignment = PARTIAL_DATA - buffered_bytes;
-		}
-
+		writable_bytes = MIN(next_alignment, ((ap_int<32>) 14));
+		overflow_bytes = 14 - next_alignment;
 		break;
 	    }
+	}
 
+	// Load either 1) the bytes to the next alignment, or 2) full data chunk
+	aligned_chunk(((buffered_bytes + writable_bytes) * 8) - 1, (buffered_bytes * 8)) = in_chunk.buff((next_alignment * 8) - 1, 0);
+
+	// We complete a chunk when the last write (writable_bytes) plus the buffered bytes (buffered bytes) is one full chunk 
+	if (overflow_bytes >= 0) {
+	    local_offset += (buffered_bytes + writable_bytes);
+
+	    dma_w_req.data = aligned_chunk;
+	    dma_w_req_o.write(dma_w_req);
+
+	    next_chunk((overflow_bytes * 8) - 1, 0) = in_chunk.buff(((overflow_bytes + next_alignment) * 8) - 1, (next_alignment * 8));
+	    aligned_chunk = next_chunk;
+
+	    buffered_bytes = overflow_bytes;
+	    next_alignment = ALL_DATA - overflow_bytes;
+	} else {
+	    next_alignment -= writable_bytes;
+	    buffered_bytes += writable_bytes;
 	}
 
 	if (in_chunk.last) {
@@ -165,6 +93,19 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	dma_w_req_o.write(dma_w_req);
 
 	buffered_bytes = 0;
+    } else if (!active && buffered_bytes == 0 && header_in_i.read_nb(header_in)) {
+	active = true;
+
+	// What is the current byte offset within an aligned chunk?
+	next_alignment = ALL_DATA - (header_in.data_offset % ALL_DATA);
+	buffered_bytes = 0;
+	local_offset   = header_in.data_offset;
+
+	aligned_chunk = 0;
+
+	if (header_in.packetmap == PMAP_COMPLETE) {
+	    header_in_o.write(header_in);
+	}
     }
 }
 
