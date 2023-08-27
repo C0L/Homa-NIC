@@ -43,9 +43,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	       hls::stream<srpt_grant_in_t> & grant_srpt_o,
 	       hls::stream<srpt_grant_notif_t> & data_srpt_o) {
 
-    // DMA buffers
-    // Put this in DMA write?
-    // static stack_t<local_id_t, NUM_INGRESS_DMA> ingress_dma_stack(true);
+    // TODO should probably move
+    static stack_t<local_id_t, MAX_RPCS> ingress_dma_stack(true);
 
     static homa_rpc_t rpcs[MAX_RPCS];
 
@@ -66,7 +65,9 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	header_out.saddr           = homa_rpc.saddr;
 	header_out.sport           = homa_rpc.sport;
 	header_out.id              = homa_rpc.id;
-	header_out.egress_buff_id = homa_rpc.egress_buff_id;
+
+	// TODO will need to move
+	header_out.egress_buff_id  = homa_rpc.egress_buff_id;
 
 	header_out.incoming       = homa_rpc.iov_size - header_out.incoming;
 	header_out.data_offset    = homa_rpc.iov_size - header_out.data_offset;
@@ -84,21 +85,21 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
 	switch (header_in.type) {
 	    case DATA: {
-
-		// TODO should be based on first unqiue packet
 		if (header_in.packetmap == PMAP_INIT) {
-		    homa_rpc.saddr           = header_in.saddr;
-		    homa_rpc.daddr           = header_in.daddr;
-		    homa_rpc.dport           = header_in.dport;
-		    homa_rpc.sport           = header_in.sport;
-		    homa_rpc.id              = header_in.id;
+		    homa_rpc.saddr = header_in.saddr;
+		    homa_rpc.daddr = header_in.daddr;
+		    homa_rpc.dport = header_in.dport;
+		    homa_rpc.sport = header_in.sport;
+		    homa_rpc.id    = header_in.id;
+
+		    // TODO will need to move
 		    homa_rpc.ingress_dma_id  = ingress_dma_stack.pop();
 		    header_in.ingress_dma_id = homa_rpc.ingress_dma_id;
-		    std::cerr << "NEW DMA ID\n";
 		} else {
-		    header_in.id             = homa_rpc.id;
+		    header_in.id = homa_rpc.id;
+
+		    // TODO will need to move
 		    header_in.ingress_dma_id = homa_rpc.ingress_dma_id;
-		    std::cerr << "READ DMA ID \n";
 		}
 
 		if (header_in.message_length > header_in.incoming) { 
@@ -113,7 +114,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 		    grant_srpt_o.write(grant_in); 
 		} 
 
-		// Instruct the data buffer where to write this messages' data
+		// Instruct the data buffer where to write this message's data
 		header_in_dbuff_o.write(header_in); 
 
 		break;
@@ -145,7 +146,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	srpt_sendmsg_t srpt_data_in;
 	srpt_data_in(SRPT_SENDMSG_RPC_ID)   = onboard_send.local_id;
 	srpt_data_in(SRPT_SENDMSG_MSG_LEN)  = onboard_send.iov_size;
-	srpt_data_in(SRPT_SENDMSG_GRANTED)   = (onboard_send.iov_size) - ((RTT_BYTES > onboard_send.iov_size) ? onboard_send.iov_size : RTT_BYTES);
+	srpt_data_in(SRPT_SENDMSG_GRANTED)  = (onboard_send.iov_size) - ((RTT_BYTES > onboard_send.iov_size) ? onboard_send.iov_size : RTT_BYTES);
 
 	onboard_send_o.write(srpt_data_in);
     } 
@@ -158,54 +159,32 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
  * RPCs share a peer, which is particularly useful for the SRPT grant. This
  * core manages the unique local RPC IDs (indexes into the RPC state) and
  * the unique local peer IDs.
- *
  * @header_in_i - Input for incoming headers to be looked up
  * @header_in_o - Output for incoming headers with discovered ID
  * @sendmsg_i   - Input for sendmsg request to create entries 
  * @sendmsg_o   - Output for sendmsgs to the next core
  */
-void rpc_map(hls::stream<header_t> & header_in_i,
-	     hls::stream<header_t> & header_in_o,
-	     hls::stream<onboard_send_t> & onboard_send_i,
-	     hls::stream<onboard_send_t> & onboard_send_o) {
+void id_map(hls::stream<header_t> & header_in_i,
+	    hls::stream<header_t> & header_in_o) {
 
-    // Unique local RPC IDs
-    static stack_t<local_id_t, MAX_RPCS/2> recv_ids(true);
+#pragma HLS pipeline II=1
 
+    // Unique local RPC ID assigned when this core is the server
+    static stack_t<local_id_t, MAX_CLIENT_IDS> server_ids(true);
     // Unique local Peer IDs
-    static stack_t<peer_id_t, MAX_PEERS> peer_stack(true);
- 
-    // hash(dest addr) -> peer ID
-    static hashmap_t<peer_hashpack_t, peer_id_t, PEER_BUCKETS, PEER_BUCKET_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE> peer_hashmap;
+    static stack_t<peer_id_t, MAX_PEERS> peer_ids(true);
 
     // hash(dest addr, sender ID, dest port) -> rpc ID
     static hashmap_t<rpc_hashpack_t, local_id_t, RPC_BUCKETS, RPC_BUCKET_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE> rpc_hashmap;
-
-#pragma HLS pipeline II=2
+    // hash(dest addr) -> peer ID
+    static hashmap_t<peer_hashpack_t, peer_id_t, PEER_BUCKETS, PEER_BUCKET_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE> peer_hashmap;
 
     onboard_send_t onboard_send;
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {
-	/* Check if we are the server for this RPC. If we are, the RPC ID is
-	 * not in a local form and we need to map it to a local ID.
-	 *
-	 * If we are the client, the locally meaningful ID can be derived
-	 * directly from the RPC ID in the header
-	 */
+	/* Perform the RPC ID lookup if we are the server */
 	if (!IS_CLIENT(header_in.id)) {
-	    // Check if this peer is already registered
-	    peer_hashpack_t peer_query = {header_in.saddr};
-	    header_in.peer_id          = peer_hashmap.search(peer_query);
-
-	    // If the peer is not registered, generate new ID and register it
-	    if (header_in.peer_id == 0) {
-		header_in.peer_id = PEER_ID_FROM_INDEX(peer_stack.pop());
-
-		entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, header_in.peer_id};
-		peer_hashmap.insert(peer_entry);
-	    }
-
 	    // Check if this RPC is already registered
 	    rpc_hashpack_t rpc_query = {header_in.saddr, header_in.id, header_in.sport, 0};
 
@@ -213,7 +192,7 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 
 	    // If the rpc is not registered, generate a new RPC ID and register it 
 	    if (header_in.local_id == 0) {
-		header_in.local_id = RECV_RPC_ID_FROM_INDEX(recv_ids.pop());
+		header_in.local_id = RECV_RPC_ID_FROM_INDEX(server_ids.pop());
 		entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
 		rpc_hashmap.insert(rpc_entry);
 	    }
@@ -222,21 +201,18 @@ void rpc_map(hls::stream<header_t> & header_in_i,
 	    header_in.local_id = header_in.id;
 	}
 
-	header_in_o.write(header_in);
-    } else if (onboard_send_i.read_nb(onboard_send)) {
-	// Check if this peer is already registered
-	peer_hashpack_t peer_query = {onboard_send.daddr};
-
-	onboard_send.peer_id = peer_hashmap.search(peer_query);
-
+	/* Perform the peer ID lookup regardless */
+	peer_hashpack_t peer_query = {header_in.saddr};
+	header_in.peer_id          = peer_hashmap.search(peer_query);
+	
 	// If the peer is not registered, generate new ID and register it
-	if (onboard_send.peer_id == 0) {
-	    onboard_send.peer_id = PEER_ID_FROM_INDEX(peer_stack.pop());
-
-	    entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, onboard_send.peer_id};
+	if (header_in.peer_id == 0) {
+	    header_in.peer_id = PEER_ID_FROM_INDEX(peer_ids.pop());
+	    
+	    entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, header_in.peer_id};
 	    peer_hashmap.insert(peer_entry);
 	}
 
-	onboard_send_o.write(onboard_send);
+	header_in_o.write(header_in);
     }
 }

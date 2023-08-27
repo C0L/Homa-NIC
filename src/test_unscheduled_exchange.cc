@@ -65,11 +65,40 @@ int main() {
 
 #ifdef CSIM
     // Generate the test vector
+    // while (recvmsg_o.empty() || sendmsg_o.empty()) {
+    // while (recvmsg_o.empty() || sendmsg_o.empty() || ((char *) maxi_out)[2772] == 0) {
     while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, 2772) != 0) {
 	// TODO might be good to stall in between so that all the possible actions to take are outputed in trace
-	homa(0, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	uint32_t tokens[6];
+
+    	homa(0, 0, 0, 0, 0, 0, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
 	if (!link_egress_o.empty()) link_ingress_i.write(link_egress_o.read());
     }
+
+
+    char * t0 = (char *) &(maxi_in);
+    char * t1 = (char *) &(maxi_out);
+    
+       // std::cerr << "DATA: " << test << std::endl;
+       std::cerr << "DATA: ";
+       for (int i = 0; i < 2772; ++i) {
+	   std::cerr << t0[i]; 
+       }
+
+       std::cerr << std::endl;
+       std::cerr << std::endl;
+       std::cerr << std::endl;
+       std::cerr << std::endl;
+       std::cerr << std::endl;
+       std::cerr << std::endl;
+       // std::cerr << "DATA: " << test << std::endl;
+       std::cerr << "DATA: ";
+       for (int i = 0; i < 2772; ++i) {
+	   std::cerr << t1[i]; 
+       }
+
+       std::cerr << std::endl;
+
 
     recvmsg_o.read();
     sendmsg_o.read();
@@ -83,7 +112,15 @@ int main() {
 
     while (trace_file >> token) {
     	std::cerr << token << std::endl;
-    	homa(token, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
+	//uint32_t tokens[6];
+	//tokens[0] = token;
+	//tokens[1] = token;
+	//tokens[2] = token;
+	//tokens[3] = token;
+	//tokens[4] = token;
+	//tokens[5] = token;
+	
+    	homa(token, token, token, token, token, token, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
     	if (!link_egress_o.empty()) link_ingress_i.write(link_egress_o.read());
     }
 
@@ -91,7 +128,7 @@ int main() {
     sendmsg_o.read();
 #endif
 
-    std::cerr << string((char*) maxi_out) << std::endl;
+    // std::cerr << string((char*) maxi_out) << std::endl;
 
     // return 0;
     return memcmp(maxi_in, maxi_out, 2772);

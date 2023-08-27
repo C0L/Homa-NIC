@@ -8,6 +8,9 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
+//#define COSIM
+//#define STEPPED
+
 /**
  * integral_t - The homa core operates in 64B chunks. Data in the data
  * buffer is stored in 64B entries. Chunks are sent to the link 64B at
@@ -142,6 +145,8 @@ struct peer_hashpack_t {
 /* RPC Store Configuration */
 #define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
 #define MAX_RPCS            16384 // TODO Maximum number of RPCs
+#define MAX_SERVER_IDS      16384/2 // TODO Maximum number of RPCs
+#define MAX_CLIENT_IDS      16384/2 // TODO Maximum number of RPCs
 #define RPC_BUCKETS         16384 // Size of cuckoo hash sub-tables
 #define RPC_BUCKET_SIZE     8     // Size of cuckoo hash sub-tables
 #define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
@@ -400,9 +405,9 @@ struct dbuff_in_t {
  * be placed.
  */
 struct in_chunk_t {
-    integral_t  buff;   // Data to be written to DMA
-    ap_uint<32> offset; // Byte offset of this chunk in msg
-    ap_uint<1>  last;   // 1 to notify srpt_data_queue
+    integral_t   buff;   // Data to be written to DMA
+    data_bytes_e type;   // Partial Chunk, Full Chunk, Empty Chunk
+    ap_uint<1>   last;   // Indicate last packet in transaction
 };
 
 /**
@@ -414,7 +419,7 @@ struct in_chunk_t {
  */
 struct out_chunk_t {
     homa_packet_type_t type;   // What is the type of this outgoing packet
-    dbuff_id_t egress_buff_id;     // Which data buffer is the message stored in
+    dbuff_id_t egress_buff_id; // Which data buffer is the message stored in
     local_id_t local_id;     // What is the RPC ID associated with this message
     ap_uint<32> offset;      // What byte offset is this output chunk for
     ap_uint<32> length;      // What is the total length of this message
@@ -575,6 +580,7 @@ struct header_t {
 struct dma_w_req_t {
     integral_t data;
     ap_uint<32> offset;
+    ap_uint<32> strobe;
 };
 
 /**
@@ -645,7 +651,7 @@ struct srpt_grant_t {
 #define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd 
 
 #ifdef STEPPED
-void homa(uint32_t action,
+void homa(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
           hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,

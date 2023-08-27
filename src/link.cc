@@ -150,7 +150,6 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    // Data Segment
 		    natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header.data_offset;    // Offset
 		    natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = header.segment_length; // Segment Length
-		    std::cerr << "SENT CHUNK OFFSET " << header.data_offset << std::endl;
 
 		    // Ack header
 		    natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;  // Client ID (8 bytes) TODO
@@ -239,31 +238,9 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 	}
 
 	network_order(natural_chunk, out_chunk.buff);
-	std::cerr << "WROTE CHUNK OUT " << processed_bytes << std::endl;
 	chunk_out_o.write(out_chunk);
     }
 }
-
-//void pkt_chunk_egress_wrapper(uint32_t action,
-//		      hls::stream<out_chunk_t> & out_chunk_i,
-//		      hls::stream<raw_stream_t> & link_egress) {
-//
-//#ifdef CSIM 
-//    if (!out_chunk_i.empty()) {
-//	ofstream trace_file;
-//	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
-//	trace_file << 3 << std::endl;
-//	trace_file.close();
-//	pkt_chunk_egress(out_chunk_i, link_egress);
-//    }
-//#endif
-//#ifdef COSIM
-//    if (action == 3) {
-//	while (out_chunk_i.empty());
-//	pkt_chunk_egress(out_chunk_i, link_egress);
-//    }
-//#endif
-//}
 
 /**
  * pkt_chunk_egress() - Take care of final configuration before packet
@@ -293,7 +270,17 @@ void pkt_chunk_egress(uint32_t active, hls::stream<out_chunk_t> & out_chunk_i,
 #endif
 
 	raw_stream_t raw_stream;
-	// network_order(chunk.buff, raw_stream.data);
+
+	char * test = (char *) &(chunk.buff);
+
+	// std::cerr << "DMA OFFSET: " << dma_req.offset << std::endl;
+	// std::cerr << "DATA OUT: ";
+	// for (int i = 0; i < 64; ++i) {
+	//     std::cerr << test[i]; 
+	// }
+
+	// std::cerr << std::endl;
+
 	raw_stream.data = chunk.buff;
 	raw_stream.last = chunk.last;
 	link_egress.write(raw_stream);
@@ -339,7 +326,6 @@ void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress
     if (active == 2) {
 	raw_stream_t raw_stream = link_ingress.read();
 #endif
-	std::cerr << "READ CHUNK IN " << processed_bytes << std::endl;
 	
 	in_chunk_t data_block;
 	ap_uint<512> natural_chunk;
@@ -377,12 +363,11 @@ void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress
 			header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
 			header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
 
-			std::cerr << "READ DATA OFFSET " << header_in.data_offset << std::endl;
-
 			// TODO parse acks
 
 			data_block.buff(PARTIAL_DATA*8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
-			data_block.offset = 0;
+			// data_block.offset = 0;
+			data_block.type   = PARTIAL_DATA;
 			data_block.last   = raw_stream.last;
 			chunk_in_o.write(data_block);
 
@@ -390,14 +375,13 @@ void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress
 		    }
 		}
 
-		std::cerr << "header in write\n";
 		header_in_o.write(header_in);
-		std::cerr << "complete\n";
 	    } else {
 		// TODO need to test TKEEP and change raw_stream def
 
-		data_block.offset = processed_bytes - DATA_PKT_HEADER;
 		data_block.buff   = raw_stream.data;
+		// data_block.offset = processed_bytes - DATA_PKT_HEADER;
+		data_block.type   = ALL_DATA;
 		data_block.last   = raw_stream.last;
 
 		chunk_in_o.write(data_block);
@@ -406,7 +390,6 @@ void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress
 	    processed_bytes += 64;
 
 	    if (raw_stream.last) {
-		std::cerr << "LB RECV\n";
 		processed_bytes = 0;
 	    }
     }
