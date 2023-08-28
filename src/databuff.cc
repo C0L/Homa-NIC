@@ -18,9 +18,9 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
     static header_t     header_in;      // Header that corresponds to in_chunk_t
     static ap_uint<512> aligned_chunk;  // Data block to write to DMA
-    static ap_uint<32>  buffered_bytes = 0; // 
-    static ap_int<32>   next_alignment; // How many bytes from next 64 bytes alignment
     static ap_uint<32>  local_offset;   //
+    static ap_int<32> buffered_bytes = 0; // 
+    static ap_int<32> next_alignment; // How many bytes from next 64 bytes alignment
 
     static bool active = false;
 
@@ -43,19 +43,8 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
 	ap_uint<512> next_chunk;
 
-	switch (in_chunk.type) {
-	    case ALL_DATA: {
-		writable_bytes = MIN(next_alignment, ((ap_int<32>) 64));
-		overflow_bytes = 64 - next_alignment;
-		break;
-	    }
-	   
-	    case PARTIAL_DATA: {
-		writable_bytes = MIN(next_alignment, ((ap_int<32>) 14));
-		overflow_bytes = 14 - next_alignment;
-		break;
-	    }
-	}
+	writable_bytes = MIN(next_alignment, ((ap_int<32>) in_chunk.type));
+	overflow_bytes = in_chunk.type - next_alignment;
 
 	// Load either 1) the bytes to the next alignment, or 2) full data chunk
 	aligned_chunk(((buffered_bytes + writable_bytes) * 8) - 1, (buffered_bytes * 8)) = in_chunk.buff((next_alignment * 8) - 1, 0);
@@ -75,8 +64,8 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	    buffered_bytes = overflow_bytes;
 	    next_alignment = ALL_DATA - overflow_bytes;
 	} else {
-	    next_alignment -= writable_bytes;
-	    buffered_bytes += writable_bytes;
+	    next_alignment -= in_chunk.type;
+	    buffered_bytes += in_chunk.type;
 	}
 
 	if (in_chunk.last) {

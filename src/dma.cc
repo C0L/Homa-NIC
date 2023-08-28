@@ -13,13 +13,20 @@ using namespace std;
  * @maxi - The MAXI interface connected to DMA space
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
+#if defined(CSIM) || defined(COSIM)
 void dma_read(uint32_t action,
 	      ap_uint<512> * maxi,
 	      hls::stream<srpt_sendq_t> & dma_req_i,
 	      hls::stream<dbuff_in_t> & dbuff_in_o) {
-#pragma HLS pipeline II=1
+#else 
+void dma_read(ap_uint<512> * maxi,
+	      hls::stream<srpt_sendq_t> & dma_req_i,
+	      hls::stream<dbuff_in_t> & dbuff_in_o) {
+#endif 
 
     srpt_sendq_t dma_req;
+
+#pragma HLS pipeline II=1
 
 #ifdef CSIM
     if (dma_req_i.read_nb(dma_req)) {
@@ -34,6 +41,9 @@ void dma_read(uint32_t action,
 	dma_req_i.read(dma_req);
 #endif
 
+#ifdef SYNTH
+    if (dma_req_i.read_nb(dma_req)) {
+#endif
 	// TODO revise this indexing? Why need byte indexing when already aligned??
 
 	ap_uint<8> * byte_offset = (ap_uint<8> *) maxi;
@@ -57,9 +67,14 @@ void dma_read(uint32_t action,
  * @maxi - The MAXI interface connected to DMA space
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
+#if defined(CSIM) || defined(COSIM)
 void dma_write(uint32_t action, ap_uint<512> * maxi,
 	       hls::stream<dma_w_req_t> & dma_w_req_i) {
-
+#else
+void dma_write(ap_uint<512> * maxi,
+	       hls::stream<dma_w_req_t> & dma_w_req_i) {
+#endif   
+    
 #pragma HLS pipeline II=1
 
    dma_w_req_t dma_req;
@@ -76,6 +91,10 @@ void dma_write(uint32_t action, ap_uint<512> * maxi,
     if (action == 5) {
        dma_w_req_i.read(dma_req);
 #endif
+
+#ifdef SYNTH 
+   if (dma_w_req_i.read_nb(dma_req)) {
+#endif
        ap_uint<8> * offset = (ap_uint<8> *) maxi;
        offset += dma_req.offset;
 
@@ -83,38 +102,38 @@ void dma_write(uint32_t action, ap_uint<512> * maxi,
 
        // This is ugly but I cannot find a better way to configure WSTRB in AXI4
        switch (dma_req.strobe) {
-	   AXI_WRITE(2)
-	   AXI_WRITE(4)
-	   AXI_WRITE(6)
-	   AXI_WRITE(8)
-	   AXI_WRITE(10)
-	   AXI_WRITE(12)
-	   AXI_WRITE(14)
-	   AXI_WRITE(16)
-	   AXI_WRITE(18)
-	   AXI_WRITE(20)
-	   AXI_WRITE(22)
-	   AXI_WRITE(24)
-	   AXI_WRITE(26)
-	   AXI_WRITE(28)
-	   AXI_WRITE(30)
-	   AXI_WRITE(32)
-	   AXI_WRITE(34)
-	   AXI_WRITE(36)
-	   AXI_WRITE(38)
-	   AXI_WRITE(40)
-	   AXI_WRITE(42)
-	   AXI_WRITE(44)
-	   AXI_WRITE(46)
-	   AXI_WRITE(48)
-	   AXI_WRITE(50)
-	   AXI_WRITE(52)
-	   AXI_WRITE(54)
-	   AXI_WRITE(56)
-	   AXI_WRITE(58)
-	   AXI_WRITE(60)
-	   AXI_WRITE(62)
-	   AXI_WRITE(64)
+	   case 2: { *(((ap_uint<16*1> *) offset)) = dma_req.data; break; }
+	   case 4: { *(((ap_uint<16*2> *) offset)) = dma_req.data; break; }
+	   case 6: { *(((ap_uint<16*3> *) offset)) = dma_req.data; break; }
+	   case 8: { *(((ap_uint<16*4> *) offset)) = dma_req.data; break; }
+	   case 10: { *(((ap_uint<16*5> *) offset)) = dma_req.data; break; }
+	   case 12: { *(((ap_uint<16*6> *) offset)) = dma_req.data; break; }
+	   case 14: { *(((ap_uint<16*7> *) offset)) = dma_req.data; break; }
+	   case 16: { *(((ap_uint<16*8> *) offset)) = dma_req.data; break; }
+	   case 18: { *(((ap_uint<16*9> *) offset)) = dma_req.data; break; }
+	   case 20: { *(((ap_uint<16*10> *) offset)) = dma_req.data; break; }
+	   case 22: { *(((ap_uint<16*11> *) offset)) = dma_req.data; break; }
+	   case 24: { *(((ap_uint<16*12> *) offset)) = dma_req.data; break; }
+	   case 26: { *(((ap_uint<16*13> *) offset)) = dma_req.data; break; }
+	   case 28: { *(((ap_uint<16*14> *) offset)) = dma_req.data; break; }
+	   case 30: { *(((ap_uint<16*15> *) offset)) = dma_req.data; break; }
+	   case 32: { *(((ap_uint<16*16> *) offset)) = dma_req.data; break; }
+	   case 34: { *(((ap_uint<16*17> *) offset)) = dma_req.data; break; }
+	   case 36: { *(((ap_uint<16*18> *) offset)) = dma_req.data; break; }
+	   case 38: { *(((ap_uint<16*19> *) offset)) = dma_req.data; break; }
+	   case 40: { *(((ap_uint<16*20> *) offset)) = dma_req.data; break; }
+	   case 42: { *(((ap_uint<16*21> *) offset)) = dma_req.data; break; }
+	   case 44: { *(((ap_uint<16*22> *) offset)) = dma_req.data; break; }
+	   case 46: { *(((ap_uint<16*23> *) offset)) = dma_req.data; break; }
+	   case 48: { *(((ap_uint<16*24> *) offset)) = dma_req.data; break; }
+	   case 50: { *(((ap_uint<16*25> *) offset)) = dma_req.data; break; }
+	   case 52: { *(((ap_uint<16*26> *) offset)) = dma_req.data; break; }
+	   case 54: { *(((ap_uint<16*27> *) offset)) = dma_req.data; break; }
+	   case 56: { *(((ap_uint<16*28> *) offset)) = dma_req.data; break; }
+	   case 58: { *(((ap_uint<16*29> *) offset)) = dma_req.data; break; }
+	   case 60: { *(((ap_uint<16*30> *) offset)) = dma_req.data; break; }
+	   case 62: { *(((ap_uint<16*31> *) offset)) = dma_req.data; break; }
+	   case 64: { *(((ap_uint<16*32> *) offset)) = dma_req.data; break; }
        }
    }
 }

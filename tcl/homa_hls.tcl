@@ -23,20 +23,17 @@ config_compile -pipeline_style flp
 
 if {$job_type == 0} {
     # Csim only
-    add_files $c_src -cflags "-DSTEPPED -DCSIM" 
-    add_files -tb $test_bench -cflags "-DSTEPPED -DCSIM"
+    add_files $c_src -cflags "-DCSIM" 
+    add_files -tb $test_bench -cflags "-DCSIM"
     csim_design
 } elseif {$job_type == 1} {
-    add_files $c_src 
-    add_files -tb $test_bench 
+    add_files $c_src -cflags "-DSYNTH" 
     add_files -blackbox $json_src 
-
     csynth_design
     export_design -output ip/ -format ip_catalog
 } elseif {$job_type == 2} {
-    # config_interface -m_axi_alignment_byte_size 1
-    add_files $c_src -cflags "-DSTEPPED -DCOSIM"
-    add_files -tb $test_bench -cflags "-DSTEPPED -DCOSIM"
+    add_files $c_src -cflags "-DCOSIM"
+    add_files -tb $test_bench -cflags "-DCOSIM"
     add_files -blackbox $json_src
     csynth_design
     cosim_design 

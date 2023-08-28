@@ -48,20 +48,15 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<raw_stream_t> & link_egress) {
 #endif
 
-    // TODO Need AXI write stobe
-
-#ifdef STEPPED
+#if defined(COSIM) || defined(CSIM)
 #pragma HLS interface mode=ap_ctrl_hs port=return
-// #pragma HLS interface s_axilite port=action 
 #pragma HLS interface ap_hs port=a0 depth=256
 #pragma HLS interface ap_hs port=a1 depth=256
 #pragma HLS interface ap_hs port=a2 depth=256
 #pragma HLS interface ap_hs port=a3 depth=256
 #pragma HLS interface ap_hs port=a4 depth=256
 #pragma HLS interface ap_hs port=a5 depth=256
-// #pragma HLS interface ap_none port=a0
-// #pragma HLS interface ap_none port=a[0] port=a[1] port=a[2] port=a[3] port=a[4] port=a[5]
-#else
+#else 
 #pragma HLS interface mode=ap_ctrl_none port=return
 #endif
 
@@ -80,9 +75,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 #pragma HLS interface axis port=link_ingress  depth=256
 #pragma HLS interface axis port=link_egress   depth=256
 
-    // TODO increase num outstanding??
-#pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=1 depth=256 
-#pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=1 depth=256
+#pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=70 depth=256 
+#pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=70 depth=256
 
 #pragma HLS dataflow disable_start_propagation 
 
@@ -113,7 +107,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     /* in chunk streams */
     /* The depth of this stream is configured based on how many cycles it takes from a new header to be processed and returned to the msg spool */
-    hls_thread_local hls::stream<in_chunk_t, 16> in_chunk__chunk_ingress__dbuff_ingress ("in_chunk__chunk_ingress__dbuff_ingress");
+    hls_thread_local hls::stream<in_chunk_t, 8> in_chunk__chunk_ingress__dbuff_ingress ("in_chunk__chunk_ingress__dbuff_ingress");
 
     /* grant SRPT streams */
     hls_thread_local hls::stream<srpt_grant_in_t, STREAM_DEPTH> grant__rpc_state__srpt_grant   ("grant__rpc_state__srpt_grant");
@@ -133,7 +127,19 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      * that consume their output streams.
      */
 
-#ifndef STEPPED
+#if defined(CSIM) || defined(COSIM)
+    pkt_chunk_ingress(a0,
+	link_ingress,                           // link_ingress
+	header_in__chunk_ingress__rpc_map,      // header_in_o 
+	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
+	);
+
+    homa_sendmsg(a1,
+	msghdr_send_i,                   // sendmsg_i
+	msghdr_send_o,                   // sendmsg_o
+	sendmsg__homa_sendmsg__rpc_state // onboard_sendmsg_o
+	);
+#else
     hls_thread_local hls::task ingress_task(
 	pkt_chunk_ingress,
 	link_ingress,                           // link_ingress
@@ -148,18 +154,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	sendmsg__homa_sendmsg__rpc_state   // onboard_sendmsg_o
 	);
 #endif
-
-    pkt_chunk_ingress(a0,
-	link_ingress,                           // link_ingress
-	header_in__chunk_ingress__rpc_map,      // header_in_o 
-	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
-	);
-
-    homa_sendmsg(a1,
-	msghdr_send_i,                   // sendmsg_i
-	msghdr_send_o,                   // sendmsg_o
-	sendmsg__homa_sendmsg__rpc_state // onboard_sendmsg_o
-	);
 
     hls_thread_local hls::task id_map_task(
 	id_map,
@@ -194,20 +188,20 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	dma_req__srpt_data__dma_read           // 
 	);
 
-#ifndef STEPPED
+
+#if defined(CSIM) || defined(COSIM)
+    dma_read(a2,
+	maxi_in,
+	dma_req__srpt_data__dma_read,
+	dbuff_in__dma_read__msg_cache
+	);
+#else
     dma_read(
 	maxi_in,
 	dma_req__srpt_data__dma_read,
 	dbuff_in__dma_read__msg_cache
 	);
 #endif
-
-    // TODO need else if here
-    dma_read(a2,
-	maxi_in,
-	dma_req__srpt_data__dma_read,
-	dbuff_in__dma_read__msg_cache
-	);
 
     hls_thread_local hls::task srpt_grant_pkts_task(
 	srpt_grant_pkts,
@@ -245,7 +239,23 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	);
 
 
-#ifndef STEPPED
+#if defined(CSIM) || defined(COSIM)
+    pkt_chunk_egress(a3,
+	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
+	link_egress                          // link_egress
+	);
+
+    dma_write(a4,
+	maxi_out,
+	dma_req__dbuff_ingress__dma_write
+	);
+
+    homa_recvmsg(a5,
+	msghdr_recv_i,                  // recvmsg_i
+	msghdr_recv_o,                  // recvmsg_o
+	header_in__dbuff_ingress__homa_recvmsg
+	);
+#else
     hls_thread_local hls::task pkt_chunk_egress_task(
 	pkt_chunk_egress,
 	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
@@ -264,21 +274,4 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	header_in__dbuff_ingress__homa_recvmsg 
 	);
 #endif
-
-    // TODO need else if here
-    pkt_chunk_egress(a3,
-	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
-	link_egress                          // link_egress
-	);
-
-    dma_write(a4,
-	maxi_out,
-	dma_req__dbuff_ingress__dma_write
-	);
-
-    homa_recvmsg(a5,
-	msghdr_recv_i,                  // recvmsg_i
-	msghdr_recv_o,                  // recvmsg_o
-	header_in__dbuff_ingress__homa_recvmsg
-	);
 }

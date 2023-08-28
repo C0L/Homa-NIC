@@ -251,10 +251,14 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
+#if defined(CSIM) || defined(COSIM)
 void pkt_chunk_egress(uint32_t active, hls::stream<out_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
-
-
+#else
+void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
+		      hls::stream<raw_stream_t> & link_egress) {
+#endif
+    
 #ifdef CSIM
     if (!out_chunk_i.empty()) {
 	out_chunk_t chunk = out_chunk_i.read();
@@ -269,17 +273,12 @@ void pkt_chunk_egress(uint32_t active, hls::stream<out_chunk_t> & out_chunk_i,
 	out_chunk_t chunk = out_chunk_i.read();
 #endif
 
+#ifdef SYNTH
+    if (!out_chunk_i.empty()) {
+	out_chunk_t chunk = out_chunk_i.read();
+#endif
+
 	raw_stream_t raw_stream;
-
-	char * test = (char *) &(chunk.buff);
-
-	// std::cerr << "DMA OFFSET: " << dma_req.offset << std::endl;
-	// std::cerr << "DATA OUT: ";
-	// for (int i = 0; i < 64; ++i) {
-	//     std::cerr << test[i]; 
-	// }
-
-	// std::cerr << std::endl;
 
 	raw_stream.data = chunk.buff;
 	raw_stream.last = chunk.last;
@@ -301,17 +300,20 @@ void pkt_chunk_egress(uint32_t active, hls::stream<out_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
+#if defined(CSIM) || defined(COSIM)
 void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
 		       hls::stream<in_chunk_t> & chunk_in_o) {
+#else
+void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
+		       hls::stream<header_t> & header_in_o,
+		       hls::stream<in_chunk_t> & chunk_in_o) {
+#endif
 
 #pragma HLS pipeline II=1 style=flp
 
     static header_t header_in;
     static ap_uint<32> processed_bytes = 0;
-
-	//if (!chunk_in_o.full() && !header_in_o.full()) {
-
 
 #ifdef CSIM
     if (!link_ingress.empty()) {
@@ -324,6 +326,11 @@ void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress
 
 #ifdef COSIM
     if (active == 2) {
+	raw_stream_t raw_stream = link_ingress.read();
+#endif
+
+#ifdef SYNTH
+  if (!link_ingress.empty()) {
 	raw_stream_t raw_stream = link_ingress.read();
 #endif
 	

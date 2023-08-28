@@ -8,9 +8,6 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
-//#define COSIM
-//#define STEPPED
-
 /**
  * integral_t - The homa core operates in 64B chunks. Data in the data
  * buffer is stored in 64B entries. Chunks are sent to the link 64B at
@@ -31,7 +28,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 /* For cosimulation purposes it is easier to allow a full packet to be
  * buffered in the internal queues.
  */ 
-#ifdef STEPPED
+#ifdef COSIM
 #define STREAM_DEPTH 24
 #else
 #define STREAM_DEPTH 2
@@ -650,7 +647,7 @@ struct srpt_grant_t {
  */
 #define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd 
 
-#ifdef STEPPED
+#if defined(CSIM) || defined(COSIM)
 void homa(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
           hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
