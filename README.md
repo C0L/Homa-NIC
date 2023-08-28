@@ -11,7 +11,7 @@ wget "https://www.xilinx.com/bin/public/openDownload?filename=au250_board_files_
 unzip *au250_board_files*.zip -d $XILINX_VIVADO/data/xhub/boards/XilinxBoardStore/boards/Xilinx/
 ```
 ## Repository Setup
-The XDC cannot be packaged in this repository but can downloaded from Xilinx. Assuming this repositry is located in `$HOMA_NIC`:
+The XDC cannot be packaged in this repository but can downloaded from Xilinx. Assuming this repository is located in `$HOMA_NIC`:
 ```
 wget "https://www.xilinx.com/bin/public/openDownload?filename=au250_board_files_20200616.zip"
 unzip *alveo-u250-xdc*.zip -d $HOMA_NIC/xdc
