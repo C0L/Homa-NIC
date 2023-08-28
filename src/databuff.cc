@@ -30,7 +30,7 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
     in_chunk_t in_chunk;
 
-    if (active && !chunk_in_i.read_nb(in_chunk)) {
+    if (active && chunk_in_i.read_nb(in_chunk)) {
 	dma_w_req_t dma_w_req;
 
 	// TODO naive buffer management
@@ -65,6 +65,8 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	    local_offset += (buffered_bytes + writable_bytes);
 
 	    dma_w_req.data = aligned_chunk;
+
+	    dma_w_req.strobe = 64;
 	    dma_w_req_o.write(dma_w_req);
 
 	    next_chunk((overflow_bytes * 8) - 1, 0) = in_chunk.buff(((overflow_bytes + next_alignment) * 8) - 1, (next_alignment * 8));
@@ -81,13 +83,15 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	    active = false;
 	}
     } else if (buffered_bytes != 0 && !active) {
-	
+	// TODO this is where the size of the write is important
+
 	dma_w_req_t dma_w_req;
 	
 	// TODO naive buffer management
 	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
 	
 	dma_w_req.offset = local_offset + dma_offset;
+	dma_w_req.strobe = buffered_bytes;
 	dma_w_req.data   = aligned_chunk;
 	
 	dma_w_req_o.write(dma_w_req);
@@ -169,8 +173,6 @@ void msg_cache_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
 	    ap_uint<1024> double_buff = (dbuff[out_chunk.egress_buff_id][chunk_offset+1], dbuff[out_chunk.egress_buff_id][chunk_offset]);
 
 #pragma HLS array_partition variable=double_buff complete
-
-	    // TODO would be nice to reduce what is needed here
 
 	    switch(out_chunk.data_bytes) {
 		case ALL_DATA: {
