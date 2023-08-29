@@ -176,7 +176,7 @@ void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
 		grant_out(SRPT_GRANT_OUT_GRANT) = avail_bytes;
 		grant_out(SRPT_GRANT_OUT_RPC_ID) = next_grant.rpc_id;
 		grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
-
+		std::cerr << "WROTE GRANT OUT\n";
 		grant_out_o.write(grant_out);
 
 	    } else {

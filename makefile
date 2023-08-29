@@ -77,7 +77,7 @@ synth:
 
 CSIM_FLAGS = $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)"
 
-csim_single_packet_msg:
+single_packet_msg_16384_5000_100.trace:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(CSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
@@ -86,7 +86,7 @@ csim_single_packet_msg:
 		"RTT_BYTES=5000" \
 		"MSG_SIZE=100"
 
-csim_multi_packet_msg:
+multi_packet_msg_16384_5000_100.trace:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(CSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
@@ -94,12 +94,21 @@ csim_multi_packet_msg:
 		"DMA_SIZE=16384" \
 		"RTT_BYTES=5000" \
 		"MSG_SIZE=4000"
+
+csim_single_packet_msg_1_byte_grant_16384_1_1000.trace:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(CSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=csim_single_packet_msg_1_byte_grant_16384_1_1000.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=1" \
+		"MSG_SIZE=1000"
 
 ############# Vitis Cosim ############
 
 COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
 
-cosim_single_packet_msg:
+cosim_single_packet_msg: single_packet_msg_16384_5000_100.trace
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(COSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
@@ -108,7 +117,7 @@ cosim_single_packet_msg:
 		"RTT_BYTES=5000" \
 		"MSG_SIZE=100"
 
-cosim_multi_packet_msg:
+cosim_multi_packet_msg: multi_packet_msg_16384_5000_100.trace
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(COSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
@@ -116,6 +125,15 @@ cosim_multi_packet_msg:
 		"DMA_SIZE=16384" \
 		"RTT_BYTES=5000" \
 		"MSG_SIZE=4000"
+
+cosim_single_packet_msg_1_byte_grant: csim_single_packet_msg_1_byte_grant_16384_1_1000.trace
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(COSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=csim_single_packet_msg_1_byte_grant_16384_1_1000.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=1" \
+		"MSG_SIZE=1000"
 
 ############ Verilog Synthesis ############ 
 
@@ -166,4 +184,5 @@ clean:
 	rm -rf srpt_grant_pkts
 	rm -rf srpt_data_pkts
 	rm *.str
+	rm traces/*
 
