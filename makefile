@@ -115,7 +115,7 @@ cosim_multi_packet_msg:
 		"OFILE=multi_packet_msg_16384_5000_100.trace" \
 		"DMA_SIZE=16384" \
 		"RTT_BYTES=5000" \
-		"MSG_SIZE=100"
+		"MSG_SIZE=4000"
 
 ############ Verilog Synthesis ############ 
 
