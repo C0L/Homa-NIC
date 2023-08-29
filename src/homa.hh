@@ -8,6 +8,9 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
+#define Q(x) #x
+#define QUOTE(x) Q(x)
+
 /**
  * integral_t - The homa core operates in 64B chunks. Data in the data
  * buffer is stored in 64B entries. Chunks are sent to the link 64B at

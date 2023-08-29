@@ -86,7 +86,6 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	switch (header_in.type) {
 	    case DATA: {
 		if ((header_in.packetmap & PMAP_INIT) == PMAP_INIT) {
-		    std::cerr << "PMAP INIT STATE \n";
 		    homa_rpc.saddr = header_in.saddr;
 		    homa_rpc.daddr = header_in.daddr;
 		    homa_rpc.dport = header_in.dport;
@@ -147,7 +146,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	srpt_sendmsg_t srpt_data_in;
 	srpt_data_in(SRPT_SENDMSG_RPC_ID)   = onboard_send.local_id;
 	srpt_data_in(SRPT_SENDMSG_MSG_LEN)  = onboard_send.iov_size;
-	srpt_data_in(SRPT_SENDMSG_GRANTED)  = (onboard_send.iov_size) - ((RTT_BYTES > onboard_send.iov_size) ? onboard_send.iov_size : RTT_BYTES);
+	srpt_data_in(SRPT_SENDMSG_GRANTED)  = onboard_send.iov_size - ((((ap_uint<32>) RTT_BYTES) > onboard_send.iov_size)
+	    ? onboard_send.iov_size : ((ap_uint<32>) RTT_BYTES));
 
 	onboard_send_o.write(srpt_data_in);
     } 

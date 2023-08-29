@@ -38,7 +38,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 #ifdef CSIM
     if (msghdr_recv_i.read_nb(msghdr_recv)) {
 	ofstream trace_file;
-	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 	trace_file << 1 << std::endl;
 	trace_file.close();
 #endif
@@ -52,7 +52,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     if (msghdr_recv_i.read_nb(msghdr_recv)) {
 #endif
 
-	std::cerr << "MSGHDR IN\n";
 	// msghdr_recv_t match;
 	int match_index = -1;
 
@@ -93,7 +92,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 #ifdef CSIM
     if (header_in_i.read_nb(header_in)) {
 	ofstream trace_file;
-	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 	trace_file << 7 << std::endl;
 	trace_file.close();
 #endif
@@ -106,8 +105,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 #ifdef SYNTH
     if (header_in_i.read_nb(header_in)) {
 #endif
-	std::cerr << "HEADER IN \n";
-
 	msghdr_recv_t new_msg;
 
 	new_msg(MSGHDR_SADDR)      = header_in.saddr;
@@ -144,7 +141,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
-	    std::cerr << "MSGHDR RECV OUT\n";
 	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}
@@ -196,7 +192,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 #ifdef CSIM
     if (msghdr_send_i.read_nb(msghdr_send)) {
 	ofstream trace_file;
-	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 	trace_file << 0 << std::endl;
 	trace_file.close();
 #endif

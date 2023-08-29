@@ -34,9 +34,6 @@ void packetmap(hls::stream<header_t> & header_in_i,
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {
-	std::cerr << "HEADER INTO PACKET MAP" << std::endl;
-	std::cerr << RECV_INDEX_FROM_RPC_ID(header_in.local_id) << std::endl;
-	
 	pmap_entry_t packetmap = packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
 
 	// header_in.packetmap = PMAP_BODY;
@@ -57,14 +54,11 @@ void packetmap(hls::stream<header_t> & header_in_i,
 
 	int diff = (header_in.data_offset / HOMA_PAYLOAD_SIZE) - packetmap.head;
 
-	std::cerr << diff << std::endl;
-	 
 	// Is this packet in bounds
 	if (diff < 64) {
 
 	    // Is this a new packet we have not seen before?
 	    if (packetmap.map[63-diff] != 1) {
-		std::cerr << "NEW PACKET\n";
 		packetmap.map[63-diff] = 1;
 
 		int shift = 0;
@@ -76,11 +70,8 @@ void packetmap(hls::stream<header_t> & header_in_i,
 		packetmap.head += shift;
 		packetmap.map <<= shift;
 
-		std::cerr << "PACKETMAP HEAD " << packetmap.head << std::endl;
-
 		// Has the head reached the length?
 		if (packetmap.head - packetmap.length == 0) {
-		    std::cerr << "PMAP COMPLETE\n";
 		    // Notify recv system that the message is fully buffered
 		    header_in.packetmap |= PMAP_COMP;
 		    // Disable this RPC
@@ -88,8 +79,6 @@ void packetmap(hls::stream<header_t> & header_in_i,
 		}
 
 		packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = packetmap;
-
-		std::cerr << "WROTE PACKET IN ";
 
 		header_in_o.write(header_in);
 	    }

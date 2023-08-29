@@ -14,7 +14,7 @@ set test_bench [lindex $argv 4]
 set homa_cfg ""
 
 foreach cfg [lrange $argv 5 end] {
-    set homa_cfg "$homa_cfg -D\"$cfg\""
+    set homa_cfg "$homa_cfg -D$cfg"
 }
 
 puts $homa_cfg
@@ -35,14 +35,14 @@ if {$job_type == 0} {
     add_files -tb $test_bench -cflags "-DCSIM $homa_cfg"
     csim_design
 } elseif {$job_type == 1} {
-    add_files $c_src -cflags "-DSYNTH" $homa_cfg
-    add_files -blackbox $json_src $homa_cfg
+    add_files $c_src -cflags "-DSYNTH $homa_cfg"
+    add_files -blackbox $json_src 
     csynth_design
     export_design -output ip/ -format ip_catalog
 } elseif {$job_type == 2} {
-    add_files $c_src -cflags "-DCOSIM" $homa_cfg
-    add_files -tb $test_bench -cflags "-DCOSIM" "$homa_cfg"
-    add_files -blackbox $json_src $homa_cfg
+    add_files $c_src -cflags "-DCOSIM $homa_cfg"
+    add_files -tb $test_bench -cflags "-DCOSIM $homa_cfg"
+    add_files -blackbox $json_src 
     csynth_design
     cosim_design 
 }

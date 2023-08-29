@@ -61,7 +61,7 @@ int main() {
 
 #ifdef COSIM	
     ifstream trace_file;
-    trace_file.open(snprintf("../../../../traces/single_message_trace_%d_%d_%d", DMA_SIZE, RTT_BYTES, MSG_SIZE);
+    trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), std::ofstream::trunc);
 
     uint32_t token;
 

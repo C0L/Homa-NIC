@@ -78,24 +78,26 @@ synth:
 CSIM_FLAGS = $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)"
 
 csim_single_packet_msg:
-	$(VITIS) tcl/homa_hls.tcl -tclargs $(CSIM_FLAGS) $(C_TB_DIR)/single_message_tester.cc "DMA_SIZE=16384" "RTT_BYTES=(ap_uint<32>)5000" "MSG_SIZE=100"
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(CSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=single_packet_msg_16384_5000_100.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=5000" \
+		"MSG_SIZE=100"
 
-#csim_single_packet_message:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
-#
-#csim_scheduled_exchange:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
-#
-############# Vitis Cosim ############ 
-#
-#cosim_unscheduled_exchange:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) $(SRC_C) $(SRC_JSON) $(C_TB_DIR)/test_unscheduled_exchange.cc "-DRTT_BYTES (ap_uint<32>) 5000"
-#
-#cosim_single_packet_message:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) $(SRC_C) $(SRC_JSON) $(C_TB_DIR)/test_unscheduled_exchange.cc "-DRTT_BYTES (ap_uint<32>) 5000"
-#
-#cosim_scheduled_exchange:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
+############# Vitis Cosim ############
+
+COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
+
+cosim_single_packet_msg:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(COSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=single_packet_msg_16384_5000_100.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=5000" \
+		"MSG_SIZE=100"
 
 ############ Verilog Synthesis ############ 
 

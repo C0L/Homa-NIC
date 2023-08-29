@@ -263,7 +263,7 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
     if (!out_chunk_i.empty()) {
 	out_chunk_t chunk = out_chunk_i.read();
 	ofstream trace_file;
-	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 	trace_file << 3 << std::endl;
 	trace_file.close();
 #endif
@@ -319,7 +319,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
     if (!link_ingress.empty()) {
 	raw_stream_t raw_stream = link_ingress.read();
 	ofstream trace_file;
-	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 	trace_file << 2 << std::endl;
 	trace_file.close();
 #endif

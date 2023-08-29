@@ -31,7 +31,7 @@ void dma_read(ap_uint<512> * maxi,
 #ifdef CSIM
     if (dma_req_i.read_nb(dma_req)) {
 	ofstream trace_file;
-	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 	trace_file << 4 << std::endl;
 	trace_file.close();
 #endif
@@ -82,7 +82,7 @@ void dma_write(ap_uint<512> * maxi,
 #ifdef CSIM
    if (dma_w_req_i.read_nb(dma_req)) {
 	ofstream trace_file;
-	trace_file.open("../../../../traces/unscheduled_trace", ios::app);
+	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 	trace_file << 5 << std::endl;
 	trace_file.close();
 #endif
@@ -97,8 +97,6 @@ void dma_write(ap_uint<512> * maxi,
 #endif
        ap_uint<8> * offset = (ap_uint<8> *) maxi;
        offset += dma_req.offset;
-
-       std::cerr << "DMA WRITE\n";
 
 #define AXI_WRITE(strobe) case strobe: { *(((ap_uint<strobe*8> *) offset)) = dma_req.data; break; }
 
