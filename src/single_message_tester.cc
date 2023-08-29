@@ -61,11 +61,12 @@ int main() {
 
 #ifdef COSIM	
     ifstream trace_file;
-    trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), std::ofstream::trunc);
+    trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)));
 
     uint32_t token;
 
     while (trace_file >> token) {
+	std::cerr << token << std::endl;
     	homa(token, token, token, token, token, token, sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, maxi_in, maxi_out, link_ingress_i, link_egress_o);
     	if (!link_egress_o.empty()) link_ingress_i.write(link_egress_o.read());
     }

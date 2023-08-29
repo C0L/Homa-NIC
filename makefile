@@ -86,6 +86,15 @@ csim_single_packet_msg:
 		"RTT_BYTES=5000" \
 		"MSG_SIZE=100"
 
+csim_multi_packet_msg:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(CSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=multi_packet_msg_16384_5000_100.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=5000" \
+		"MSG_SIZE=4000"
+
 ############# Vitis Cosim ############
 
 COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
@@ -95,6 +104,15 @@ cosim_single_packet_msg:
 		$(COSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
 		"OFILE=single_packet_msg_16384_5000_100.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=5000" \
+		"MSG_SIZE=100"
+
+cosim_multi_packet_msg:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(COSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=multi_packet_msg_16384_5000_100.trace" \
 		"DMA_SIZE=16384" \
 		"RTT_BYTES=5000" \
 		"MSG_SIZE=100"
