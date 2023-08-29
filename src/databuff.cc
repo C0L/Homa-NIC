@@ -89,6 +89,8 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
     } else if (!active && buffered_bytes == 0 && header_in_i.read_nb(header_in)) {
 	active = true;
 
+	std::cerr << "DBUFF SPOOLING\n"; 
+
 	// What is the current byte offset within an aligned chunk?
 	next_alignment = ALL_DATA - (header_in.data_offset % ALL_DATA);
 	buffered_bytes = 0;
@@ -96,7 +98,8 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
 	aligned_chunk = 0;
 
-	if (header_in.packetmap == PMAP_COMPLETE) {
+	if ((header_in.packetmap & PMAP_COMP) = PMAP_COMP) {
+	    std::cerr << "WROTE HEADER TO USER\n";
 	    header_in_o.write(header_in);
 	}
     }

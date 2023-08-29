@@ -85,7 +85,8 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
 	switch (header_in.type) {
 	    case DATA: {
-		if (header_in.packetmap == PMAP_INIT) {
+		if ((header_in.packetmap & PMAP_INIT) == PMAP_INIT) {
+		    std::cerr << "PMAP INIT STATE \n";
 		    homa_rpc.saddr = header_in.saddr;
 		    homa_rpc.daddr = header_in.daddr;
 		    homa_rpc.dport = header_in.dport;

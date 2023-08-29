@@ -144,6 +144,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
+	    std::cerr << "MSGHDR RECV OUT\n";
 	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}

@@ -25,8 +25,8 @@ TCL_DIR   = ./tcl
 SRC_V = \
         $(V_SRC_DIR)/srpt_grant_pkts.v
 
-TB_V = \
-        $(V_SRC_DIR)/srpt_grant_pkts.v
+# TB_V = \
+#         $(V_SRC_DIR)/srpt_grant_pkts.v
 
 
 SRC_JSON = \
@@ -55,6 +55,7 @@ SRC_C =                       \
     $(C_SRC_DIR)/packetmap.cc \
     $(C_SRC_DIR)/dma.cc \
     $(C_SRC_DIR)/dma.hh \
+    $(C_SRC_DIR)/test.hh
 
 PART = xcu250-figd2104-2L-e
 
@@ -72,21 +73,29 @@ homa:
 synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
 
-############ Vitis C Simulation ############ 
+############ Vitis C Simulation ############
 
-csim_unscheduled_exchange:
-	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+CSIM_FLAGS = $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)"
 
-csim_scheduled_exchange:
-	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
+csim_single_packet_msg:
+	$(VITIS) tcl/homa_hls.tcl -tclargs $(CSIM_FLAGS) $(C_TB_DIR)/single_message_tester.cc "DMA_SIZE=16384" "RTT_BYTES=(ap_uint<32>)5000" "MSG_SIZE=100"
 
-############ Vitis Cosim ############ 
-
-cosim_unscheduled_exchange:
-	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
-
-cosim_scheduled_exchange:
-	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
+#csim_single_packet_message:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+#
+#csim_scheduled_exchange:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
+#
+############# Vitis Cosim ############ 
+#
+#cosim_unscheduled_exchange:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) $(SRC_C) $(SRC_JSON) $(C_TB_DIR)/test_unscheduled_exchange.cc "-DRTT_BYTES (ap_uint<32>) 5000"
+#
+#cosim_single_packet_message:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) $(SRC_C) $(SRC_JSON) $(C_TB_DIR)/test_unscheduled_exchange.cc "-DRTT_BYTES (ap_uint<32>) 5000"
+#
+#cosim_scheduled_exchange:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_scheduled_exchange.cc
 
 ############ Verilog Synthesis ############ 
 

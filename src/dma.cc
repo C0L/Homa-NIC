@@ -98,6 +98,8 @@ void dma_write(ap_uint<512> * maxi,
        ap_uint<8> * offset = (ap_uint<8> *) maxi;
        offset += dma_req.offset;
 
+       std::cerr << "DMA WRITE\n";
+
 #define AXI_WRITE(strobe) case strobe: { *(((ap_uint<strobe*8> *) offset)) = dma_req.data; break; }
 
        // This is ugly but I cannot find a better way to configure WSTRB in AXI4

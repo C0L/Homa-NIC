@@ -83,7 +83,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define HOMA_PAYLOAD_SIZE       1386    
 #define HOMA_MAX_MESSAGE_LENGTH 1000000 
 #define OVERCOMMIT_BYTES        480000
-#define RTT_BYTES (ap_uint<32>) 5000
+// #define RTT_BYTES (ap_uint<32>) 5000
 
 /*
  * Homa packet types
@@ -262,11 +262,11 @@ typedef ap_uint<SRPT_GRANT_NOTIF_SIZE> srpt_grant_notif_t;
  */
 #define REXMIT_CUTOFF 200000
 
-#define PMAP_INIT 0
-#define PMAP_BODY 1
-#define PMAP_COMPLETE 2
+#define PMAP_INIT (ap_uint<3>)1
+#define PMAP_BODY (ap_uint<3>)2
+#define PMAP_COMP (ap_uint<3>)4
 
-typedef ap_uint<2> pmap_state_t;
+typedef ap_uint<3> pmap_state_t;
 
 // Index into a packetmap bitmap
 typedef ap_uint<10> packetmap_idx_t; // TODO rename
