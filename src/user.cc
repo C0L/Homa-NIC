@@ -15,16 +15,9 @@ using namespace std;
  * @header_in_i   - The final header received for a completed message. This
  * indicates the message has been fully received and buffering is complete.
  */
-#if defined(CSIM) || defined(COSIM)
-void homa_recvmsg(uint32_t action,
-		  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-		  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-		  hls::stream<header_t> & header_in_i) {
-#else
 void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 		  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 		  hls::stream<header_t> & header_in_i) {
-#endif
 
     static int recv_head = 0;
     static recv_interest_t recv[MAX_RECV_MATCH];
@@ -35,23 +28,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     msghdr_recv_t msghdr_recv;
     header_t header_in;
 
-#ifdef CSIM
     if (msghdr_recv_i.read_nb(msghdr_recv)) {
-	ofstream trace_file;
-	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
-	trace_file << 1 << std::endl;
-	trace_file.close();
-#endif
-
-#ifdef COSIM
-    if (action == 1) {
-	msghdr_recv_i.read(msghdr_recv);
-#endif
-
-#ifdef SYNTH
-    if (msghdr_recv_i.read_nb(msghdr_recv)) {
-#endif
-
 	// msghdr_recv_t match;
 	int match_index = -1;
 
@@ -88,23 +65,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	// }
     } 
 
-    // TODO: Single block? 
-#ifdef CSIM
     if (header_in_i.read_nb(header_in)) {
-	ofstream trace_file;
-	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
-	trace_file << 7 << std::endl;
-	trace_file.close();
-#endif
-
-#ifdef COSIM
-    if (action == 7) {
-	header_in_i.read(header_in);
-#endif
-
-#ifdef SYNTH
-    if (header_in_i.read_nb(header_in)) {
-#endif
 	msghdr_recv_t new_msg;
 
 	new_msg(MSGHDR_SADDR)      = header_in.saddr;
@@ -157,16 +118,9 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
  * the previous sendmsg request
  * @onboard_send_o - Path to prime the system to send the new message
  */
-#if defined(CSIM) || defined(COSIM)
-void homa_sendmsg(uint32_t action,
-		  hls::stream<msghdr_send_t> & msghdr_send_i,
-		  hls::stream<msghdr_send_t> & msghdr_send_o,
-		  hls::stream<onboard_send_t> & onboard_send_o) {
-#else
 void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 		  hls::stream<msghdr_send_t> & msghdr_send_o,
 		  hls::stream<onboard_send_t> & onboard_send_o) {
-#endif
 
 #pragma HLS pipeline II=1
 
@@ -189,22 +143,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     msghdr_send_t msghdr_send;
 
-#ifdef CSIM
     if (msghdr_send_i.read_nb(msghdr_send)) {
-	ofstream trace_file;
-	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
-	trace_file << 0 << std::endl;
-	trace_file.close();
-#endif
-
-#ifdef COSIM
-    if (action == 0) {
-	msghdr_send_i.read(msghdr_send);
-#endif
-
-#ifdef SYNTH
-    if (msghdr_send_i.read_nb(msghdr_send)) {
-#endif
 
 	onboard_send_t onboard_send;
 	onboard_send.saddr          = msghdr_send(MSGHDR_SADDR);

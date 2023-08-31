@@ -7,9 +7,51 @@
 #include "ap_axi_sdata.h"
 #include "hls_task.h"
 #include "hls_stream.h"
+#include "hls_vector.h"
 
 #define Q(x) #x
 #define QUOTE(x) Q(x)
+
+// TODO can't use struct on interface???
+//struct am_cmd_t {
+//    ap_uint<23> btt;     // Total number of bytes to transfer
+//    ap_uint<1>  type{1}; // Incr or fixed address
+//    ap_uint<6>  dsa{0};  // DRE stream alignment (?)
+//    ap_uint<1>  eof{1};  // EOF
+//    ap_uint<1>  drr{1};  // DRE realignment (?)
+//    ap_uint<32> saddr;   // Address for command
+//    ap_uint<4>  tag{0};  // Return cookie
+//    ap_uint<4>  rsvd{0}; // Reserved
+//};
+
+//struct am_status_t { 
+//    ap_uint<4> tag{0};    // Cookie
+//    ap_uint<1> interr{0}; // Internal error
+//    ap_uint<1> decerr{0}; // Decode error
+//    ap_uint<1> slverr{0}; // Slave error
+//    ap_uint<1> okay;      // Trasfer status
+//};
+
+#define AM_CMD_SIZE  72
+#define AM_CMD_BTT   21,0
+#define AM_CMD_TYPE  22,22
+#define AM_CMD_DSA   28,23
+#define AM_CMD_EOF   29,29
+#define AM_CMD_DRR   31,30
+#define AM_CMD_SADDR 63,32
+#define AM_CMD_TAG   67,64
+#define AM_CMD_RSVD  71,68
+
+typedef ap_uint<AM_CMD_SIZE> am_cmd_t;
+
+#define AM_STATUS_SIZE   8
+#define AM_STATUS_TAG    3,0
+#define AM_STATUS_INTERR 4,4
+#define AM_STATUS_DECERR 5,5
+#define AM_STATUS_SLVERR 6,6
+#define AM_STATUS_OKAY   7,7
+
+typedef ap_uint<AM_STATUS_SIZE> am_status_t;
 
 /**
  * integral_t - The homa core operates in 64B chunks. Data in the data
@@ -406,6 +448,7 @@ struct dbuff_in_t {
  */
 struct in_chunk_t {
     integral_t   buff;   // Data to be written to DMA
+    // ap_uint<6> valid;
     data_bytes_e type;   // Partial Chunk, Full Chunk, Empty Chunk
     ap_uint<1>   last;   // Indicate last packet in transaction
 };
@@ -650,24 +693,19 @@ struct srpt_grant_t {
  */
 #define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd 
 
-#if defined(CSIM) || defined(COSIM)
-void homa(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
-          hls::stream<msghdr_send_t> & msghdr_send_i,
-	  hls::stream<msghdr_send_t> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
-	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress);
-#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  ap_uint<512> * maxi_in, ap_uint<512> * maxi_out,
-	  hls::stream<raw_stream_t> & link_ingress,
-	  hls::stream<raw_stream_t> & link_egress);
-#endif 
+	  hls::stream<am_cmd_t>      & w_cmd_queue_o,
+	  hls::stream<ap_uint<512>>  & w_data_queue_o,
+	  hls::stream<am_status_t>   & w_status_queue_i,
+	  hls::stream<am_cmd_t>      & r_cmd_queue_o,
+	  hls::stream<ap_uint<512>>  & r_data_queue_i,
+	  hls::stream<am_status_t>   & r_status_queue_i,
+	  hls::stream<raw_stream_t>  & link_ingress,
+	  hls::stream<raw_stream_t>  & link_egress);
+
 
 #endif
 

@@ -108,7 +108,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 		    grant_in(SRPT_GRANT_IN_MSG_LEN) = header_in.message_length;
 		    grant_in(SRPT_GRANT_IN_RPC_ID)  = header_in.local_id;
 		    grant_in(SRPT_GRANT_IN_PEER_ID) = header_in.peer_id;
-		    grant_in(SRPT_GRANT_IN_PMAP)    = header_in.priority;
+		    grant_in(SRPT_GRANT_IN_PMAP)    = header_in.packetmap;
 
 		    // Notify the grant queue of this receipt
 		    grant_srpt_o.write(grant_in); 

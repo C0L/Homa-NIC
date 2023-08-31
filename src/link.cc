@@ -251,33 +251,10 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
-#if defined(CSIM) || defined(COSIM)
-void pkt_chunk_egress(uint32_t active, hls::stream<out_chunk_t> & out_chunk_i,
-		      hls::stream<raw_stream_t> & link_egress) {
-#else
 void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
-#endif
-    
-#ifdef CSIM
     if (!out_chunk_i.empty()) {
 	out_chunk_t chunk = out_chunk_i.read();
-	ofstream trace_file;
-	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
-	trace_file << 3 << std::endl;
-	trace_file.close();
-#endif
-
-#ifdef COSIM
-    if (active == 3) {
-	out_chunk_t chunk = out_chunk_i.read();
-#endif
-
-#ifdef SYNTH
-    if (!out_chunk_i.empty()) {
-	out_chunk_t chunk = out_chunk_i.read();
-#endif
-
 	raw_stream_t raw_stream;
 
 	raw_stream.data = chunk.buff;
@@ -300,39 +277,17 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
-#if defined(CSIM) || defined(COSIM)
-void pkt_chunk_ingress(uint32_t active, hls::stream<raw_stream_t> & link_ingress,
-		       hls::stream<header_t> & header_in_o,
-		       hls::stream<in_chunk_t> & chunk_in_o) {
-#else
 void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
 		       hls::stream<in_chunk_t> & chunk_in_o) {
-#endif
 
 #pragma HLS pipeline II=1 style=flp
 
     static header_t header_in;
     static ap_uint<32> processed_bytes = 0;
 
-#ifdef CSIM
-    if (!link_ingress.empty()) {
-	raw_stream_t raw_stream = link_ingress.read();
-	ofstream trace_file;
-	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
-	trace_file << 2 << std::endl;
-	trace_file.close();
-#endif
-
-#ifdef COSIM
-    if (active == 2) {
-	raw_stream_t raw_stream = link_ingress.read();
-#endif
-
-#ifdef SYNTH
   if (!link_ingress.empty()) {
 	raw_stream_t raw_stream = link_ingress.read();
-#endif
 	
 	in_chunk_t data_block;
 	ap_uint<512> natural_chunk;
@@ -388,8 +343,8 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
 		data_block.buff   = raw_stream.data;
 		// data_block.offset = processed_bytes - DATA_PKT_HEADER;
-		data_block.type   = ALL_DATA;
-		data_block.last   = raw_stream.last;
+		data_block.type = ALL_DATA;
+		data_block.last  = raw_stream.last;
 
 		chunk_in_o.write(data_block);
 	    }

@@ -44,7 +44,8 @@ if {$job_type == 0} {
     add_files -tb $test_bench -cflags "-DCOSIM $homa_cfg"
     add_files -blackbox $json_src 
     csynth_design
-    cosim_design 
+    # cosim_design 
+    cosim_design -trace_level all -wave_debug
 }
 
 exit

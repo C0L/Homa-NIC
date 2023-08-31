@@ -69,9 +69,15 @@ COSIM = 2
 homa: 
 	$(VIVADO) -mode batch -source tcl/compile.tcl
 
-############ Vitis C Synth ############ 
+############ Vitis C Synth ############
+
+CSYNTH_FLAGS = $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)"
+
 synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)" $(C_TB_DIR)/test_unscheduled_exchange.cc
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(CSYNTH_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"RTT_BYTES=5000"
 
 ############ Vitis C Simulation ############
 
@@ -84,7 +90,7 @@ single_packet_msg_16384_5000_100.trace:
 		"OFILE=single_packet_msg_16384_5000_100.trace" \
 		"DMA_SIZE=16384" \
 		"RTT_BYTES=5000" \
-		"MSG_SIZE=100"
+		"MSG_SIZE=128"
 
 multi_packet_msg_16384_5000_100.trace:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
@@ -104,20 +110,29 @@ csim_single_packet_msg_1_byte_grant_16384_1_1000.trace:
 		"RTT_BYTES=1" \
 		"MSG_SIZE=1000"
 
+csim_multi_packet_require_grant_16384_1000_2500.trace:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(CSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=csim_multi_packet_require_grant_16384_1000_2500.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=1000" \
+		"MSG_SIZE=2500"
+
 ############# Vitis Cosim ############
 
 COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
 
-cosim_single_packet_msg: single_packet_msg_16384_5000_100.trace
+cosim_single_packet_msg:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(COSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
 		"OFILE=single_packet_msg_16384_5000_100.trace" \
 		"DMA_SIZE=16384" \
 		"RTT_BYTES=5000" \
-		"MSG_SIZE=100"
+		"MSG_SIZE=128"
 
-cosim_multi_packet_msg: multi_packet_msg_16384_5000_100.trace
+cosim_multi_packet_msg: 
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(COSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
@@ -134,6 +149,16 @@ cosim_single_packet_msg_1_byte_grant: csim_single_packet_msg_1_byte_grant_16384_
 		"DMA_SIZE=16384" \
 		"RTT_BYTES=1" \
 		"MSG_SIZE=1000"
+
+cosim_multi_packet_require_grant: csim_multi_packet_require_grant_16384_1000_2500.trace
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(COSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"OFILE=csim_multi_packet_require_grant_16384_1000_2500.trace" \
+		"DMA_SIZE=16384" \
+		"RTT_BYTES=1000" \
+		"MSG_SIZE=2500"
+
 
 ############ Verilog Synthesis ############ 
 

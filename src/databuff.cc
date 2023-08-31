@@ -19,8 +19,8 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
     static header_t     header_in;      // Header that corresponds to in_chunk_t
     static ap_uint<512> aligned_chunk;  // Data block to write to DMA
     static ap_uint<32>  local_offset;   //
-    static ap_int<32> buffered_bytes = 0; // 
-    static ap_int<32> next_alignment; // How many bytes from next 64 bytes alignment
+    static ap_int<32>   buffered_bytes; // 
+    static ap_int<32>   next_alignment; // How many bytes from next 64 bytes alignment
 
     static bool active = false;
 
@@ -31,6 +31,7 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
     in_chunk_t in_chunk;
 
     if (active && chunk_in_i.read_nb(in_chunk)) {
+	std::cerr << "READING DBUFF CHUNK\n";
 	dma_w_req_t dma_w_req;
 
 	// TODO naive buffer management
@@ -46,8 +47,10 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	writable_bytes = MIN(next_alignment, ((ap_int<32>) in_chunk.type));
 	overflow_bytes = in_chunk.type - next_alignment;
 
+	ap_uint<32> nxi = 64 - next_alignment;
+
 	// Load either 1) the bytes to the next alignment, or 2) full data chunk
-	aligned_chunk(((buffered_bytes + writable_bytes) * 8) - 1, (buffered_bytes * 8)) = in_chunk.buff((next_alignment * 8) - 1, 0);
+	aligned_chunk(((nxi + writable_bytes) * 8) - 1, (nxi * 8)) = in_chunk.buff((next_alignment * 8) - 1, 0);
 
 	// We complete a chunk when the last write (writable_bytes) plus the buffered bytes (buffered bytes) is one full chunk 
 	if (overflow_bytes >= 0) {
@@ -55,7 +58,7 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
 	    dma_w_req.data = aligned_chunk;
 
-	    dma_w_req.strobe = 64;
+	    dma_w_req.strobe = buffered_bytes + writable_bytes;
 	    dma_w_req_o.write(dma_w_req);
 
 	    next_chunk((overflow_bytes * 8) - 1, 0) = in_chunk.buff(((overflow_bytes + next_alignment) * 8) - 1, (next_alignment * 8));
@@ -71,27 +74,34 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	if (in_chunk.last) {
 	    active = false;
 	}
-    } else if (buffered_bytes != 0 && !active) {
-	// TODO this is where the size of the write is important
+    }
+    //else if (buffered_bytes != 0 && !active) {
+    //	// TODO this is where the size of the write is important
 
-	dma_w_req_t dma_w_req;
-	
-	// TODO naive buffer management
-	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
-	
-	dma_w_req.offset = local_offset + dma_offset;
-	dma_w_req.strobe = buffered_bytes;
-	dma_w_req.data   = aligned_chunk;
-	
-	dma_w_req_o.write(dma_w_req);
+    //	std::cerr << "GENERATING FINAL CHUNK " << buffered_bytes;
 
-	buffered_bytes = 0;
-    } else if (!active && buffered_bytes == 0 && header_in_i.read_nb(header_in)) {
+    //	dma_w_req_t dma_w_req;
+    //	
+    //	// TODO naive buffer management
+    //	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
+    //	
+    //	dma_w_req.offset = local_offset + dma_offset;
+    //	dma_w_req.strobe = buffered_bytes;
+    //	dma_w_req.data   = aligned_chunk;
+    //	
+    //	dma_w_req_o.write(dma_w_req);
+
+    //	buffered_bytes = 0;
+    //} else
+    //else if (!active && buffered_bytes == 0 && header_in_i.read_nb(header_in)) {
+    else if (!active && header_in_i.read_nb(header_in)) {
+	std::cerr << "READ NEW DATA BUFFERS\n";
 	active = true;
 
 	// What is the current byte offset within an aligned chunk?
 	next_alignment = ALL_DATA - (header_in.data_offset % ALL_DATA);
 	buffered_bytes = 0;
+	    // (header_in.data_offset % ALL_DATA);
 	local_offset   = header_in.data_offset;
 
 	aligned_chunk = 0;
@@ -147,7 +157,6 @@ void msg_cache_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
 	    dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) = dbuffered;
 	    dbuff_notif_o.write(dbuff_notif);
 	    // }
-
     }
 
     out_chunk_t out_chunk;
