@@ -42,9 +42,9 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<raw_stream_t>  & link_ingress,
 	  hls::stream<raw_stream_t>  & link_egress) {
 
-#pragma HLS interface mode=ap_ctrl_hs port=return
+// #pragma HLS interface mode=ap_ctrl_hs port=return
 
-// #pragma HLS interface mode=ap_ctrl_none port=return
+#pragma HLS interface mode=ap_ctrl_none port=return
 
     /* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
      * verification depth controls the size of the "RTL verification adapter" This
@@ -54,22 +54,19 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      *
      * Synth will claim that this is ignored, but cosim needs it to work.
      */
-#pragma HLS interface axis port=msghdr_send_i    depth=128 
-#pragma HLS interface axis port=msghdr_send_o    depth=128
-#pragma HLS interface axis port=msghdr_recv_i    depth=128
-#pragma HLS interface axis port=msghdr_recv_o    depth=128
-#pragma HLS interface axis port=link_ingress     depth=128
-#pragma HLS interface axis port=link_egress      depth=128
-#pragma HLS interface axis port=w_cmd_queue_o    depth=128
-#pragma HLS interface axis port=w_data_queue_o   depth=128
-#pragma HLS interface axis port=w_status_queue_i depth=128
-#pragma HLS interface axis port=r_cmd_queue_o    depth=128
-#pragma HLS interface axis port=r_data_queue_i   depth=128
-#pragma HLS interface axis port=r_status_queue_i depth=128
+#pragma HLS interface axis port=msghdr_send_i    depth=64 
+#pragma HLS interface axis port=msghdr_send_o    depth=64
+#pragma HLS interface axis port=msghdr_recv_i    depth=64
+#pragma HLS interface axis port=msghdr_recv_o    depth=64
+#pragma HLS interface axis port=w_cmd_queue_o    depth=64
+#pragma HLS interface axis port=w_data_queue_o   depth=64
+#pragma HLS interface axis port=w_status_queue_i depth=64
+#pragma HLS interface axis port=r_cmd_queue_o    depth=64
+#pragma HLS interface axis port=r_data_queue_i   depth=64
+#pragma HLS interface axis port=r_status_queue_i depth=64
+#pragma HLS interface axis port=link_ingress     depth=64
+#pragma HLS interface axis port=link_egress      depth=64
 				 
-// #pragma HLS interface mode=m_axi port=maxi_in bundle=MAXI latency=70 num_read_outstanding=70 depth=256 
-// #pragma HLS interface mode=m_axi port=maxi_out bundle=MAXI latency=70 num_write_outstanding=70 depth=256
-
 #pragma HLS dataflow disable_start_propagation 
 
     /* Naming scheme: {flow}__{source kernel}__{dest kernel} */

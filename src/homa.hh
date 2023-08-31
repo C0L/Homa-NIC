@@ -73,11 +73,7 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 /* For cosimulation purposes it is easier to allow a full packet to be
  * buffered in the internal queues.
  */ 
-#ifdef COSIM
-#define STREAM_DEPTH 24
-#else
 #define STREAM_DEPTH 2
-#endif
 
 /* IPv6 Header Constants
  */

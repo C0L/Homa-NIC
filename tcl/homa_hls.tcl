@@ -42,9 +42,11 @@ if {$job_type == 0} {
 } elseif {$job_type == 2} {
     add_files $c_src -cflags "-DCOSIM $homa_cfg"
     add_files -tb $test_bench -cflags "-DCOSIM $homa_cfg"
-    add_files -blackbox $json_src 
+    add_files -blackbox $json_src
+    config_dataflow -fifo_depth 128 -start_fifo_depth 128 -scalar_fifo_depth 128 -task_level_fifo_depth 128
     csynth_design
-    # cosim_design 
+    # cosim_design
+    # cosim_design -disable_deadlock_detection
     cosim_design -trace_level all -wave_debug
 }
 

@@ -49,11 +49,18 @@ int main() {
 
     strcpy((char*) maxi_in, data.c_str());
 
-    std::cerr << "TEST BENCH HERE\n";
+    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, w_cmd_queue_o, w_data_queue_o, w_status_queue_i, r_cmd_queue_o, r_data_queue_i, r_status_queue_i, link_ingress_i, link_egress_o);
+
+//#ifdef CSIM
+//    if (dma_req_i.read_nb(dma_req)) {
+//	ofstream trace_file;
+//	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
+//	trace_file << 4 << std::endl;
+//	trace_file.close();
+//#endif
+
 
     while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, MSG_SIZE) != 0) {
-    	homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, w_cmd_queue_o, w_data_queue_o, w_status_queue_i, r_cmd_queue_o, r_data_queue_i, r_status_queue_i, link_ingress_i, link_egress_o);
-
     	if (!link_egress_o.empty()) link_ingress_i.write(link_egress_o.read());
 
     	if (!r_cmd_queue_o.empty()) {
@@ -61,7 +68,8 @@ int main() {
     	    ap_uint<512> read_data;
     	    am_status_t am_status;
 
-    	    // std::cerr << ((uint32_t) am_cmd(AM_CMD_SADDR)) << std::endl;
+    	    std::cerr << am_cmd(AM_CMD_SADDR) << std::endl;
+    	    std::cerr << am_cmd(AM_CMD_BTT) << std::endl;
 
     	    memcpy((char*) &read_data, maxi_in + ((uint32_t) am_cmd(AM_CMD_SADDR)), am_cmd(AM_CMD_BTT) * sizeof(char));
     	    r_data_queue_i.write(read_data);
