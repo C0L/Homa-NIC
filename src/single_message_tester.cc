@@ -51,25 +51,24 @@ int main() {
 
     homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, w_cmd_queue_o, w_data_queue_o, w_status_queue_i, r_cmd_queue_o, r_data_queue_i, r_status_queue_i, link_ingress_i, link_egress_o);
 
-//#ifdef CSIM
-//    if (dma_req_i.read_nb(dma_req)) {
-//	ofstream trace_file;
-//	trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
-//	trace_file << 4 << std::endl;
-//	trace_file.close();
-//#endif
-
+    // TODO tracing did not seem to help
+#ifdef CSIM
+    ofstream trace_file;
+    trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)), ios::app);
 
     while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, MSG_SIZE) != 0) {
-    	if (!link_egress_o.empty()) link_ingress_i.write(link_egress_o.read());
+
+    	if (!link_egress_o.empty()) {
+	    link_ingress_i.write(link_egress_o.read());
+	    trace_file << "0" << std::endl;
+	}
 
     	if (!r_cmd_queue_o.empty()) {
     	    am_cmd_t am_cmd = r_cmd_queue_o.read();
     	    ap_uint<512> read_data;
     	    am_status_t am_status;
 
-    	    std::cerr << am_cmd(AM_CMD_SADDR) << std::endl;
-    	    std::cerr << am_cmd(AM_CMD_BTT) << std::endl;
+	    trace_file << "1" << std::endl;
 
     	    memcpy((char*) &read_data, maxi_in + ((uint32_t) am_cmd(AM_CMD_SADDR)), am_cmd(AM_CMD_BTT) * sizeof(char));
     	    r_data_queue_i.write(read_data);
@@ -83,7 +82,54 @@ int main() {
 
     	    am_status_t am_status;
 
-    	    // std::cerr << ((uint32_t) am_cmd(AM_CMD_SADDR)) << std::endl;
+	    trace_file << "2" << std::endl;
+
+    	    memcpy(maxi_out + ((uint32_t) am_cmd(AM_CMD_SADDR)), (char*) &write_data, am_cmd(AM_CMD_BTT) * sizeof(char));
+    	    w_status_queue_i.write(am_status);
+    	}
+    }
+
+    recvmsg_o.read();
+    sendmsg_o.read();
+#endif
+
+#ifdef COSIM
+    std::cerr << "COSIM SECTION\n";
+    ifstream trace_file;
+    trace_file.open(string("../../../../traces/") + string(QUOTE(OFILE)));
+
+    uint32_t token;
+
+    while (trace_file >> token) {
+	std::cerr << token << std::endl;
+    	if (token == 0) {
+	    std::cerr << "LINK\n";
+	    link_ingress_i.write(link_egress_o.read());
+	}
+
+    	if (token == 1) {
+    	    am_cmd_t am_cmd = r_cmd_queue_o.read();
+    	    ap_uint<512> read_data;
+    	    am_status_t am_status;
+
+	    std::cerr << "READ\n";
+
+    	    std::cerr << am_cmd(AM_CMD_SADDR) << std::endl;
+    	    std::cerr << am_cmd(AM_CMD_BTT) << std::endl;
+
+    	    memcpy((char*) &read_data, maxi_in + ((uint32_t) am_cmd(AM_CMD_SADDR)), am_cmd(AM_CMD_BTT) * sizeof(char));
+    	    r_data_queue_i.write(read_data);
+    	    r_status_queue_i.write(am_status);
+    	}
+
+    	if (token == 2) {
+
+    	    am_cmd_t am_cmd = w_cmd_queue_o.read();
+    	    ap_uint<512> write_data = w_data_queue_o.read();
+
+    	    am_status_t am_status;
+
+	    std::cerr << "WRITE\n";
 
     	    memcpy(maxi_out + ((uint32_t) am_cmd(AM_CMD_SADDR)), (char*) &write_data, am_cmd(AM_CMD_BTT) * sizeof(char));
     	    w_status_queue_i.write(am_status);
@@ -93,6 +139,7 @@ int main() {
     recvmsg_o.read();
     sendmsg_o.read();
 
+#endif
+
     return 0;
-    // return memcmp(maxi_in, maxi_out, MSG_SIZE);
 }

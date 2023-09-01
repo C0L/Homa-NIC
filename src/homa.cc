@@ -42,9 +42,9 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<raw_stream_t>  & link_ingress,
 	  hls::stream<raw_stream_t>  & link_egress) {
 
-// #pragma HLS interface mode=ap_ctrl_hs port=return
+#pragma HLS interface mode=ap_ctrl_hs port=return
 
-#pragma HLS interface mode=ap_ctrl_none port=return
+// #pragma HLS interface mode=ap_ctrl_none port=return
 
     /* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
      * verification depth controls the size of the "RTL verification adapter" This
