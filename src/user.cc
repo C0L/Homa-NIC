@@ -28,43 +28,45 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     msghdr_recv_t msghdr_recv;
     header_t header_in;
 
-    if (msghdr_recv_i.read_nb(msghdr_recv)) {
-	// msghdr_recv_t match;
-	int match_index = -1;
+    //if (msghdr_recv_i.read_nb(msghdr_recv)) {
+    //	// msghdr_recv_t match;
+    //	int match_index = -1;
 
-	//for (int i = 0; i < msgs_head; ++i) {
-	//    // Is there a match
-	//    if (msgs[i](MSGHDR_SPORT) == msghdr_recv(MSGHDR_SPORT)
-	//	&& msgs[i](MSGHDR_RECV_FLAGS) & msghdr_recv(MSGHDR_RECV_FLAGS) == 1) {
-	//	// Is there an explicit ID match
-	//	if (msgs[i](MSGHDR_RECV_ID) == msghdr_recv(MSGHDR_RECV_ID)) {
-	//	    match = msgs[i];
-	//	    match_index = i;
-	//	    break;
-	//	} else if (match_index == -1 || msgs[i](MSGHDR_IOV_SIZE) < match(MSGHDR_IOV_SIZE)) {
-	//	    match = msgs[i]; 
-	//	    match_index = i;
-	//	} 
-	//    }
-	//}
+    //	//for (int i = 0; i < msgs_head; ++i) {
+    //	//    // Is there a match
+    //	//    if (msgs[i](MSGHDR_SPORT) == msghdr_recv(MSGHDR_SPORT)
+    //	//	&& msgs[i](MSGHDR_RECV_FLAGS) & msghdr_recv(MSGHDR_RECV_FLAGS) == 1) {
+    //	//	// Is there an explicit ID match
+    //	//	if (msgs[i](MSGHDR_RECV_ID) == msghdr_recv(MSGHDR_RECV_ID)) {
+    //	//	    match = msgs[i];
+    //	//	    match_index = i;
+    //	//	    break;
+    //	//	} else if (match_index == -1 || msgs[i](MSGHDR_IOV_SIZE) < match(MSGHDR_IOV_SIZE)) {
+    //	//	    match = msgs[i]; 
+    //	//	    match_index = i;
+    //	//	} 
+    //	//    }
+    //	//}
 
-	// No match was found
-	if (match_index == -1) {
-	    recv_interest_t recv_interest = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
-	    recv[recv_head] = recv_interest;
+    //	// No match was found
+    //	if (match_index == -1) {
+    //	    recv_interest_t recv_interest = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
+    //	    recv[recv_head] = recv_interest;
 
-	    if (recv_head < MAX_RECV_MATCH) {
-		recv_head++;
-	    }
-	}
-	//else {
-	//    msgs[match_index] = msgs[msgs_head];
-	//    msghdr_recv_o.write(match);
-	//    msgs_head--;
-	//}
-	// }
-    } 
+    //	    if (recv_head < MAX_RECV_MATCH) {
+    //		recv_head++;
+    //	    }
+    //	}
+    //	//else {
+    //	//    msgs[match_index] = msgs[msgs_head];
+    //	//    msghdr_recv_o.write(match);
+    //	//    msgs_head--;
+    //	//}
+    //	// }
+    //} 
 
+    // TODO read the recvmsg in as the last job?
+    
     if (header_in_i.read_nb(header_in)) {
 	msghdr_recv_t new_msg;
 
@@ -102,9 +104,12 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
-	    msghdr_recv_o.write(new_msg);
+	    // msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}
+
+	msghdr_recv_o.write(new_msg);
+	msghdr_recv_i.read_nb(msghdr_recv);
     }
 }
 
