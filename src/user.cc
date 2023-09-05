@@ -104,12 +104,12 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
-	    // msghdr_recv_o.write(new_msg);
+	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}
 
 	msghdr_recv_o.write(new_msg);
-	msghdr_recv_i.read_nb(msghdr_recv);
+	msghdr_recv_i.read(msghdr_recv);
     }
 }
 
@@ -150,6 +150,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     if (msghdr_send_i.read_nb(msghdr_send)) {
 
+    //msghdr_send_i.read(msghdr_send);
 	onboard_send_t onboard_send;
 	onboard_send.saddr          = msghdr_send(MSGHDR_SADDR);
 	onboard_send.daddr          = msghdr_send(MSGHDR_DADDR);
@@ -175,5 +176,5 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 	msghdr_send_o.write(msghdr_send);
 
 	onboard_send_o.write(onboard_send);
-    }
+   }
 }

@@ -43,18 +43,9 @@ if {$job_type == 0} {
     add_files $c_src -cflags "-DCOSIM $homa_cfg"
     add_files -tb $test_bench -cflags "-DCOSIM $homa_cfg"
     add_files -blackbox $json_src
-    # config_dataflow -fifo_depth 128 -start_fifo_depth 128 -scalar_fifo_depth 128 -task_level_fifo_depth 128
-
     config_dataflow -fifo_depth 26 -start_fifo_depth 26 -scalar_fifo_depth 26 -task_level_fifo_depth 26 
     csynth_design
-    # cosim_design
-    cosim_stall -list
-    # cosim_stall -generate stall_test.json
-    cosim_stall
-    # -check stall_test.json
-    cosim_design
-    # -disable_deadlock_detection
-    # cosim_design -trace_level all -wave_debug
+    cosim_design -trace_level all -wave_debug
 }
 
 exit

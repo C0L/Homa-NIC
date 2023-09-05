@@ -17,6 +17,7 @@ hls::stream<am_status_t>   w_status_queue_i;
 hls::stream<am_cmd_t>      r_cmd_queue_o;
 hls::stream<ap_uint<512>>  r_data_queue_i;
 hls::stream<am_status_t>   r_status_queue_i;
+hls::stream<uint32_t>      cmd_token_i;
 
 static char maxi_in[5000];
 static char maxi_out[5000];

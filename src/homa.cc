@@ -19,6 +19,78 @@
 
 using namespace std;
 
+// TODO use namespace hls?
+
+void cosim_shim(hls::stream<uint32_t> & cmd_token,
+                hls::stream<msghdr_send_t> & msghdr_send_shim_i,
+		hls::stream<msghdr_send_t> & msghdr_send_shim_o,
+		hls::stream<msghdr_recv_t> & msghdr_recv_shim_i,
+		hls::stream<msghdr_recv_t> & msghdr_recv_shim_o,
+		hls::stream<am_cmd_t>      & w_cmd_queue_shim_o,
+		hls::stream<ap_uint<512>>  & w_data_queue_shim_o,
+		hls::stream<am_status_t>   & w_status_queue_shim_i,
+		hls::stream<am_cmd_t>      & r_cmd_queue_shim_o,
+		hls::stream<ap_uint<512>>  & r_data_queue_shim_i,
+		hls::stream<am_status_t>   & r_status_queue_shim_i,
+		hls::stream<raw_stream_t>  & link_ingress_shim_i,
+		hls::stream<raw_stream_t>  & link_egress_shim_o,
+		hls::stream<msghdr_send_t> & msghdr_send_i,
+		hls::stream<msghdr_send_t> & msghdr_send_o,
+		hls::stream<msghdr_recv_t> & msghdr_recv_i,
+		hls::stream<msghdr_recv_t> & msghdr_recv_o,
+		hls::stream<am_cmd_t>      & w_cmd_queue_o,
+		hls::stream<ap_uint<512>>  & w_data_queue_o,
+		hls::stream<am_status_t>   & w_status_queue_i,
+		hls::stream<am_cmd_t>      & r_cmd_queue_o,
+		hls::stream<ap_uint<512>>  & r_data_queue_i,
+		hls::stream<am_status_t>   & r_status_queue_i,
+		hls::stream<raw_stream_t>  & link_ingress_i,
+		hls::stream<raw_stream_t>  & link_egress_o) {
+
+    switch (cmd_token.read()) {
+	case SIG_MSGHDR_SEND_I:
+	    msghdr_send_i.write(msghdr_send_shim_i.read());
+	    break;
+	case SIG_MSGHDR_RECV_I: 
+	    msghdr_recv_i.write(msghdr_recv_shim_i.read());
+	    break;
+	case SIG_MSGHDR_SEND_O:
+	    msghdr_send_shim_o.write(msghdr_send_o.read());
+	    break;
+	case SIG_MSGHDR_RECV_O: 
+	    msghdr_recv_shim_o.write(msghdr_recv_o.read());
+	    break;
+	case SIG_W_CMD_O:
+	    w_cmd_queue_shim_o.write(w_cmd_queue_o.read());
+	    break;
+	case SIG_W_DATA_O:
+	    w_data_queue_shim_o.write(w_data_queue_o.read());
+	    break;
+	case SIG_W_STATUS_I:
+	    w_status_queue_i.write(w_status_queue_shim_i.read());
+	    break;
+	case SIG_R_CMD_O:
+	    r_cmd_queue_shim_o.write(r_cmd_queue_o.read());
+	    break;
+	case SIG_R_DATA_I:
+	    r_data_queue_i.write(r_data_queue_shim_i.read());
+	    break;
+	case SIG_R_STATUS_I:
+	    r_status_queue_i.write(r_status_queue_shim_i.read());
+	    break;
+	case SIG_ING_I:
+	    link_ingress_i.write(link_ingress_shim_i.read());
+	    break;
+        case SIG_EGR_O:
+	    link_egress_shim_o.write(link_egress_o.read());
+	    break;
+	case SIG_END: {
+	    while(true);
+	    break;
+	}
+    }
+}
+
 /**
  * homa() - Top level homa packet processor
  * @sendmsg_i    - Incoming requests to send a message (either request or response)
@@ -29,6 +101,36 @@ using namespace std;
  * @link_ingress: The incoming AXI Stream of ethernet frames from the link
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
+#ifdef COSIM
+void homa(hls::stream<msghdr_send_t> & msghdr_send_shim_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_shim_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_shim_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_shim_o,
+	  hls::stream<am_cmd_t>      & w_cmd_queue_shim_o,
+	  hls::stream<ap_uint<512>>  & w_data_queue_shim_o,
+	  hls::stream<am_status_t>   & w_status_queue_shim_i,
+	  hls::stream<am_cmd_t>      & r_cmd_queue_shim_o,
+	  hls::stream<ap_uint<512>>  & r_data_queue_shim_i,
+	  hls::stream<am_status_t>   & r_status_queue_shim_i,
+	  hls::stream<raw_stream_t>  & link_ingress_shim_i,
+	  hls::stream<raw_stream_t>  & link_egress_shim_o,
+	  hls::stream<uint32_t>      & cmd_token_i) {
+
+#pragma HLS interface axis port=msghdr_send_shim_i depth=64
+#pragma HLS interface axis port=msghdr_send_shim_o depth=64
+#pragma HLS interface axis port=msghdr_recv_shim_i depth=64    
+#pragma HLS interface axis port=msghdr_recv_shim_o depth=64
+#pragma HLS interface axis port=w_cmd_queue_shim_o depth=64
+#pragma HLS interface axis port=w_data_queue_shim_o depth=64
+#pragma HLS interface axis port=w_status_queue_shim_i depth=64
+#pragma HLS interface axis port=r_cmd_queue_shim_o depth=64
+#pragma HLS interface axis port=r_data_queue_shim_i depth=64
+#pragma HLS interface axis port=r_status_queue_shim_i depth=64
+#pragma HLS interface axis port=link_ingress_shim_i depth=64
+#pragma HLS interface axis port=link_egress_shim_o depth=64
+#pragma HLS interface axis port=cmd_token_i depth=64
+
+#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
@@ -39,12 +141,25 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<am_cmd_t>      & r_cmd_queue_o,
 	  hls::stream<ap_uint<512>>  & r_data_queue_i,
 	  hls::stream<am_status_t>   & r_status_queue_i,
-	  hls::stream<raw_stream_t>  & link_ingress,
-	  hls::stream<raw_stream_t>  & link_egress) {
+	  hls::stream<raw_stream_t>  & link_ingress_i,
+	  hls::stream<raw_stream_t>  & link_egress_o) {
 
-#pragma HLS interface mode=ap_ctrl_hs port=return
+#pragma HLS interface axis port=msghdr_send_i    depth=64
+#pragma HLS interface axis port=msghdr_recv_i    depth=64
+#pragma HLS interface axis port=w_status_queue_i depth=64
+#pragma HLS interface axis port=r_data_queue_i   depth=64
+#pragma HLS interface axis port=r_status_queue_i depth=64
+#pragma HLS interface axis port=link_ingress_i   depth=64
+#pragma HLS interface axis port=msghdr_send_o    depth=64
+#pragma HLS interface axis port=msghdr_recv_o    depth=64
+#pragma HLS interface axis port=w_cmd_queue_o    depth=64
+#pragma HLS interface axis port=w_data_queue_o   depth=64
+#pragma HLS interface axis port=r_cmd_queue_o    depth=64
+#pragma HLS interface axis port=link_egress_o    depth=64
 
-// #pragma HLS interface mode=ap_ctrl_none port=return
+#endif
+
+#pragma HLS interface mode=ap_ctrl_none port=return
 
     /* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
      * verification depth controls the size of the "RTL verification adapter" This
@@ -54,73 +169,104 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
      *
      * Synth will claim that this is ignored, but cosim needs it to work.
      */
-#pragma HLS interface axis port=msghdr_send_i    depth=64 
-#pragma HLS interface axis port=msghdr_send_o    depth=64
-#pragma HLS interface axis port=msghdr_recv_i    depth=64
-#pragma HLS interface axis port=msghdr_recv_o    depth=64
-#pragma HLS interface axis port=w_cmd_queue_o    depth=64
-#pragma HLS interface axis port=w_data_queue_o   depth=64
-#pragma HLS interface axis port=w_status_queue_i depth=64
-#pragma HLS interface axis port=r_cmd_queue_o    depth=64
-#pragma HLS interface axis port=r_data_queue_i   depth=64
-#pragma HLS interface axis port=r_status_queue_i depth=64
-#pragma HLS interface axis port=link_ingress     depth=64
-#pragma HLS interface axis port=link_egress      depth=64
 				 
 #pragma HLS dataflow disable_start_propagation 
 
     /* Naming scheme: {flow}__{source kernel}__{dest kernel} */
 
     /* header_out streams */
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_out__egress_sel__rpc_state  ("header_out__egress_sel__rpc_state"); 
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_out__rpc_state__pkt_builder ("header_out__rpc_state__pkt_builder"); 
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_out__egress_sel__rpc_state;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_out__rpc_state__pkt_builder;
 
     /* header_in streams */
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state ("header_in__rpc_map__rpc_state");
-    hls_thread_local hls::stream<srpt_grant_notif_t, STREAM_DEPTH> header_in__rpc_state__srpt_data ("header_in__rpc_state__srpt_data");
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_map__packetmap ("header_in__rpc_map__packetmap"); 
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state;
+    hls_thread_local hls::stream<srpt_grant_notif_t, STREAM_DEPTH> header_in__rpc_state__srpt_data;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_map__packetmap;
 
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_map   ("header_in__chunk_ingress__rpc_map");
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress ("header_in__rpc_state__dbuff_ingress");
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_map;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress;
 
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__homa_recvmsg ("header_in__dbuff_ingress__homa_recvmsg");
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__homa_recvmsg;
    
     /* sendmsg streams */
-    hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__rpc_state("sendmsg__homa_sendmsg__rpc_state");
-    hls_thread_local hls::stream<srpt_sendmsg_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data ("sendmsg__rpc_state__srpt_data");
+    hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__rpc_state;
+    hls_thread_local hls::stream<srpt_sendmsg_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data;
 
     /* out chunk streams */
-    hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress ("out_chunk__chunk_egress__dbuff_egress");
+    hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress;
 
-    hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__dbuff_egress__pkt_egress   ("out_chunk__dbuff_egress__pkt_egress");
+    hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__dbuff_egress__pkt_egress;
 
     /* in chunk streams */
-    /* The depth of this stream is configured based on how many cycles it takes from a new header to be processed and returned to the msg spool */
-    hls_thread_local hls::stream<in_chunk_t, 8> in_chunk__chunk_ingress__dbuff_ingress ("in_chunk__chunk_ingress__dbuff_ingress");
+    /* The depth of this stream is configured based on how many cycles
+     * it takes from a new header to be processed and returned to the msg
+     * spool
+     */
+    hls_thread_local hls::stream<in_chunk_t, 8> in_chunk__chunk_ingress__dbuff_ingress;
 
     /* grant SRPT streams */
-    hls_thread_local hls::stream<srpt_grant_in_t, STREAM_DEPTH> grant__rpc_state__srpt_grant   ("grant__rpc_state__srpt_grant");
-    hls_thread_local hls::stream<srpt_grant_out_t, STREAM_DEPTH> grant__srpt_grant__egress_sel ("grant__srpt_grant__egress_sel");
+    hls_thread_local hls::stream<srpt_grant_in_t, STREAM_DEPTH> grant__rpc_state__srpt_grant;
+    hls_thread_local hls::stream<srpt_grant_out_t, STREAM_DEPTH> grant__srpt_grant__egress_sel;
 
     /* data SRPT streams */
-    hls_thread_local hls::stream<srpt_pktq_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel   ("ready_data_pkt__srpt_data__egress_sel");
-    hls_thread_local hls::stream<srpt_dbuff_notif_t, STREAM_DEPTH> dbuff_notif__dbuff_egress__srpt_data ("dbuff_notif__dbuff_egress__srpt_data");
+    hls_thread_local hls::stream<srpt_pktq_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel;
+    hls_thread_local hls::stream<srpt_dbuff_notif_t, STREAM_DEPTH> dbuff_notif__dbuff_egress__srpt_data ;
 
     /* dma streams */
-    hls_thread_local hls::stream<dbuff_in_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache      ("dbuff_in__dma_read__msg_cache");
-    hls_thread_local hls::stream<srpt_sendq_t, STREAM_DEPTH> dma_req__srpt_data__dma_read      ("dma_req__srpt_data__dma_read");
-    hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write ("dma_req__dbuff_ingress__dma_write");
+    hls_thread_local hls::stream<dbuff_in_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache;
+    hls_thread_local hls::stream<srpt_sendq_t, STREAM_DEPTH> dma_req__srpt_data__dma_read;
+    hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write;
 
-    /* Tasks must be declared after the processes or regions that
-     * produce their input streams, and before the processes or regions
-     * that consume their output streams.
-     */
+#ifdef COSIM
+
+    hls_thread_local hls::stream<msghdr_send_t> msghdr_send_i;
+    hls_thread_local hls::stream<msghdr_send_t> msghdr_send_o;
+    hls_thread_local hls::stream<msghdr_recv_t> msghdr_recv_i;
+    hls_thread_local hls::stream<msghdr_recv_t> msghdr_recv_o;
+    hls_thread_local hls::stream<am_cmd_t>      w_cmd_queue_o;
+    hls_thread_local hls::stream<ap_uint<512>>  w_data_queue_o;
+    hls_thread_local hls::stream<am_status_t>   w_status_queue_i;
+    hls_thread_local hls::stream<am_cmd_t>      r_cmd_queue_o;
+    hls_thread_local hls::stream<ap_uint<512>>  r_data_queue_i;
+    hls_thread_local hls::stream<am_status_t>   r_status_queue_i;
+    hls_thread_local hls::stream<raw_stream_t>  link_ingress_i;
+    hls_thread_local hls::stream<raw_stream_t>  link_egress_o;
+
+    hls_thread_local hls::task cosim_shim_task(
+	cosim_shim,
+	cmd_token_i,
+	msghdr_send_shim_i,
+	msghdr_send_shim_o,
+	msghdr_recv_shim_i,
+	msghdr_recv_shim_o,
+	w_cmd_queue_shim_o,
+	w_data_queue_shim_o,
+	w_status_queue_shim_i,
+	r_cmd_queue_shim_o,
+	r_data_queue_shim_i,
+	r_status_queue_shim_i,
+	link_ingress_shim_i,
+	link_egress_shim_o,
+	msghdr_send_i,
+	msghdr_send_o,
+	msghdr_recv_i,
+	msghdr_recv_o,
+	w_cmd_queue_o,
+	w_data_queue_o,
+	w_status_queue_i,
+	r_cmd_queue_o,
+	r_data_queue_i,
+	r_status_queue_i,
+	link_ingress_i,
+	link_egress_o
+	);
+#endif
 
     hls_thread_local hls::task ingress_task(
 	pkt_chunk_ingress,
-	link_ingress,                           // link_ingress
-	header_in__chunk_ingress__rpc_map,      // header_in_o 
-	in_chunk__chunk_ingress__dbuff_ingress  // chunk_in_o
+	link_ingress_i,
+	header_in__chunk_ingress__rpc_map,
+	in_chunk__chunk_ingress__dbuff_ingress
 	);
 
     hls_thread_local hls::task homa_sendmsg_task(
@@ -210,7 +356,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
     hls_thread_local hls::task pkt_chunk_egress_task(
 	pkt_chunk_egress,
 	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
-	link_egress                          // link_egress
+	link_egress_o                        // link_egress
 	);
 
     hls_thread_local hls::task dma_write_task(
@@ -228,3 +374,5 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	header_in__dbuff_ingress__homa_recvmsg 
 	);
 }
+
+

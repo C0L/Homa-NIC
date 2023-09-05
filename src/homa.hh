@@ -12,26 +12,6 @@
 #define Q(x) #x
 #define QUOTE(x) Q(x)
 
-// TODO can't use struct on interface???
-//struct am_cmd_t {
-//    ap_uint<23> btt;     // Total number of bytes to transfer
-//    ap_uint<1>  type{1}; // Incr or fixed address
-//    ap_uint<6>  dsa{0};  // DRE stream alignment (?)
-//    ap_uint<1>  eof{1};  // EOF
-//    ap_uint<1>  drr{1};  // DRE realignment (?)
-//    ap_uint<32> saddr;   // Address for command
-//    ap_uint<4>  tag{0};  // Return cookie
-//    ap_uint<4>  rsvd{0}; // Reserved
-//};
-
-//struct am_status_t { 
-//    ap_uint<4> tag{0};    // Cookie
-//    ap_uint<1> interr{0}; // Internal error
-//    ap_uint<1> decerr{0}; // Decode error
-//    ap_uint<1> slverr{0}; // Slave error
-//    ap_uint<1> okay;      // Trasfer status
-//};
-
 #define AM_CMD_SIZE  72
 #define AM_CMD_BTT   21,0
 #define AM_CMD_TYPE  22,22
@@ -68,7 +48,33 @@ typedef ap_uint<512> integral_t;
  * 
  * TODO: Need to leave side-channel signals enabled to avoid linker error?
  */
+#ifdef COSIM
+struct raw_stream_t {
+    ap_uint<512> data;
+    ap_uint<1> last;
+};
+#else  
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+#endif
+
+#define SIG_MSGHDR_SEND_I 0
+#define SIG_MSGHDR_SEND_O 1
+
+#define SIG_MSGHDR_RECV_I 2
+#define SIG_MSGHDR_RECV_O 3
+
+#define SIG_W_CMD_O    4
+#define SIG_W_DATA_O   5
+#define SIG_W_STATUS_I 6
+
+#define SIG_R_CMD_O    7
+#define SIG_R_DATA_I   8
+#define SIG_R_STATUS_I 9
+
+#define SIG_ING_I 10
+#define SIG_EGR_O 11
+
+#define SIG_END 12
 
 /* For cosimulation purposes it is easier to allow a full packet to be
  * buffered in the internal queues.
@@ -468,7 +474,7 @@ struct out_chunk_t {
 };
 
 /**
- * struct homa_rpc_t - input bitvector from the user for sendmsg requests
+ * struct homa_rpc_t - State associated with and RPC
  */
 struct homa_rpc_t {
     ap_uint<128> saddr;    // Address of sender (sendmsg) or receiver (recvmsg)
@@ -687,8 +693,23 @@ struct srpt_grant_t {
 /* Used to determine if an ID is a client ID or a server ID which is
  * encoded in the last bit of the RPC ID
  */
-#define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd 
+#define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd
 
+#ifdef COSIM
+void homa(hls::stream<msghdr_send_t> & msghdr_send_shim_i,
+	  hls::stream<msghdr_send_t> & msghdr_send_shim_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_shim_i,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_shim_o,
+	  hls::stream<am_cmd_t>      & w_cmd_queue_shim_o,
+	  hls::stream<ap_uint<512>>  & w_data_queue_shim_o,
+	  hls::stream<am_status_t>   & w_status_queue_shim_i,
+	  hls::stream<am_cmd_t>      & r_cmd_queue_shim_o,
+	  hls::stream<ap_uint<512>>  & r_data_queue_shim_i,
+	  hls::stream<am_status_t>   & r_status_queue_shim_i,
+	  hls::stream<raw_stream_t>  & link_ingress_shim_i,
+	  hls::stream<raw_stream_t>  & link_egress_shim_o,
+	  hls::stream<uint32_t>      & cmd_token_i);
+#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
@@ -701,7 +722,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<am_status_t>   & r_status_queue_i,
 	  hls::stream<raw_stream_t>  & link_ingress,
 	  hls::stream<raw_stream_t>  & link_egress);
-
+#endif
 
 #endif
 
