@@ -17,62 +17,92 @@
 #define AXI_STREAM_FIFO_RDR  0x30 // Receive Destination Register (r)
 #define AXI_STREAM_FIFO_SIZE 0x7C // Number of bytes for AXIL Interface
 
-#define SENDMSG_AXIL 0x00011000
-#define SENDMSG_AXIF 0x00012000
+#define SENDMSG_AXIL 0x00106000
+#define SENDMSG_AXIF 0x00104000
 
-#define RECVMSG_AXIL 0x00020000
-#define RECVMSG_AXIF 0x00014000
+#define RECVMSG_AXIL 0x00101000
+#define RECVMSG_AXIF 0x00102000
 
 #define BAR_0 0xfe800000
 
+//struct msghdr_send_t {
+//    char[16] saddr;
+//    char[16] daddr;
+//    uint16_t dport;
+//    uint16_t sport;
+//    uint64_t id;
+//    uint32_t iov;
+//};
+
+
+char * sendmsg_axil;
+char * sendmsg_axif;
+char * recvmsg_axil;
+char * recvmsg_axif;
+
 void dump_axi_fifo_state(char * fifo_axil) {
-    printf("Interrupt Status Register   : %d\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_ISR)));
-    printf("Interrupt Enable Register   : %d\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_IER)));
-    printf("Transmit Data FIFO Vacancy  : %d\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_TDFV)));
-    printf("Transmit Length Register    : %d\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_TLR)));
-    printf("Receive Data FIFO Occupancy : %d\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_RDFO)));
-    printf("Receive Length Register     : %d\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_RLR)));
-    printf("Interrupt Status Register   : %d\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_RDR)));
+    printf("Interrupt Status Register   : %x\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_ISR)));
+    printf("Interrupt Enable Register   : %x\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_IER)));
+    printf("Transmit Data FIFO Vacancy  : %x\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_TDFV)));
+    printf("Transmit Length Register    : %x\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_TLR)));
+    printf("Receive Data FIFO Occupancy : %x\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_RDFO)));
+    printf("Receive Length Register     : %x\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_RLR)));
+    printf("Interrupt Status Register   : %x\n", *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_RDR)));
 }
 
-void sendmsg(char * fifo_axil, char * fifo_axif, ) {
+void axil_reset(char * fifo_axil) {
+    *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_TDFR)) = 0x000000A6;
+    *((unsigned int*) (fifo_axil + AXI_STREAM_FIFO_RDFR)) = 0x000000A6;
+
+}
+
+/* Programming Sequence Using Direct Register Read/Write
+ * https://docs.xilinx.com/v/u/4.1-English/pg080-axi-fifo-mm-s
+ */
+void sendmsg() {
 //  Write data to AXI
+    
 }
 
 int main() {
     int fd = open("/dev/mem", O_SYNC);
     
-    char * sendmsg_axil = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + SENDMSG_AXIL);
+    sendmsg_axil = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + SENDMSG_AXIL);
 
     if (sendmsg_axil == MAP_FAILED) {
 	perror("Can't mmap AXIL sendmsg FIFO. Are you root?");
 	abort();
     }
 
-    char * sendmsg_axif = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + SENDMSG_AXIF);
+    sendmsg_axif = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + SENDMSG_AXIF);
 
     if (sendmsg_axif == MAP_FAILED) {
 	perror("Can't mmap AXIF sendmsg FIFO. Are you root?");
 	abort();
     }
  
-    char * recvmsg_axil = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + RECVMSG_AXIL);
+    recvmsg_axil = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + RECVMSG_AXIL);
 
     if (recvmsg_axil == MAP_FAILED) {
 	perror("Can't mmap AXIL recvmsg FIFO. Are you root?");
 	abort();
     }
 
-    char * recvmsg_axif = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + RECVMSG_AXIF);
+    recvmsg_axif = mmap(NULL, AXI_STREAM_FIFO_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, BAR_0 + RECVMSG_AXIF);
 
     if (recvmsg_axif == MAP_FAILED) {
 	perror("Can't mmap AXIF recvmsg FIFO. Are you root?");
 	abort();
     }
 
+    axil_reset(sendmsg_axil);
+    axil_reset(recvmsg_axil);
+
     printf("Sendmsg FIFO AXIL State\n");
     dump_axi_fifo_state(sendmsg_axil);
 
     printf("Recvmsg FIFO AXIL State\n");
     dump_axi_fifo_state(recvmsg_axil);
+
+    close(fd);
 }
