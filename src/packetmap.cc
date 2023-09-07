@@ -27,6 +27,8 @@ void packetmap(hls::stream<header_t> & header_in_i,
 //#pragma HLS dependence variable=last_touches inter WAR false
 //#pragma HLS dependence variable=last_touches inter RAW false
 
+#pragma HLS pipeline II=1
+
     static pmap_entry_t packetmaps[MAX_RPCS];
 #pragma HLS dependence variable=packetmaps inter WAR false
 #pragma HLS dependence variable=packetmaps inter RAW false
@@ -36,26 +38,30 @@ void packetmap(hls::stream<header_t> & header_in_i,
     if (header_in_i.read_nb(header_in)) {
 	pmap_entry_t packetmap = packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
 
-	// header_in.packetmap = PMAP_BODY;
-
 	// Have we recieved any packets for this RPC before
 	if (packetmap.length == 0) {
 	    header_in.packetmap |= PMAP_INIT;
 
 	    // Populate a new packetmap
-	    packetmap.map = 0;
+	    packetmap.map  = 0;
 	    packetmap.head = 0;
 
-	    // Number of packets needed for this message transaction (ceiling)
-	    packetmap.length = header_in.message_length / HOMA_PAYLOAD_SIZE;
-	    if (header_in.message_length % HOMA_PAYLOAD_SIZE > 0) packetmap.length++;
-	 
-	} 
+	    std::cerr << "SETTING MAP LEGNTH " << header_in.message_length << std::endl;
+	    // Record the total number of bytes in this message
+	    packetmap.length = header_in.message_length;
+	    std::cerr << "SET PACKET MAP LEGNTH " << packetmap.length << std::endl;
+	}
 
-	int diff = (header_in.data_offset / HOMA_PAYLOAD_SIZE) - packetmap.head;
+	std::cerr << "PACKETMAP LENGTH " << packetmap.length << std::endl;
+	std::cerr << "HEADER IN OFFSET " << header_in.data_offset << std::endl;
+	std::cerr << "PMAP HEAD " << packetmap.head << std::endl;
+
+	int diff = (header_in.data_offset - packetmap.head) / HOMA_PAYLOAD_SIZE;
+
+	std::cerr << "DIFF: " << diff << std::endl;
 
 	// Is this packet in bounds
-	if (diff < 64) {
+	if (diff < 64 && diff >= 0) {
 
 	    // Is this a new packet we have not seen before?
 	    if (packetmap.map[63-diff] != 1) {
@@ -67,15 +73,18 @@ void packetmap(hls::stream<header_t> & header_in_i,
 		    if (packetmap.map[63-i] == 0) shift = i;
 		}
 
-		packetmap.head += shift;
+		packetmap.head += (shift * HOMA_PAYLOAD_SIZE);
 		packetmap.map <<= shift;
 
+		std::cerr << "PMAP HEAD " << packetmap.head << std::endl;
+
 		// Has the head reached the length?
-		if (packetmap.head - packetmap.length == 0) {
+		if (packetmap.head >= packetmap.length) {
 		    // Notify recv system that the message is fully buffered
 		    header_in.packetmap |= PMAP_COMP;
 		    // Disable this RPC
 		    //last_touches[header_in.local_id] = 0;
+		    std::cerr << "COMPLETE PACKET\n";
 		}
 
 		packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = packetmap;

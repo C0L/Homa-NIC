@@ -28,46 +28,48 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     msghdr_recv_t msghdr_recv;
     header_t header_in;
 
-    //if (msghdr_recv_i.read_nb(msghdr_recv)) {
-    //	// msghdr_recv_t match;
-    //	int match_index = -1;
+    if (msghdr_recv_i.read_nb(msghdr_recv)) {
+	std::cerr << "MSG HDR RECV IN\n";
+    	// msghdr_recv_t match;
+    	int match_index = -1;
 
-    //	//for (int i = 0; i < msgs_head; ++i) {
-    //	//    // Is there a match
-    //	//    if (msgs[i](MSGHDR_SPORT) == msghdr_recv(MSGHDR_SPORT)
-    //	//	&& msgs[i](MSGHDR_RECV_FLAGS) & msghdr_recv(MSGHDR_RECV_FLAGS) == 1) {
-    //	//	// Is there an explicit ID match
-    //	//	if (msgs[i](MSGHDR_RECV_ID) == msghdr_recv(MSGHDR_RECV_ID)) {
-    //	//	    match = msgs[i];
-    //	//	    match_index = i;
-    //	//	    break;
-    //	//	} else if (match_index == -1 || msgs[i](MSGHDR_IOV_SIZE) < match(MSGHDR_IOV_SIZE)) {
-    //	//	    match = msgs[i]; 
-    //	//	    match_index = i;
-    //	//	} 
-    //	//    }
-    //	//}
+    	//for (int i = 0; i < msgs_head; ++i) {
+    	//    // Is there a match
+    	//    if (msgs[i](MSGHDR_SPORT) == msghdr_recv(MSGHDR_SPORT)
+    	//	&& msgs[i](MSGHDR_RECV_FLAGS) & msghdr_recv(MSGHDR_RECV_FLAGS) == 1) {
+    	//	// Is there an explicit ID match
+    	//	if (msgs[i](MSGHDR_RECV_ID) == msghdr_recv(MSGHDR_RECV_ID)) {
+    	//	    match = msgs[i];
+    	//	    match_index = i;
+    	//	    break;
+    	//	} else if (match_index == -1 || msgs[i](MSGHDR_IOV_SIZE) < match(MSGHDR_IOV_SIZE)) {
+    	//	    match = msgs[i]; 
+    	//	    match_index = i;
+    	//	} 
+    	//    }
+    	//}
 
-    //	// No match was found
-    //	if (match_index == -1) {
-    //	    recv_interest_t recv_interest = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
-    //	    recv[recv_head] = recv_interest;
+    	// No match was found
+    	if (match_index == -1) {
+    	    recv_interest_t recv_interest = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
+    	    recv[recv_head] = recv_interest;
 
-    //	    if (recv_head < MAX_RECV_MATCH) {
-    //		recv_head++;
-    //	    }
-    //	}
-    //	//else {
-    //	//    msgs[match_index] = msgs[msgs_head];
-    //	//    msghdr_recv_o.write(match);
-    //	//    msgs_head--;
-    //	//}
-    //	// }
-    //} 
+    	    if (recv_head < MAX_RECV_MATCH) {
+    		recv_head++;
+    	    }
+    	}
+    	//else {
+    	//    msgs[match_index] = msgs[msgs_head];
+    	//    msghdr_recv_o.write(match);
+    	//    msgs_head--;
+    	//}
+    	// }
+    } 
 
     // TODO read the recvmsg in as the last job?
     
     if (header_in_i.read_nb(header_in)) {
+	std::cerr << "COMPLETE HEADER IN\n";
 	msghdr_recv_t new_msg;
 
 	new_msg(MSGHDR_SADDR)      = header_in.saddr;
@@ -104,12 +106,10 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
+	    std::cerr << "RECV MATCH FOUND\n";
 	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}
-
-	msghdr_recv_o.write(new_msg);
-	msghdr_recv_i.read(msghdr_recv);
     }
 }
 
@@ -148,33 +148,32 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     msghdr_send_t msghdr_send;
 
-    if (msghdr_send_i.read_nb(msghdr_send)) {
+    msghdr_send_i.read(msghdr_send);
 
-    //msghdr_send_i.read(msghdr_send);
-	onboard_send_t onboard_send;
-	onboard_send.saddr          = msghdr_send(MSGHDR_SADDR);
-	onboard_send.daddr          = msghdr_send(MSGHDR_DADDR);
-	onboard_send.sport          = msghdr_send(MSGHDR_SPORT);
-	onboard_send.dport          = msghdr_send(MSGHDR_DPORT);
-	onboard_send.iov            = msghdr_send(MSGHDR_IOV);
-	onboard_send.iov_size       = msghdr_send(MSGHDR_IOV_SIZE);
-	onboard_send.cc             = msghdr_send(MSGHDR_SEND_CC);
-	onboard_send.dbuffered      = msghdr_send(MSGHDR_IOV_SIZE);
-	onboard_send.egress_buff_id = msg_cache_ids.pop();
+    onboard_send_t onboard_send;
+    onboard_send.saddr          = msghdr_send.data(MSGHDR_SADDR);
+    onboard_send.daddr          = msghdr_send.data(MSGHDR_DADDR);
+    onboard_send.sport          = msghdr_send.data(MSGHDR_SPORT);
+    onboard_send.dport          = msghdr_send.data(MSGHDR_DPORT);
+    onboard_send.iov            = msghdr_send.data(MSGHDR_IOV);
+    onboard_send.iov_size       = msghdr_send.data(MSGHDR_IOV_SIZE);
+    onboard_send.cc             = msghdr_send.data(MSGHDR_SEND_CC);
+    onboard_send.dbuffered      = msghdr_send.data(MSGHDR_IOV_SIZE);
+    onboard_send.egress_buff_id = msg_cache_ids.pop();
 
-        /* If the caller provided an ID of 0 this is a request message and we
-	 * need to generate a new local ID. Otherwise, this is a response
-	 * message and the ID is already valid in homa_rpc buffer
-	 */
-	if (msghdr_send(MSGHDR_SEND_ID) == 0) {
-	    // Generate a new local ID, and set the RPC ID to be that
-	    onboard_send.local_id       = SEND_RPC_ID_FROM_INDEX(client_ids.pop());
-	    onboard_send.id             = onboard_send.local_id;
-	    msghdr_send(MSGHDR_SEND_ID) = onboard_send.id;
-	}
-	
-	msghdr_send_o.write(msghdr_send);
+    /* If the caller provided an ID of 0 this is a request message and we
+     * need to generate a new local ID. Otherwise, this is a response
+     * message and the ID is already valid in homa_rpc buffer
+     */
+    if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
+	// Generate a new local ID, and set the RPC ID to be that
+	onboard_send.local_id            = SEND_RPC_ID_FROM_INDEX(client_ids.pop());
+	onboard_send.id                  = onboard_send.local_id;
+	msghdr_send.data(MSGHDR_SEND_ID) = onboard_send.id;
+    }
 
-	onboard_send_o.write(onboard_send);
-   }
+    msghdr_send.last = 1;
+    msghdr_send_o.write(msghdr_send);
+
+    onboard_send_o.write(onboard_send);
 }

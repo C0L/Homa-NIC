@@ -34,15 +34,15 @@ int main() {
     recvmsg(MSGHDR_RECV_CC)    = 0;
     recvmsg(MSGHDR_RECV_FLAGS) = HOMA_RECVMSG_REQUEST;
 
-    sendmsg(MSGHDR_SADDR)    = saddr;
-    sendmsg(MSGHDR_DADDR)    = daddr;
-    sendmsg(MSGHDR_SPORT)    = sport;
-    sendmsg(MSGHDR_DPORT)    = dport;
-    sendmsg(MSGHDR_IOV)      = 0;
-    sendmsg(MSGHDR_IOV_SIZE) = MSG_SIZE;
+    sendmsg.data(MSGHDR_SADDR)    = saddr;
+    sendmsg.data(MSGHDR_DADDR)    = daddr;
+    sendmsg.data(MSGHDR_SPORT)    = sport;
+    sendmsg.data(MSGHDR_DPORT)    = dport;
+    sendmsg.data(MSGHDR_IOV)      = 0;
+    sendmsg.data(MSGHDR_IOV_SIZE) = MSG_SIZE;
 
-    sendmsg(MSGHDR_SEND_ID)    = 0;
-    sendmsg(MSGHDR_SEND_CC)    = 0;
+    sendmsg.data(MSGHDR_SEND_ID)    = 0;
+    sendmsg.data(MSGHDR_SEND_CC)    = 0;
 
     recvmsg_i.write(recvmsg);
     sendmsg_i.write(sendmsg);
@@ -98,15 +98,15 @@ int main() {
     	}
     }
 
+    recvmsg_o.read();
+    sendmsg_o.read();
+
     trace_file << SIG_MSGHDR_SEND_O << std::endl;
     trace_file << SIG_MSGHDR_RECV_O << std::endl;
 
     trace_file << SIG_END << std::endl;
 
     trace_file.close();
-
-    recvmsg_o.read();
-    sendmsg_o.read();
 #endif
 
 #ifdef COSIM

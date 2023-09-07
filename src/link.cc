@@ -142,10 +142,11 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 
 		    // Data header
 		    natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = header.message_length; // Message Length (entire message)
+		    std::cerr << "SET OUTGOING MESSAGE LENGTH " << header.message_length << std::endl;
 		    natural_chunk(CHUNK_HOMA_DATA_INCOMING) = header.incoming;       // Incoming
-		    natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;                         // Cutoff Version (unimplemented) (2 bytes) TODO
-		    natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;                         // Retransmit (unimplemented) (1 byte) TODO
-		    natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;                         // Pad (1 byte)
+		    natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;                     // Cutoff Version (unimplemented) (2 bytes) TODO
+		    natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;                     // Retransmit (unimplemented) (1 byte) TODO
+		    natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;                     // Pad (1 byte)
 
 		    // Data Segment
 		    natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header.data_offset;    // Offset
@@ -253,6 +254,7 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  */
 void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
+#pragma HLS pipeline
     if (!out_chunk_i.empty()) {
 	out_chunk_t chunk = out_chunk_i.read();
 	raw_stream_t raw_stream;
@@ -321,6 +323,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
 		    case DATA: {
 			header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
+			std::cerr << "PARSED INCOMING MESSAGE LENGTH " << header_in.message_length << std::endl;
 			header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
 			header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
 			header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length

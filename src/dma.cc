@@ -90,7 +90,6 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
    dma_w_req_t dma_req;
 
    if (dma_w_req_i.read_nb(dma_req)) {
-       std::cerr << "DMA READ REQ INTO DMA WRITE\n";
        am_cmd_t am_cmd;
        am_cmd(AM_CMD_TYPE) = 1;
        am_cmd(AM_CMD_DSA)  = 0;
@@ -100,6 +99,8 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        am_cmd(AM_CMD_RSVD) = 0;
        am_cmd(AM_CMD_BTT)   = dma_req.strobe;
        am_cmd(AM_CMD_SADDR) = dma_req.offset;
+
+       std::cerr << "DMA WRITING TO " << dma_req.offset << std::endl;
 
        cmd_queue_o.write(am_cmd);
 

@@ -74,25 +74,24 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	if (in_chunk.last) {
 	    active = false;
 	}
-    }
-    //else if (buffered_bytes != 0 && !active) {
-    //	// TODO this is where the size of the write is important
+    } else if (buffered_bytes != 0 && !active) {
+    	// TODO this is where the size of the write is important
 
-    //	std::cerr << "GENERATING FINAL CHUNK " << buffered_bytes;
+    	std::cerr << "GENERATING FINAL CHUNK " << buffered_bytes;
 
-    //	dma_w_req_t dma_w_req;
-    //	
-    //	// TODO naive buffer management
-    //	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
-    //	
-    //	dma_w_req.offset = local_offset + dma_offset;
-    //	dma_w_req.strobe = buffered_bytes;
-    //	dma_w_req.data   = aligned_chunk;
-    //	
-    //	dma_w_req_o.write(dma_w_req);
+    	dma_w_req_t dma_w_req;
+    	
+    	// TODO naive buffer management
+    	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
+    	
+    	dma_w_req.offset = local_offset + dma_offset;
+    	dma_w_req.strobe = buffered_bytes;
+    	dma_w_req.data   = aligned_chunk;
+    	
+    	dma_w_req_o.write(dma_w_req);
 
-    //	buffered_bytes = 0;
-    //} else
+    	buffered_bytes = 0;
+    } 
     //else if (!active && buffered_bytes == 0 && header_in_i.read_nb(header_in)) {
     else if (!active && header_in_i.read_nb(header_in)) {
 	std::cerr << "READ NEW DATA BUFFERS\n";

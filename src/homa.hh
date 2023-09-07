@@ -315,9 +315,6 @@ typedef ap_uint<SRPT_GRANT_NOTIF_SIZE> srpt_grant_notif_t;
 
 typedef ap_uint<3> pmap_state_t;
 
-// Index into a packetmap bitmap
-typedef ap_uint<10> packetmap_idx_t; // TODO rename
-
 /** 
  * pmap_entry_t - Entry associated with each incoming RPC to determine
  * packets that have already arrived. Uses a 64 bit sliding
@@ -325,8 +322,8 @@ typedef ap_uint<10> packetmap_idx_t; // TODO rename
  * as there are 1 values.
  */
 struct pmap_entry_t {
-    packetmap_idx_t head;
-    packetmap_idx_t length;
+    ap_uint<32> head;
+    ap_uint<32> length;
     ap_uint<64> map;
 };
 
@@ -334,8 +331,8 @@ struct pmap_entry_t {
 struct touch_t {
     local_id_t rpc_id;
     bool init;
-    packetmap_idx_t offset; // Bit to set in packet map
-    packetmap_idx_t length; // Total length of the message
+    //packetmap_idx_t offset; // Bit to set in packet map
+    //packetmap_idx_t length; // Total length of the message
 };
 
 /* Offsets within the first 64B chunk of all packets that contain the general header.
@@ -502,7 +499,7 @@ struct homa_rpc_t {
 /* Offsets within the sendmsg bitvector for the sendmsg specific information */
 #define MSGHDR_SEND_ID      417,354 // RPC identifier
 #define MSGHDR_SEND_CC      481,418 // Completion Cookie
-#define MSGHDR_SEND_SIZE    482
+#define MSGHDR_SEND_SIZE    512
 
 /* Offsets within the recvmsg bitvector for the recvmsg specific information */
 #define MSGHDR_RECV_ID      417,354 // RPC identifier
@@ -513,7 +510,7 @@ struct homa_rpc_t {
 /**
  * msghdr_send_t - input bitvector from the user for sendmsg requests
  */
-typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
+typedef ap_axiu<MSGHDR_SEND_SIZE, 0, 0, 0> msghdr_send_t;
 
 /**
  * msghdr_recv_t - input bitvector from the user for recvmsg requests
