@@ -51,7 +51,8 @@ typedef ap_uint<512> integral_t;
 #ifdef COSIM
 struct raw_stream_t {
     ap_uint<512> data;
-    ap_uint<1> last;
+    ap_uint<32> keep;
+    ap_uint<1>  last;
 };
 #else  
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
@@ -446,9 +447,10 @@ struct dbuff_in_t {
  * be placed.
  */
 struct in_chunk_t {
-    integral_t   buff;   // Data to be written to DMA
+    integral_t   data;   // Data to be written to DMA
     // ap_uint<6> valid;
-    data_bytes_e type;   // Partial Chunk, Full Chunk, Empty Chunk
+    // data_bytes_e type;   // Partial Chunk, Full Chunk, Empty Chunk
+    ap_uint<32>  width; 
     ap_uint<1>   last;   // Indicate last packet in transaction
 };
 
@@ -462,12 +464,12 @@ struct in_chunk_t {
 struct out_chunk_t {
     homa_packet_type_t type;   // What is the type of this outgoing packet
     dbuff_id_t egress_buff_id; // Which data buffer is the message stored in
-    local_id_t local_id;     // What is the RPC ID associated with this message
-    ap_uint<32> offset;      // What byte offset is this output chunk for
-    ap_uint<32> length;      // What is the total length of this message
-    data_bytes_e data_bytes; // How many data bytes to add to this block
-    integral_t buff;         // Data to be sent onto the link
-    ap_uint<1> last;         // Is this the last chunk in the sequence
+    local_id_t local_id;       // What is the RPC ID associated with this message
+    ap_uint<32> offset;        // What byte offset is this output chunk for
+    ap_uint<32> width;         // What is the total length of this message
+    ap_uint<32> keep;         // What is the total length of this message
+    integral_t data;           // Data to be sent onto the link
+    ap_uint<1> last;           // Is this the last chunk in the sequence
 };
 
 /**

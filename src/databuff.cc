@@ -5,7 +5,7 @@
 /**
  * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
  * packet header to determine DMA destination.
- * @chunk_in_o - Incoming data chunks from link destined for DMA
+ * @chunk_in_i - Incoming data chunks from link destined for DMA
  * @dma_w_req_o - Outgoing requests for data to be placed in DMA
  * @header_in_i - Incoming headers that determine DMA placement
  */
@@ -16,100 +16,92 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
 #pragma HLS pipeline II=1
 
-    static header_t     header_in;      // Header that corresponds to in_chunk_t
-    static ap_uint<512> aligned_chunk;  // Data block to write to DMA
-    static ap_uint<32>  local_offset;   //
-    static ap_int<32>   buffered_bytes; // 
-    static ap_int<32>   next_alignment; // How many bytes from next 64 bytes alignment
+    static header_t     header_in;       // Header that corresponds to in_chunk_t values
+    static ap_uint<32>  pending_write;   // # remaining bytes to DMA corresponding to hdr
+    static ap_uint<32>  chunk_offset;    // 
 
-    static bool active = false;
+    static ap_uint<1024> buffer;
+    static ap_uint<32>   buffer_head;
+    static ap_int<32>    buffered;        // # of bytes in the aligned buffer already
+    static ap_int<32>    pending_buffer;  // 
 
-    // TODO replace use of all bytes
-    // TODO is this performant enough for keep constant packet ingress??
-    // TODO do not like active flag
+    static in_chunk_t chunk_in;
 
-    in_chunk_t in_chunk;
+    // TODO naive host memory management
+    ap_uint<32> dma_offset = header_in.ingress_dma_id * 16384;
 
-    if (active && chunk_in_i.read_nb(in_chunk)) {
-	std::cerr << "READING DBUFF CHUNK\n";
+    /* If we have data buffered then let's send it off regardless of
+     * how many bytes are buffered. There does not seem to be any
+     * downside to sending out an incomplete chunk if everything upstream
+     * is fully pipelined.
+     */
+    if (chunk_in_i.read_nb(chunk_in) || buffered > 0) {
+	
+	// Buffer more data if we can
+	/* The overflow chunk then becomes the start of the next
+	 * aligned chunk and the new number of buffered bytes becomes
+	 * whatever the overflow was. It is possible there is no
+	 * overflow.
+	 */
+	buffer(1023, (buffer_head * 8)) = chunk_in.data(511, 0);
+	buffered += chunk_in.width;
+	chunk_in.width = 0;
+
+	pending_buffer -= chunk_in.width;
+
+        /* The number of writable bytes is either limited by distance
+	 * to the next alignment or size of the input chunk
+	 */
+	// ap_int<32> remaining = 64 - buffer_head;
+	// ap_int<32> writable_bytes = MIN(remaining, buffered);
+	// ap_int<32> writable_bytes = remaining;
+
 	dma_w_req_t dma_w_req;
 
-	// TODO naive buffer management
-	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
+	/* The write destination of a chunk is determined by:
+	 *   1) The DMA offset corresponding to this RPC
+	 *   2) The offset of this packet's message data wrt the message
+	 *   3) The offset of this chunk within the message
+	 */
+	dma_w_req.offset = dma_offset + header_in.data_offset + chunk_offset;
+	dma_w_req.data   = buffer(511, 0);
+	dma_w_req.strobe = MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
+	dma_w_req_o.write(dma_w_req);
 
-	dma_w_req.offset = local_offset + dma_offset;
+	buffer(511, 0) = buffer(1023, 511);
 
-	ap_int<32> overflow_bytes = 0;
-	ap_int<32> writable_bytes = 0;
+	chunk_offset   += MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
+	buffered       -= MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
 
-	ap_uint<512> next_chunk;
-
-	writable_bytes = MIN(next_alignment, ((ap_int<32>) in_chunk.type));
-	overflow_bytes = in_chunk.type - next_alignment;
-
-	ap_uint<32> nxi = 64 - next_alignment;
-
-	// Load either 1) the bytes to the next alignment, or 2) full data chunk
-	aligned_chunk(((nxi + writable_bytes) * 8) - 1, (nxi * 8)) = in_chunk.buff((next_alignment * 8) - 1, 0);
-
-	// We complete a chunk when the last write (writable_bytes) plus the buffered bytes (buffered bytes) is one full chunk 
-	if (overflow_bytes >= 0) {
-	    local_offset += (buffered_bytes + writable_bytes);
-
-	    dma_w_req.data = aligned_chunk;
-
-	    dma_w_req.strobe = buffered_bytes + writable_bytes;
-	    dma_w_req_o.write(dma_w_req);
-
-	    next_chunk((overflow_bytes * 8) - 1, 0) = in_chunk.buff(((overflow_bytes + next_alignment) * 8) - 1, (next_alignment * 8));
-	    aligned_chunk = next_chunk;
-
-	    buffered_bytes = overflow_bytes;
-	    next_alignment = ALL_DATA - overflow_bytes;
-	} else {
-	    next_alignment -= in_chunk.type;
-	    buffered_bytes += in_chunk.type;
-	}
-
-	if (in_chunk.last) {
-	    active = false;
-	}
-    } else if (buffered_bytes != 0 && !active) {
-    	// TODO this is where the size of the write is important
-
-    	std::cerr << "GENERATING FINAL CHUNK " << buffered_bytes;
-
-    	dma_w_req_t dma_w_req;
-    	
-    	// TODO naive buffer management
-    	ap_uint<32> dma_offset = header_in.ingress_dma_id * HOMA_MAX_MESSAGE_LENGTH;
-    	
-    	dma_w_req.offset = local_offset + dma_offset;
-    	dma_w_req.strobe = buffered_bytes;
-    	dma_w_req.data   = aligned_chunk;
-    	
-    	dma_w_req_o.write(dma_w_req);
-
-    	buffered_bytes = 0;
-    } 
-    //else if (!active && buffered_bytes == 0 && header_in_i.read_nb(header_in)) {
-    else if (!active && header_in_i.read_nb(header_in)) {
-	std::cerr << "READ NEW DATA BUFFERS\n";
-	active = true;
-
-	// What is the current byte offset within an aligned chunk?
-	next_alignment = ALL_DATA - (header_in.data_offset % ALL_DATA);
-	buffered_bytes = 0;
-	    // (header_in.data_offset % ALL_DATA);
-	local_offset   = header_in.data_offset;
-
-	aligned_chunk = 0;
+	// pending_write  -= MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
+    } else if (pending_buffer == 0 && header_in_i.read_nb(header_in)) { // TODO buffered is wrong test (total buffered == packet size?)
+	/* We may read a new header when we are done buffering the
+	 * data from the last header (pending_write == 0) and there
+	 * is another header for us to grab
+	 */
+	/* Though the aligned bytes may begin at an offset, for the
+	 * purpose of determining how many bytes to WRITE, we begin at
+	 * zero bytes buffered. This will ultimately determine the size
+	 * of the write performed, while the aligned bytes will only
+	 * effect the offset.
+	 */
+	chunk_offset   = 0;
+        buffer_head    = (dma_offset + header_in.data_offset) % 64;
+	pending_buffer = header_in.segment_length;
 
 	if ((header_in.packetmap & PMAP_COMP) == PMAP_COMP) {
 	    header_in_o.write(header_in);
 	}
     }
 }
+
+/* The first chunk write is going to potentially begin within an aligned chunk.
+ * To account for this, aligned bytes is set which determines
+ * how many more bytes we have remaining to write within the
+ * next aligned chunk before we DMA it. After the first chunk,
+ * all subsequent chunks will have an aligned bytes of 0
+ */
+
 
 /**
  * msg_cache_egress() - Augment outgoing packet chunks with packet data
@@ -163,25 +155,28 @@ void msg_cache_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
     // Do we need to process any packet chunks?
     if (out_chunk_i.read_nb(out_chunk)) {
 	// Is this a data type packet?
-	if (out_chunk.type == DATA && out_chunk.data_bytes != NO_DATA) {
+	if (out_chunk.type == DATA && out_chunk.width != 0) {
 	    dbuff_coffset_t chunk_offset = (out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
 	    dbuff_boffset_t byte_offset  = out_chunk.offset % DBUFF_CHUNK_SIZE;
 
 	    ap_uint<1024> double_buff = (dbuff[out_chunk.egress_buff_id][chunk_offset+1], dbuff[out_chunk.egress_buff_id][chunk_offset]);
 
+	    // TODO does this do anything???
 #pragma HLS array_partition variable=double_buff complete
 
-	    switch(out_chunk.data_bytes) {
-		case ALL_DATA: {
-		    out_chunk.buff(511, 0) = double_buff(((byte_offset + ALL_DATA) * 8)-1, byte_offset * 8);
-		    break;
-		}
+	    out_chunk.data(511, (512 - (out_chunk.width*8))) = double_buff(((byte_offset + out_chunk.width) * 8) - 1, byte_offset * 8);
 
-		case PARTIAL_DATA: {
-		    out_chunk.buff(511, 512-PARTIAL_DATA*8) = double_buff(((byte_offset + PARTIAL_DATA) * 8)-1, byte_offset * 8);
-		    break;
-		}
-	    }
+	    //switch(out_chunk.width) {
+	    //	case ALL_DATA: {
+	    //	    out_chunk.data(511, 0) = double_buff(((byte_offset + ALL_DATA) * 8)-1, byte_offset * 8);
+	    //	    break;
+	    //	}
+
+	    //	case PARTIAL_DATA: {
+	    //	    out_chunk.data(511, 512-PARTIAL_DATA*8) = double_buff(((byte_offset + PARTIAL_DATA) * 8)-1, byte_offset * 8);
+	    //	    break;
+	    //	}
+	    //}
 	}
 	out_chunk_o.write(out_chunk);
     }

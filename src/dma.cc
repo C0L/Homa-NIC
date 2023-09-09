@@ -34,7 +34,6 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 #pragma HLS pipeline II=1
 
     if (dma_req_i.read_nb(dma_req)) {
-	std::cerr << "DMA READ REQUEST\n";
 	am_cmd_t am_cmd;
 
 	am_cmd(AM_CMD_TYPE) = 1;
@@ -54,7 +53,6 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 
     ap_uint<512> chunk;
     if (data_queue_i.read_nb(chunk)) {
-	std::cerr << "DMA CHUNK IN\n";
 	srpt_sendq_t dma_req = pending_reqs[read_head++];
 
 	dbuff_in_t dbuff_in;
@@ -70,7 +68,6 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 
     am_status_t am_status;
     if (status_queue_i.read_nb(am_status)) {
-	std::cerr << "DMA READ STATUS IN\n";
 	// TODO do nothing?
     }
 }
@@ -100,18 +97,15 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        am_cmd(AM_CMD_BTT)   = dma_req.strobe;
        am_cmd(AM_CMD_SADDR) = dma_req.offset;
 
-       std::cerr << "DMA WRITING TO " << dma_req.offset << std::endl;
-
        cmd_queue_o.write(am_cmd);
 
-       ap_uint<512> shift;
-       shift(dma_req.strobe * 8 - 1, 0) = dma_req.data(((dma_req.offset % 64) + dma_req.strobe) * 8 - 1, (dma_req.offset % 64) * 8); 
-       data_queue_o.write(shift);
+       // ap_uint<512> shift;
+       // shift(dma_req.strobe * 8 - 1, 0) = dma_req.data(((dma_req.offset % 64) + dma_req.strobe) * 8 - 1, (dma_req.offset % 64) * 8); 
+       data_queue_o.write(dma_req.data);
    }
 
    am_status_t am_status;
    if (status_queue_i.read_nb(am_status)) {
-       std::cerr << "DMA WRITE STATUS READ\n";
        // TODO do nothing?
    }
 }

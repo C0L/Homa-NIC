@@ -29,7 +29,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     header_t header_in;
 
     if (msghdr_recv_i.read_nb(msghdr_recv)) {
-	std::cerr << "MSG HDR RECV IN\n";
     	// msghdr_recv_t match;
     	int match_index = -1;
 
@@ -69,7 +68,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     // TODO read the recvmsg in as the last job?
     
     if (header_in_i.read_nb(header_in)) {
-	std::cerr << "COMPLETE HEADER IN\n";
 	msghdr_recv_t new_msg;
 
 	new_msg(MSGHDR_SADDR)      = header_in.saddr;
@@ -106,7 +104,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
-	    std::cerr << "RECV MATCH FOUND\n";
 	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}
