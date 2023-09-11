@@ -99,8 +99,17 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
 
        cmd_queue_o.write(am_cmd);
 
-       // ap_uint<512> shift;
-       // shift(dma_req.strobe * 8 - 1, 0) = dma_req.data(((dma_req.offset % 64) + dma_req.strobe) * 8 - 1, (dma_req.offset % 64) * 8); 
+       //ap_uint<512> shift;
+       //shift(dma_req.strobe * 8 - 1, 0) = dma_req.data(((dma_req.offset % 64) + dma_req.strobe) * 8 - 1, (dma_req.offset % 64) * 8);
+
+       // std::cerr << "WRITING : " << ((char*) &dma_req.data) << std::endl;
+       // std::cerr << "WRITING : ";
+       // for (int i = 0; i < dma_req.strobe; ++i) {
+       // 	   printf("%c", *(((char*) &(dma_req.data)) + i));
+       // }
+       // std::cerr << "\n";
+       //std::cerr << "OFFSET  : " << dma_req.offset << std::endl;
+       //std::cerr << "STROBE  : " << dma_req.strobe << std::endl;
        data_queue_o.write(dma_req.data);
    }
 

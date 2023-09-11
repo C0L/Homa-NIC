@@ -3,9 +3,16 @@
 #include "fifo.hh"
 
 /**
- * dbuff_ingress() - Buffer incoming data chunks while waiting for lookup on
- * packet header to determine DMA destination.
- * @chunk_in_i - Incoming data chunks from link destined for DMA
+ * dbuff_ingress() - When a data packet arrives from the link, we do
+ * not know where to place its data in user memory space until the
+ * data from its header has been mapped to some local RPC which
+ * reveals the write location. While that lookup process is being
+ * performed, the data will pile up in the chunk_in_i FIFO. Once the
+ * header arrives with host memory information in the header_in_i
+ * FIFO, we begin buffering the data chunks into 64 byte aligned
+ * chunks, computing the address of their placement and the number of
+ * bytes in the write operation, and then sending it to the DMA core.
+ * @chunk_in_i  - Incoming data chunks from link destined for DMA
  * @dma_w_req_o - Outgoing requests for data to be placed in DMA
  * @header_in_i - Incoming headers that determine DMA placement
  */
@@ -16,46 +23,47 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
 #pragma HLS pipeline II=1
 
-    static header_t     header_in;       // Header that corresponds to in_chunk_t values
-    static ap_uint<32>  pending_write;   // # remaining bytes to DMA corresponding to hdr
-    static ap_uint<32>  chunk_offset;    // 
+    static header_t     header_in;         // Header that corresponds to in_chunk_t values
+    static ap_uint<32>  chunk_offset;      // Write offset within the current packet
+    static ap_uint<32>  pending_buffer;    // The bytes remaining to buffer from chunk_in_i
 
-    static ap_uint<1024> buffer;
-    static ap_uint<32>   buffer_head;
-    static ap_int<32>    buffered;        // # of bytes in the aligned buffer already
-    static ap_int<32>    pending_buffer;  // 
+    static ap_uint<1024> buffer;           // Data from chunk_in_i written/aligned
+    static ap_uint<7>    buffer_head;      // Offset within aligned chunk 
+    static ap_uint<7>    buffered;         // Num of bytes in the aligned buffer already
 
-    static in_chunk_t chunk_in;
+    in_chunk_t chunk_in;
+    chunk_in.width = 0;
 
     // TODO naive host memory management
     ap_uint<32> dma_offset = header_in.ingress_dma_id * 16384;
 
-    /* If we have data buffered then let's send it off regardless of
-     * how many bytes are buffered. There does not seem to be any
-     * downside to sending out an incomplete chunk if everything upstream
-     * is fully pipelined.
+    /* There are two conditions in which we interact with the buffer:
+     *   1) The value of pending buffer is non-zero which indicates
+     *   that we read a header and need to match that header with
+     *   pending_buffer number of bytes to be writen out to the
+     *   user. This condition indicates that there is data remaining
+     *   to buffer but that data must also be availible in chunk_in_i.
+     *
+     *   2) If we have data buffered then let's send it off regardless
+     *   of how many bytes are buffered. There does not seem to be any
+     *   downside to sending out an incomplete chunk if everything
+     *   upstream is fully pipelined.
      */
-    if (chunk_in_i.read_nb(chunk_in) || buffered > 0) {
-	
-	// Buffer more data if we can
-	/* The overflow chunk then becomes the start of the next
-	 * aligned chunk and the new number of buffered bytes becomes
-	 * whatever the overflow was. It is possible there is no
-	 * overflow.
-	 */
-	buffer(1023, (buffer_head * 8)) = chunk_in.data(511, 0);
-	buffered += chunk_in.width;
-	chunk_in.width = 0;
+    if ((pending_buffer != 0 && chunk_in_i.read_nb(chunk_in)) || buffered > 0) {
+	// How many more bytes can we buffer before reaching our next aligned chunk
+	ap_uint<7> next_boundary = 64 - buffer_head;
 
+	// Load in the data at the current buffered offset (and potentially overflow it)
+	buffer(1023, (buffered * 8)) = chunk_in.data(511, 0);
 	pending_buffer -= chunk_in.width;
 
         /* The number of writable bytes is either limited by distance
 	 * to the next alignment or size of the input chunk
 	 */
-	// ap_int<32> remaining = 64 - buffer_head;
-	// ap_int<32> writable_bytes = MIN(remaining, buffered);
-	// ap_int<32> writable_bytes = remaining;
-
+	ap_uint<7> writable_bytes = (chunk_in.width >= next_boundary) ?
+	    (ap_uint<7>) (buffered + next_boundary) :
+	    (ap_uint<7>) (buffered + chunk_in.width);
+        
 	dma_w_req_t dma_w_req;
 
 	/* The write destination of a chunk is determined by:
@@ -65,28 +73,32 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	 */
 	dma_w_req.offset = dma_offset + header_in.data_offset + chunk_offset;
 	dma_w_req.data   = buffer(511, 0);
-	dma_w_req.strobe = MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
+	dma_w_req.strobe = writable_bytes;
 	dma_w_req_o.write(dma_w_req);
 
-	buffer(511, 0) = buffer(1023, 511);
+	buffer >>= (writable_bytes * 8);
 
-	chunk_offset   += MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
-	buffered       -= MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
+	buffer_head = (buffer_head + chunk_in.width) % 64;
 
-	// pending_write  -= MIN((ap_int<32>) (64 - buffer_head), (ap_int<32>) buffered);
-    } else if (pending_buffer == 0 && header_in_i.read_nb(header_in)) { // TODO buffered is wrong test (total buffered == packet size?)
-	/* We may read a new header when we are done buffering the
-	 * data from the last header (pending_write == 0) and there
-	 * is another header for us to grab
+	/* If we overflow, the new buffered value is the overflow
+	 * bytes, otherwise the buffered value is whatever the previous
+	 * buffered value was, plus any new data we just read from an
+	 * input chunk, and minus whatever data we just wrote
 	 */
+	buffered = (chunk_in.width >= next_boundary) ?
+	    (ap_uint<7>) (chunk_in.width - next_boundary) :
+	    (ap_uint<7>) (buffered + chunk_in.width - writable_bytes);
+
+	chunk_offset += writable_bytes;
+    } else if (pending_buffer == 0 && header_in_i.read_nb(header_in)) { 
 	/* Though the aligned bytes may begin at an offset, for the
 	 * purpose of determining how many bytes to WRITE, we begin at
 	 * zero bytes buffered. This will ultimately determine the size
 	 * of the write performed, while the aligned bytes will only
 	 * effect the offset.
 	 */
-	chunk_offset   = 0;
         buffer_head    = (dma_offset + header_in.data_offset) % 64;
+	chunk_offset   = 0;
 	pending_buffer = header_in.segment_length;
 
 	if ((header_in.packetmap & PMAP_COMP) == PMAP_COMP) {
@@ -94,14 +106,6 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	}
     }
 }
-
-/* The first chunk write is going to potentially begin within an aligned chunk.
- * To account for this, aligned bytes is set which determines
- * how many more bytes we have remaining to write within the
- * next aligned chunk before we DMA it. After the first chunk,
- * all subsequent chunks will have an aligned bytes of 0
- */
-
 
 /**
  * msg_cache_egress() - Augment outgoing packet chunks with packet data

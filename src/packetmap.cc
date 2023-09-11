@@ -46,19 +46,11 @@ void packetmap(hls::stream<header_t> & header_in_i,
 	    packetmap.map  = 0;
 	    packetmap.head = 0;
 
-	    std::cerr << "SETTING MAP LEGNTH " << header_in.message_length << std::endl;
 	    // Record the total number of bytes in this message
 	    packetmap.length = header_in.message_length;
-	    std::cerr << "SET PACKET MAP LEGNTH " << packetmap.length << std::endl;
 	}
 
-	std::cerr << "PACKETMAP LENGTH " << packetmap.length << std::endl;
-	std::cerr << "HEADER IN OFFSET " << header_in.data_offset << std::endl;
-	std::cerr << "PMAP HEAD " << packetmap.head << std::endl;
-
 	int diff = (header_in.data_offset - packetmap.head) / HOMA_PAYLOAD_SIZE;
-
-	std::cerr << "DIFF: " << diff << std::endl;
 
 	// Is this packet in bounds
 	if (diff < 64 && diff >= 0) {
@@ -76,15 +68,12 @@ void packetmap(hls::stream<header_t> & header_in_i,
 		packetmap.head += (shift * HOMA_PAYLOAD_SIZE);
 		packetmap.map <<= shift;
 
-		std::cerr << "PMAP HEAD " << packetmap.head << std::endl;
-
 		// Has the head reached the length?
 		if (packetmap.head >= packetmap.length) {
 		    // Notify recv system that the message is fully buffered
 		    header_in.packetmap |= PMAP_COMP;
 		    // Disable this RPC
 		    //last_touches[header_in.local_id] = 0;
-		    std::cerr << "COMPLETE PACKET\n";
 		}
 
 		packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = packetmap;

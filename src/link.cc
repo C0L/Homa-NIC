@@ -262,7 +262,7 @@ void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
 	raw_stream.data = chunk.data;
 	raw_stream.last = chunk.last;
 	raw_stream.keep = chunk.keep;
-	std::cerr << "OUTPUT TKEEP: " << chunk.keep << std::endl; 
+	// std::cerr << "OUTPUT TKEEP: " << chunk.keep << std::endl; 
 	link_egress.write(raw_stream);
     }
 }
