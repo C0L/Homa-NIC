@@ -41,22 +41,7 @@ typedef ap_uint<AM_STATUS_SIZE> am_status_t;
  */
 typedef ap_uint<512> integral_t;
 
-/**
- * raw_stream_t - This defines an actual axi stream type, in contrast
- * to the internal streams which are all ap_fifo types. The actual
- * data that will be passed by this stream is 512 bit chunks.
- * 
- * TODO: Need to leave side-channel signals enabled to avoid linker error?
- */
-#ifdef COSIM
-struct raw_stream_t {
-    ap_uint<512> data;
-    ap_uint<32> keep;
-    ap_uint<1>  last;
-};
-#else  
 typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
-#endif
 
 #define SIG_MSGHDR_SEND_I 0
 #define SIG_MSGHDR_SEND_O 1
@@ -131,7 +116,6 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 #define HOMA_PAYLOAD_SIZE       1386    
 #define HOMA_MAX_MESSAGE_LENGTH 1000000 
 #define OVERCOMMIT_BYTES        480000
-// #define RTT_BYTES (ap_uint<32>) 5000
 
 /*
  * Homa packet types
@@ -501,23 +485,29 @@ struct homa_rpc_t {
 /* Offsets within the sendmsg bitvector for the sendmsg specific information */
 #define MSGHDR_SEND_ID      417,354 // RPC identifier
 #define MSGHDR_SEND_CC      481,418 // Completion Cookie
-#define MSGHDR_SEND_SIZE    512
+#define MSGHDR_SEND_SIZE    512     // Rounded to nearest 32 bits
 
 /* Offsets within the recvmsg bitvector for the recvmsg specific information */
 #define MSGHDR_RECV_ID      417,354 // RPC identifier
 #define MSGHDR_RECV_CC      481,418 // Completion Cookie
 #define MSGHDR_RECV_FLAGS   513,482 // Interest list
-#define MSGHDR_RECV_SIZE    514
+#define MSGHDR_RECV_SIZE    544     // Rounded to nearest 32 bits
 
 /**
  * msghdr_send_t - input bitvector from the user for sendmsg requests
+ * NOTE: The TLAST signal (which is created by ap_axiu) must be
+ * present to integrate with certain cores that expect a TLAST signal
+ * even if there is only a single beat of the stream transaction.
  */
 typedef ap_axiu<MSGHDR_SEND_SIZE, 0, 0, 0> msghdr_send_t;
 
 /**
  * msghdr_recv_t - input bitvector from the user for recvmsg requests
+ * NOTE: The TLAST signal (which is created by ap_axiu) must be
+ * present to integrate with certain cores that expect a TLAST signal
+ * even if there is only a single beat of the stream transaction.
  */
-typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
+typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
 
 /* Flags which specify the interest and behavior of the recvmsg call
  * from the user.
@@ -694,21 +684,6 @@ struct srpt_grant_t {
  */
 #define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd
 
-#ifdef COSIM
-void homa(hls::stream<msghdr_send_t> & msghdr_send_shim_i,
-	  hls::stream<msghdr_send_t> & msghdr_send_shim_o,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_shim_i,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_shim_o,
-	  hls::stream<am_cmd_t>      & w_cmd_queue_shim_o,
-	  hls::stream<ap_uint<512>>  & w_data_queue_shim_o,
-	  hls::stream<am_status_t>   & w_status_queue_shim_i,
-	  hls::stream<am_cmd_t>      & r_cmd_queue_shim_o,
-	  hls::stream<ap_uint<512>>  & r_data_queue_shim_i,
-	  hls::stream<am_status_t>   & r_status_queue_shim_i,
-	  hls::stream<raw_stream_t>  & link_ingress_shim_i,
-	  hls::stream<raw_stream_t>  & link_egress_shim_o,
-	  hls::stream<uint32_t>      & cmd_token_i);
-#else
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
@@ -721,7 +696,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<am_status_t>   & r_status_queue_i,
 	  hls::stream<raw_stream_t>  & link_ingress,
 	  hls::stream<raw_stream_t>  & link_egress);
-#endif
 
 #endif
 

@@ -1,4 +1,4 @@
-set target homa_test
+set target homa
 set bd homa
 set new_ip_paths ./ip
 set part xcu250-figd2104-2L-e

@@ -24,15 +24,15 @@ int main() {
     dport = 0xBEEF;
     sport = 0xFEEB;
 
-    recvmsg(MSGHDR_SADDR)      = saddr;
-    recvmsg(MSGHDR_DADDR)      = daddr;
-    recvmsg(MSGHDR_SPORT)      = sport;
-    recvmsg(MSGHDR_DPORT)      = dport;
-    recvmsg(MSGHDR_IOV)        = 0;
-    recvmsg(MSGHDR_IOV_SIZE)   = 0;
-    recvmsg(MSGHDR_RECV_ID)    = 0;
-    recvmsg(MSGHDR_RECV_CC)    = 0;
-    recvmsg(MSGHDR_RECV_FLAGS) = HOMA_RECVMSG_REQUEST;
+    recvmsg.data(MSGHDR_SADDR)      = saddr;
+    recvmsg.data(MSGHDR_DADDR)      = daddr;
+    recvmsg.data(MSGHDR_SPORT)      = sport;
+    recvmsg.data(MSGHDR_DPORT)      = dport;
+    recvmsg.data(MSGHDR_IOV)        = 0;
+    recvmsg.data(MSGHDR_IOV_SIZE)   = 0;
+    recvmsg.data(MSGHDR_RECV_ID)    = 0;
+    recvmsg.data(MSGHDR_RECV_CC)    = 0;
+    recvmsg.data(MSGHDR_RECV_FLAGS) = HOMA_RECVMSG_REQUEST;
 
     sendmsg.data(MSGHDR_SADDR)    = saddr;
     sendmsg.data(MSGHDR_DADDR)    = daddr;

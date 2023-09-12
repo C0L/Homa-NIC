@@ -50,7 +50,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 
     	// No match was found
     	if (match_index == -1) {
-    	    recv_interest_t recv_interest = {msghdr_recv(MSGHDR_SPORT), msghdr_recv(MSGHDR_RECV_FLAGS), msghdr_recv(MSGHDR_RECV_ID)};
+    	    recv_interest_t recv_interest = {msghdr_recv.data(MSGHDR_SPORT), msghdr_recv.data(MSGHDR_RECV_FLAGS), msghdr_recv.data(MSGHDR_RECV_ID)};
     	    recv[recv_head] = recv_interest;
 
     	    if (recv_head < MAX_RECV_MATCH) {
@@ -70,23 +70,23 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
     if (header_in_i.read_nb(header_in)) {
 	msghdr_recv_t new_msg;
 
-	new_msg(MSGHDR_SADDR)      = header_in.saddr;
-	new_msg(MSGHDR_DADDR)      = header_in.daddr;
-	new_msg(MSGHDR_SPORT)      = header_in.sport;
-	new_msg(MSGHDR_DPORT)      = header_in.dport;
-	new_msg(MSGHDR_IOV)        = header_in.ingress_dma_id;
-	new_msg(MSGHDR_IOV_SIZE)   = header_in.message_length;
-	new_msg(MSGHDR_RECV_ID)    = header_in.local_id; 
-	new_msg(MSGHDR_RECV_CC)    = header_in.completion_cookie; // TODO
-	new_msg(MSGHDR_RECV_FLAGS) = IS_CLIENT(header_in.id) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
+	new_msg.data(MSGHDR_SADDR)      = header_in.saddr;
+	new_msg.data(MSGHDR_DADDR)      = header_in.daddr;
+	new_msg.data(MSGHDR_SPORT)      = header_in.sport;
+	new_msg.data(MSGHDR_DPORT)      = header_in.dport;
+	new_msg.data(MSGHDR_IOV)        = header_in.ingress_dma_id;
+	new_msg.data(MSGHDR_IOV_SIZE)   = header_in.message_length;
+	new_msg.data(MSGHDR_RECV_ID)    = header_in.local_id; 
+	new_msg.data(MSGHDR_RECV_CC)    = header_in.completion_cookie; // TODO
+	new_msg.data(MSGHDR_RECV_FLAGS) = IS_CLIENT(header_in.id) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
 
 	int match_index = -1;
 
 	for (int i = 0; i < recv_head; ++i) {
 // #pragma HLS pipeline II=1
 	    // Is there a match
-	    if (recv[i].sport == new_msg(MSGHDR_SPORT) && (recv[i].flags & new_msg(MSGHDR_RECV_FLAGS) == 1)) {
-		if (recv[i].id == new_msg(MSGHDR_RECV_ID)) {
+	    if (recv[i].sport == new_msg.data(MSGHDR_SPORT) && (recv[i].flags & new_msg.data(MSGHDR_RECV_FLAGS) == 1)) {
+		if (recv[i].id == new_msg.data(MSGHDR_RECV_ID)) {
 		    match_index = i;
 		    break;
 		} else if (match_index == -1) {
@@ -105,6 +105,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	} else {
 	    recv[match_index] = recv[recv_head];
 	    std::cerr << "RECV MATCH FOUND\n";
+	    new_msg.last = 1;
 	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
 	}
