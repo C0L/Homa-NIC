@@ -60,7 +60,7 @@ void dump_axi_fifo_state(volatile char * fifo_axil) {
 }
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
-    printf("sendmsg content dump:");
+    printf("sendmsg content dump:\n");
     printf("  SOURCE ADDRESS      : %.*s\n", 16, msghdr_send->saddr);
     printf("  DESTINATION ADDRESS : %.*s\n", 16, msghdr_send->saddr);
     printf("  SOURCE PORT         : %hu\n", msghdr_send->sport);
@@ -77,22 +77,26 @@ void print_msghdr(struct msghdr_send_t * msghdr_send) {
 void sendmsg(struct msghdr_send_t * msghdr_send) {
     print_msghdr(msghdr_send);
 
+    printf("SENDMSG AXIF: %p\n", sendmsg_axif);
+
+    /*
     printf("sendmsg call: \n");
     printf("  Resetting Interrput Status Register\n");
     *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_ISR)) = 0xffffffff;
     printf("  Current sendmsg FIFO vacancy %d\n", *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TDFV)));
-    printf("  Resetting Interrput Status Register\n");
+    printf("  Resetting Interrput Enable Register\n");
     *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_IER)) = 0x0C000000;
 
     printf("  Writing sendmsg data\n");
     for (int i = 0; i < 16; ++i) {
+	printf("WROTE CHUNK %d\n", i);
 	*((unsigned int*) sendmsg_axif) = *(((unsigned int*) msghdr_send) + i);
     }
 
     printf("  Current sendmsg FIFO vacancy: %d\n", *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TDFV)));
 
-    printf("  Draining sendmsg FIFO");
-    *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TLR)) = 16;
+    printf("  Draining sendmsg FIFO\n");
+    *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TLR)) = 64;
 
     printf("  Current sendmsg FIFO vacancy: %d\n", *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TDFV)));
 
@@ -113,6 +117,7 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
     }
 
     print_msghdr(msghdr_send);
+    */
 }
 
 int main() {
@@ -145,12 +150,6 @@ int main() {
 	perror("Can't mmap AXIF recvmsg FIFO. Are you root?");
 	abort();
     }
-
-    printf("Sendmsg FIFO AXIL State\n");
-    dump_axi_fifo_state(sendmsg_axil);
-
-    printf("Recvmsg FIFO AXIL State\n");
-    dump_axi_fifo_state(recvmsg_axil);
 
     struct msghdr_send_t msghdr_send;
 
