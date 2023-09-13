@@ -36,7 +36,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {
-	pmap_entry_t packetmap = packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
+	pmap_entry_t packetmap = packetmaps[header_in.local_id];
 
 	// Have we recieved any packets for this RPC before
 	if (packetmap.length == 0) {
@@ -76,7 +76,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
 		    //last_touches[header_in.local_id] = 0;
 		}
 
-		packetmaps[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = packetmap;
+		packetmaps[header_in.local_id] = packetmap;
 
 		header_in_o.write(header_in);
 	    }

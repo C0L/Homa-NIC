@@ -174,14 +174,11 @@ struct peer_hashpack_t {
 /* RPC Store Configuration */
 #define MAX_RPCS_LOG2       16    // Number of bits to express an RPC
 #define MAX_RPCS            16384 // TODO Maximum number of RPCs
-#define MAX_SERVER_IDS      16384/2 // TODO Maximum number of RPCs
-#define MAX_CLIENT_IDS      16384/2 // TODO Maximum number of RPCs
 #define RPC_BUCKETS         16384 // Size of cuckoo hash sub-tables
 #define RPC_BUCKET_SIZE     8     // Size of cuckoo hash sub-tables
 #define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
 
 typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
-
 
 struct rpc_hashpack_t {
    ap_uint<128> s6_addr;
@@ -649,30 +646,6 @@ struct srpt_grant_t {
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-/* Translates between the RPC ID assigned to Send message requests,
- * and its index within the RPC table. Send message requests are
- * allocated the upper half of the ID space. The last bit is reserved
- * to determine if the core is the client or the server, and the 0
- * value is reserved as a "null" rpc ID.
- */
-#define SEND_RPC_ID_FROM_INDEX(a) ((a + 1 + MAX_RPCS/2) << 1)
-#define SEND_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
-
-/* Translates between the RPC ID assigned to receive message requests,
- * and its index within the RPC table. Receive message requsts are
- * allocated the lower half of the ID space. The last bit is reserved
- * to determine if the core is the client or the server, and the 0
- * value is reserved as a "null" rpc ID.
- */
-#define RECV_RPC_ID_FROM_INDEX(a) ((a + 1) << 1)
-#define RECV_INDEX_FROM_RPC_ID(a) ((a >> 1) - 1)
-
-/* Translates between the peer ID, and its index within the peer table
- * A peer ID of 0 is the "null" peer that has no slot in the peer table
- */
-#define PEER_ID_FROM_INDEX(a) (a + 1)
-#define INDEX_FROM_PEER_ID(a) (a - 1)
-
 /* The last bit determines if the core is the client or the server in
  * an interaction * This can be called on an RPC ID to convert
  * Sender->Client and Client->Sender
@@ -683,6 +656,12 @@ struct srpt_grant_t {
  * encoded in the last bit of the RPC ID
  */
 #define IS_CLIENT(id) ((id & 1) == 0) // Client RPC IDs are even, servers are odd
+
+/* Initial ID stack configurations
+ */
+#define STACK_EVEN 0
+#define STACK_ODD  1
+#define STACK_ALL  2
 
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,

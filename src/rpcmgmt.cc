@@ -44,7 +44,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	       hls::stream<srpt_grant_notif_t> & data_srpt_o) {
 
     // TODO should probably move
-    static stack_t<local_id_t, MAX_RPCS> ingress_dma_stack(true);
+    static stack_t<local_id_t, MAX_RPCS> ingress_dma_stack(STACK_ALL);
 
     static homa_rpc_t rpcs[MAX_RPCS];
 
@@ -58,7 +58,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
     /* RO Paths */
     header_t header_out;
     if (header_out_i.read_nb(header_out)) {
-	homa_rpc_t homa_rpc = rpcs[SEND_INDEX_FROM_RPC_ID(header_out.local_id)];
+	homa_rpc_t homa_rpc = rpcs[header_out.local_id];
 
 	header_out.daddr           = homa_rpc.daddr;
 	header_out.dport           = homa_rpc.dport;
@@ -81,7 +81,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
     onboard_send_t onboard_send;
     if (header_in_i.read_nb(header_in)) {
 
-	homa_rpc_t homa_rpc = rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)];
+	homa_rpc_t homa_rpc = rpcs[header_in.local_id];
 
 	switch (header_in.type) {
 	    case DATA: {
@@ -94,6 +94,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
 		    // TODO will need to move
 		    homa_rpc.ingress_dma_id  = ingress_dma_stack.pop();
+		    std::cerr << "GETATED INGRESS ID " << homa_rpc.ingress_dma_id << std::endl;
 		    header_in.ingress_dma_id = homa_rpc.ingress_dma_id;
 		} else {
 		    header_in.id = homa_rpc.id;
@@ -129,7 +130,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	    }
 	}
 
-	rpcs[RECV_INDEX_FROM_RPC_ID(header_in.local_id)] = homa_rpc;
+	rpcs[header_in.local_id] = homa_rpc;
     } else if (onboard_send_i.read_nb(onboard_send)) {
 	homa_rpc_t homa_rpc;
 	homa_rpc.daddr           = onboard_send.daddr;
@@ -141,7 +142,7 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 	homa_rpc.egress_buff_id  = onboard_send.egress_buff_id;
 	homa_rpc.id              = onboard_send.id;
 
-	rpcs[SEND_INDEX_FROM_RPC_ID(onboard_send.local_id)] = homa_rpc;
+	rpcs[onboard_send.local_id] = homa_rpc;
 
 	srpt_sendmsg_t srpt_data_in;
 	srpt_data_in(SRPT_SENDMSG_RPC_ID)   = onboard_send.local_id;
@@ -171,9 +172,10 @@ void id_map(hls::stream<header_t> & header_in_i,
 #pragma HLS pipeline II=1
 
     // Unique local RPC ID assigned when this core is the server
-    static stack_t<local_id_t, MAX_CLIENT_IDS> server_ids(true);
+    static stack_t<local_id_t, MAX_RPCS> server_ids(STACK_ODD);
+
     // Unique local Peer IDs
-    static stack_t<peer_id_t, MAX_PEERS> peer_ids(true);
+    static stack_t<peer_id_t, MAX_PEERS> peer_ids(STACK_ALL);
 
     // hash(dest addr, sender ID, dest port) -> rpc ID
     static hashmap_t<rpc_hashpack_t, local_id_t, RPC_BUCKETS, RPC_BUCKET_SIZE, RPC_SUB_TABLE_INDEX, RPC_HP_SIZE> rpc_hashmap;
@@ -193,11 +195,11 @@ void id_map(hls::stream<header_t> & header_in_i,
 
 	    // If the rpc is not registered, generate a new RPC ID and register it 
 	    if (header_in.local_id == 0) {
-		header_in.local_id = RECV_RPC_ID_FROM_INDEX(server_ids.pop());
+		header_in.local_id = server_ids.pop();
+		std::cerr << "NEW SERVER ID " << header_in.local_id << std::endl;
 		entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
 		rpc_hashmap.insert(rpc_entry);
 	    }
-
 	} else {
 	    header_in.local_id = header_in.id;
 	}
@@ -208,7 +210,7 @@ void id_map(hls::stream<header_t> & header_in_i,
 	
 	// If the peer is not registered, generate new ID and register it
 	if (header_in.peer_id == 0) {
-	    header_in.peer_id = PEER_ID_FROM_INDEX(peer_ids.pop());
+	    header_in.peer_id = peer_ids.pop();
 	    
 	    entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, header_in.peer_id};
 	    peer_hashmap.insert(peer_entry);

@@ -128,7 +128,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 
 #pragma HLS pipeline II=1
 
-    static stack_t<local_id_t, MAX_CLIENT_IDS> client_ids(true);
+    static stack_t<local_id_t, MAX_RPCS> client_ids(STACK_EVEN);
 
     /* Eventually we want the SRPT data core to deallocate a buffer
      * when it becomes the 64th or 128th most desirable RPC. If the
@@ -143,7 +143,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
      * added to the queue. As another check in the swap operation, an
      * entry can steal another entries ID.
      */
-    static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(true);
+    static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(STACK_ALL);
 
     msghdr_send_t msghdr_send;
 
@@ -166,9 +166,10 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
      */
     if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
 	// Generate a new local ID, and set the RPC ID to be that
-	onboard_send.local_id            = SEND_RPC_ID_FROM_INDEX(client_ids.pop());
+	onboard_send.local_id            = client_ids.pop();
 	onboard_send.id                  = onboard_send.local_id;
 	msghdr_send.data(MSGHDR_SEND_ID) = onboard_send.id;
+	std::cerr << "GENERATED NEW CLIENT ID " << onboard_send.local_id << std::endl;
     }
 
     msghdr_send.last = 1;

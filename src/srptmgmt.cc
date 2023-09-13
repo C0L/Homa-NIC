@@ -20,28 +20,28 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
 
   if (!dbuff_notif_i.empty()) {
     srpt_dbuff_notif_t dbuff_notif = dbuff_notif_i.read();
-    pktq[SEND_INDEX_FROM_RPC_ID(dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID))](PKTQ_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
+    pktq[dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID)](PKTQ_DBUFFERED) = dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET);
   }
 
   if (!grant_notif_i.empty()) {
     srpt_grant_notif_t header_in = grant_notif_i.read();
-    pktq[SEND_INDEX_FROM_RPC_ID(header_in(SRPT_GRANT_NOTIF_RPC_ID))](PKTQ_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
+    pktq[header_in(SRPT_GRANT_NOTIF_RPC_ID)](PKTQ_GRANTED) = header_in(SRPT_GRANT_NOTIF_OFFSET);
   }
 
   if (!sendmsg_i.empty()) {
     srpt_sendmsg_t sendmsg = sendmsg_i.read();
 
-    pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_RPC_ID)    = sendmsg(SRPT_SENDMSG_RPC_ID);
-    pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_DBUFF_ID)  = sendmsg(SRPT_SENDMSG_DBUFF_ID);
-    pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_REMAINING) = sendmsg(SRPT_SENDMSG_MSG_LEN);
-    pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_DBUFFERED) = sendmsg(SRPT_SENDMSG_MSG_LEN);
-    pktq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](PKTQ_GRANTED)   = sendmsg(SRPT_SENDMSG_GRANTED);
+    pktq[sendmsg(SRPT_SENDMSG_RPC_ID)](PKTQ_RPC_ID)    = sendmsg(SRPT_SENDMSG_RPC_ID);
+    pktq[sendmsg(SRPT_SENDMSG_RPC_ID)](PKTQ_DBUFF_ID)  = sendmsg(SRPT_SENDMSG_DBUFF_ID);
+    pktq[sendmsg(SRPT_SENDMSG_RPC_ID)](PKTQ_REMAINING) = sendmsg(SRPT_SENDMSG_MSG_LEN);
+    pktq[sendmsg(SRPT_SENDMSG_RPC_ID)](PKTQ_DBUFFERED) = sendmsg(SRPT_SENDMSG_MSG_LEN);
+    pktq[sendmsg(SRPT_SENDMSG_RPC_ID)](PKTQ_GRANTED)   = sendmsg(SRPT_SENDMSG_GRANTED);
 
-    sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_RPC_ID)    = sendmsg(SRPT_SENDMSG_RPC_ID);
-    sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_DBUFF_ID)  = sendmsg(SRPT_SENDMSG_DBUFF_ID);
-    sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_OFFSET)    = sendmsg(SRPT_SENDMSG_DMA_OFFSET);
-    sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_DBUFFERED) = sendmsg(SRPT_SENDMSG_MSG_LEN);
-    sendq[SEND_INDEX_FROM_RPC_ID(sendmsg(SRPT_SENDMSG_RPC_ID))](SENDQ_MSG_LEN)   = sendmsg(SRPT_SENDMSG_MSG_LEN);
+    sendq[sendmsg(SRPT_SENDMSG_RPC_ID)](SENDQ_RPC_ID)    = sendmsg(SRPT_SENDMSG_RPC_ID);
+    sendq[sendmsg(SRPT_SENDMSG_RPC_ID)](SENDQ_DBUFF_ID)  = sendmsg(SRPT_SENDMSG_DBUFF_ID);
+    sendq[sendmsg(SRPT_SENDMSG_RPC_ID)](SENDQ_OFFSET)    = sendmsg(SRPT_SENDMSG_DMA_OFFSET);
+    sendq[sendmsg(SRPT_SENDMSG_RPC_ID)](SENDQ_DBUFFERED) = sendmsg(SRPT_SENDMSG_MSG_LEN);
+    sendq[sendmsg(SRPT_SENDMSG_RPC_ID)](SENDQ_MSG_LEN)   = sendmsg(SRPT_SENDMSG_MSG_LEN);
 
   }
 
@@ -65,10 +65,10 @@ void srpt_data_pkts(hls::stream<srpt_sendmsg_t> & sendmsg_i,
       ? ((ap_uint<32>) 0) : ((ap_uint<32>) (pkt(PKTQ_REMAINING) - HOMA_PAYLOAD_SIZE));
 
     data_pkt_o.write(pkt);
-    pktq[SEND_INDEX_FROM_RPC_ID(pkt(PKTQ_RPC_ID))](PKTQ_REMAINING) = remaining;
+    pktq[pkt(PKTQ_RPC_ID)](PKTQ_REMAINING) = remaining;
 
     if (remaining == 0) {
-      pktq[SEND_INDEX_FROM_RPC_ID(pkt(PKTQ_RPC_ID))] = 0;
+      pktq[pkt(PKTQ_RPC_ID)] = 0;
     }
   }
 
@@ -124,11 +124,9 @@ void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
 
     // The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
     if ((grant_in(SRPT_GRANT_IN_PMAP) & PMAP_INIT) == PMAP_INIT) {
-      std::cerr << "CREATE GRANT ENTRY " << RECV_INDEX_FROM_RPC_ID(grant_in(SRPT_GRANT_IN_RPC_ID)) << std::endl;
-      entries[RECV_INDEX_FROM_RPC_ID(grant_in(SRPT_GRANT_IN_RPC_ID))] = {grant_in(SRPT_GRANT_IN_PEER_ID), grant_in(SRPT_GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
+      entries[grant_in(SRPT_GRANT_IN_RPC_ID)] = {grant_in(SRPT_GRANT_IN_PEER_ID), grant_in(SRPT_GRANT_IN_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_IN_MSG_LEN) - HOMA_PAYLOAD_SIZE};
     } else {
-      std::cerr << "UPDATED GRANT ENTRY " << RECV_INDEX_FROM_RPC_ID(grant_in(SRPT_GRANT_IN_RPC_ID)) << std::endl;
-      entries[RECV_INDEX_FROM_RPC_ID(grant_in(SRPT_GRANT_IN_RPC_ID))].recv_bytes += HOMA_PAYLOAD_SIZE;
+      entries[grant_in(SRPT_GRANT_IN_RPC_ID)].recv_bytes += HOMA_PAYLOAD_SIZE;
     } 
   } else {
     srpt_grant_t best[8];
@@ -175,8 +173,8 @@ void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
 
       if (next_grant.recv_bytes > avail_bytes) {
 	// Just send avail_pkts of data
-	entries[RECV_INDEX_FROM_RPC_ID(next_grant.rpc_id)].recv_bytes -= avail_bytes;
-	entries[RECV_INDEX_FROM_RPC_ID(next_grant.rpc_id)].grantable_bytes -= avail_bytes;
+	entries[next_grant.rpc_id].recv_bytes -= avail_bytes;
+	entries[next_grant.rpc_id].grantable_bytes -= avail_bytes;
 
 	grant_out(SRPT_GRANT_OUT_GRANT) = avail_bytes;
 	grant_out(SRPT_GRANT_OUT_RPC_ID) = next_grant.rpc_id;
@@ -185,19 +183,19 @@ void srpt_grant_pkts(hls::stream<srpt_grant_in_t> & grant_in_i,
 	grant_out_o.write(grant_out);
 
       } else {
-	entries[RECV_INDEX_FROM_RPC_ID(next_grant.rpc_id)].recv_bytes = 0;
-	entries[RECV_INDEX_FROM_RPC_ID(next_grant.rpc_id)].grantable_bytes -= MIN(next_grant.recv_bytes, entries[RECV_INDEX_FROM_RPC_ID(next_grant.rpc_id)].grantable_bytes);
+	entries[next_grant.rpc_id].recv_bytes = 0;
+	entries[next_grant.rpc_id].grantable_bytes -= MIN(next_grant.recv_bytes, entries[next_grant.rpc_id].grantable_bytes);
 
 	srpt_grant_out_t grant_out;
 
-	grant_out(SRPT_GRANT_OUT_GRANT)   = entries[RECV_INDEX_FROM_RPC_ID(next_grant.rpc_id)].grantable_bytes;
+	grant_out(SRPT_GRANT_OUT_GRANT)   = entries[next_grant.rpc_id].grantable_bytes;
 	grant_out(SRPT_GRANT_OUT_RPC_ID)  = next_grant.rpc_id;
 	grant_out(SRPT_GRANT_OUT_PEER_ID) = next_grant.peer_id;
 
 	grant_out_o.write(grant_out);
 
 	if (next_grant.grantable_bytes == 0) {
-	  entries[RECV_INDEX_FROM_RPC_ID(next_grant.rpc_id)] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
+	  entries[next_grant.rpc_id] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
 	}
       } 
     }

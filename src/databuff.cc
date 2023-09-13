@@ -36,6 +36,7 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 
     // TODO naive host memory management
     ap_uint<32> dma_offset = header_in.ingress_dma_id * 16384;
+    // std::cerr << "WRITING TO OFFSET " << dma_offset << std::endl;
 
     /* There are two conditions in which we interact with the buffer:
      *   1) The value of pending buffer is non-zero which indicates
