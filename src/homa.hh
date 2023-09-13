@@ -477,21 +477,21 @@ struct homa_rpc_t {
  */
 #define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg)
 #define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg)
-#define MSGHDR_SPORT        273,256 // Port of sender (sendmsg) or receiver (recvmsg)
-#define MSGHDR_DPORT        289,274 // Address of receiver (sendmsg) or sender (recvmsg) 
-#define MSGHDR_IOV          321,290 // Message contents DMA offset
-#define MSGHDR_IOV_SIZE     353,322 // Size of message in DMA space
+#define MSGHDR_SPORT        271,256 // Port of sender (sendmsg) or receiver (recvmsg)
+#define MSGHDR_DPORT        287,272 // Address of receiver (sendmsg) or sender (recvmsg) 
+#define MSGHDR_IOV          319,288 // Message contents DMA offset
+#define MSGHDR_IOV_SIZE     351,320 // Size of message in DMA space
 
 /* Offsets within the sendmsg bitvector for the sendmsg specific information */
-#define MSGHDR_SEND_ID      417,354 // RPC identifier
-#define MSGHDR_SEND_CC      481,418 // Completion Cookie
+#define MSGHDR_SEND_ID      415,352 // RPC identifier
+#define MSGHDR_SEND_CC      479,416 // Completion Cookie
 #define MSGHDR_SEND_SIZE    512     // Rounded to nearest 32 bits
 
 /* Offsets within the recvmsg bitvector for the recvmsg specific information */
-#define MSGHDR_RECV_ID      417,354 // RPC identifier
-#define MSGHDR_RECV_CC      481,418 // Completion Cookie
-#define MSGHDR_RECV_FLAGS   513,482 // Interest list
-#define MSGHDR_RECV_SIZE    544     // Rounded to nearest 32 bits
+#define MSGHDR_RECV_ID      415,352 // RPC identifier
+#define MSGHDR_RECV_CC      479,416 // Completion Cookie
+#define MSGHDR_RECV_FLAGS   511,480 // Interest list
+#define MSGHDR_RECV_SIZE    512     // Rounded to nearest 32 bits
 
 /**
  * msghdr_send_t - input bitvector from the user for sendmsg requests
