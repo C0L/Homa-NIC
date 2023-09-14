@@ -304,7 +304,7 @@ proc create_root_design { parentCell } {
   set_property -dict [list \
     CONFIG.PCIE_BOARD_INTERFACE {pci_express_x16} \
     CONFIG.SYS_RST_N_BOARD_INTERFACE {pcie_perstn} \
-    CONFIG.axibar_num {6} \
+    CONFIG.axibar_num {1} \
     CONFIG.en_axi_slave_if {true} \
     CONFIG.en_transceiver_status_ports {false} \
     CONFIG.functional_mode {AXI_Bridge} \
@@ -329,6 +329,7 @@ proc create_root_design { parentCell } {
   # Create instance: axi_datamover_0, and set properties
   set axi_datamover_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_datamover:5.1 axi_datamover_0 ]
   set_property -dict [list \
+    CONFIG.c_addr_width {64} \
     CONFIG.c_dummy {1} \
     CONFIG.c_enable_mm2s_adv_sig {0} \
     CONFIG.c_enable_s2mm_adv_sig {0} \
@@ -428,8 +429,8 @@ proc create_root_design { parentCell } {
   assign_bd_address -offset 0x00101000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_sendmsg_fifo/S_AXI/Mem0] -force
   assign_bd_address -offset 0x00104000 -range 0x00002000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_sendmsg_fifo/S_AXI_FULL/Mem1] -force
   assign_bd_address -offset 0x00108000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs xdma_0/S_AXI_LITE/CTL0] -force
-  assign_bd_address -offset 0x00000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces axi_datamover_0/Data_MM2S] [get_bd_addr_segs xdma_0/S_AXI_B/BAR0] -force
-  assign_bd_address -offset 0x00000000 -range 0x00100000 -target_address_space [get_bd_addr_spaces axi_datamover_0/Data_S2MM] [get_bd_addr_segs xdma_0/S_AXI_B/BAR0] -force
+  assign_bd_address -offset 0x00000000 -range 0x004000000000 -target_address_space [get_bd_addr_spaces axi_datamover_0/Data_MM2S] [get_bd_addr_segs xdma_0/S_AXI_B/BAR0] -force
+  assign_bd_address -offset 0x00000000 -range 0x004000000000 -target_address_space [get_bd_addr_spaces axi_datamover_0/Data_S2MM] [get_bd_addr_segs xdma_0/S_AXI_B/BAR0] -force
 
 
   # Restore current instance
@@ -443,6 +444,9 @@ proc create_root_design { parentCell } {
 ##################################################################
 # MAIN FLOW
 ##################################################################
+
+
+common::send_gid_msg -ssname BD::TCL -id 2052 -severity "CRITICAL WARNING" "This Tcl script was generated from a block design that is out-of-date/locked. It is possible that design <$design_name> may result in errors during construction."
 
 create_root_design ""
 

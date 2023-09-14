@@ -12,15 +12,15 @@
 #define Q(x) #x
 #define QUOTE(x) Q(x)
 
-#define AM_CMD_SIZE  72
+#define AM_CMD_SIZE  104
 #define AM_CMD_BTT   21,0
 #define AM_CMD_TYPE  22,22
 #define AM_CMD_DSA   28,23
 #define AM_CMD_EOF   29,29
 #define AM_CMD_DRR   31,30
-#define AM_CMD_SADDR 63,32
-#define AM_CMD_TAG   67,64
-#define AM_CMD_RSVD  71,68
+#define AM_CMD_SADDR 95,32
+#define AM_CMD_TAG   99,96
+#define AM_CMD_RSVD  103,100
 
 typedef ap_uint<AM_CMD_SIZE> am_cmd_t;
 
@@ -462,8 +462,9 @@ struct homa_rpc_t {
     ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
     ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg)
     ap_uint<64>  id;       // RPC ID (potentially not local)
+
+    ap_uint<64>  iov;      //
     ap_uint<32>  iov_size; // 
-    ap_uint<32>  iov;      //
 
     dbuff_id_t   ingress_dma_id; // ID for offset of packet data -> DMA
     dbuff_id_t   egress_buff_id; // ID for cache of DMA -> packet datra
@@ -472,23 +473,23 @@ struct homa_rpc_t {
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
  * recvmsg requests that form the msghdr
  */
-#define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg)
-#define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg)
-#define MSGHDR_SPORT        271,256 // Port of sender (sendmsg) or receiver (recvmsg)
-#define MSGHDR_DPORT        287,272 // Address of receiver (sendmsg) or sender (recvmsg) 
-#define MSGHDR_IOV          319,288 // Message contents DMA offset
-#define MSGHDR_IOV_SIZE     351,320 // Size of message in DMA space
+#define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg) (128 bits)
+#define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg) (128 bits)
+#define MSGHDR_SPORT        271,256 // Port of sender (sendmsg) or receiver (recvmsg) (16 bits)
+#define MSGHDR_DPORT        287,272 // Address of receiver (sendmsg) or sender (recvmsg) (16 bits)
+#define MSGHDR_IOV          351,288 // Message contents DMA offset (64 bits)
+#define MSGHDR_IOV_SIZE     383,352 // Size of message in DMA space (32 bits)
 
 /* Offsets within the sendmsg bitvector for the sendmsg specific information */
-#define MSGHDR_SEND_ID      415,352 // RPC identifier
-#define MSGHDR_SEND_CC      479,416 // Completion Cookie
+#define MSGHDR_SEND_ID      447,384 // RPC identifier (64 bits)
+#define MSGHDR_SEND_CC      511,448 // Completion Cookie (64 bits)
 #define MSGHDR_SEND_SIZE    512     // Rounded to nearest 32 bits
 
 /* Offsets within the recvmsg bitvector for the recvmsg specific information */
-#define MSGHDR_RECV_ID      415,352 // RPC identifier
-#define MSGHDR_RECV_CC      479,416 // Completion Cookie
-#define MSGHDR_RECV_FLAGS   511,480 // Interest list
-#define MSGHDR_RECV_SIZE    512     // Rounded to nearest 32 bits
+#define MSGHDR_RECV_ID      447,384 // RPC identifier
+#define MSGHDR_RECV_CC      511,448 // Completion Cookie
+#define MSGHDR_RECV_FLAGS   543,512 // Interest list
+#define MSGHDR_RECV_SIZE    544     // Rounded to nearest 32 bits
 
 /**
  * msghdr_send_t - input bitvector from the user for sendmsg requests
@@ -542,7 +543,7 @@ struct onboard_send_t {
     ap_uint<128> daddr;    // Address of receiver (sendmsg) or sender (recvmsg)
     ap_uint<16>  sport;    // Port of sender (sendmsg) or receiver (recvmsg) 
     ap_uint<16>  dport;    // Port of sender (sendmsg) or receiver (recvmsg)
-    ap_uint<32>  iov;      // Message contents DMA offset
+    ap_uint<64>  iov;      // Message contents DMA offset
     ap_uint<32>  iov_size; // Size of message in DMA space 
 
     ap_uint<64>  id;    // RPC identifier 
