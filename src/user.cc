@@ -104,7 +104,6 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	    }
 	} else {
 	    recv[match_index] = recv[recv_head];
-	    std::cerr << "RECV MATCH FOUND\n";
 	    new_msg.last = 1;
 	    msghdr_recv_o.write(new_msg);
 	    recv_head--;
@@ -169,7 +168,6 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 	onboard_send.local_id            = client_ids.pop();
 	onboard_send.id                  = onboard_send.local_id;
 	msghdr_send.data(MSGHDR_SEND_ID) = onboard_send.id;
-	std::cerr << "GENERATED NEW CLIENT ID " << onboard_send.local_id << std::endl;
     }
 
     msghdr_send.last = 1;

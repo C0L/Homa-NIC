@@ -304,7 +304,7 @@ proc create_root_design { parentCell } {
   set_property -dict [list \
     CONFIG.PCIE_BOARD_INTERFACE {pci_express_x16} \
     CONFIG.SYS_RST_N_BOARD_INTERFACE {pcie_perstn} \
-    CONFIG.axibar_num {1} \
+    CONFIG.axibar_num {6} \
     CONFIG.en_axi_slave_if {true} \
     CONFIG.en_transceiver_status_ports {false} \
     CONFIG.functional_mode {AXI_Bridge} \

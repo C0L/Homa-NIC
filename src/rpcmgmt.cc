@@ -94,7 +94,6 @@ void rpc_state(hls::stream<onboard_send_t> & onboard_send_i,
 
 		    // TODO will need to move
 		    homa_rpc.ingress_dma_id  = ingress_dma_stack.pop();
-		    std::cerr << "GETATED INGRESS ID " << homa_rpc.ingress_dma_id << std::endl;
 		    header_in.ingress_dma_id = homa_rpc.ingress_dma_id;
 		} else {
 		    header_in.id = homa_rpc.id;
@@ -196,7 +195,6 @@ void id_map(hls::stream<header_t> & header_in_i,
 	    // If the rpc is not registered, generate a new RPC ID and register it 
 	    if (header_in.local_id == 0) {
 		header_in.local_id = server_ids.pop();
-		std::cerr << "NEW SERVER ID " << header_in.local_id << std::endl;
 		entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, header_in.local_id};
 		rpc_hashmap.insert(rpc_entry);
 	    }
