@@ -1,3 +1,0 @@
-sudo lspci -s 01:00.0 -vvvv
-
-

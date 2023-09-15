@@ -34,11 +34,10 @@ struct msghdr_send_t {
     char daddr[16];
     uint16_t sport;
     uint16_t dport;
-    uint32_t buff_addr;
+    uint64_t buff_addr;
     uint32_t buff_size;
     uint32_t id;
     uint64_t cc;
-    char padding[8];
 }__attribute__((packed));
 
 volatile char * sendmsg_axil;
@@ -62,7 +61,7 @@ void print_msghdr(struct msghdr_send_t * msghdr_send) {
     printf("  DESTINATION ADDRESS : %.*s\n", 16, msghdr_send->saddr);
     printf("  SOURCE PORT         : %u\n", (unsigned int) msghdr_send->sport);
     printf("  DESTINATION PORT    : %u\n", (unsigned int) msghdr_send->dport);
-    printf("  BUFFER ADDRESS      : %u\n", msghdr_send->buff_addr);
+    printf("  BUFFER ADDRESS      : %lu\n", msghdr_send->buff_addr);
     printf("  BUFFER SIZE         : %u\n", msghdr_send->buff_size);
     printf("  RPC ID              : %u\n", msghdr_send->id);
     printf("  COMPLETION COOKIE   : %lu\n", msghdr_send->cc);
@@ -150,18 +149,16 @@ int main() {
     msghdr_send.id        = 0;
     msghdr_send.cc        = 0;
 
-// printf("SIZEOF %d\n", sizeof(struct msghdr_send_t));
+	// printf("SIZEOF %d\n", sizeof(struct msghdr_send_t));
 
 //    char msg[13] = "Hello World!";
 //
     // char * msg_buff = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, fd, BAR_0);
-    mlockall(MCL_FUTURE);
-    char * msg_buff = (char *) malloc(16384);
+    // mlockall(MCL_FUTURE);
+    // char * msg_buff = (char *) malloc(16384);
 
-    while(1);
-    
-    free(msg_buff);
-    // char * recv_buff = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, fd, BAR_0 + RECV_BUFF_OFFSET);
+    // free(msg_buff);
+    //// char * recv_buff = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, fd, BAR_0 + RECV_BUFF_OFFSET);
 //
 //    memcpy(recv_buff, msg, 13);
 //
@@ -170,7 +167,7 @@ int main() {
 
 //  dump_axi_fifo_state(sendmsg_axil);
 
-    // sendmsg(&msghdr_send);
+    sendmsg(&msghdr_send);
 
 //    printf("Send Buff Message Contents: %.*s\n", 13, send_buff);
 //    printf("Recv Buff Message Contents: %.*s\n", 13, recv_buff);
