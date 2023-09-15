@@ -90,7 +90,8 @@ void dump_axi_fifo_state(void) {
 void sendmsg(struct msghdr_send_t * msghdr_send) {
     int i;
     void __iomem * device_regs = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
-    void __iomem * data_regs = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET, 8);
+    void __iomem * data_regs_w = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET, 8);
+    void __iomem * data_regs_w = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET + 0x1000, 8);
 
     void * virt_buff = kmalloc(16384, GFP_ATOMIC);
     phys_addr_t phys_buff = virt_to_phys(virt_buff);
@@ -118,7 +119,7 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
 
     pr_alert("  Writing sendmsg data\n");
     for (i = 0; i < 16; ++i) {
-        iowrite32(*(((unsigned int*) msghdr_send) + i), data_regs);
+        iowrite32(*(((unsigned int*) msghdr_send) + i), data_regs_w);
     }
 
     pr_alert("  Current sendmsg FIFO vacancy %d\n", ioread32(device_regs + AXI_STREAM_FIFO_TDFV));
@@ -140,7 +141,7 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
 
     pr_alert("  Reading sendmsg data\n");
     for (i = 0; i < 16; ++i) {
-        *(((unsigned int*) msghdr_send) + i) = ioread32(device_regs + 0x1000);
+        *(((unsigned int*) msghdr_send) + i) = ioread32(data_regs_r);
     }
 
     print_msghdr(msghdr_send);
@@ -148,7 +149,8 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
     pr_alert("Recv Buff Message Contents: %.*s\n", 13, (char *) (virt_buff + 128));
 
     iounmap(device_regs);
-    iounmap(data_regs);
+    iounmap(data_regs_r);
+    iounmap(data_regs_w);
 }
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
