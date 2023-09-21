@@ -3,14 +3,14 @@
 
 #include "homa.hh"
 
-void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_o,
-		       hls::stream<dma_w_req_t> & dma_w_req_o,
-		       hls::stream<header_t> & header_in_i,
-		       hls::stream<header_t> & header_in_o);
+void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_o,
+		  hls::stream<dma_w_req_t> & dma_w_req_o,
+		  hls::stream<header_t> & header_in_i,
+		  hls::stream<header_t> & header_in_o);
 
-void msg_cache_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
-	       hls::stream<srpt_dbuff_notif_t> & dbuff_notif_o,
-	       hls::stream<out_chunk_t> & out_chunk_i,
-	       hls::stream<out_chunk_t> & out_chunk_o);
+void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
+		  hls::stream<srpt_data_dbuff_notif_t> & dbuff_notif_o,
+		  hls::stream<h2c_chunk_t> & out_chunk_i,
+		  hls::stream<h2c_chunk_t> & out_chunk_o);
 
 #endif

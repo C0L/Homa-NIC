@@ -7,6 +7,11 @@
 using namespace std;
 
 int main() {
+
+    // TODO turn this into a command line util and use files as input and output buffers and diff the results
+
+
+
     std::cerr << "****************************** SINGLE PACKET MESSAGE TEST ******************************" << endl;
     std::cerr << "DMA SIZE  = " << DMA_SIZE << std::endl;
     std::cerr << "RTT BYTES = " << RTT_BYTES << std::endl;
@@ -28,18 +33,18 @@ int main() {
     recvmsg.data(MSGHDR_DADDR)      = daddr;
     recvmsg.data(MSGHDR_SPORT)      = sport;
     recvmsg.data(MSGHDR_DPORT)      = dport;
-    recvmsg.data(MSGHDR_IOV)        = 0;
-    recvmsg.data(MSGHDR_IOV_SIZE)   = 0;
+    recvmsg.data(MSGHDR_BUFF_ADDR)  = 0;
+    recvmsg.data(MSGHDR_BUFF_SIZE)  = 0;
     recvmsg.data(MSGHDR_RECV_ID)    = 0;
     recvmsg.data(MSGHDR_RECV_CC)    = 0;
     recvmsg.data(MSGHDR_RECV_FLAGS) = HOMA_RECVMSG_REQUEST;
 
-    sendmsg.data(MSGHDR_SADDR)    = saddr;
-    sendmsg.data(MSGHDR_DADDR)    = daddr;
-    sendmsg.data(MSGHDR_SPORT)    = sport;
-    sendmsg.data(MSGHDR_DPORT)    = dport;
-    sendmsg.data(MSGHDR_IOV)      = 0;
-    sendmsg.data(MSGHDR_IOV_SIZE) = MSG_SIZE;
+    sendmsg.data(MSGHDR_SADDR)     = saddr;
+    sendmsg.data(MSGHDR_DADDR)     = daddr;
+    sendmsg.data(MSGHDR_SPORT)     = sport;
+    sendmsg.data(MSGHDR_DPORT)     = dport;
+    sendmsg.data(MSGHDR_BUFF_ADDR) = 0;
+    sendmsg.data(MSGHDR_BUFF_SIZE) = MSG_SIZE;
 
     sendmsg.data(MSGHDR_SEND_ID)    = 0;
     sendmsg.data(MSGHDR_SEND_CC)    = 0;
@@ -51,7 +56,7 @@ int main() {
 
     homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, w_cmd_queue_o, w_data_queue_o, w_status_queue_i, r_cmd_queue_o, r_data_queue_i, r_status_queue_i, link_ingress_i, link_egress_o);
 
-    while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, MSG_SIZE) != 0) {
+    while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out + 128, MSG_SIZE) != 0) {
     	if (!link_egress_o.empty()) {
 	    link_ingress_i.write(link_egress_o.read());
 	}

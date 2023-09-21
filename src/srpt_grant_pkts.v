@@ -20,12 +20,11 @@
 `define PRIORITY        96:94
 `define PRIORITY_SIZE   3
 
-`define HEADER_SIZE 126
-`define HDR_PEER_ID 13:0
-`define HDR_RPC_ID  29:14
-`define HDR_OFFSET  61:30
-`define HDR_MSG_LEN 93:62
-`define HDR_PMAP    95:94
+`define HDR_SIZE     64
+`define HDR_PEER_ID  13,0  // Unique ID for this peer
+`define HDR_RPC_ID   29,14 // Local ID valid in rpc state core
+`define HDR_MSG_LEN  61,30 // Total number of bytes in message
+`define HDR_PMAP     63,62 // First packet in a sequence?
 
 // 60K byte (RTT_Bytes) * 8 (MAX_OVERCOMMIT)
 `define RTT_BYTES 60000
@@ -132,7 +131,7 @@ module srpt_grant_pkts #(parameter MAX_OVERCOMMIT = 8,
    (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
     input			 header_in_empty_i,
     output reg			 header_in_read_en_o,
-    input [`HEADER_SIZE-1:0]	 header_in_data_i,
+    input [`HDR_SIZE-1:0]	 header_in_data_i,
     input			 grant_pkt_full_i,
     output reg			 grant_pkt_write_en_o,
     output reg [`ENTRY_SIZE-1:0] grant_pkt_data_o, 
@@ -425,7 +424,7 @@ module srpt_grant_pkts_tb();
 
    reg	header_in_empty_i;
    wire	header_in_read_en_o;
-   reg [`HEADER_SIZE-1:0] header_in_data_i;
+   reg [`HDR_SIZE-1:0] header_in_data_i;
    
    reg			  grant_pkt_full_i;
    wire [`ENTRY_SIZE-1:0] grant_pkt_data_o; 
@@ -452,7 +451,6 @@ module srpt_grant_pkts_tb();
 	 header_in_data_i[`HDR_PEER_ID] = peer_id;
 	 header_in_data_i[`HDR_RPC_ID]  = rpc_id;
 	 header_in_data_i[`HDR_MSG_LEN] = msg_len;
-	 header_in_data_i[`HDR_OFFSET]  = offset;
 	 header_in_data_i[`HDR_PMAP]    = 0;
 	 
 	 header_in_empty_i = 1;
@@ -486,7 +484,7 @@ module srpt_grant_pkts_tb();
    end
    
    initial begin
-      header_in_data_i = {`HEADER_SIZE{1'b0}};
+      header_in_data_i = {`HDR_SIZE{1'b0}};
       header_in_empty_i = 0;
       grant_pkt_full_i = 0;
       

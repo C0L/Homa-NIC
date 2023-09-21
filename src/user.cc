@@ -74,8 +74,8 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	new_msg.data(MSGHDR_DADDR)      = header_in.daddr;
 	new_msg.data(MSGHDR_SPORT)      = header_in.sport;
 	new_msg.data(MSGHDR_DPORT)      = header_in.dport;
-	new_msg.data(MSGHDR_IOV)        = header_in.ingress_dma_id;
-	new_msg.data(MSGHDR_IOV_SIZE)   = header_in.message_length;
+	new_msg.data(MSGHDR_BUFF_ADDR)  = header_in.host_addr;
+	new_msg.data(MSGHDR_BUFF_SIZE)  = header_in.message_length;
 	new_msg.data(MSGHDR_RECV_ID)    = header_in.local_id; 
 	new_msg.data(MSGHDR_RECV_CC)    = header_in.completion_cookie; // TODO
 	new_msg.data(MSGHDR_RECV_FLAGS) = IS_CLIENT(header_in.id) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
@@ -143,7 +143,7 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
      * entry can steal another entries ID.
      */
     static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(STACK_ALL);
-
+    std::cerr << "SENDMSG IN\n";
     msghdr_send_t msghdr_send;
 
     msghdr_send_i.read(msghdr_send);
@@ -153,11 +153,10 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
     onboard_send.daddr          = msghdr_send.data(MSGHDR_DADDR);
     onboard_send.sport          = msghdr_send.data(MSGHDR_SPORT);
     onboard_send.dport          = msghdr_send.data(MSGHDR_DPORT);
-    onboard_send.iov            = msghdr_send.data(MSGHDR_IOV);
-    onboard_send.iov_size       = msghdr_send.data(MSGHDR_IOV_SIZE);
+    onboard_send.buff_addr      = msghdr_send.data(MSGHDR_BUFF_ADDR);
+    onboard_send.buff_size      = msghdr_send.data(MSGHDR_BUFF_SIZE);
     onboard_send.cc             = msghdr_send.data(MSGHDR_SEND_CC);
-    onboard_send.dbuffered      = msghdr_send.data(MSGHDR_IOV_SIZE);
-    onboard_send.egress_buff_id = msg_cache_ids.pop();
+    onboard_send.h2c_buff_id    = msg_cache_ids.pop();
 
     /* If the caller provided an ID of 0 this is a request message and we
      * need to generate a new local ID. Otherwise, this is a response
@@ -173,5 +172,115 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
     msghdr_send.last = 1;
     msghdr_send_o.write(msghdr_send);
 
+    std::cerr << "SENDMSG SENT\n";
     onboard_send_o.write(onboard_send);
+}
+
+
+/* A sendmsg request causes a buffer to be selected in the hosts mem */
+void h2c_address_map(
+    hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
+    hls::stream<onboard_send_t> & sendmsg_i,
+    hls::stream<onboard_send_t> & sendmsg_o,
+    hls::stream<srpt_data_fetch_t> & dma_r_req_i,
+    hls::stream<srpt_data_fetch_t> & dma_r_req_o,
+    hls::stream<log_status_t> & log_out
+    ) {
+    static host_addr_t h2c_port_to_phys[MAX_PORTS];
+    static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];
+
+    // TODO dma reqs
+    srpt_data_fetch_t dma_r_req;
+    if (dma_r_req_i.read_nb(dma_r_req)) {
+
+	// Get the physical address of this ports entire buffer
+	host_addr_t phys_addr = h2c_port_to_phys[dma_r_req(SRPT_DATA_FETCH_PORT)];
+	msg_addr_t msg_addr   = h2c_rpc_to_offset[dma_r_req(SRPT_DATA_FETCH_RPC_ID)];
+
+	log_status_t log_status = LOG_GOOD;
+	if (phys_addr == 0) {
+	    log_status |= LOG_DMA_NO_PHYS;
+	}
+
+	if ((msg_addr & 1) != 1) {
+	    log_status |= LOG_DMA_NO_OFFSET;
+	}
+
+	if (log_status != LOG_GOOD) {
+	    log_out.write(log_status);
+	}
+
+	msg_addr >>= 1;
+	dma_r_req(SRPT_DATA_FETCH_HOST_ADDR) = dma_r_req(SRPT_DATA_FETCH_HOST_ADDR) + (phys_addr + msg_addr);
+
+	dma_r_req_o.write(dma_r_req);
+    }
+	
+    port_to_phys_t new_h2c_port_to_phys;
+    if (h2c_port_to_phys_i.read_nb(new_h2c_port_to_phys)) {
+	h2c_port_to_phys[new_h2c_port_to_phys(PORT_TO_PHYS_PORT)] = new_h2c_port_to_phys(PORT_TO_PHYS_PHYS_ADDR);
+    }
+
+    onboard_send_t sendmsg;
+    if (sendmsg_i.read_nb(sendmsg)) {
+	h2c_rpc_to_offset[sendmsg.local_id] = (sendmsg.buff_addr << 1) | 1;
+	sendmsg_o.write(sendmsg);
+    }
+}
+
+/* A new header causes a buffer to be selected in the hosts mem */
+void c2h_address_map(
+    hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
+    hls::stream<header_t> & c2h_header_i,
+    hls::stream<header_t> & c2h_header_o,
+    hls::stream<dma_w_req_t> & dma_w_req_i,
+    hls::stream<dma_w_req_t> & dma_w_req_o,
+    hls::stream<log_status_t> & log_out
+    ) {
+
+    static host_addr_t c2h_port_to_phys[MAX_PORTS];
+    static msg_addr_t  c2h_rpc_to_offset[MAX_RPCS];
+    static ap_uint<7>  c2h_buff_ids[MAX_PORTS];
+
+    dma_w_req_t dma_w_req;
+    if (dma_w_req_i.read_nb(dma_w_req)) {
+	// Get the physical address of this ports entire buffer
+	host_addr_t phys_addr = c2h_port_to_phys[dma_w_req.port];
+	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
+
+	log_status_t log_status = LOG_GOOD;
+	if (phys_addr == 0) {
+	    log_status |= LOG_DMA_NO_PHYS;
+	}
+
+	if ((msg_addr & 1) != 1) {
+	    log_status |= LOG_DMA_NO_OFFSET;
+	}
+
+	if (log_status != LOG_GOOD) {
+	    log_out.write(log_status);
+	}
+
+	msg_addr >>= 1;
+	dma_w_req.offset += phys_addr + msg_addr;
+
+	dma_w_req_o.write(dma_w_req);
+    }
+	
+    port_to_phys_t new_c2h_port_to_phys;
+    if (c2h_port_to_phys_i.read_nb(new_c2h_port_to_phys)) {
+	c2h_port_to_phys[new_c2h_port_to_phys(PORT_TO_PHYS_PORT)] = new_c2h_port_to_phys(PORT_TO_PHYS_PHYS_ADDR);
+    }
+
+    header_t c2h_header;
+    if (c2h_header_i.read_nb(c2h_header)) {
+	if ((c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
+	    host_addr_t host_addr = ((c2h_buff_ids[c2h_header.dport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
+	    c2h_rpc_to_offset[c2h_header.local_id] = host_addr;
+	    c2h_buff_ids[c2h_header.dport]++;
+	    c2h_header.host_addr = host_addr;
+	}
+	    
+	c2h_header_o.write(c2h_header);
+    }
 }

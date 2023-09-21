@@ -27,41 +27,41 @@ void network_order(integral_t & in, integral_t & out) {
 }
 
 /**
- * egress_selector() - Chose which of data packets, grant packets, retransmission(TODO)
+ * next_pkt_selector() - Chose which of data packets, grant packets, retransmission(TODO)
  * packets, and control packets(TODO) to send next.
  * @data_pkt_i   - Next highest priority data packet to send
  * @grant_pkt_i  - Next highest priority grant packet to send
  * @header_out_o - Output stream to the RPC store to get info about the RPC
  * before the packet can be sent
  */
-void egress_selector(hls::stream<srpt_pktq_t> & data_pkt_i,
-		     hls::stream<srpt_grant_out_t> & grant_pkt_i,
-		     hls::stream<header_t> & header_out_o) {
+void next_pkt_selector(hls::stream<srpt_data_send_t> & data_pkt_i,
+		       hls::stream<srpt_grant_send_t> & grant_pkt_i,
+		       hls::stream<header_t> & header_out_o) {
 
 #pragma HLS pipeline II=1
 
     if (!grant_pkt_i.empty()) {
-	srpt_grant_out_t grant_out = grant_pkt_i.read();
+	srpt_grant_send_t grant_out = grant_pkt_i.read();
 
 	header_t header_out;
 	header_out.type         = GRANT;
-	header_out.local_id     = grant_out(SRPT_GRANT_OUT_RPC_ID);
-	header_out.grant_offset = grant_out(SRPT_GRANT_OUT_GRANT);
+	header_out.local_id     = grant_out(SRPT_GRANT_SEND_RPC_ID);
+	header_out.grant_offset = grant_out(SRPT_GRANT_SEND_MSG_ADDR);
 	header_out.packet_bytes = GRANT_PKT_HEADER;
 
 	header_out_o.write(header_out);
     } else if (!data_pkt_i.empty()) {
-	srpt_pktq_t ready_data_pkt = data_pkt_i.read();
+	srpt_data_send_t ready_data_pkt = data_pkt_i.read();
 
 	// TODO why even handle this here?
 
 	header_t header_out;
 	header_out.type            = DATA;
-	header_out.local_id        = ready_data_pkt(PKTQ_RPC_ID);
-	header_out.incoming        = ready_data_pkt(PKTQ_GRANTED);
-	header_out.grant_offset    = ready_data_pkt(PKTQ_GRANTED);
-	header_out.data_offset     = ready_data_pkt(PKTQ_REMAINING);
-	header_out.segment_length  = MIN(ready_data_pkt(PKTQ_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
+	header_out.local_id        = ready_data_pkt(SRPT_DATA_SEND_RPC_ID);
+	header_out.incoming        = ready_data_pkt(SRPT_DATA_SEND_GRANTED);
+	header_out.grant_offset    = ready_data_pkt(SRPT_DATA_SEND_GRANTED);
+	header_out.data_offset     = ready_data_pkt(SRPT_DATA_SEND_REMAINING);
+	header_out.segment_length  = MIN(ready_data_pkt(SRPT_DATA_SEND_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
 	header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
 	header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
 
@@ -78,7 +78,7 @@ void egress_selector(hls::stream<srpt_pktq_t> & data_pkt_i,
  * be augmented with data from the data buffer
  */
 void pkt_builder(hls::stream<header_t> & header_out_i,
-		 hls::stream<out_chunk_t> & chunk_out_o) {
+		 hls::stream<h2c_chunk_t> & chunk_out_o) {
 
 #pragma HLS pipeline II=1 style=flp
 
@@ -91,10 +91,10 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 
 	valid = true;
 
-	out_chunk_t out_chunk;
+	h2c_chunk_t out_chunk;
 	ap_uint<512> natural_chunk;
 
-	out_chunk.offset = header.data_offset;
+	out_chunk.msg_addr = header.data_offset;
 
 	switch(header.type) {
 	    case DATA: {
@@ -128,8 +128,6 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    out_chunk.type  = DATA;
 		    out_chunk.width = 0;
 		    out_chunk.keep  = 64;
-		    header.data_offset += NO_DATA;
-
 		} else if (processed_bytes == 64) {
 		    // Rest of common header
 		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                    // Unused (2 bytes)
@@ -157,20 +155,20 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;  // Server Port (2 bytes) TODO
 
 		    // Packet block configuration — 14 data bytes needed
-		    out_chunk.type            = DATA;
-		    out_chunk.width           = 14;
-		    out_chunk.keep            = 64;
-		    out_chunk.egress_buff_id  = header.egress_buff_id;
-		    out_chunk.local_id        = header.local_id;
-		    header.data_offset += PARTIAL_DATA;
+		    out_chunk.type        = DATA;
+		    out_chunk.width       = 14;
+		    out_chunk.keep        = 64;
+		    out_chunk.h2c_buff_id = header.h2c_buff_id;
+		    out_chunk.local_id    = header.local_id;
+		    header.data_offset    += 14;
 		} else {
-		    out_chunk.type            = DATA;
-		    out_chunk.width           = 64;
+		    out_chunk.type        = DATA;
+		    out_chunk.width       = 64;
 		    // TODO revise
-		    out_chunk.keep            = ((header.packet_bytes - processed_bytes) < 64) ? ((ap_int<32>) (header.packet_bytes - processed_bytes)) : ((ap_int<32>) 64);
-		    out_chunk.egress_buff_id  = header.egress_buff_id;
+		    out_chunk.keep        = ((header.packet_bytes - processed_bytes) < 64) ? ((ap_int<32>) (header.packet_bytes - processed_bytes)) : ((ap_int<32>) 64);
+		    out_chunk.h2c_buff_id  = header.h2c_buff_id;
 		    out_chunk.local_id = header.local_id;
-		    header.data_offset += ALL_DATA;
+		    header.data_offset += 64;
 		}
 		break;
 	    }
@@ -252,11 +250,11 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
-void pkt_chunk_egress(hls::stream<out_chunk_t> & out_chunk_i,
+void pkt_chunk_egress(hls::stream<c2h_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
 #pragma HLS pipeline
     if (!out_chunk_i.empty()) {
-	out_chunk_t chunk = out_chunk_i.read();
+	c2h_chunk_t chunk = out_chunk_i.read();
 	raw_stream_t raw_stream;
 
 	raw_stream.data = chunk.data;
@@ -331,7 +329,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
 			// TODO parse acks
 
-			data_block.data(14 * 8, 0) = raw_stream.data(511, 512-PARTIAL_DATA*8);
+			data_block.data(14 * 8, 0) = raw_stream.data(511, 512-14*8);
 			data_block.width  = 14;
 			data_block.last   = raw_stream.last;
 			chunk_in_o.write(data_block);

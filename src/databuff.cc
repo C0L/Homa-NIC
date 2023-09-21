@@ -16,10 +16,10 @@
  * @dma_w_req_o - Outgoing requests for data to be placed in DMA
  * @header_in_i - Incoming headers that determine DMA placement
  */
-void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
-		       hls::stream<dma_w_req_t> & dma_w_req_o,
-		       hls::stream<header_t> & header_in_i,
-		       hls::stream<header_t> & header_in_o) {
+void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
+		  hls::stream<dma_w_req_t> & dma_w_req_o,
+		  hls::stream<header_t> & header_in_i,
+		  hls::stream<header_t> & header_in_o) {
 
 #pragma HLS pipeline II=1
 
@@ -31,13 +31,17 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
     static ap_uint<7>    buffer_head;      // Offset within aligned chunk 
     static ap_uint<7>    buffered;         // Num of bytes in the aligned buffer already
 
-    in_chunk_t chunk_in;
+    c2h_chunk_t chunk_in;
     chunk_in.width = 0;
 
     // TODO naive host memory management
     // ap_uint<32> dma_offset = header_in.ingress_dma_id * 16384;
 
-    ap_uint<32> dma_offset = 0;
+    ap_uint<64> dma_offset = 0;
+
+//    if (!next_slab_i.empty()) {
+//	dma_offset = next_slab_i.read();
+//    }
 
     /* There are two conditions in which we interact with the buffer:
      *   1) The value of pending buffer is non-zero which indicates
@@ -52,6 +56,7 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
      *   upstream is fully pipelined.
      */
     if ((pending_buffer != 0 && chunk_in_i.read_nb(chunk_in)) || buffered > 0) {
+	std::cerr << "BUFFERING DATA\n";
 	// How many more bytes can we buffer before reaching our next aligned chunk
 	ap_uint<7> next_boundary = 64 - buffer_head;
 
@@ -103,6 +108,8 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
 	chunk_offset   = 0;
 	pending_buffer = header_in.segment_length;
 
+	std::cerr << "READ NEW HEADER OUT \n";
+
 	if ((header_in.packetmap & PMAP_COMP) == PMAP_COMP) {
 	    header_in_o.write(header_in);
 	}
@@ -122,10 +129,10 @@ void msg_spool_ingress(hls::stream<in_chunk_t> & chunk_in_i,
  * until the final chunk in a packet is placed on the link with the "last" bit
  * set, indicating a completiton of packet transmission.
  */
-void msg_cache_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
-		      hls::stream<srpt_dbuff_notif_t> & dbuff_notif_o,
-		      hls::stream<out_chunk_t> & out_chunk_i,
-		      hls::stream<out_chunk_t> & out_chunk_o) {
+void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
+		  hls::stream<srpt_data_dbuff_notif_t> & dbuff_notif_o,
+		  hls::stream<h2c_chunk_t> & h2c_chunk_i,
+		  hls::stream<h2c_chunk_t> & h2c_chunk_o) {
 
 #pragma HLS pipeline II=1
 
@@ -138,52 +145,41 @@ void msg_cache_egress(hls::stream<dbuff_in_t> & dbuff_egress_i,
 #pragma HLS dependence variable=dbuff intra RAW false
 
     // Take input chunks and add them to the data buffer
-    dbuff_in_t dbuff_in;
+    h2c_dbuff_t dbuff_in;
     if (dbuff_egress_i.read_nb(dbuff_in)) {
 
-	dbuff_coffset_t chunk_offset = (dbuff_in.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
+	dbuff_coffset_t chunk_offset = (dbuff_in.msg_addr % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
 
 	dbuff[dbuff_in.dbuff_id][chunk_offset] = dbuff_in.data;
 
-	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.offset + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
+	// TODO this is problematic here
+	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.msg_addr + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
 
 	// TODO fix this
 	// if (dbuff_in.last) {
-	    srpt_dbuff_notif_t dbuff_notif;
-	    dbuff_notif(SRPT_DBUFF_NOTIF_RPC_ID) = dbuff_in.local_id;
-	    dbuff_notif(SRPT_DBUFF_NOTIF_OFFSET) = dbuffered;
+	    srpt_data_dbuff_notif_t dbuff_notif;
+	    dbuff_notif(SRPT_DATA_DBUFF_NOTIF_RPC_ID)   = dbuff_in.local_id;
+	    dbuff_notif(SRPT_DATA_DBUFF_NOTIF_MSG_ADDR) = dbuffered;
 	    dbuff_notif_o.write(dbuff_notif);
 	    // }
     }
 
-    out_chunk_t out_chunk;
+    h2c_chunk_t out_chunk;
     out_chunk.local_id = 0;
     // Do we need to process any packet chunks?
-    if (out_chunk_i.read_nb(out_chunk)) {
+    if (h2c_chunk_i.read_nb(out_chunk)) {
 	// Is this a data type packet?
 	if (out_chunk.type == DATA && out_chunk.width != 0) {
-	    dbuff_coffset_t chunk_offset = (out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
-	    dbuff_boffset_t byte_offset  = out_chunk.offset % DBUFF_CHUNK_SIZE;
+	    dbuff_coffset_t chunk_offset = (out_chunk.msg_addr % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
+	    dbuff_boffset_t byte_offset  = out_chunk.msg_addr % DBUFF_CHUNK_SIZE;
 
-	    ap_uint<1024> double_buff = (dbuff[out_chunk.egress_buff_id][chunk_offset+1], dbuff[out_chunk.egress_buff_id][chunk_offset]);
+	    ap_uint<1024> double_buff = (dbuff[out_chunk.h2c_buff_id][chunk_offset+1], dbuff[out_chunk.h2c_buff_id][chunk_offset]);
 
 	    // TODO does this do anything???
 #pragma HLS array_partition variable=double_buff complete
 
 	    out_chunk.data(511, (512 - (out_chunk.width*8))) = double_buff(((byte_offset + out_chunk.width) * 8) - 1, byte_offset * 8);
-
-	    //switch(out_chunk.width) {
-	    //	case ALL_DATA: {
-	    //	    out_chunk.data(511, 0) = double_buff(((byte_offset + ALL_DATA) * 8)-1, byte_offset * 8);
-	    //	    break;
-	    //	}
-
-	    //	case PARTIAL_DATA: {
-	    //	    out_chunk.data(511, 512-PARTIAL_DATA*8) = double_buff(((byte_offset + PARTIAL_DATA) * 8)-1, byte_offset * 8);
-	    //	    break;
-	    //	}
-	    //}
 	}
-	out_chunk_o.write(out_chunk);
+	h2c_chunk_o.write(out_chunk);
     }
 }
