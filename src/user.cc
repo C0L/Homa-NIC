@@ -192,7 +192,7 @@ void h2c_address_map(
     // TODO dma reqs
     srpt_data_fetch_t dma_r_req;
     if (dma_r_req_i.read_nb(dma_r_req)) {
-
+	std::cerr << "h2c_addressS_map\n";
 	// Get the physical address of this ports entire buffer
 	host_addr_t phys_addr = h2c_port_to_phys[dma_r_req(SRPT_DATA_FETCH_PORT)];
 	msg_addr_t msg_addr   = h2c_rpc_to_offset[dma_r_req(SRPT_DATA_FETCH_RPC_ID)];
@@ -203,10 +203,12 @@ void h2c_address_map(
 	}
 
 	if ((msg_addr & 1) != 1) {
+	    // TODO failing
 	    log_status |= LOG_DMA_NO_OFFSET;
 	}
 
 	if (log_status != LOG_GOOD) {
+	    std::cerr << "LOG NOT GOOD!!!\n";
 	    log_out.write(log_status);
 	}
 
@@ -244,6 +246,7 @@ void c2h_address_map(
 
     dma_w_req_t dma_w_req;
     if (dma_w_req_i.read_nb(dma_w_req)) {
+	std::cerr << "c2h_addresss_map\n";
 	// Get the physical address of this ports entire buffer
 	host_addr_t phys_addr = c2h_port_to_phys[dma_w_req.port];
 	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
@@ -258,6 +261,7 @@ void c2h_address_map(
 	}
 
 	if (log_status != LOG_GOOD) {
+	    std::cerr << "LOG NOT GOOD!!!\n";
 	    log_out.write(log_status);
 	}
 
@@ -275,10 +279,9 @@ void c2h_address_map(
     header_t c2h_header;
     if (c2h_header_i.read_nb(c2h_header)) {
 	if ((c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
-	    host_addr_t host_addr = ((c2h_buff_ids[c2h_header.dport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
-	    c2h_rpc_to_offset[c2h_header.local_id] = host_addr;
+	    msg_addr_t msg_addr = ((c2h_buff_ids[c2h_header.dport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
+	    c2h_rpc_to_offset[c2h_header.local_id] = msg_addr;
 	    c2h_buff_ids[c2h_header.dport]++;
-	    c2h_header.host_addr = host_addr;
 	}
 	    
 	c2h_header_o.write(c2h_header);

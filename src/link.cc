@@ -250,11 +250,14 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
-void pkt_chunk_egress(hls::stream<c2h_chunk_t> & out_chunk_i,
+void pkt_chunk_egress(hls::stream<h2c_chunk_t> & out_chunk_i,
 		      hls::stream<raw_stream_t> & link_egress) {
 #pragma HLS pipeline
     if (!out_chunk_i.empty()) {
-	c2h_chunk_t chunk = out_chunk_i.read();
+
+	std::cerr << "pkt chunk egress\n";
+
+	h2c_chunk_t chunk = out_chunk_i.read();
 	raw_stream_t raw_stream;
 
 	raw_stream.data = chunk.data;
@@ -281,17 +284,18 @@ void pkt_chunk_egress(hls::stream<c2h_chunk_t> & out_chunk_i,
  */
 void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		       hls::stream<header_t> & header_in_o,
-		       hls::stream<in_chunk_t> & chunk_in_o) {
+		       hls::stream<c2h_chunk_t> & chunk_in_o) {
 
 #pragma HLS pipeline II=1 style=flp
 
     static header_t header_in;
     static ap_uint<32> processed_bytes = 0;
 
-  if (!link_ingress.empty()) {
+    if (!link_ingress.empty()) {
 	raw_stream_t raw_stream = link_ingress.read();
+	std::cerr << "pkt_chunk_ingress\n";
 	
-	in_chunk_t data_block;
+	c2h_chunk_t data_block;
 	ap_uint<512> natural_chunk;
 
 	network_order(raw_stream.data, natural_chunk);
@@ -301,56 +305,57 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
 	    header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
 
-		header_in.saddr          = natural_chunk(CHUNK_IPV6_SADDR);
-		header_in.daddr          = natural_chunk(CHUNK_IPV6_DADDR);
-		header_in.sport          = natural_chunk(CHUNK_HOMA_COMMON_SPORT);
-		header_in.dport          = natural_chunk(CHUNK_HOMA_COMMON_DPORT);
+	    header_in.saddr          = natural_chunk(CHUNK_IPV6_SADDR);
+	    header_in.daddr          = natural_chunk(CHUNK_IPV6_DADDR);
+	    header_in.sport          = natural_chunk(CHUNK_HOMA_COMMON_SPORT);
+	    header_in.dport          = natural_chunk(CHUNK_HOMA_COMMON_DPORT);
 
-	    } else if (processed_bytes == 64) {
+	} else if (processed_bytes == 64) {
 
-		header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
-		header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
-		header_in.id   = LOCALIZE_ID(header_in.id);
+	    header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
+	    header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
+	    header_in.id   = LOCALIZE_ID(header_in.id);
 
-		switch(header_in.type) {
-		    case GRANT: {
-			// Grant header
-			header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
-			header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
+	    switch(header_in.type) {
+		case GRANT: {
+		    // Grant header
+		    header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
+		    header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
 
-			break;
-		    }
-
-		    case DATA: {
-			header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
-			header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
-			header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
-			header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
-
-			// TODO parse acks
-
-			data_block.data(14 * 8, 0) = raw_stream.data(511, 512-14*8);
-			data_block.width  = 14;
-			data_block.last   = raw_stream.last;
-			chunk_in_o.write(data_block);
-
-			break;
-		    }
+		    break;
 		}
 
-		header_in_o.write(header_in);
-	    } else {
-		data_block.data  = raw_stream.data;
-		data_block.width = raw_stream.keep;
-		data_block.last  = raw_stream.last;
+		case DATA: {
+		    header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
+		    header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
+		    header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
+		    header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
 
-		chunk_in_o.write(data_block);
+		    // TODO parse acks
+
+		    data_block.data(14 * 8, 0) = raw_stream.data(511, 512-14*8);
+		    data_block.width  = 14;
+		    data_block.last   = raw_stream.last;
+		    chunk_in_o.write(data_block);
+
+		    break;
+		}
 	    }
 
-	    processed_bytes += 64;
+	    std::cerr << "forwarded header\n";
+	    header_in_o.write(header_in);
+	} else {
+	    data_block.data  = raw_stream.data;
+	    data_block.width = raw_stream.keep;
+	    data_block.last  = raw_stream.last;
 
-	    if (raw_stream.last) {
-		processed_bytes = 0;
-	    }
+	    chunk_in_o.write(data_block);
+	}
+
+	processed_bytes += 64;
+
+	if (raw_stream.last) {
+	    processed_bytes = 0;
+	}
     }
 }

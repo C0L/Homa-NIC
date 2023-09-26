@@ -185,7 +185,7 @@ struct rpc_hashpack_t {
 };
 
 /**
- * srpt_grant_in_t - Output of the grant SRPT core which indicates the
+ * srpt_grant_send_t - Output of the grant SRPT core which indicates the
  * next best grant packet to be sent.
  */
 #define SRPT_GRANT_SEND_SIZE     48
@@ -195,7 +195,7 @@ struct rpc_hashpack_t {
 typedef ap_uint<SRPT_GRANT_SEND_SIZE> srpt_grant_send_t;
 
 /**
- * srpt_grant_in_t - Input to the grant SRPT core which communicates
+ * srpt_grant_new_t - Input to the grant SRPT core which communicates
  * when data has been recieved from a certain packet.
  */
 #define SRPT_GRANT_NEW_SIZE     64
@@ -473,16 +473,15 @@ struct h2c_chunk_t {
  * struct homa_rpc_t - State associated with and RPC
  */
 struct homa_rpc_t {
-    ap_uint<128> saddr;     // Address of sender (sendmsg) or receiver (recvmsg)
-    ap_uint<128> daddr;     // Address of receiver (sendmsg) or sender (recvmsg)
-    ap_uint<16>  dport;     // Port of sender (sendmsg) or receiver (recvmsg)
-    ap_uint<16>  sport;     // Port of sender (sendmsg) or receiver (recvmsg)
-    ap_uint<64>  id;        // RPC ID (potentially not local)
-
-    host_addr_t  buff_addr; // Address in host memory of 
-    ap_uint<32>  buff_size; //
-    dbuff_id_t   h2c_buff_id;
-    dbuff_id_t   c2h_dma_id;    // ID for offset of packet data in DMA
+    ap_uint<128> saddr;         // Address of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<128> daddr;         // Address of receiver (sendmsg) or sender (recvmsg)
+    ap_uint<16>  dport;         // Port of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<16>  sport;         // Port of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<64>  id;            // RPC ID (always local)
+    msg_addr_t   buff_addr;     // Buffer offset at phys addr associated with this port
+    ap_uint<32>  buff_size;     // Size of the message to send
+    // TODO must this be stored in here? It is already in the SRPT_DATA_NEW!?!
+    dbuff_id_t   h2c_buff_id;   //
 };
 
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
@@ -669,7 +668,7 @@ struct srpt_grant_t {
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 /* The last bit determines if the core is the client or the server in
- * an interaction * This can be called on an RPC ID to convert
+ * an interaction. This can be called on an RPC ID to convert
  * Sender->Client and Client->Sender
  */
 #define LOCALIZE_ID(sender_id) ((sender_id) ^ 1);
@@ -702,8 +701,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<ap_uint<512>>  & r_data_queue_i,
 	  hls::stream<am_status_t>   & r_status_queue_i,
 	  hls::stream<raw_stream_t>  & link_ingress,
-	  hls::stream<raw_stream_t>  & link_egress);
-
+	  hls::stream<raw_stream_t>  & link_egress,
+	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
+	  hls::stream<port_to_phys_t> & c2h_port_to_phys_i);
 #endif
-
-

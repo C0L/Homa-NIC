@@ -8,10 +8,31 @@ using namespace std;
 
 int main() {
 
-    // TODO turn this into a command line util and use files as input and output buffers and diff the results
+    // int aflag = 0;
+    // int bflag = 0;
+    char * dest_file = NULL;
+    char * src_file = NULL;
+    // int index;
+    // int c;
+
+    opterr = 0;
+
+    while ((c = getopt (argc, argv, "io:")) != -1)
+	switch (c) {
+	    case 'i':
+		src_file = optarg;
+		break;
+	    case 'o':
+		out_file = optarg;
+		break;
+	    default:
+		abort();
+	}
 
 
-
+    std::cerr << dest_file << std::endl;
+    std::cerr << src_file << std::endl;
+    
     std::cerr << "****************************** SINGLE PACKET MESSAGE TEST ******************************" << endl;
     std::cerr << "DMA SIZE  = " << DMA_SIZE << std::endl;
     std::cerr << "RTT BYTES = " << RTT_BYTES << std::endl;
@@ -54,9 +75,17 @@ int main() {
 
     strcpy((char*) maxi_in, data.c_str());
 
-    homa(sendmsg_i, sendmsg_o, recvmsg_i, recvmsg_o, w_cmd_queue_o, w_data_queue_o, w_status_queue_i, r_cmd_queue_o, r_data_queue_i, r_status_queue_i, link_ingress_i, link_egress_o);
+    homa(sendmsg_i, sendmsg_o,
+	 recvmsg_i, recvmsg_o,
+	 w_cmd_queue_o, w_data_queue_o, w_status_queue_i,
+	 r_cmd_queue_o, r_data_queue_i, r_status_queue_i,
+	 link_ingress_i, link_egress_o,
+	 h2c_port_to_phys_i, c2h_port_to_phys_i
+	);
 
-    while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out + 128, MSG_SIZE) != 0) {
+    while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, MSG_SIZE) != 0) {
+	if (memcmp(maxi_in, maxi_out, MSG_SIZE) == 0) std::cerr << "MESSAGE MATCH" << std::endl;
+
     	if (!link_egress_o.empty()) {
 	    link_ingress_i.write(link_egress_o.read());
 	}

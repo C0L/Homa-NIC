@@ -39,10 +39,6 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 
     ap_uint<64> dma_offset = 0;
 
-//    if (!next_slab_i.empty()) {
-//	dma_offset = next_slab_i.read();
-//    }
-
     /* There are two conditions in which we interact with the buffer:
      *   1) The value of pending buffer is non-zero which indicates
      *   that we read a header and need to match that header with
@@ -108,8 +104,6 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	chunk_offset   = 0;
 	pending_buffer = header_in.segment_length;
 
-	std::cerr << "READ NEW HEADER OUT \n";
-
 	if ((header_in.packetmap & PMAP_COMP) == PMAP_COMP) {
 	    header_in_o.write(header_in);
 	}
@@ -154,6 +148,9 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 
 	// TODO this is problematic here
 	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.msg_addr + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
+
+	std::cerr << "dbuff msg_len " << dbuff_in.msg_len << std::endl;
+	std::cerr << "dbuff msg_addr" << dbuff_in.msg_addr << std::endl;
 
 	// TODO fix this
 	// if (dbuff_in.last) {

@@ -7,7 +7,6 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
-
 #include "homa.hh"
 #include "user.hh"
 #include "link.hh"
@@ -16,6 +15,7 @@
 #include "databuff.hh"
 #include "packetmap.hh"
 #include "dma.hh"
+#include "logger.hh"
 
 using namespace hls;
 
@@ -29,12 +29,12 @@ using namespace hls;
  * @link_ingress: The incoming AXI Stream of ethernet frames from the link
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
-void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_send_o,
-	  stream<msghdr_recv_t> & msghdr_recv_i, stream<msghdr_recv_t> & msghdr_recv_o,
-	  stream<am_cmd_t> & w_cmd_queue_o, stream<ap_uint<512>> & w_data_queue_o, stream<am_status_t> & w_status_queue_i,
-	  stream<am_cmd_t> & r_cmd_queue_o, stream<ap_uint<512>> & r_data_queue_i, stream<am_status_t> & r_status_queue_i,
-	  stream<raw_stream_t> & link_ingress_i, stream<raw_stream_t> & link_egress_o,
-	  stream<port_to_phys_t> & h2c_port_to_phys_i, stream<port_to_phys_t> & c2h_port_to_phys_i) {
+void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t> & msghdr_send_o,
+	  hls::stream<msghdr_recv_t> & msghdr_recv_i, hls::stream<msghdr_recv_t> & msghdr_recv_o,
+	  hls::stream<am_cmd_t> & w_cmd_queue_o, hls::stream<ap_uint<512>> & w_data_queue_o, hls::stream<am_status_t> & w_status_queue_i,
+	  hls::stream<am_cmd_t> & r_cmd_queue_o, hls::stream<ap_uint<512>> & r_data_queue_i, hls::stream<am_status_t> & r_status_queue_i,
+	  hls::stream<raw_stream_t> & link_ingress_i, hls::stream<raw_stream_t> & link_egress_o,
+	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i, hls::stream<port_to_phys_t> & c2h_port_to_phys_i) {
 
 #pragma HLS interface axis port=msghdr_send_i    depth=64
 #pragma HLS interface axis port=msghdr_recv_i    depth=64
@@ -81,15 +81,15 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 
 
     /* out chunk streams */
-    hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress;
-    hls_thread_local hls::stream<out_chunk_t, STREAM_DEPTH> out_chunk__dbuff_egress__pkt_egress;
+    hls_thread_local hls::stream<h2c_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress;
+    hls_thread_local hls::stream<h2c_chunk_t, STREAM_DEPTH> out_chunk__dbuff_egress__pkt_egress;
 
     /* in chunk streams */
     /* The depth of this stream is configured based on how many cycles
      * it takes from a new header to be processed and returned to the msg
      * spool
      */
-    hls_thread_local hls::stream<in_chunk_t, 8> in_chunk__chunk_ingress__dbuff_ingress;
+    hls_thread_local hls::stream<c2h_chunk_t, 8> in_chunk__chunk_ingress__dbuff_ingress;
 
     /* grant SRPT streams */
 
@@ -102,25 +102,37 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
     /* dma streams */
     hls_thread_local hls::stream<srpt_data_fetch_t, STREAM_DEPTH> dma_req__srpt_data__address_map;
     hls_thread_local hls::stream<srpt_data_fetch_t, STREAM_DEPTH> dma_req__address_map__dma_read;
+    hls_thread_local hls::stream<h2c_dbuff_t, STREAM_DEPTH> dbuff_in__dma_read__msg_cache;
+    hls_thread_local hls::stream<srpt_data_fetch_t, STREAM_DEPTH> dma_req__srpt_data__dma_read;
+    hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write;
 
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__address_map;
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__address_map__dma_write;
     hls_thread_local hls::stream<srpt_data_new_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data;
+
+    //  hls_thread_local hls::stream<srpt_data_new_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state;
     hls_thread_local hls::stream<srpt_grant_new_t, STREAM_DEPTH> grant__rpc_state__srpt_grant;
     hls_thread_local hls::stream<srpt_data_grant_notif_t, STREAM_DEPTH> header_in__rpc_state__srpt_data;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_map__packetmap;
 
+
+    /* log streams */
+    hls_thread_local hls::stream<log_status_t, STREAM_DEPTH> h2c_address_map_log;
+    hls_thread_local hls::stream<log_status_t, STREAM_DEPTH> c2h_address_map_log;
+
+    // TODO need to selectively route to these in both the sendmsg core and the link ingress core
+ 
     hls_thread_local hls::task rpc_state_task(
 	rpc_state,
-	sendmsg__homa_sendmsg__rpc_state,    // sendmsg_i
-	sendmsg__rpc_state__srpt_data,       // sendmsg_o
-	header_out__egress_sel__rpc_state,   // header_out_i
-	header_out__rpc_state__pkt_builder,  // header_out_o
-	header_in__packetmap__rpc_state,     // header_in_i
-	header_in__rpc_state__dbuff_ingress, // header_in_dbuff_o
-	grant__rpc_state__srpt_grant,        // grant_in_o
-	header_in__rpc_state__srpt_data      // header_in_srpt_o
+	sendmsg__address_map__rpc_state,
+	sendmsg__rpc_state__srpt_data,
+	header_out__egress_sel__rpc_state, 
+	header_out__rpc_state__pkt_builder,
+	header_in__packetmap__rpc_state,
+	header_in__rpc_state__address_map,
+	grant__rpc_state__srpt_grant,
+	header_in__rpc_state__srpt_data
 	);
  
     hls_thread_local hls::task id_map_task(
@@ -141,7 +153,7 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 	dbuff_notif__dbuff_egress__srpt_data,  // dbuff_notif_i
 	ready_data_pkt__srpt_data__egress_sel, // data_pkt_o  // TODO tidy this name up
 	header_in__rpc_state__srpt_data,       // header_in_i
-	dma_req__srpt_data__dma_read           // 
+	dma_req__srpt_data__address_map // 
 	);
 
     hls_thread_local hls::task packetmap_task(
@@ -164,24 +176,24 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 	sendmsg__homa_sendmsg__address_map // onboard_sendmsg_o
 	);
 
-    hls_thread_local hls::task h2c_address_map(
+    hls_thread_local hls::task h2c_address_map_task(
 	h2c_address_map,
 	h2c_port_to_phys_i,
 	sendmsg__homa_sendmsg__address_map,
 	sendmsg__address_map__rpc_state,
 	dma_req__srpt_data__address_map,
 	dma_req__address_map__dma_read,
-	h2c_address_map_log_out
+	h2c_address_map_log
 	);
 
-    hls_thread_local hls::task c2h_address_map(
+    hls_thread_local hls::task c2h_address_map_task(
 	c2h_address_map,
 	c2h_port_to_phys_i,
-	header_in__rpc_state__address_map;
-	header_in__address_map__dbuff_ingress;
-	dma_req__dbuff_ingress__address_map;
-	dma_req__address_map__dma_write;
-	c2h_adddress_map_log_out
+	header_in__rpc_state__address_map,
+	header_in__address_map__dbuff_ingress,
+	dma_req__dbuff_ingress__address_map,
+	dma_req__address_map__dma_write,
+	c2h_address_map_log
 	);
 
     hls_thread_local hls::task dma_read_task(
@@ -189,8 +201,9 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 	r_cmd_queue_o,
 	r_data_queue_i,
 	r_status_queue_i,
-	dma_req__srpt_data__dma_read,
-	dbuff_in__dma_read__msg_cache
+	dma_req__address_map__dma_read,
+	dbuff_in__dma_read__msg_cache,
+	h2c_address_map_log
 	);
 
 
@@ -199,7 +212,8 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 	w_cmd_queue_o,
 	w_data_queue_o,
 	w_status_queue_i,
-	dma_req__dbuff_ingress__dma_write
+	dma_req__dbuff_ingress__dma_write,
+	c2h_address_map_log
 	);
  
     hls_thread_local hls::task h2c_databuff_task(
@@ -215,11 +229,11 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 	c2h_databuff,
 	in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_i
 	dma_req__dbuff_ingress__dma_write,      // dma_w_req_o
-	header_in__rpc_state__dbuff_ingress,    // header_in_i
+	header_in__address_map__dbuff_ingress,    // header_in_i
 	header_in__dbuff_ingress__homa_recvmsg  // header_in_o
 	);
 
-    hls_thread_local hls::task ingress_task(
+    hls_thread_local hls::task pkt_chunk_ingress_task(
 	pkt_chunk_ingress,
 	link_ingress_i,
 	header_in__chunk_ingress__rpc_map,
@@ -232,7 +246,6 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 	grant__srpt_grant__egress_sel,           // grant_pkt_i
 	header_out__egress_sel__rpc_state        // header_out_o
 	);
-
 
     hls_thread_local hls::task pkt_builder_task(
 	pkt_builder,
@@ -247,12 +260,11 @@ void homa(stream<msghdr_send_t> & msghdr_send_i, stream<msghdr_send_t> & msghdr_
 	);
 
 
-    hls_thread_local hls::task homa_logger(
-	logger,
-	dma_read_log,
-	dma_write_log,
-	log_out
-	);
+    //hls_thread_local hls::task homa_logger(
+    //	logger,
+    //	h2c_address_map_log_out,
+    //	c2h_address_map_log_out,
+    //	dma_write_log,
+    //	log_out
+    //	);
 }
-
-

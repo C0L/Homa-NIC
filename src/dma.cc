@@ -18,15 +18,7 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 	      hls::stream<am_status_t> & status_queue_i,
 	      hls::stream<srpt_data_fetch_t> & dma_req_i,
 	      hls::stream<h2c_dbuff_t> & dbuff_in_o,
-	      hls::stream<port_to_phys_t> & port_to_phys_i,
-	      hls::stream<onboard_send_t> & onboard_send_i,
-	      hls::stream<onboard_send_t> & onboard_send_o,
               hls::stream<log_status_t> & dma_read_log_o) {
-
-    static phys_addr_t port_to_phys[NUM_PORTS];
-    static msg_addr_t  rpc_to_offset[NUM_RPCS];
-
-    // TODO add dependence pragmas here
 
     static srpt_data_fetch_t pending_reqs[128];
     static ap_uint <7> read_head  = 0;
@@ -45,7 +37,6 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
     
     srpt_data_fetch_t dma_req;
     if (dma_req_i.read_nb(dma_req)) {
-	std::cerr << "DMA READ REQUEST\n";
 	am_cmd_t am_cmd;
 
 	am_cmd(AM_CMD_TYPE)  = 1;
@@ -56,6 +47,7 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 	am_cmd(AM_CMD_RSVD)  = 0;
 	am_cmd(AM_CMD_BTT)   = 64;
 	am_cmd(AM_CMD_SADDR) = dma_req(SRPT_DATA_FETCH_HOST_ADDR);
+
 	cmd_queue_o.write(am_cmd);
 	pending_reqs[write_head++] = dma_req;
     }
@@ -66,11 +58,11 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 
 	h2c_dbuff_t dbuff_in;
 
-	dbuff_in.data      = chunk;
-	dbuff_in.dbuff_id  = dma_req(SRPT_DATA_FETCH_DBUFF_ID);
-	dbuff_in.local_id  = dma_req(SRPT_DATA_FETCH_RPC_ID);
-	dbuff_in.msg_addr  = dma_req(SRPT_DATA_FETCH_MSG_ADDR);
-	dbuff_in.msg_len   = dma_req(SRPT_DATA_FETCH_MSG_LEN);
+	dbuff_in.data     = chunk;
+	dbuff_in.dbuff_id = dma_req(SRPT_DATA_FETCH_DBUFF_ID);
+	dbuff_in.local_id = dma_req(SRPT_DATA_FETCH_RPC_ID);
+	dbuff_in.msg_addr = dma_req(SRPT_DATA_FETCH_HOST_ADDR);
+	dbuff_in.msg_len  = dma_req(SRPT_DATA_FETCH_MSG_LEN);
 	// dbuff_in.last = dma_req.last; // TODO unused
 	dbuff_in_o.write(dbuff_in);
     }
@@ -89,16 +81,14 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
 	       hls::stream<ap_uint<512>> & data_queue_o,
 	       hls::stream<am_status_t> & status_queue_i,
-	       hls::stream<dma_w_req_t> & dma_w_req_i) {
+	       hls::stream<dma_w_req_t> & dma_w_req_i,
+	       hls::stream<log_status_t> & dma_write_log_o) {
 
 #pragma HLS pipeline II=1
-
-   // TODO need to add deps pragmas
 
    dma_w_req_t dma_req;
 
    if (dma_w_req_i.read_nb(dma_req)) {
-       std::cerr << "DMA WRITE REQUEST\n";
        // TODO describe and check this
        
        am_cmd_t am_cmd;
@@ -110,7 +100,7 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        am_cmd(AM_CMD_RSVD)  = 0;
        am_cmd(AM_CMD_BTT)   = dma_req.strobe;
        am_cmd(AM_CMD_SADDR) = dma_req.offset;
-       
+
        cmd_queue_o.write(am_cmd);
        data_queue_o.write(dma_req.data);
    }

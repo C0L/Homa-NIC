@@ -39,7 +39,6 @@ void srpt_data_pkts(hls::stream<srpt_data_new_t> & sendmsg_i,
 	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].dbuffered_recv = sendmsg(SRPT_DATA_NEW_MSG_LEN);
 	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].granted        = sendmsg(SRPT_DATA_NEW_GRANTED);
 	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].msg_len        = sendmsg(SRPT_DATA_NEW_MSG_LEN);
-	// active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].host_addr  = sendmsg(SRPT_DATA_NEW_HOST_ADDR);
     }
 
 
@@ -48,7 +47,7 @@ void srpt_data_pkts(hls::stream<srpt_data_new_t> & sendmsg_i,
     srpt_data_t best_send;
     best_send.rpc_id = 0;
 
-    // Brute force check every RPC ID for the best choice
+    // Brute force checdbuff_notif(SRPT_DATA_DBUFF_NOTIF_MSG_ADDR)dbuff_notif(SRPT_DATA_DBUFF_NOTIF_MSG_ADDR);;k every RPC ID for the best choice
     for (int i = 0; i < MAX_RPCS; ++i) {
 	// Only compare against RPC IDs that are active
 	if (active_rpcs[i].rpc_id != 0) {
@@ -56,6 +55,8 @@ void srpt_data_pkts(hls::stream<srpt_data_new_t> & sendmsg_i,
 	    if (active_rpcs[i].remaining < best_send.remaining || best_send.rpc_id == 0) {
 		bool granted   = (active_rpcs[i].granted + 1 <= active_rpcs[i].remaining) || (active_rpcs[i].granted == 0);
 		bool dbuffered = (active_rpcs[i].dbuffered_recv + HOMA_PAYLOAD_SIZE <= active_rpcs[i].remaining) || (active_rpcs[i].dbuffered_recv == 0);
+
+		// TODO why add homa payload size and not subtract???
 
 		if (granted && dbuffered) {
 		    best_send = active_rpcs[i];
@@ -68,8 +69,6 @@ void srpt_data_pkts(hls::stream<srpt_data_new_t> & sendmsg_i,
     if (best_send.rpc_id != 0 && !data_pkt_o.full()) {
 	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > best_send.remaining) 
 	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (best_send.remaining - HOMA_PAYLOAD_SIZE));
-
-	// TODO sendmsg here
 
 	srpt_data_send_t send;
 
@@ -113,15 +112,11 @@ void srpt_data_pkts(hls::stream<srpt_data_new_t> & sendmsg_i,
 	srpt_data_fetch_t fetch;
 	fetch(SRPT_DATA_FETCH_RPC_ID)    = best_fetch.rpc_id;
 	fetch(SRPT_DATA_FETCH_DBUFF_ID)  = best_fetch.dbuff_id;
-	fetch(SRPT_DATA_FETCH_MSG_ADDR)  = best_fetch.msg_len - best_fetch.dbuffered_req; 
+	fetch(SRPT_DATA_FETCH_HOST_ADDR) = best_fetch.msg_len - best_fetch.dbuffered_req; 
 	// fetch(SRPT_DATA_FETCH_HOST_ADDR) = best_fetch.host_addr;
-	// fetch(SRPT_DATA_FETCH_MSG_LEN)   = best_fetch.msg_len;
+	fetch(SRPT_DATA_FETCH_MSG_LEN)   = best_fetch.msg_len;
 
 	cache_req_o.write(fetch);
-
-	if (dbuffered_req == 0) {
-	    active_rpcs[best_fetch.rpc_id].rpc_id = 0;
-	}
     }
 }
 
