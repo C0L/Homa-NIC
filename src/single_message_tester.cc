@@ -1,43 +1,39 @@
-#include "test.hh"
-
+#include <sys/mman.h>
 #include <unistd.h>
-
 #include <fstream>
+#include <fcntl.h>
+
+#include "test.hh"
 
 using namespace std;
 
-int main() {
+int main(int argc, char **argv) {
+    std::cerr << "****************************** SINGLE PACKET MESSAGE TEST ******************************" << endl;
 
-    // int aflag = 0;
-    // int bflag = 0;
     char * dest_file = NULL;
     char * src_file = NULL;
-    // int index;
-    // int c;
+    int len;
+    int c;
 
     opterr = 0;
 
-    while ((c = getopt (argc, argv, "io:")) != -1)
+    while ((c = getopt (argc, argv, "i:l:")) != -1)
 	switch (c) {
 	    case 'i':
 		src_file = optarg;
+		std::cerr << "PARSED SRC FILE " << optarg;
 		break;
-	    case 'o':
-		out_file = optarg;
+		//case 'o':
+		//	dest_file = optarg;
+		//	std::cerr << "PARSED DEST FILE " << optarg;
+		//	break;
+	    case 'l':
+		len = atoi(optarg); 
 		break;
 	    default:
 		abort();
 	}
-
-
-    std::cerr << dest_file << std::endl;
-    std::cerr << src_file << std::endl;
-    
-    std::cerr << "****************************** SINGLE PACKET MESSAGE TEST ******************************" << endl;
-    std::cerr << "DMA SIZE  = " << DMA_SIZE << std::endl;
-    std::cerr << "RTT BYTES = " << RTT_BYTES << std::endl;
-    std::cerr << "MSG SIZE  = " << MSG_SIZE << std::endl;
-
+   
     msghdr_send_t sendmsg;
     msghdr_recv_t recvmsg;
 
@@ -65,15 +61,24 @@ int main() {
     sendmsg.data(MSGHDR_SPORT)     = sport;
     sendmsg.data(MSGHDR_DPORT)     = dport;
     sendmsg.data(MSGHDR_BUFF_ADDR) = 0;
-    sendmsg.data(MSGHDR_BUFF_SIZE) = MSG_SIZE;
+    sendmsg.data(MSGHDR_BUFF_SIZE) = len;
 
-    sendmsg.data(MSGHDR_SEND_ID)    = 0;
-    sendmsg.data(MSGHDR_SEND_CC)    = 0;
+    sendmsg.data(MSGHDR_SEND_ID)   = 0;
+    sendmsg.data(MSGHDR_SEND_CC)   = 0;
+
+    // TODO The file is not even that many bytes!?
+    int maxi_in_fd = open(src_file, O_RDWR);
+    char * maxi_in = (char*) mmap(NULL, 16384, PROT_WRITE, MAP_PRIVATE, maxi_in_fd, 0);
+
+    // int maxi_out_fd = open(dest_file, O_RDWR);
+    // char * maxi_out = (char*) mmap(NULL, 16384, PROT_WRITE, MAP_PRIVATE, maxi_out_fd, 0); 
+
+    char * maxi_out = (char*) malloc(16384 * sizeof(char));
 
     recvmsg_i.write(recvmsg);
     sendmsg_i.write(sendmsg);
 
-    strcpy((char*) maxi_in, data.c_str());
+    // TODO munmap and free
 
     homa(sendmsg_i, sendmsg_o,
 	 recvmsg_i, recvmsg_o,
@@ -83,8 +88,8 @@ int main() {
 	 h2c_port_to_phys_i, c2h_port_to_phys_i
 	);
 
-    while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, MSG_SIZE) != 0) {
-	if (memcmp(maxi_in, maxi_out, MSG_SIZE) == 0) std::cerr << "MESSAGE MATCH" << std::endl;
+    // TODO wrong size comparison
+    while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, len) != 0) {
 
     	if (!link_egress_o.empty()) {
 	    link_ingress_i.write(link_egress_o.read());
@@ -114,6 +119,10 @@ int main() {
 
     recvmsg_o.read();
     sendmsg_o.read();
+
+    free(maxi_out);
+    munmap(maxi_in, 16384);
+    close(maxi_in_fd);
 
     return 0;
 }

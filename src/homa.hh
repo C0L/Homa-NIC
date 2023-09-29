@@ -239,10 +239,8 @@ typedef ap_uint<SRPT_DATA_SEND_SIZE> srpt_data_send_t;
 #define SRPT_DATA_FETCH_RPC_ID     15,0    // RPC we want data for
 #define SRPT_DATA_FETCH_DBUFF_ID   25,16   // Where this data will be placed
 #define SRPT_DATA_FETCH_HOST_ADDR  89,26   // Where in host memory do we read from
-#define SRPT_DATA_FETCH_PORT  105,90   // Where in host memory do we read from
-// #define SRPT_DATA_FETCH_MSG_ADDR   89,26   // Where in the msg is this fetch for
-// TODO still needed?
-#define SRPT_DATA_FETCH_MSG_LEN    151,122 // What is the total length of the msg  
+#define SRPT_DATA_FETCH_PORT       105,90   // Where in host memory do we read from TODO would be nice to remove
+#define SRPT_DATA_FETCH_MSG_LEN    137,106 // What is the total length of the msg  
 
 typedef ap_uint<SRPT_DATA_FETCH_SIZE> srpt_data_fetch_t;
 

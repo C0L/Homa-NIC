@@ -1,5 +1,8 @@
 # Verilog linter (2001 version) -- unroll count needed for larege loops
-LINTER = verilator -lint-only +1364-2001ext+v --unroll-count 1024 
+LINTER = verilator -lint-only +1364-2001ext+v --unroll-count 1024
+
+# XILINX_HLS includes 
+# XILINX_HLS = /home/chdrewes/Vitis_HLS/2023.1/include/
 
 # C synthesis tool (2023.1 currently tested)
 VITIS  = vitis_hls
@@ -23,15 +26,15 @@ V_TB_DIR  = ./src
 TCL_DIR   = ./tcl
 
 SRC_V = \
-        $(V_SRC_DIR)/srpt_grant_pkts.v
+        $(V_SRC_DIR)/srpt_grant_queue.v
 
 # TB_V = \
 #         $(V_SRC_DIR)/srpt_grant_pkts.v
 
 
 SRC_JSON = \
-        $(V_SRC_DIR)/srpt_grant_pkts.json \
-        $(V_SRC_DIR)/srpt_data_pkts.json
+        $(V_SRC_DIR)/srpt_grant_queue.json \
+        $(V_SRC_DIR)/srpt_data_queue.json
 
 SRC_C =                       \
     $(C_SRC_DIR)/databuff.cc  \
@@ -85,98 +88,38 @@ synth:
 
 CSIM_FLAGS = $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)"
 
-single_packet_msg_16384_5000_100.trace:
+#TODO can just make this csim.exe path to avoid recomp
+single_message_tester_rtt_5000_bin:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(CSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
-		"OFILE=single_packet_msg_16384_5000_100.trace" \
-		"DMA_SIZE=16384" \
 		"RTT_BYTES=5000" \
-		"MSG_SIZE=128"
 
-#multi_packet_msg_16384_5000_100.trace:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(CSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"OFILE=multi_packet_msg_16384_5000_100.trace" \
-#		"DMA_SIZE=16384" \
-#		"RTT_BYTES=5000" \
-#		"MSG_SIZE=4000"
-#
-#csim_single_packet_msg_1_byte_grant_16384_1_1000.trace:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(CSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"OFILE=csim_single_packet_msg_1_byte_grant_16384_1_1000.trace" \
-#		"DMA_SIZE=16384" \
-#		"RTT_BYTES=1" \
-#		"MSG_SIZE=1000"
-#
-#csim_multi_packet_require_grant_16384_1000_2500.trace:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(CSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"OFILE=csim_multi_packet_require_grant_16384_1000_2500.trace" \
-#		"DMA_SIZE=16384" \
-#		"RTT_BYTES=1000" \
-#		"MSG_SIZE=2500"
+single_message_csim: single_message_tester_rtt_5000_bin
+	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 2000
+	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 128
+	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 64
+	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 1
 
 ############# Vitis Cosim ############
 
-COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
-
-#cosim_single_packet_msg:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(COSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"OFILE=single_packet_msg_16384_5000_100.trace" \
-#		"DMA_SIZE=16384" \
-#		"RTT_BYTES=5000" \
-#		"MSG_SIZE=128"
-#
-#cosim_multi_packet_msg: 
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(COSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"OFILE=multi_packet_msg_16384_5000_100.trace" \
-#		"DMA_SIZE=16384" \
-#		"RTT_BYTES=5000" \
-#		"MSG_SIZE=4000"
-#
-#cosim_single_packet_msg_1_byte_grant: csim_single_packet_msg_1_byte_grant_16384_1_1000.trace
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(COSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"OFILE=csim_single_packet_msg_1_byte_grant_16384_1_1000.trace" \
-#		"DMA_SIZE=16384" \
-#		"RTT_BYTES=1" \
-#		"MSG_SIZE=1000"
-#
-#cosim_multi_packet_require_grant: csim_multi_packet_require_grant_16384_1000_2500.trace
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(COSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"OFILE=csim_multi_packet_require_grant_16384_1000_2500.trace" \
-#		"DMA_SIZE=16384" \
-#		"RTT_BYTES=1000" \
-#		"MSG_SIZE=2500"
-#
+# COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
 
 ############ Verilog Synthesis ############ 
 
-data_synth: srpt_data_pkts.synth
-grant_synth: srpt_grant_pkts.synth
+data_synth: srpt_data_queue.synth
+grant_synth: srpt_grant_queue.synth
 
 %.synth: ./src/%.v
 	$(VIVADO) -mode tcl -source tcl/ooc_synth.tcl -tclargs $(PART) $^ $(notdir $(basename $(^))) ./xdc/clocks.xdc  $(notdir $(basename $(^)))
 
 ############ Verilog Simulation ############ 
 
-data_test: srpt_data_pkts.xsim
-grant_test: srpt_grant_pkts.xsim
+data_test:  srpt_data_queue.xsim
+grant_test: srpt_grant_queue.xsim
 
-data_waves: srpt_data_pkts.waves
-grant_waves: srpt_grant_pkts.waves
+data_waves:  srpt_data_queue.waves
+grant_waves: srpt_grant_queue.waves
 
 %.waves: %.xsim
 	$(VS) --gui $(basename $(^)).snapshot.wdb
@@ -192,8 +135,8 @@ grant_waves: srpt_grant_pkts.waves
 
 ############ Verilog Linting ############ 
 
-grant_lint: srpt_grant_pkts.lint
-data_lint: srpt_data_pkts.lint
+grant_lint: srpt_grant_queue.lint
+data_lint:  srpt_data_queue.lint
 
 %.lint: ./src/%.v
 	$(LINTER) $^

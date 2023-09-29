@@ -33,7 +33,7 @@ if {$job_type == 0} {
     # Csim only
     add_files $c_src -cflags "-DCSIM $homa_cfg"
     add_files -tb $test_bench -cflags "-DCSIM $homa_cfg"
-    csim_design
+    csim_design -setup
 } elseif {$job_type == 1} {
     add_files $c_src -cflags "-DSYNTH $homa_cfg"
     add_files -blackbox $json_src 
