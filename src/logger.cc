@@ -1,7 +1,7 @@
 #include "logger.hh"
 
-void logger(hls::stream<log_status_t> & dma_read_log_i,
-	    hls::stream<log_status_t> & dma_write_log_i,
+void logger(hls::stream<ap_uint<64>> & dma_read_log_i,
+	    hls::stream<ap_uint<64>> & dma_write_log_i,
 	    hls::stream<log_entry_t>  & log_out_o) {
 
     static log_entry_t circular_log[2048];
@@ -11,14 +11,14 @@ void logger(hls::stream<log_status_t> & dma_read_log_i,
     log_entry_t new_entry;
     bool write_entry;
 
-    log_status_t dma_read_log;
+    ap_uint<64> dma_read_log;
     if (dma_read_log_i.read_nb(dma_read_log)) {
-	new_entry(7, 0) = dma_read_log;
+	new_entry(63, 0) = dma_read_log;
     }
 
-    log_status_t dma_write_log;
+    ap_uint<64> dma_write_log;
     if (dma_write_log_i.read_nb(dma_write_log)) {
-	new_entry(15, 8) = dma_write_log;
+	new_entry(127, 64) = dma_write_log;
     }
 
     if (log_out_o.write_nb(circular_log[read_head])) {

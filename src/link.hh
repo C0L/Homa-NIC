@@ -5,7 +5,7 @@
 #include "srptmgmt.hh"
 #include "rpcmgmt.hh"
 
-void next_pkt_selector(hls::stream<srpt_data_send_t> & data_pkt_i,
+void next_pkt_selector(hls::stream<srpt_queue_entry_t> & data_pkt_i,
 		       hls::stream<srpt_grant_send_t> & grant_pkt_i,
 		       hls::stream<header_t> & out_pkt_o);
 

@@ -9,54 +9,39 @@
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
  */
-void srpt_data_pkts(hls::stream<srpt_data_new_t> & sendmsg_i,
-		    hls::stream<srpt_data_dbuff_notif_t> & dbuff_notif_i,
-		    hls::stream<srpt_data_send_t> & data_pkt_o,
-		    hls::stream<srpt_data_grant_notif_t> & grant_notif_i,
-		    hls::stream<srpt_data_fetch_t> & cache_req_o) {
+void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
+		     hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
+		     hls::stream<srpt_queue_entry_t> & data_pkt_o,
+		     hls::stream<srpt_queue_entry_t> & grant_notif_i) {
 
-    static srpt_data_t active_rpcs[MAX_RPCS];
-
-    /* Add Elements to */
-
-    if (!dbuff_notif_i.empty()) {
-	srpt_data_dbuff_notif_t dbuff_notif = dbuff_notif_i.read();
-	active_rpcs[dbuff_notif(SRPT_DATA_DBUFF_NOTIF_RPC_ID)].dbuffered_recv = dbuff_notif(SRPT_DATA_DBUFF_NOTIF_MSG_ADDR);
-    }
-
-    if (!grant_notif_i.empty()) {
-	srpt_data_grant_notif_t header_in = grant_notif_i.read();
-	active_rpcs[header_in(SRPT_DATA_GRANT_NOTIF_RPC_ID)].granted = header_in(SRPT_DATA_GRANT_NOTIF_MSG_ADDR);
-    }
+    static srpt_queue_entry_t active_rpcs[MAX_RPCS];
 
     if (!sendmsg_i.empty()) {
-	srpt_data_new_t sendmsg = sendmsg_i.read();
-
-	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].rpc_id         = sendmsg(SRPT_DATA_NEW_RPC_ID);
-	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].dbuff_id       = sendmsg(SRPT_DATA_NEW_DBUFF_ID);
-	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].remaining      = sendmsg(SRPT_DATA_NEW_MSG_LEN);
-	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].dbuffered_req  = sendmsg(SRPT_DATA_NEW_MSG_LEN);
-	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].dbuffered_recv = sendmsg(SRPT_DATA_NEW_MSG_LEN);
-	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].granted        = sendmsg(SRPT_DATA_NEW_GRANTED);
-	active_rpcs[sendmsg(SRPT_DATA_NEW_RPC_ID)].msg_len        = sendmsg(SRPT_DATA_NEW_MSG_LEN);
+	std::cerr << "ADD SENDMSG TO SRPT DATA\n";
+	srpt_queue_entry_t sendmsg = sendmsg_i.read();
+	active_rpcs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)] = sendmsg;
+    } else if (!dbuff_notif_i.empty()) {
+	std::cerr << "ADD DBUFF NOTIF TO SRPT DATA\n";
+	srpt_queue_entry_t dbuff_notif = dbuff_notif_i.read();
+	active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
+    } else if (!grant_notif_i.empty()) {
+	std::cerr << "ADD GRANT NOTIF TO SRPT DATA\n";
+	srpt_queue_entry_t header_in = grant_notif_i.read();
+	active_rpcs[header_in(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_GRANTED) = header_in(SRPT_QUEUE_ENTRY_GRANTED);
     }
-
 
     /* Find Next RPC to Send*/
 
-    srpt_data_t best_send;
-    best_send.rpc_id = 0;
+    srpt_queue_entry_t best_send;
+    best_send(SRPT_QUEUE_ENTRY_RPC_ID) = 0;
 
-    // Brute force checdbuff_notif(SRPT_DATA_DBUFF_NOTIF_MSG_ADDR)dbuff_notif(SRPT_DATA_DBUFF_NOTIF_MSG_ADDR);;k every RPC ID for the best choice
     for (int i = 0; i < MAX_RPCS; ++i) {
 	// Only compare against RPC IDs that are active
-	if (active_rpcs[i].rpc_id != 0) {
+	if (active_rpcs[i](SRPT_QUEUE_ENTRY_RPC_ID) != 0) {
 	    // We found a better choice if there are less remaining bytes, or we are setting best_send for the first time
-	    if (active_rpcs[i].remaining < best_send.remaining || best_send.rpc_id == 0) {
-		bool granted   = (active_rpcs[i].granted + 1 <= active_rpcs[i].remaining) || (active_rpcs[i].granted == 0);
-		bool dbuffered = (active_rpcs[i].dbuffered_recv + HOMA_PAYLOAD_SIZE <= active_rpcs[i].remaining) || (active_rpcs[i].dbuffered_recv == 0);
-
-		// TODO why add homa payload size and not subtract???
+	    if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) < best_send(SRPT_QUEUE_ENTRY_REMAINING) || best_send(SRPT_QUEUE_ENTRY_RPC_ID) == 0) {
+		bool granted   = (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) + 1 <= active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING)) || (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) == 0);
+		bool dbuffered = (active_rpcs[i](SRPT_QUEUE_ENTRY_DBUFFERED) + HOMA_PAYLOAD_SIZE <= active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING)) || (active_rpcs[i](SRPT_QUEUE_ENTRY_DBUFFERED) == 0);
 
 		if (granted && dbuffered) {
 		    best_send = active_rpcs[i];
@@ -66,59 +51,58 @@ void srpt_data_pkts(hls::stream<srpt_data_new_t> & sendmsg_i,
     }
 
     // Did we find a valid RPC we should send
-    if (best_send.rpc_id != 0 && !data_pkt_o.full()) {
-	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > best_send.remaining) 
-	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (best_send.remaining - HOMA_PAYLOAD_SIZE));
+    if (best_send(SRPT_QUEUE_ENTRY_RPC_ID) != 0) {
+	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > best_send(SRPT_QUEUE_ENTRY_REMAINING)) 
+	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (best_send(SRPT_QUEUE_ENTRY_REMAINING) - HOMA_PAYLOAD_SIZE));
 
-	srpt_data_send_t send;
+	data_pkt_o.write(best_send);
 
-	send(SRPT_DATA_SEND_RPC_ID)    = best_send.rpc_id;
-	send(SRPT_DATA_SEND_REMAINING) = best_send.remaining;
-	send(SRPT_DATA_SEND_GRANTED)   = best_send.granted;
-
-	data_pkt_o.write(send);
-
-	active_rpcs[best_send.rpc_id].remaining = remaining;
+	active_rpcs[best_send(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_REMAINING) = remaining;
 
 	// The entry is complete so zero it
 	if (remaining == 0) {
-	    active_rpcs[best_send.rpc_id].rpc_id = 0;
+	    active_rpcs[best_send(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_RPC_ID) = 0;
 	}
+    }
+}
+
+void srpt_fetch_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
+		      hls::stream<srpt_queue_entry_t> & cache_req_o) {
+
+    static srpt_queue_entry_t active_rpcs[MAX_RPCS];
+
+    if (!sendmsg_i.empty()) {
+	srpt_queue_entry_t sendmsg = sendmsg_i.read();
+
+	active_rpcs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)] = sendmsg;
     }
 
     /* Find Next RPC to Fetch Data */
 
-    srpt_data_t best_fetch;
-    best_fetch.dbuffered_req = 0;
+    srpt_queue_entry_t best_fetch;
+    best_fetch(SRPT_QUEUE_ENTRY_REMAINING) = 0;
 
     // Brute force finding next best RPC to get data for
     for (int i = 0; i < MAX_RPCS; ++i) {
-
 	// Check if there is data remaining to buffer
-	if (active_rpcs[i].dbuffered_req != 0) {
-	    if (active_rpcs[i].dbuffered_req < best_fetch.dbuffered_req || best_fetch.dbuffered_req == 0) {
+	if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) != 0) {
+	    if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) < best_fetch(SRPT_QUEUE_ENTRY_REMAINING) || best_fetch(SRPT_QUEUE_ENTRY_REMAINING) == 0) {
 		best_fetch = active_rpcs[i];
 	    }
 	}
     }
 
-    if (best_fetch.dbuffered_req != 0) {
-	ap_uint<32> dbuffered_req = (64 > best_fetch.dbuffered_req) 
-	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (best_fetch.dbuffered_req - 64));
+    if (best_fetch(SRPT_QUEUE_ENTRY_REMAINING) != 0) {
+	ap_uint<32> dbuffered = (64 > best_fetch(SRPT_QUEUE_ENTRY_REMAINING)) 
+	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (best_fetch(SRPT_QUEUE_ENTRY_REMAINING) - 64));
 
-	active_rpcs[best_fetch.rpc_id].dbuffered_req = dbuffered_req;
-	// active_rpcs[best_fetch.rpc_id]._addr   = active_rpcs[best_fetch.rpc_id].host_addr + 64;
+	active_rpcs[best_fetch(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_REMAINING) = dbuffered;
+	active_rpcs[best_fetch(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) = active_rpcs[best_fetch(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) + 64;
 
-	srpt_data_fetch_t fetch;
-	fetch(SRPT_DATA_FETCH_RPC_ID)    = best_fetch.rpc_id;
-	fetch(SRPT_DATA_FETCH_DBUFF_ID)  = best_fetch.dbuff_id;
-	fetch(SRPT_DATA_FETCH_HOST_ADDR) = best_fetch.msg_len - best_fetch.dbuffered_req; 
-	// fetch(SRPT_DATA_FETCH_HOST_ADDR) = best_fetch.host_addr;
-	fetch(SRPT_DATA_FETCH_MSG_LEN)   = best_fetch.msg_len;
-
-	cache_req_o.write(fetch);
+	cache_req_o.write(best_fetch);
     }
 }
+
 
 /**
  * WARNING: For C simulation only

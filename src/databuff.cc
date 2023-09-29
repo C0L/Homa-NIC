@@ -124,7 +124,7 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
  * set, indicating a completiton of packet transmission.
  */
 void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
-		  hls::stream<srpt_data_dbuff_notif_t> & dbuff_notif_o,
+		  hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
 		  hls::stream<h2c_chunk_t> & h2c_chunk_i,
 		  hls::stream<h2c_chunk_t> & h2c_chunk_o) {
 
@@ -154,9 +154,9 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 
 	// TODO fix this
 	// if (dbuff_in.last) {
-	    srpt_data_dbuff_notif_t dbuff_notif;
-	    dbuff_notif(SRPT_DATA_DBUFF_NOTIF_RPC_ID)   = dbuff_in.local_id;
-	    dbuff_notif(SRPT_DATA_DBUFF_NOTIF_MSG_ADDR) = dbuffered;
+	    srpt_queue_entry_t dbuff_notif;
+	    dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
+	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuffered;
 	    dbuff_notif_o.write(dbuff_notif);
 	    // }
     }

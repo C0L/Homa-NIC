@@ -182,38 +182,46 @@ void h2c_address_map(
     hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
     hls::stream<onboard_send_t> & sendmsg_i,
     hls::stream<onboard_send_t> & sendmsg_o,
-    hls::stream<srpt_data_fetch_t> & dma_r_req_i,
-    hls::stream<srpt_data_fetch_t> & dma_r_req_o,
-    hls::stream<log_status_t> & log_out
+    hls::stream<srpt_queue_entry_t> & dma_r_req_i,
+    hls::stream<dma_r_req_t> & dma_r_req_o
     ) {
     static host_addr_t h2c_port_to_phys[MAX_PORTS];
     static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];
 
+    // HACK: This state should not be here
+    static ap_uint<16> h2c_rpc_to_port[MAX_RPCS];
+    static ap_uint<32> h2c_rpc_to_size[MAX_RPCS];
+
     // TODO dma reqs
-    srpt_data_fetch_t dma_r_req;
-    if (dma_r_req_i.read_nb(dma_r_req)) {
-	std::cerr << "h2c_addressS_map\n";
+    srpt_queue_entry_t dma_fetch;
+    if (dma_r_req_i.read_nb(dma_fetch)) {
+	std::cerr << "h2c_addresss_map\n";
 	// Get the physical address of this ports entire buffer
-	host_addr_t phys_addr = h2c_port_to_phys[dma_r_req(SRPT_DATA_FETCH_PORT)];
-	msg_addr_t msg_addr   = h2c_rpc_to_offset[dma_r_req(SRPT_DATA_FETCH_RPC_ID)];
 
-	log_status_t log_status = LOG_GOOD;
-	if (phys_addr == 0) {
-	    log_status |= LOG_DMA_NO_PHYS;
-	}
+	msg_addr_t msg_addr   = h2c_rpc_to_offset[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)];
+	host_addr_t phys_addr = h2c_port_to_phys[h2c_rpc_to_offset[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)]];
 
-	if ((msg_addr & 1) != 1) {
-	    // TODO failing
-	    log_status |= LOG_DMA_NO_OFFSET;
-	}
+	//log_status_t log_status = LOG_GOOD;
+	//if (phys_addr == 0) {
+	//    log_status |= LOG_DMA_NO_PHYS;
+	//}
 
-	if (log_status != LOG_GOOD) {
-	    std::cerr << "LOG NOT GOOD!!!\n";
-	    log_out.write(log_status);
-	}
+	//if ((msg_addr & 1) != 1) {
+	//    // TODO failing
+	//    log_status |= LOG_DMA_NO_OFFSET;
+	//}
+
+	//if (log_status != LOG_GOOD) {
+	//    std::cerr << "LOG NOT GOOD!!!\n";
+	//    log_out.write(log_status);
+	//}
+
+	dma_r_req_t dma_r_req;
+	dma_r_req(SRPT_QUEUE_ENTRY_SIZE-1, 0) = dma_fetch;
+	dma_r_req(DMA_R_REQ_MSG_LEN) = h2c_rpc_to_size[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)];
 
 	msg_addr >>= 1;
-	dma_r_req(SRPT_DATA_FETCH_HOST_ADDR) = dma_r_req(SRPT_DATA_FETCH_HOST_ADDR) + (phys_addr + msg_addr);
+	dma_r_req(DMA_R_REQ_HOST_ADDR) = (h2c_rpc_to_size[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)] - dma_fetch(SRPT_QUEUE_ENTRY_REMAINING)) + (phys_addr + msg_addr);
 
 	dma_r_req_o.write(dma_r_req);
     }
@@ -226,6 +234,10 @@ void h2c_address_map(
     onboard_send_t sendmsg;
     if (sendmsg_i.read_nb(sendmsg)) {
 	h2c_rpc_to_offset[sendmsg.local_id] = (sendmsg.buff_addr << 1) | 1;
+	// HACK: This state should not be here
+	h2c_rpc_to_port[sendmsg.local_id] = sendmsg.sport;
+	h2c_rpc_to_size[sendmsg.local_id] = sendmsg.buff_size;
+
 	sendmsg_o.write(sendmsg);
     }
 }
@@ -236,8 +248,8 @@ void c2h_address_map(
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
     hls::stream<dma_w_req_t> & dma_w_req_i,
-    hls::stream<dma_w_req_t> & dma_w_req_o,
-    hls::stream<log_status_t> & log_out
+    hls::stream<dma_w_req_t> & dma_w_req_o
+    // hls::stream<log_status_t> & log_out
     ) {
 
     static host_addr_t c2h_port_to_phys[MAX_PORTS];
@@ -251,19 +263,19 @@ void c2h_address_map(
 	host_addr_t phys_addr = c2h_port_to_phys[dma_w_req.port];
 	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
 
-	log_status_t log_status = LOG_GOOD;
-	if (phys_addr == 0) {
-	    log_status |= LOG_DMA_NO_PHYS;
-	}
+	//log_status_t log_status = LOG_GOOD;
+	//if (phys_addr == 0) {
+	//    log_status |= LOG_DMA_NO_PHYS;
+	//}
 
-	if ((msg_addr & 1) != 1) {
-	    log_status |= LOG_DMA_NO_OFFSET;
-	}
+	//if ((msg_addr & 1) != 1) {
+	//    log_status |= LOG_DMA_NO_OFFSET;
+	//}
 
-	if (log_status != LOG_GOOD) {
-	    std::cerr << "LOG NOT GOOD!!!\n";
-	    log_out.write(log_status);
-	}
+	//if (log_status != LOG_GOOD) {
+	//    std::cerr << "LOG NOT GOOD!!!\n";
+	//    log_out.write(log_status);
+	//}
 
 	msg_addr >>= 1;
 	dma_w_req.offset += phys_addr + msg_addr;

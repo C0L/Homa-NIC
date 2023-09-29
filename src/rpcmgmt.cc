@@ -4,15 +4,49 @@
 using namespace hls;
 
 
+/**
+ * rpc_state() - Maintains state associated with an RPC and augments
+ *   flows with that state when needed. There are 3 actions taken by
+ *   the core: 1) Incorporating new sendmsg requests: New sendmsg
+ *   requests arrive on the onboard_send_i stream. Their data is
+ *   gathered and inserted into the table at the index specified by
+ *   the RPC ID. The sendmsg is then passed to the srpt data core so
+ *   that it can be scheduled to be sent.
+ *
+ *   2) Augmenting outgoing headers: Headers that need to be sent onto
+ *   the link arrive on the header_out_i stream. The RPC ID of the
+ *   header out request is used to locate the associated RPC state,
+ *   and that state is loaded into the header. That header is then passed to the next core.
+ *
+ *   3) Augmenting incoming headers: headers that arrive from the link
+ *   need to update the state within this core. Their RPC ID is used
+ *   to determine where the data should be placed in the rpc
+ *   table. Only the first packet in a sequence causes an insertion
+ *   into the table. If the message length is greater than the number
+ *   of incoming bytes then that means data should be forwarded to the
+ *   grant queue. If the incoming packet was a grant then that updated
+ *   is forwarded to the srpt data queue, indicating it may have more
+ *   bytes to transmit.
+ *
+ * @onboard_send_i - Input for sendmsg requests
+ * @onboard_send_o - Output for sendmsg requests
+ * @header_out_i   - Input for outgoing headers
+ * @header_out_o   - Output for outgoing headers 
+ * @header_in_i    - Input for incoming headers
+ * @header_in_o    - Output for incoming headers 
+ * @grant_in_o     - Output for forwarding data to SRPT grant queue
+ * @data_srpt_o    - Output for forwarding data to the SRPT data queue
+ */
 void rpc_state(
     hls::stream<onboard_send_t> & onboard_send_i,
-    hls::stream<srpt_data_new_t> & onboard_send_o,
+    hls::stream<srpt_queue_entry_t> & data_queue_o,
+    hls::stream<srpt_queue_entry_t> & fetch_queue_o,
     hls::stream<header_t> & h2c_header_i,
     hls::stream<header_t> & h2c_header_o,
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
     hls::stream<srpt_grant_new_t> & grant_srpt_o,
-    hls::stream<srpt_data_grant_notif_t> & data_srpt_o
+    hls::stream<srpt_queue_entry_t> & data_srpt_o
     ) {
 
     // TODO The tables for client and server can be totally independent?
@@ -27,29 +61,33 @@ void rpc_state(
     onboard_send_t onboard_send;
     if (onboard_send_i.read_nb(onboard_send)) {
 	homa_rpc_t homa_rpc;
-	homa_rpc.daddr           = onboard_send.daddr;
-	homa_rpc.dport           = onboard_send.dport;
-	homa_rpc.saddr           = onboard_send.saddr;
-	homa_rpc.sport           = onboard_send.sport;
-	homa_rpc.buff_addr       = onboard_send.buff_addr;
-	homa_rpc.buff_size       = onboard_send.buff_size;
-	// homa_rpc.egress_buff_id  = onboard_send.egress_buff_id;
-	homa_rpc.id              = onboard_send.id;
+	homa_rpc.daddr     = onboard_send.daddr;
+	homa_rpc.dport     = onboard_send.dport;
+	homa_rpc.saddr     = onboard_send.saddr;
+	homa_rpc.sport     = onboard_send.sport;
+	homa_rpc.buff_addr = onboard_send.buff_addr;
+	homa_rpc.buff_size = onboard_send.buff_size;
+	homa_rpc.id        = onboard_send.id;
 
 	rpcs[onboard_send.local_id] = homa_rpc;
 
-	std::cerr << "RPC STATE ONBOARDING\n";
-	// Update the rpc_to_offset if ever needed again
+	srpt_queue_entry_t srpt_data_in;
+	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)   = onboard_send.local_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING)  = onboard_send.buff_size;
 
-	srpt_data_new_t srpt_data_in;
-	srpt_data_in(SRPT_DATA_NEW_RPC_ID)   = onboard_send.local_id;
-	srpt_data_in(SRPT_DATA_NEW_MSG_LEN)  = onboard_send.buff_size;
 	// TODO would be cleaner if we could just set this to RTT_BYTES
-	srpt_data_in(SRPT_DATA_NEW_GRANTED)  = onboard_send.buff_size - ((((ap_uint<32>) RTT_BYTES) > onboard_send.buff_size)
+	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)  = onboard_send.buff_size - ((((ap_uint<32>) RTT_BYTES) > onboard_send.buff_size)
 									 ? onboard_send.buff_size : ((ap_uint<32>) RTT_BYTES));
-	srpt_data_in(SRPT_DATA_NEW_DBUFF_ID)  = onboard_send.h2c_buff_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = onboard_send.buff_size;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID) = onboard_send.h2c_buff_id;
 
-	onboard_send_o.write(srpt_data_in);
+	data_queue_o.write(srpt_data_in);
+
+	srpt_queue_entry_t srpt_fetch_in = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)   = onboard_send.local_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID) = onboard_send.h2c_buff_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING)  = onboard_send.buff_size;
+	fetch_queue_o.write(srpt_data_in);
     }
 
     /* RO Paths */
@@ -117,9 +155,9 @@ void rpc_state(
 	    }
 
 	    case GRANT: {
-		srpt_data_grant_notif_t srpt_grant_notif;
-		srpt_grant_notif(SRPT_DATA_GRANT_NOTIF_RPC_ID)   = c2h_header.local_id;
-		srpt_grant_notif(SRPT_DATA_GRANT_NOTIF_MSG_ADDR) = c2h_header.grant_offset;
+		srpt_queue_entry_t srpt_grant_notif;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)   = c2h_header.local_id;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED) = c2h_header.grant_offset;
 		data_srpt_o.write(srpt_grant_notif); 
 		break;
 	    }
@@ -194,37 +232,3 @@ void id_map(hls::stream<header_t> & header_in_i,
 	header_in_o.write(header_in);
     }
 }
-
-/**
- * rpc_state() - Maintains state associated with an RPC and augments
- *   flows with that state when needed. There are 3 actions taken by
- *   the core: 1) Incorporating new sendmsg requests: New sendmsg
- *   requests arrive on the onboard_send_i stream. Their data is
- *   gathered and inserted into the table at the index specified by
- *   the RPC ID. The sendmsg is then passed to the srpt data core so
- *   that it can be scheduled to be sent.
- *
- *   2) Augmenting outgoing headers: Headers that need to be sent onto
- *   the link arrive on the header_out_i stream. The RPC ID of the
- *   header out request is used to locate the associated RPC state,
- *   and that state is loaded into the header. That header is then passed to the next core.
- *
- *   3) Augmenting incoming headers: headers that arrive from the link
- *   need to update the state within this core. Their RPC ID is used
- *   to determine where the data should be placed in the rpc
- *   table. Only the first packet in a sequence causes an insertion
- *   into the table. If the message length is greater than the number
- *   of incoming bytes then that means data should be forwarded to the
- *   grant queue. If the incoming packet was a grant then that updated
- *   is forwarded to the srpt data queue, indicating it may have more
- *   bytes to transmit.
- *
- * @onboard_send_i - Input for sendmsg requests
- * @onboard_send_o - Output for sendmsg requests
- * @header_out_i   - Input for outgoing headers
- * @header_out_o   - Output for outgoing headers 
- * @header_in_i    - Input for incoming headers
- * @header_in_o    - Output for incoming headers 
- * @grant_in_o     - Output for forwarding data to SRPT grant queue
- * @data_srpt_o    - Output for forwarding data to the SRPT data queue
- */

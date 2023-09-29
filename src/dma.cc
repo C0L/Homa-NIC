@@ -16,11 +16,11 @@ using namespace std;
 void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 	      hls::stream<ap_uint<512>> & data_queue_i,
 	      hls::stream<am_status_t> & status_queue_i,
-	      hls::stream<srpt_data_fetch_t> & dma_req_i,
+	      hls::stream<dma_r_req_t> & dma_req_i,
 	      hls::stream<h2c_dbuff_t> & dbuff_in_o,
-              hls::stream<log_status_t> & dma_read_log_o) {
+              hls::stream<ap_uint<64>> & dma_read_log_o) {
 
-    static srpt_data_fetch_t pending_reqs[128];
+    static dma_r_req_t pending_reqs[128];
     static ap_uint <7> read_head  = 0;
     static ap_uint<7>  write_head = 0;
 
@@ -35,7 +35,7 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
     // The sendmsg buffer ID needs to come from the user sendmsg request
     // The output buffer is assigned on packet ingress. And that mapping must be stored 
     
-    srpt_data_fetch_t dma_req;
+    dma_r_req_t dma_req;
     if (dma_req_i.read_nb(dma_req)) {
 	am_cmd_t am_cmd;
 
@@ -46,7 +46,9 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 	am_cmd(AM_CMD_TAG)   = 0;
 	am_cmd(AM_CMD_RSVD)  = 0;
 	am_cmd(AM_CMD_BTT)   = 64;
-	am_cmd(AM_CMD_SADDR) = dma_req(SRPT_DATA_FETCH_HOST_ADDR);
+	am_cmd(AM_CMD_SADDR) = dma_req(DMA_R_REQ_HOST_ADDR);
+
+	dma_read_log_o.write(am_cmd(AM_CMD_SADDR));
 
 	cmd_queue_o.write(am_cmd);
 	pending_reqs[write_head++] = dma_req;
@@ -54,15 +56,21 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 
     ap_uint<512> chunk;
     if (data_queue_i.read_nb(chunk)) {
-	srpt_data_fetch_t dma_req = pending_reqs[read_head++];
+	dma_r_req_t dma_req = pending_reqs[read_head++];
 
 	h2c_dbuff_t dbuff_in;
 
 	dbuff_in.data     = chunk;
-	dbuff_in.dbuff_id = dma_req(SRPT_DATA_FETCH_DBUFF_ID);
-	dbuff_in.local_id = dma_req(SRPT_DATA_FETCH_RPC_ID);
-	dbuff_in.msg_addr = dma_req(SRPT_DATA_FETCH_HOST_ADDR);
-	dbuff_in.msg_len  = dma_req(SRPT_DATA_FETCH_MSG_LEN);
+	dbuff_in.dbuff_id = dma_req(DMA_R_REQ_DBUFF_ID);
+	dbuff_in.local_id = dma_req(DMA_R_REQ_RPC_ID);
+
+	// HACK: This should be handled in RPC state
+	dbuff_in.msg_addr = dma_req(DMA_R_REQ_MSG_LEN) - dma_req(DMA_R_REQ_REMAINING);
+	dbuff_in.msg_len  = dma_req(DMA_R_REQ_MSG_LEN);
+
+	std::cerr << "DBUFF ADDR "  << dbuff_in.msg_addr << std::endl;
+	std::cerr << "DBUFF MSG LEN "  << dbuff_in.msg_len << std::endl;
+
 	// dbuff_in.last = dma_req.last; // TODO unused
 	dbuff_in_o.write(dbuff_in);
     }
@@ -82,7 +90,7 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
 	       hls::stream<ap_uint<512>> & data_queue_o,
 	       hls::stream<am_status_t> & status_queue_i,
 	       hls::stream<dma_w_req_t> & dma_w_req_i,
-	       hls::stream<log_status_t> & dma_write_log_o) {
+	       hls::stream<ap_uint<64>> & dma_write_log_o) {
 
 #pragma HLS pipeline II=1
 
@@ -100,6 +108,8 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        am_cmd(AM_CMD_RSVD)  = 0;
        am_cmd(AM_CMD_BTT)   = dma_req.strobe;
        am_cmd(AM_CMD_SADDR) = dma_req.offset;
+
+       dma_write_log_o.write(am_cmd(AM_CMD_SADDR));
 
        cmd_queue_o.write(am_cmd);
        data_queue_o.write(dma_req.data);

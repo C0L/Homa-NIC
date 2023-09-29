@@ -34,7 +34,7 @@ void network_order(integral_t & in, integral_t & out) {
  * @header_out_o - Output stream to the RPC store to get info about the RPC
  * before the packet can be sent
  */
-void next_pkt_selector(hls::stream<srpt_data_send_t> & data_pkt_i,
+void next_pkt_selector(hls::stream<srpt_queue_entry_t> & data_pkt_i,
 		       hls::stream<srpt_grant_send_t> & grant_pkt_i,
 		       hls::stream<header_t> & header_out_o) {
 
@@ -51,17 +51,17 @@ void next_pkt_selector(hls::stream<srpt_data_send_t> & data_pkt_i,
 
 	header_out_o.write(header_out);
     } else if (!data_pkt_i.empty()) {
-	srpt_data_send_t ready_data_pkt = data_pkt_i.read();
+	srpt_queue_entry_t ready_data_pkt = data_pkt_i.read();
 
 	// TODO why even handle this here?
 
 	header_t header_out;
 	header_out.type            = DATA;
-	header_out.local_id        = ready_data_pkt(SRPT_DATA_SEND_RPC_ID);
-	header_out.incoming        = ready_data_pkt(SRPT_DATA_SEND_GRANTED);
-	header_out.grant_offset    = ready_data_pkt(SRPT_DATA_SEND_GRANTED);
-	header_out.data_offset     = ready_data_pkt(SRPT_DATA_SEND_REMAINING);
-	header_out.segment_length  = MIN(ready_data_pkt(SRPT_DATA_SEND_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
+	header_out.local_id        = ready_data_pkt(SRPT_QUEUE_ENTRY_RPC_ID);
+	header_out.incoming        = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
+	header_out.grant_offset    = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
+	header_out.data_offset     = ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING);
+	header_out.segment_length  = MIN(ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
 	header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
 	header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
 
