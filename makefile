@@ -115,9 +115,11 @@ grant_synth: srpt_grant_queue.synth
 
 ############ Verilog Simulation ############ 
 
+fetch_test: srpt_fetch_queue.xsim
 data_test:  srpt_data_queue.xsim
 grant_test: srpt_grant_queue.xsim
 
+fetch_waves: srpt_fetch_queue.waves
 data_waves:  srpt_data_queue.waves
 grant_waves: srpt_grant_queue.waves
 

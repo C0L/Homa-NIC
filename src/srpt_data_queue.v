@@ -81,7 +81,7 @@
  *  
  * TODO use a LAST bit to handle when notifications are sent?
  */
-module srpt_data_pkts #(parameter MAX_RPCS = 64)
+module srpt_data_queue #(parameter MAX_RPCS = 64)
    (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
     
     input			       sendmsg_in_empty_i,
@@ -203,29 +203,6 @@ module srpt_data_pkts #(parameter MAX_RPCS = 64)
 	 
 	 data_pkt_write_en_o <= 0; 
 	 
-	 if (sendmsg_in_empty_i) begin
-	    // $display("queue insertion");
-	    
-	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
-	       sendq[entry] <= sendq_swpo[entry];
-	    end 
-	 end else begin
-	    if (sendq_polarity == 1'b0) begin
-	       // Assumes that write does not keep data around
-	       for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
-		  sendq[entry] <= sendq_swpe[entry];
-	       end
-
-	       sendq_polarity <= 1'b1;
-	    end else begin
-	       for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
-		  sendq[entry] <= sendq_swpo[entry+1];
-	       end
-
-	       sendq_polarity <= 1'b0;
-	    end
-	 end
-
 	 if (sendmsg_in_empty_i || dbuff_in_empty_i || grant_in_empty_i) begin
 	    // Adds either the reactivated message or the update to the queue
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
@@ -240,7 +217,7 @@ module srpt_data_pkts #(parameter MAX_RPCS = 64)
 
 	    if (sendq_ripe) begin
 	       data_pkt_data_o     <= sendq_head;
-	       data_pkt_write_en_o <= 1; // TODO this is left on
+	       data_pkt_write_en_o <= 1; 
 
 	       $display("RIPE ENTRY %d", sendq_head[`QUEUE_ENTRY_REMAINING]);
 	       if (sendq_head[`QUEUE_ENTRY_REMAINING] < `HOMA_PAYLOAD_SIZE) begin
@@ -316,15 +293,15 @@ module srpt_data_queue_tb();
    wire			       data_pkt_write_en_o;
    wire [`QUEUE_ENTRY_SIZE-1:0]	data_pkt_data_o;
    
-   srpt_data_pkts srpt_queue(.ap_clk(ap_clk), 
-			     .ap_rst(ap_rst), 
-			     .ap_ce(ap_ce), 
-			     .ap_start(ap_start), 
-			     .ap_continue(ap_continue), 
-			     .sendmsg_in_empty_i(sendmsg_in_empty_i),
-			     .sendmsg_in_read_en_o(sendmsg_in_read_en_o),
-			     .sendmsg_in_data_i(sendmsg_in_data_i),
-			     .grant_in_empty_i(grant_in_empty_i),
+   srpt_data_queue srpt_data_queue_tb(.ap_clk(ap_clk), 
+				   .ap_rst(ap_rst), 
+				   .ap_ce(ap_ce), 
+				   .ap_start(ap_start), 
+				   .ap_continue(ap_continue), 
+				   .sendmsg_in_empty_i(sendmsg_in_empty_i),
+				   .sendmsg_in_read_en_o(sendmsg_in_read_en_o),
+				   .sendmsg_in_data_i(sendmsg_in_data_i),
+				   .grant_in_empty_i(grant_in_empty_i),
 			     .grant_in_read_en_o(grant_in_read_en_o),
 			     .grant_in_data_i(grant_in_data_i),
 			     .dbuff_in_empty_i(dbuff_in_empty_i),
