@@ -16,59 +16,14 @@ struct msghdr_send_t {
     uint64_t cc;
 }__attribute__((packed));
 
-volatile char * sendmsg_axil;
-volatile char * sendmsg_axif;
-volatile char * recvmsg_axil;
-volatile char * recvmsg_axif;
-
-/* Programming Sequence Using Direct Register Read/Write
- * https://docs.xilinx.com/v/u/4.1-English/pg080-axi-fifo-mm-s
- */
-//void sendmsg(struct msghdr_send_t * msghdr_send) {
-//    print_msghdr(msghdr_send);
-//
-//    printf("sendmsg call: \n");
-//
-//    printf("  Resetting Interrput Status Register\n");
-//    *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_ISR)) = 0xffffffff;
-//    printf("  Resetting Interrput Enable Register\n");
-//    *((volatile unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_IER)) = 0x0C000000;
-//    printf("  Writing sendmsg data\n");
-//    for (int i = 0; i < 16; ++i) {
-//        *((unsigned int*) sendmsg_axif) = *(((unsigned int*) msghdr_send) + i);
-//    }
-//
-//    printf("  Current sendmsg FIFO vacancy %d\n", *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TDFV)));
-//    printf("  Draining sendmsg FIFO\n");
-//    *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TLR)) = 64;
-//    printf("  Current sendmsg FIFO vacancy: %d\n", *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_TDFV)));
-//    printf("  Interrupt Status Register: %d\n", *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_ISR)));
-//
-//    printf("  Stalling for completed sendmsg\n");
-//
-//    // TODO Could also check the status registers
-//    while (*(sendmsg_axil + AXI_STREAM_FIFO_RDFO) != 0x00000010);
-//
-//    // TODO set read size
-//    printf("  Setting FIFO read size");
-//    *((unsigned int*) (sendmsg_axil + AXI_STREAM_FIFO_RLR)) = 0x00000040;
-//
-//    printf("  Reading sendmsg data\n");
-//    for (int i = 0; i < 16; ++i) {
-//        *(((unsigned int*) msghdr_send) + i) = *((unsigned int*) (sendmsg_axif + 0x1000));
-//    }
-//
-//    print_msghdr(msghdr_send);
-//}
-
 int main() {
 
     struct msghdr_send_t msghdr_send;
 
     memset(msghdr_send.saddr, 0xF, 16);
     memset(msghdr_send.daddr, 0xA, 16); 
-    msghdr_send.sport     = 0xFFFF;
-    msghdr_send.dport     = 0xAAAA;
+    msghdr_send.sport     = 0x1;
+    msghdr_send.dport     = 0x2;
     msghdr_send.buff_addr = 0;
     msghdr_send.buff_size = 128;
     msghdr_send.id        = 0;

@@ -68,6 +68,8 @@ struct file_operations homasend_fops = {
 };
 
 void print_msghdr(struct msghdr_send_t *);
+void dump_log_entry(void);
+void new_physmap(struct port_to_phys_t * portmap);
 
 struct homasend_device_data {
     struct cdev cdev;
@@ -103,20 +105,6 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
     void __iomem * device_regs = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
     void __iomem * data_regs_w = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET, 8);
     void __iomem * data_regs_r = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET + 0x1000, 8);
-
-    void * virt_buff = kmalloc(16384, GFP_ATOMIC);
-    phys_addr_t phys_buff = virt_to_phys(virt_buff);
-
-    char msg[13] = "Hello World!";
-
-    memcpy(virt_buff, msg, 13);
-
-    pr_alert("Send Buff Message Contents: %.*s\n", 13, (char *) virt_buff);
-
-    pr_alert("Physical address:%llx\n", phys_buff);
-    // pr_alert("Virtual address:%p\n", phys_to_virt(virt_buff));
-
-    msghdr_send->buff_addr = phys_buff;
 
     print_msghdr(msghdr_send);
 
@@ -157,18 +145,19 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
 
     print_msghdr(msghdr_send);
 
-    pr_alert("Recv Buff Message Contents: %.*s\n", 13, (char *) (virt_buff + 128));
+
 
     iounmap(device_regs);
     iounmap(data_regs_r);
     iounmap(data_regs_w);
 }
 
-void dump_log_entry() {
-    log_entry_t log_entry;
+void dump_log_entry(void) {
+    int i;
+    struct log_entry_t log_entry;
 
     // AXI-Stream FIFO at PCIe BAR + AXI Offset
-    void __iomem * log_regs = ioremap(BAR_0 + LOG_OUT_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    void __iomem * log_regs = ioremap(BAR_0 + LOG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
 
     pr_alert("  Resetting Interrput Status Register\n");
     iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
@@ -176,24 +165,26 @@ void dump_log_entry() {
     pr_alert("  Resetting Interrput Enable Register\n");
     iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
 
-    pr_alert("Current log FIFO vacancy %d\n", ioread32(log_regs + AXI_STREAM_FIFO_TDFV));
+    pr_alert("  Current log FIFO vacancy %d\n", ioread32(log_regs + AXI_STREAM_FIFO_RDFO));
 
-    // Read 16 bytes of data or 128 bits
-    //iowrite32(0x00000010, log_regs + AXI_STREAM_FIFO_RLR);
+    // while (ioread32(log_regs + AXI_STREAM_FIFO_RDFO) != 0) {
+	// Read 16 bytes of data or 128 bits
+	iowrite32(0x00000010, log_regs + AXI_STREAM_FIFO_RLR);
+	for (i = 0; i < 4; ++i) {
+	    *(((unsigned int*) &log_entry) + i) = ioread32(log_regs + AXI_STREAM_FIFO_RDFD);
+	}
 
-    //for (i = 0; i < 4; ++i) {
-    //    *(((unsigned int*) ) log_entry + i) = ioread32(log_regs + AXI_STREAM_FIFO_TDFD);
-    //}
-
-    //pr_alert("Log Entry:\n");
-    //pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
-    //pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
-
+	pr_alert("Log Entry:\n");
+	pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
+	pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
+	//}
+    
     iounmap(log_regs);
 }
 
-void new_physmap(port_to_phys_t * portmap) {
-    void __iomem * physmap_regs = ioremap(BAR_0 + H2C_PHYS_TO_PORT_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+void new_physmap(struct port_to_phys_t * portmap) {
+    int i;
+    void __iomem * physmap_regs = ioremap(BAR_0 + H2C_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
 
     pr_alert("new physmap: \n");
 
@@ -226,17 +217,23 @@ void print_msghdr(struct msghdr_send_t * msghdr_send) {
 }
 
 ssize_t homasend_write(struct file * file, const char __user * user_buffer, size_t size, loff_t * offset) {
+
+    // New physmap contents
+    int i;
+    void __iomem * h2c_physmap_regs = ioremap(BAR_0 + H2C_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    void __iomem * c2h_physmap_regs = ioremap(BAR_0 + C2H_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+
     struct msghdr_send_t msghdr_send;
+    void * virt_buff = kmalloc(16384, GFP_ATOMIC);
+    phys_addr_t phys_buff = virt_to_phys(virt_buff);
+    struct port_to_phys_t port_to_phys;
+
+    char msg[13] = "Hello World!";
 
     pr_alert("homasend_write\n");
 
     if (copy_from_user(&msghdr_send, user_buffer, 64))
         return -EFAULT;
-
-    void * virt_buff = kmalloc(16384, GFP_ATOMIC);
-    phys_addr_t phys_buff = virt_to_phys(virt_buff);
-
-    char msg[13] = "Hello World!";
 
     memcpy(virt_buff, msg, 13);
 
@@ -244,26 +241,57 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
 
     pr_alert("Physical address:%llx\n", phys_buff);
 
-    port_to_phys_t port_to_phys;
     port_to_phys.phys_addr = phys_buff;
     port_to_phys.port = 1;
 
-    new_physmap(&port_to_phys);
+    /* new physmap onboarding */
+    pr_alert("new physmap: \n");
 
-    dump_log_entry();
+    pr_alert("  Resetting Interrput Status Register\n");
+    iowrite32(0xffffffff, h2c_physmap_regs + AXI_STREAM_FIFO_ISR);
 
-    // print_msghdr(&msghdr_send);
+    pr_alert("  Resetting Interrput Enable Register\n");
+    iowrite32(0x0C000000, h2c_physmap_regs + AXI_STREAM_FIFO_IER);
 
-    // pr_info("virt_to_phys = 0x%llx\n", (unsigned long long) virt_to_phys((void *) msghdr_send.buff_addr));
+    pr_alert("  Writing physmap data\n");
+    for (i = 0; i < 3; ++i) {
+        iowrite32(*(((unsigned int*) &port_to_phys) + i), h2c_physmap_regs + AXI_STREAM_FIFO_RDFD);
+    }
+
+    pr_alert("  Current FIFO vacancy %d\n", ioread32(h2c_physmap_regs + AXI_STREAM_FIFO_TDFV));
+
+    port_to_phys.phys_addr = phys_buff + 128;
+
+    /* onboard the c2h */
+
+    pr_alert("new physmap: \n");
+
+    pr_alert("  Resetting Interrput Status Register\n");
+    iowrite32(0xffffffff, c2h_physmap_regs + AXI_STREAM_FIFO_ISR);
+
+    pr_alert("  Resetting Interrput Enable Register\n");
+    iowrite32(0x0C000000, c2h_physmap_regs + AXI_STREAM_FIFO_IER);
+
+    pr_alert("  Writing physmap data\n");
+    for (i = 0; i < 3; ++i) {
+        iowrite32(*(((unsigned int*) &port_to_phys) + i), c2h_physmap_regs + AXI_STREAM_FIFO_RDFD);
+    }
+
+    pr_alert("  Current FIFO vacancy %d\n", ioread32(c2h_physmap_regs + AXI_STREAM_FIFO_TDFV));
+
+    /* new physmap complete */
+
+    print_msghdr(&msghdr_send);
 
     // sendmsg(&msghdr_send);
 
-    // TODO should use kmap onto user buffer? Then virt to phys
+    dump_log_entry();
 
-    // msghdr_send->buff_addr = virt_to_phys((void*) msgbuff);
+    pr_alert("Recv Buff Message Contents: %.*s\n", 13, (char *) (virt_buff + 128));
 
-    // dump_axi_fifo_state();
-    
+    iounmap(c2h_physmap_regs);
+    iounmap(h2c_physmap_regs);
+
     return size;
 }
 
