@@ -21,10 +21,10 @@
 `define PRIORITY_SIZE   3
 
 `define HDR_SIZE     64
-`define HDR_PEER_ID  13,0  // Unique ID for this peer
-`define HDR_RPC_ID   29,14 // Local ID valid in rpc state core
-`define HDR_MSG_LEN  61,30 // Total number of bytes in message
-`define HDR_PMAP     63,62 // First packet in a sequence?
+`define HDR_PEER_ID  13:0  // Unique ID for this peer
+`define HDR_RPC_ID   29:14 // Local ID valid in rpc state core
+`define HDR_MSG_LEN  61:30 // Total number of bytes in message
+`define HDR_PMAP     63:62 // First packet in a sequence?
 
 // 60K byte (RTT_Bytes) * 8 (MAX_OVERCOMMIT)
 `define RTT_BYTES 60000

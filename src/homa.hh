@@ -320,10 +320,9 @@ typedef ap_uint<PORT_TO_PHYS_SIZE> port_to_phys_t;
 typedef ap_uint<8> log_status_t;
 
 /**
- * log_t - A log value for debugging that can be read from the host
+ * log_entry_t - A log value for debugging that can be read from the host
  */
-typedef ap_uint<128> log_entry_t;
-
+typedef ap_axiu<128, 0, 0, 0> log_entry_t;
 
 /* Cutoff for retramsission
  * 1ms == 1000000ns == 200000 cycles
@@ -724,6 +723,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<raw_stream_t>  & link_egress,
 	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
 	  hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
-	  hls::stream<log_entry_t> & log_out);
+	  hls::stream<log_entry_t> & log_out_o);
 
 #endif

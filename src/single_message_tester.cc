@@ -142,7 +142,8 @@ int main(int argc, char **argv) {
 
     while (!log_out.empty()) {
 	log_entry_t log_entry = log_out.read();
-	std::cerr << "LOG OUT WRITE: " << log_entry(123, 64) << std::endl;
+	std::cerr << "LOG OUT READ: " << log_entry.data(63, 0) << std::endl;
+	std::cerr << "LOG OUT WRITE: " << log_entry.data(127, 64) << std::endl;
     }
 
     recvmsg_o.read();
