@@ -3,6 +3,10 @@
 #include <fstream>
 #include <fcntl.h>
 
+#include <chrono>
+#include <thread>
+
+
 #include "test.hh"
 
 using namespace std;
@@ -43,8 +47,8 @@ int main(int argc, char **argv) {
     uint16_t sport;
     uint16_t dport;
 
-    dport = 0xBEEF;
-    sport = 0xFEEB;
+    dport = 0xAA;
+    sport = 0xBB;
 
     recvmsg.data(MSGHDR_SADDR)      = saddr;
     recvmsg.data(MSGHDR_DADDR)      = daddr;
@@ -72,7 +76,6 @@ int main(int argc, char **argv) {
 
     // int maxi_out_fd = open(dest_file, O_RDWR);
     // char * maxi_out = (char*) mmap(NULL, 16384, PROT_WRITE, MAP_PRIVATE, maxi_out_fd, 0); 
-
     char * maxi_out = (char*) malloc(16384 * sizeof(char));
 
     recvmsg_i.write(recvmsg);
@@ -85,8 +88,26 @@ int main(int argc, char **argv) {
 	 w_cmd_queue_o, w_data_queue_o, w_status_queue_i,
 	 r_cmd_queue_o, r_data_queue_i, r_status_queue_i,
 	 link_ingress_i, link_egress_o,
-	 h2c_port_to_phys_i, c2h_port_to_phys_i
+	 h2c_port_to_phys_i, c2h_port_to_phys_i,
+	 log_out
 	);
+
+
+    port_to_phys_t c2h_address_map;
+    port_to_phys_t h2c_address_map;
+
+    c2h_address_map(PORT_TO_PHYS_ADDR) = 0xAAAAAAAAAAAAAAAA;
+    c2h_address_map(PORT_TO_PHYS_PORT) = sport;
+
+    h2c_address_map(PORT_TO_PHYS_ADDR) = 0xAAAAAAAAAAAAAAAA;
+    h2c_address_map(PORT_TO_PHYS_PORT) = sport;
+
+    h2c_port_to_phys_i.write(h2c_address_map);
+    c2h_port_to_phys_i.write(c2h_address_map);
+
+    // TODO replace this with a stall for some log entry
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     // TODO wrong size comparison
     while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, len) != 0) {
@@ -100,7 +121,7 @@ int main(int argc, char **argv) {
     	    ap_uint<512> read_data;
     	    am_status_t am_status;
 
-    	    memcpy((char*) &read_data, maxi_in + ((uint32_t) am_cmd(AM_CMD_SADDR)), am_cmd(AM_CMD_BTT) * sizeof(char));
+    	    memcpy((char*) &read_data, maxi_in + ((uint32_t) (am_cmd(AM_CMD_SADDR) - h2c_address_map(PORT_TO_PHYS_ADDR))), am_cmd(AM_CMD_BTT) * sizeof(char));
     	    r_data_queue_i.write(read_data);
     	    r_status_queue_i.write(am_status);
     	}
@@ -112,9 +133,16 @@ int main(int argc, char **argv) {
 
     	    am_status_t am_status;
 
-    	    memcpy(maxi_out + ((uint32_t) am_cmd(AM_CMD_SADDR)), (char*) &write_data, am_cmd(AM_CMD_BTT) * sizeof(char));
+    	    memcpy(maxi_out + ((uint32_t) (am_cmd(AM_CMD_SADDR) - c2h_address_map(PORT_TO_PHYS_ADDR))), (char*) &write_data, am_cmd(AM_CMD_BTT) * sizeof(char));
     	    w_status_queue_i.write(am_status);
     	}
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    while (!log_out.empty()) {
+	log_entry_t log_entry = log_out.read();
+	std::cerr << "LOG OUT WRITE: " << log_entry(123, 64) << std::endl;
     }
 
     recvmsg_o.read();

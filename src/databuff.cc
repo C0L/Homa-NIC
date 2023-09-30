@@ -77,6 +77,7 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	dma_w_req.offset = dma_offset + header_in.data_offset + chunk_offset;
 	dma_w_req.data   = buffer(511, 0);
 	dma_w_req.strobe = writable_bytes;
+	dma_w_req.port = header_in.sport;
 	dma_w_req_o.write(dma_w_req);
 
 	buffer >>= (writable_bytes * 8);

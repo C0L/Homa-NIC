@@ -1,6 +1,6 @@
 {
-    "c_function_name":"srpt_data_pkts",
-    "rtl_top_module_name":"srpt_data_pkts",
+    "c_function_name":"srpt_data_queue",
+    "rtl_top_module_name":"srpt_data_queue",
     "c_files":[
 	{
 	    "c_file":"src/srptmgmt.hh",
@@ -8,7 +8,7 @@
 	}
     ],
     "rtl_files":[
-	"src/srpt_data_pkts.v"
+	"src/srpt_data_queue.v"
     ],
     "c_parameters":[
 	{
@@ -45,15 +45,6 @@
 		"FIFO_empty_flag":"grant_in_empty_i",
 		"FIFO_read_enable":"grant_in_read_en_o",
 		"FIFO_data_read_in":"grant_in_data_i"
-	    }
-	},
-	{
-	    "c_name":"cache_req_o",
-	    "c_port_direction":"out",
-	    "rtl_ports":{
-		"FIFO_full_flag":"cache_req_full_i",
-		"FIFO_write_enable":"cache_req_write_en_o",
-		"FIFO_data_write_out":"cache_req_data_o"
 	    }
 	}
     ],

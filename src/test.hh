@@ -17,5 +17,6 @@ hls::stream<ap_uint<512>>   r_data_queue_i;
 hls::stream<am_status_t>    r_status_queue_i;
 hls::stream<port_to_phys_t> h2c_port_to_phys_i;
 hls::stream<port_to_phys_t> c2h_port_to_phys_i;
+hls::stream<log_entry_t> log_out;
 
 #endif

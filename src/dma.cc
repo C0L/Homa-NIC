@@ -98,6 +98,8 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
 
    if (dma_w_req_i.read_nb(dma_req)) {
        // TODO describe and check this
+
+       std::cerr << "DMA WRITE OPERATION!!!!!\n";
        
        am_cmd_t am_cmd;
        am_cmd(AM_CMD_TYPE)  = 1;

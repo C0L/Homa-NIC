@@ -1,6 +1,6 @@
 {
-    "c_function_name":"srpt_data_pkts",
-    "rtl_top_module_name":"srpt_data_pkts",
+    "c_function_name":"srpt_fetch_queue",
+    "rtl_top_module_name":"srpt_fetch_queue",
     "c_files":[
 	{
 	    "c_file":"src/srptmgmt.hh",
@@ -8,52 +8,25 @@
 	}
     ],
     "rtl_files":[
-	"src/srpt_data_pkts.v"
+	"src/srpt_fetch_queue.v"
     ],
     "c_parameters":[
 	{
 	    "c_name":"sendmsg_i",
 	    "c_port_direction":"in",
 	    "rtl_ports":{
-		"FIFO_empty_flag":"sendmsg_in_empty_i",
-		"FIFO_read_enable":"sendmsg_in_read_en_o",
-		"FIFO_data_read_in":"sendmsg_in_data_i"
-	    }
-	},
-	{
-	    "c_name":"dbuff_notif_i",
-	    "c_port_direction":"in",
-	    "rtl_ports":{
-		"FIFO_empty_flag":"dbuff_in_empty_i",
-		"FIFO_read_enable":"dbuff_in_read_en_o",
-		"FIFO_data_read_in":"dbuff_in_data_i"
-	    }
-	},
-	{
-	    "c_name":"data_pkt_o",
-	    "c_port_direction":"out",
-	    "rtl_ports":{
-		"FIFO_full_flag":"data_pkt_full_i",
-		"FIFO_write_enable":"data_pkt_write_en_o",
-		"FIFO_data_write_out":"data_pkt_data_o"
-	    }
-	},
-	{
-	    "c_name":"grant_notif_i",
-	    "c_port_direction":"in",
-	    "rtl_ports":{
-		"FIFO_empty_flag":"grant_in_empty_i",
-		"FIFO_read_enable":"grant_in_read_en_o",
-		"FIFO_data_read_in":"grant_in_data_i"
+		"FIFO_empty_flag":"fetch_in_empty_i",
+		"FIFO_read_enable":"fetch_in_read_en_o",
+		"FIFO_data_read_in":"fetch_in_data_i"
 	    }
 	},
 	{
 	    "c_name":"cache_req_o",
 	    "c_port_direction":"out",
 	    "rtl_ports":{
-		"FIFO_full_flag":"cache_req_full_i",
-		"FIFO_write_enable":"cache_req_write_en_o",
-		"FIFO_data_write_out":"cache_req_data_o"
+		"FIFO_full_flag":"fetch_out_full_i",
+		"FIFO_write_enable":"fetch_out_write_en_o",
+		"FIFO_data_write_out":"fetch_out_data_o"
 	    }
 	}
     ],

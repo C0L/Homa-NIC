@@ -34,7 +34,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	  hls::stream<am_cmd_t> & w_cmd_queue_o, hls::stream<ap_uint<512>> & w_data_queue_o, hls::stream<am_status_t> & w_status_queue_i,
 	  hls::stream<am_cmd_t> & r_cmd_queue_o, hls::stream<ap_uint<512>> & r_data_queue_i, hls::stream<am_status_t> & r_status_queue_i,
 	  hls::stream<raw_stream_t> & link_ingress_i, hls::stream<raw_stream_t> & link_egress_o,
-	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i, hls::stream<port_to_phys_t> & c2h_port_to_phys_i) {
+	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i, hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
+	  hls::stream<log_entry_t> & log_out) {
 
 #pragma HLS interface axis port=msghdr_send_i    depth=64
 #pragma HLS interface axis port=msghdr_recv_i    depth=64
@@ -215,7 +216,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	w_cmd_queue_o,
 	w_data_queue_o,
 	w_status_queue_i,
-	dma_req__dbuff_ingress__dma_write,
+	dma_req__address_map__dma_write,
 	c2h_address_map_log
 	);
  
@@ -231,8 +232,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
     hls_thread_local hls::task c2h_databuff_task(
 	c2h_databuff,
 	in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_i
-	dma_req__dbuff_ingress__dma_write,      // dma_w_req_o
-	header_in__address_map__dbuff_ingress,    // header_in_i
+	dma_req__dbuff_ingress__address_map,      // dma_w_req_o
+	header_in__address_map__dbuff_ingress,  // header_in_i
 	header_in__dbuff_ingress__homa_recvmsg  // header_in_o
 	);
 
@@ -262,12 +263,10 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	link_egress_o                        // link_egress
 	);
 
-
-    //hls_thread_local hls::task homa_logger(
-    //	logger,
-    //	h2c_address_map_log_out,
-    //	c2h_address_map_log_out,
-    //	dma_write_log,
-    //	log_out
-    //	);
+    hls_thread_local hls::task homa_logger(
+    	logger,
+    	h2c_address_map_log,
+    	c2h_address_map_log,
+    	log_out
+    	);
 }

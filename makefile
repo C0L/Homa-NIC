@@ -33,8 +33,9 @@ SRC_V = \
 
 
 SRC_JSON = \
-        $(V_SRC_DIR)/srpt_grant_queue.json \
-        $(V_SRC_DIR)/srpt_data_queue.json
+        $(V_SRC_DIR)/srpt_grant_pkts.json \
+        $(V_SRC_DIR)/srpt_data_queue.json \
+        $(V_SRC_DIR)/srpt_fetch_queue.json
 
 SRC_C =                       \
     $(C_SRC_DIR)/databuff.cc  \

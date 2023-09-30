@@ -309,7 +309,7 @@ struct rpc_to_offset_t {
  * from card 2 host
  */
 #define PORT_TO_PHYS_SIZE      96
-#define PORT_TO_PHYS_PHYS_ADDR 63,0
+#define PORT_TO_PHYS_ADDR 63,0
 #define PORT_TO_PHYS_PORT      95,64 
 typedef ap_uint<PORT_TO_PHYS_SIZE> port_to_phys_t;
 
@@ -723,5 +723,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<raw_stream_t>  & link_ingress,
 	  hls::stream<raw_stream_t>  & link_egress,
 	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
-	  hls::stream<port_to_phys_t> & c2h_port_to_phys_i);
+	  hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
+	  hls::stream<log_entry_t> & log_out);
+
 #endif

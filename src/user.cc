@@ -143,7 +143,6 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
      * entry can steal another entries ID.
      */
     static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(STACK_ALL);
-    std::cerr << "SENDMSG IN\n";
     msghdr_send_t msghdr_send;
 
     msghdr_send_i.read(msghdr_send);
@@ -172,7 +171,6 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
     msghdr_send.last = 1;
     msghdr_send_o.write(msghdr_send);
 
-    std::cerr << "SENDMSG SENT\n";
     onboard_send_o.write(onboard_send);
 }
 
@@ -195,11 +193,10 @@ void h2c_address_map(
     // TODO dma reqs
     srpt_queue_entry_t dma_fetch;
     if (dma_r_req_i.read_nb(dma_fetch)) {
-	std::cerr << "h2c_addresss_map\n";
 	// Get the physical address of this ports entire buffer
 
 	msg_addr_t msg_addr   = h2c_rpc_to_offset[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)];
-	host_addr_t phys_addr = h2c_port_to_phys[h2c_rpc_to_offset[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)]];
+	host_addr_t phys_addr = h2c_port_to_phys[h2c_rpc_to_port[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)]];
 
 	//log_status_t log_status = LOG_GOOD;
 	//if (phys_addr == 0) {
@@ -228,7 +225,7 @@ void h2c_address_map(
 	
     port_to_phys_t new_h2c_port_to_phys;
     if (h2c_port_to_phys_i.read_nb(new_h2c_port_to_phys)) {
-	h2c_port_to_phys[new_h2c_port_to_phys(PORT_TO_PHYS_PORT)] = new_h2c_port_to_phys(PORT_TO_PHYS_PHYS_ADDR);
+	h2c_port_to_phys[new_h2c_port_to_phys(PORT_TO_PHYS_PORT)] = new_h2c_port_to_phys(PORT_TO_PHYS_ADDR);
     }
 
     onboard_send_t sendmsg;
@@ -249,7 +246,6 @@ void c2h_address_map(
     hls::stream<header_t> & c2h_header_o,
     hls::stream<dma_w_req_t> & dma_w_req_i,
     hls::stream<dma_w_req_t> & dma_w_req_o
-    // hls::stream<log_status_t> & log_out
     ) {
 
     static host_addr_t c2h_port_to_phys[MAX_PORTS];
@@ -258,7 +254,6 @@ void c2h_address_map(
 
     dma_w_req_t dma_w_req;
     if (dma_w_req_i.read_nb(dma_w_req)) {
-	std::cerr << "c2h_addresss_map\n";
 	// Get the physical address of this ports entire buffer
 	host_addr_t phys_addr = c2h_port_to_phys[dma_w_req.port];
 	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
@@ -285,15 +280,15 @@ void c2h_address_map(
 	
     port_to_phys_t new_c2h_port_to_phys;
     if (c2h_port_to_phys_i.read_nb(new_c2h_port_to_phys)) {
-	c2h_port_to_phys[new_c2h_port_to_phys(PORT_TO_PHYS_PORT)] = new_c2h_port_to_phys(PORT_TO_PHYS_PHYS_ADDR);
+	c2h_port_to_phys[new_c2h_port_to_phys(PORT_TO_PHYS_PORT)] = new_c2h_port_to_phys(PORT_TO_PHYS_ADDR);
     }
 
     header_t c2h_header;
     if (c2h_header_i.read_nb(c2h_header)) {
 	if ((c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
-	    msg_addr_t msg_addr = ((c2h_buff_ids[c2h_header.dport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
+	    msg_addr_t msg_addr = ((c2h_buff_ids[c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
 	    c2h_rpc_to_offset[c2h_header.local_id] = msg_addr;
-	    c2h_buff_ids[c2h_header.dport]++;
+	    c2h_buff_ids[c2h_header.sport]++;
 	}
 	    
 	c2h_header_o.write(c2h_header);
