@@ -9,9 +9,11 @@
 #define AXI_STREAM_FIFO_IER  0x04 // Interrupt Enable Register (r/w)
 #define AXI_STREAM_FIFO_TDFR 0x08 // Transmit Data FIFO Reset (w)
 #define AXI_STREAM_FIFO_TDFV 0x0C // Transmit Data FIFO Vacancy (r)
+#define AXI_STREAM_FIFO_TDFD 0x10 // Transmit Data FIFO Write (w)
 #define AXI_STREAM_FIFO_TLR  0x14 // Transmit Length Register (w)
 #define AXI_STREAM_FIFO_RDFR 0x18 // Receive Data FIFO Reset (w)
 #define AXI_STREAM_FIFO_RDFO 0x1C // Receive Data FIFO Occupancy (r)
+#define AXI_STREAM_FIFO_RDFD 0x20 // Receive Data FIFO Read (r)
 #define AXI_STREAM_FIFO_RLR  0x24 // Receive Length Register (r)
 #define AXI_STREAM_FIFO_SRR  0x28 // AXI4-Stream Reset (w)
 #define AXI_STREAM_FIFO_TDR  0x2C // Transmit Destination Register (w)
@@ -26,6 +28,10 @@
 #define RECVMSG_AXIL_OFFSET 0x00106000
 #define RECVMSG_AXIF_OFFSET 0x00102000
 
+#define LOG_AXIL_OFFSET 0x00108000
+#define H2C_PORT_TO_PHYS_AXIL_OFFSET 0x0010A000
+#define C2H_PORT_TO_PHYS_AXIL_OFFSET 0x0010A000
+
 #define BAR_0 0xfe800000
 
 struct msghdr_send_t {
@@ -39,6 +45,15 @@ struct msghdr_send_t {
     uint64_t cc;
 }__attribute__((packed));
 
+struct log_entry_t {
+    uint64_t dma_r_entry;
+    uint64_t dma_w_entry;
+}__attribute__((packed));
+
+struct port_to_phys_t {
+    uint64_t phys_addr;
+    uint32_t port;
+}__attribute__((packed));
 
 int     homasend_open(struct inode *, struct file *);
 ssize_t homasend_read(struct file *, char *, size_t, loff_t *);
@@ -69,8 +84,6 @@ void dump_axi_fifo_state(void) {
 
     void __iomem * device_regs = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
 
-    // pr_info("0xdead0000: %#x\n", readl(regs));
-
     pr_alert("Interrupt Status Register   : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_ISR));
     pr_alert("Interrupt Enable Register   : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_IER));
     pr_alert("Transmit Data FIFO Vacancy  : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_TDFV));
@@ -82,8 +95,6 @@ void dump_axi_fifo_state(void) {
     iounmap(device_regs);
 }
 
-// TPDP ise GFP_DMA? dma_alloc_coherent?
-
 /* Programming Sequence Using Direct Register Read/Write
  * https://docs.xilinx.com/v/u/4.1-English/pg080-axi-fifo-mm-s
  */
@@ -91,7 +102,7 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
     int i;
     void __iomem * device_regs = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
     void __iomem * data_regs_w = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET, 8);
-    void __iomem * data_regs_w = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET + 0x1000, 8);
+    void __iomem * data_regs_r = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET + 0x1000, 8);
 
     void * virt_buff = kmalloc(16384, GFP_ATOMIC);
     phys_addr_t phys_buff = virt_to_phys(virt_buff);
@@ -153,13 +164,62 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
     iounmap(data_regs_w);
 }
 
+void dump_log_entry() {
+    log_entry_t log_entry;
+
+    // AXI-Stream FIFO at PCIe BAR + AXI Offset
+    void __iomem * log_regs = ioremap(BAR_0 + LOG_OUT_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+
+    pr_alert("  Resetting Interrput Status Register\n");
+    iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
+
+    pr_alert("  Resetting Interrput Enable Register\n");
+    iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
+
+    pr_alert("Current log FIFO vacancy %d\n", ioread32(log_regs + AXI_STREAM_FIFO_TDFV));
+
+    // Read 16 bytes of data or 128 bits
+    //iowrite32(0x00000010, log_regs + AXI_STREAM_FIFO_RLR);
+
+    //for (i = 0; i < 4; ++i) {
+    //    *(((unsigned int*) ) log_entry + i) = ioread32(log_regs + AXI_STREAM_FIFO_TDFD);
+    //}
+
+    //pr_alert("Log Entry:\n");
+    //pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
+    //pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
+
+    iounmap(log_regs);
+}
+
+void new_physmap(port_to_phys_t * portmap) {
+    void __iomem * physmap_regs = ioremap(BAR_0 + H2C_PHYS_TO_PORT_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+
+    pr_alert("new physmap: \n");
+
+    pr_alert("  Resetting Interrput Status Register\n");
+    iowrite32(0xffffffff, physmap_regs + AXI_STREAM_FIFO_ISR);
+
+    pr_alert("  Resetting Interrput Enable Register\n");
+    iowrite32(0x0C000000, physmap_regs + AXI_STREAM_FIFO_IER);
+
+    pr_alert("  Writing physmap data\n");
+    for (i = 0; i < 3; ++i) {
+        iowrite32(*(((unsigned int*) portmap) + i), physmap_regs + AXI_STREAM_FIFO_RDFD);
+    }
+
+    pr_alert("  Current FIFO vacancy %d\n", ioread32(physmap_regs + AXI_STREAM_FIFO_TDFV));
+
+    iounmap(physmap_regs);
+}
+
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
     pr_alert("sendmsg content dump:\n");
     pr_alert("  SOURCE ADDRESS      : %.*s\n", 16, msghdr_send->saddr);
     pr_alert("  DESTINATION ADDRESS : %.*s\n", 16, msghdr_send->saddr);
     pr_alert("  SOURCE PORT         : %u\n", (unsigned int) msghdr_send->sport);
     pr_alert("  DESTINATION PORT    : %u\n", (unsigned int) msghdr_send->dport);
-    pr_alert("  BUFFER ADDRESS      : %llu\n", msghdr_send->buff_addr);
+    pr_alert("  BUFFER ADDRESS      : %llx\n", msghdr_send->buff_addr);
     pr_alert("  BUFFER SIZE         : %u\n", msghdr_send->buff_size);
     pr_alert("  RPC ID              : %llu\n", msghdr_send->id);
     pr_alert("  COMPLETION COOKIE   : %llu\n", msghdr_send->cc);
@@ -173,11 +233,30 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
     if (copy_from_user(&msghdr_send, user_buffer, 64))
         return -EFAULT;
 
-    print_msghdr(&msghdr_send);
+    void * virt_buff = kmalloc(16384, GFP_ATOMIC);
+    phys_addr_t phys_buff = virt_to_phys(virt_buff);
+
+    char msg[13] = "Hello World!";
+
+    memcpy(virt_buff, msg, 13);
+
+    pr_alert("Send Buff Message Contents: %.*s\n", 13, (char *) virt_buff);
+
+    pr_alert("Physical address:%llx\n", phys_buff);
+
+    port_to_phys_t port_to_phys;
+    port_to_phys.phys_addr = phys_buff;
+    port_to_phys.port = 1;
+
+    new_physmap(&port_to_phys);
+
+    dump_log_entry();
+
+    // print_msghdr(&msghdr_send);
 
     // pr_info("virt_to_phys = 0x%llx\n", (unsigned long long) virt_to_phys((void *) msghdr_send.buff_addr));
 
-    sendmsg(&msghdr_send);
+    // sendmsg(&msghdr_send);
 
     // TODO should use kmap onto user buffer? Then virt to phys
 

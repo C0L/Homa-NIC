@@ -65,8 +65,8 @@ int main() {
 
     struct msghdr_send_t msghdr_send;
 
-    memset(msghdr_send.saddr, 0xDEADBEEF, 32);
-    memset(msghdr_send.daddr, 0xBEEFDEAD, 32); 
+    memset(msghdr_send.saddr, 0xF, 16);
+    memset(msghdr_send.daddr, 0xA, 16); 
     msghdr_send.sport     = 0xFFFF;
     msghdr_send.dport     = 0xAAAA;
     msghdr_send.buff_addr = 0;
