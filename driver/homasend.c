@@ -4,6 +4,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #define AXI_STREAM_FIFO_ISR  0x00 // Interrupt Status Register (r/clear on w)
 #define AXI_STREAM_FIFO_IER  0x04 // Interrupt Enable Register (r/w)
@@ -28,9 +29,11 @@
 #define RECVMSG_AXIL_OFFSET 0x00106000
 #define RECVMSG_AXIF_OFFSET 0x00102000
 
-#define LOG_AXIL_OFFSET 0x00108000
+#define LOG_AXIL_OFFSET 0x0010D000
+#define LOG_AXIF_OFFSET 0x00012000
+
 #define H2C_PORT_TO_PHYS_AXIL_OFFSET 0x0010A000
-#define C2H_PORT_TO_PHYS_AXIL_OFFSET 0x0010A000
+#define C2H_PORT_TO_PHYS_AXIL_OFFSET 0x0010C000
 
 #define BAR_0 0xfe800000
 
@@ -84,17 +87,28 @@ void dump_axi_fifo_state(void) {
 
     /* We need a kernel virtual address as there is no direct way to access physical addresses */
 
-    void __iomem * device_regs = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
 
-    pr_alert("Interrupt Status Register   : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_ISR));
-    pr_alert("Interrupt Enable Register   : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_IER));
-    pr_alert("Transmit Data FIFO Vacancy  : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_TDFV));
-    pr_alert("Transmit Length Register    : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_TLR));
-    pr_alert("Receive Data FIFO Occupancy : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_RDFO));
-    pr_alert("Receive Length Register     : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_RLR));
-    pr_alert("Interrupt Status Register   : %x\n", ioread32(device_regs + AXI_STREAM_FIFO_RDR));
+    void __iomem * log_regs = ioremap(BAR_0 + LOG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    void __iomem * sendmsg_regs = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
 
-    iounmap(device_regs);
+    pr_alert("Interrupt Status Register   : %x\n", ioread32(sendmsg_regs + AXI_STREAM_FIFO_ISR));
+    pr_alert("Interrupt Enable Register   : %x\n", ioread32(sendmsg_regs + AXI_STREAM_FIFO_IER));
+    pr_alert("Transmit Data FIFO Vacancy  : %x\n", ioread32(sendmsg_regs + AXI_STREAM_FIFO_TDFV));
+    pr_alert("Transmit Length Register    : %x\n", ioread32(sendmsg_regs + AXI_STREAM_FIFO_TLR));
+    pr_alert("Receive Data FIFO Occupancy : %x\n", ioread32(sendmsg_regs + AXI_STREAM_FIFO_RDFO));
+    pr_alert("Receive Length Register     : %x\n", ioread32(sendmsg_regs + AXI_STREAM_FIFO_RLR));
+    pr_alert("Interrupt Status Register   : %x\n", ioread32(sendmsg_regs + AXI_STREAM_FIFO_RDR));
+
+    pr_alert("Interrupt Status Register   : %x\n", ioread32(log_regs + AXI_STREAM_FIFO_ISR));
+    pr_alert("Interrupt Enable Register   : %x\n", ioread32(log_regs + AXI_STREAM_FIFO_IER));
+    pr_alert("Transmit Data FIFO Vacancy  : %x\n", ioread32(log_regs + AXI_STREAM_FIFO_TDFV));
+    pr_alert("Transmit Length Register    : %x\n", ioread32(log_regs + AXI_STREAM_FIFO_TLR));
+    pr_alert("Receive Data FIFO Occupancy : %x\n", ioread32(log_regs + AXI_STREAM_FIFO_RDFO));
+    pr_alert("Receive Length Register     : %x\n", ioread32(log_regs + AXI_STREAM_FIFO_RLR));
+    pr_alert("Interrupt Status Register   : %x\n", ioread32(log_regs + AXI_STREAM_FIFO_RDR));
+
+    iounmap(log_regs);
+    iounmap(sendmsg_regs);
 }
 
 /* Programming Sequence Using Direct Register Read/Write
@@ -118,7 +132,8 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
 
     pr_alert("  Writing sendmsg data\n");
     for (i = 0; i < 16; ++i) {
-        iowrite32(*(((unsigned int*) msghdr_send) + i), data_regs_w);
+        // iowrite32(*(((unsigned int*) msghdr_send) + i), data_regs_w);
+	memcpy_toio(data_regs_w, (((unsigned int*) msghdr_send) + i), 4);
     }
 
     pr_alert("  Current sendmsg FIFO vacancy %d\n", ioread32(device_regs + AXI_STREAM_FIFO_TDFV));
@@ -132,20 +147,21 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
     pr_alert("  Stalling for completed sendmsg\n");
 
     // TODO Could also check the status registers
-    while (ioread32(device_regs + AXI_STREAM_FIFO_RDFO) != 0x00000010);
+    // while (ioread32(device_regs + AXI_STREAM_FIFO_RDFO) != 0x00000010);
 
     // TODO set read size
     pr_alert("  Setting FIFO read size");
-    iowrite32(0x00000040, device_regs + AXI_STREAM_FIFO_RLR);
+    // iowrite32(0x00000040, device_regs + AXI_STREAM_FIFO_RLR);
+
+    pr_alert("  Current sendmsg FIFO receive length %x\n", ioread32(device_regs + AXI_STREAM_FIFO_RLR));
 
     pr_alert("  Reading sendmsg data\n");
     for (i = 0; i < 16; ++i) {
-        *(((unsigned int*) msghdr_send) + i) = ioread32(data_regs_r);
+	memcpy_fromio((((unsigned int*) msghdr_send) + i), data_regs_r, 4);
+        // *(((unsigned int*) msghdr_send) + i) = ioread32(data_regs_r);
     }
 
     print_msghdr(msghdr_send);
-
-
 
     iounmap(device_regs);
     iounmap(data_regs_r);
@@ -159,25 +175,31 @@ void dump_log_entry(void) {
     // AXI-Stream FIFO at PCIe BAR + AXI Offset
     void __iomem * log_regs = ioremap(BAR_0 + LOG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
 
+
+    pr_alert("  Resetting Recv channel \n");
+    iowrite32(0x000000A5, log_regs + AXI_STREAM_FIFO_RDFR);
+
     pr_alert("  Resetting Interrput Status Register\n");
     iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
 
     pr_alert("  Resetting Interrput Enable Register\n");
     iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
 
-    pr_alert("  Current log FIFO vacancy %d\n", ioread32(log_regs + AXI_STREAM_FIFO_RDFO));
+    pr_alert("  Current log FIFO occupancy %x\n", ioread32(log_regs + AXI_STREAM_FIFO_RDFO));
+    pr_alert("  Current log FIFO receive length %x\n", ioread32(log_regs + AXI_STREAM_FIFO_RLR));
 
-    // while (ioread32(log_regs + AXI_STREAM_FIFO_RDFO) != 0) {
-	// Read 16 bytes of data or 128 bits
-	iowrite32(0x00000010, log_regs + AXI_STREAM_FIFO_RLR);
-	for (i = 0; i < 4; ++i) {
-	    *(((unsigned int*) &log_entry) + i) = ioread32(log_regs + AXI_STREAM_FIFO_RDFD);
-	}
+    while (ioread32(log_regs + AXI_STREAM_FIFO_RDFO) != 0) {
+    	// Read 16 bytes of data
+    	// iowrite32(16, log_regs + AXI_STREAM_FIFO_RLR);
+    	for (i = 0; i < 4; ++i) {
+    	    pr_alert("  READ %u\n", ioread32(log_regs + AXI_STREAM_FIFO_RDFD));
+    	    // *(((unsigned int*) &log_entry) + i) = ioread32(log_regs + AXI_STREAM_FIFO_RDFD);
+    	}	
 
-	pr_alert("Log Entry:\n");
-	pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
-	pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
-	//}
+    	pr_alert("Log Entry:\n");
+    	pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
+    	pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
+    }
     
     iounmap(log_regs);
 }
@@ -223,26 +245,49 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
     void __iomem * h2c_physmap_regs = ioremap(BAR_0 + H2C_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
     void __iomem * c2h_physmap_regs = ioremap(BAR_0 + C2H_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
 
+    // AXI-Stream FIFO at PCIe BAR + AXI Offset
+    void __iomem * log_regs = ioremap(BAR_0 + LOG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    void __iomem * log_read = ioremap(BAR_0 + LOG_AXIF_OFFSET + 0x1000, 4);
+
+    uint32_t rlr;
+    uint32_t rdfo;
+
     struct msghdr_send_t msghdr_send;
     void * virt_buff = kmalloc(16384, GFP_ATOMIC);
     phys_addr_t phys_buff = virt_to_phys(virt_buff);
     struct port_to_phys_t port_to_phys;
+    struct log_entry_t log_entry;
 
-    char msg[13] = "Hello World!";
+    // char msg[13] = "Hello World!";
+
+    char msg[64] = "\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF";
+
+    pr_alert("  Resetting Interrput Status Register\n");
+    iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
+
+    pr_alert("  Resetting Interrput Enable Register\n");
+    iowrite32(0x04000000, log_regs + AXI_STREAM_FIFO_IER);
 
     pr_alert("homasend_write\n");
 
     if (copy_from_user(&msghdr_send, user_buffer, 64))
         return -EFAULT;
 
-    memcpy(virt_buff, msg, 13);
+    memcpy(virt_buff, msg, 64);
 
-    pr_alert("Send Buff Message Contents: %.*s\n", 13, (char *) virt_buff);
+    for (i = 0; i < 64; ++i) {
+	pr_alert("Send Buff Message Contents: %02hhX", *(((unsigned char *) virt_buff) + i));
+    }
+
+    // pr_alert("Send Buff Message Contents: %.*s\n", 64, (char *) virt_buff);
 
     pr_alert("Physical address:%llx\n", phys_buff);
+    pr_alert("Physical address:%llx\n", virt_to_phys(virt_buff + 128));
 
     port_to_phys.phys_addr = phys_buff;
     port_to_phys.port = 1;
+
+    pr_alert("Physical address:%llx\n", port_to_phys.phys_addr);
 
     /* new physmap onboarding */
     pr_alert("new physmap: \n");
@@ -255,8 +300,12 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
 
     pr_alert("  Writing physmap data\n");
     for (i = 0; i < 3; ++i) {
-        iowrite32(*(((unsigned int*) &port_to_phys) + i), h2c_physmap_regs + AXI_STREAM_FIFO_RDFD);
+        iowrite32(*(((unsigned int*) &port_to_phys) + i), h2c_physmap_regs + AXI_STREAM_FIFO_TDFD);
     }
+
+    pr_alert("  Current FIFO vacancy %d\n", ioread32(h2c_physmap_regs + AXI_STREAM_FIFO_TDFV));
+
+    iowrite32(12, h2c_physmap_regs + AXI_STREAM_FIFO_TLR);
 
     pr_alert("  Current FIFO vacancy %d\n", ioread32(h2c_physmap_regs + AXI_STREAM_FIFO_TDFV));
 
@@ -274,8 +323,12 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
 
     pr_alert("  Writing physmap data\n");
     for (i = 0; i < 3; ++i) {
-        iowrite32(*(((unsigned int*) &port_to_phys) + i), c2h_physmap_regs + AXI_STREAM_FIFO_RDFD);
+        iowrite32(*(((unsigned int*) &port_to_phys) + i), c2h_physmap_regs + AXI_STREAM_FIFO_TDFD);
     }
+
+    pr_alert("  Current FIFO vacancy %d\n", ioread32(c2h_physmap_regs + AXI_STREAM_FIFO_TDFV));
+
+    iowrite32(12, c2h_physmap_regs + AXI_STREAM_FIFO_TLR);
 
     pr_alert("  Current FIFO vacancy %d\n", ioread32(c2h_physmap_regs + AXI_STREAM_FIFO_TDFV));
 
@@ -283,14 +336,44 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
 
     print_msghdr(&msghdr_send);
 
-    // sendmsg(&msghdr_send);
+    sendmsg(&msghdr_send);
 
-    dump_log_entry();
+    msleep(1000);
 
-    pr_alert("Recv Buff Message Contents: %.*s\n", 13, (char *) (virt_buff + 128));
+    // dump_axi_fifo_state();
+
+    rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
+    rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
+
+    pr_alert("  Current log FIFO occupancy %x\n", rdfo);
+    pr_alert("  Current log FIFO receive length %x\n", rlr);
+
+    while (rdfo != 0) {
+    	// Read 16 bytes of data
+    	for (i = 0; i < rlr; ++i) {
+    	    *(((unsigned int*) &log_entry) + (i % 4)) = ioread32(log_read);
+	    if (i % 4 == 3) {
+		pr_alert("Log Entry:\n");
+		pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
+		pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
+	    }
+    	}
+
+	rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
+	rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
+
+	pr_alert("  Current log FIFO occupancy %x\n", rdfo);
+	pr_alert("  Current log FIFO receive length %x\n", rlr);
+
+    }
+
+    pr_alert("Recv Buff Message Contents: %.*s\n", 64, ((char *) virt_buff) + 128);
 
     iounmap(c2h_physmap_regs);
     iounmap(h2c_physmap_regs);
+
+    iounmap(log_regs);
+    iounmap(log_read);
 
     return size;
 }

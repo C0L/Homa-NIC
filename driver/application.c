@@ -23,9 +23,9 @@ int main() {
     memset(msghdr_send.saddr, 0xF, 16);
     memset(msghdr_send.daddr, 0xA, 16); 
     msghdr_send.sport     = 0x1;
-    msghdr_send.dport     = 0x2;
+    msghdr_send.dport     = 0x1;
     msghdr_send.buff_addr = 0;
-    msghdr_send.buff_size = 128;
+    msghdr_send.buff_size = 64;
     msghdr_send.id        = 0;
     msghdr_send.cc        = 0;
 
