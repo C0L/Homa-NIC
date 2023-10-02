@@ -396,9 +396,6 @@ proc create_root_design { parentCell } {
   ] $log_out_128_32
 
 
-  # Create instance: homa, and set properties
-  set homa [ create_bd_cell -type ip -vlnv xilinx.com:hls:homa:1.0 homa ]
-
   # Create instance: homa_h2c_port_to_phys, and set properties
   set homa_h2c_port_to_phys [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_fifo_mm_s:4.3 homa_h2c_port_to_phys ]
   set_property -dict [list \
@@ -440,6 +437,9 @@ proc create_root_design { parentCell } {
     CONFIG.S_TDATA_NUM_BYTES {4} \
   ] $c2h_port_to_phys_32_96
 
+
+  # Create instance: homa, and set properties
+  set homa [ create_bd_cell -type ip -vlnv xilinx.com:hls:homa:1.0 homa ]
 
   # Create interface connections
   connect_bd_intf_net -intf_net axi_clock_converter_0_M_AXI [get_bd_intf_pins axi_clock_converter_0/M_AXI] [get_bd_intf_pins axi_interconnect_3/S00_AXI]
@@ -484,10 +484,10 @@ proc create_root_design { parentCell } {
 
   # Create port connections
   connect_bd_net -net ARESETN_1 [get_bd_pins proc_sys_reset_0/interconnect_aresetn] [get_bd_pins axi_interconnect_3/ARESETN] [get_bd_pins axi_interconnect_1/ARESETN]
-  connect_bd_net -net mainClk_clk_out1 [get_bd_pins mainClk/clk_out1] [get_bd_pins axi_clock_converter_0/m_axi_aclk] [get_bd_pins axi_clock_converter_1/s_axi_aclk] [get_bd_pins homa_sendmsg_fifo/s_axi_aclk] [get_bd_pins homa_recvmsg_fifo/s_axi_aclk] [get_bd_pins sendmsg_32_512/aclk] [get_bd_pins sendmsg_512_32/aclk] [get_bd_pins recvmsg_32_512/aclk] [get_bd_pins recvmsg_512_32/aclk] [get_bd_pins axi_interconnect_1/ACLK] [get_bd_pins axi_interconnect_1/S00_ACLK] [get_bd_pins axi_interconnect_1/M00_ACLK] [get_bd_pins axi_interconnect_1/S01_ACLK] [get_bd_pins axi_datamover_0/m_axi_mm2s_aclk] [get_bd_pins axi_datamover_0/m_axis_mm2s_cmdsts_aclk] [get_bd_pins axi_datamover_0/m_axi_s2mm_aclk] [get_bd_pins axi_datamover_0/m_axis_s2mm_cmdsts_awclk] [get_bd_pins axi_interconnect_3/ACLK] [get_bd_pins axi_interconnect_3/S00_ACLK] [get_bd_pins axi_interconnect_3/M00_ACLK] [get_bd_pins axi_interconnect_3/M01_ACLK] [get_bd_pins axi_interconnect_3/M02_ACLK] [get_bd_pins axi_interconnect_3/M03_ACLK] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins homa_log_out_fifo/s_axi_aclk] [get_bd_pins homa/ap_clk] [get_bd_pins log_out_128_32/aclk] [get_bd_pins homa_h2c_port_to_phys/s_axi_aclk] [get_bd_pins h2c_port_to_phys_32_96/aclk] [get_bd_pins homa_c2h_port_to_phys/s_axi_aclk] [get_bd_pins c2h_port_to_phys_32_96/aclk] [get_bd_pins axi_interconnect_3/M04_ACLK] [get_bd_pins axi_interconnect_3/M05_ACLK] [get_bd_pins axi_interconnect_3/M06_ACLK]
+  connect_bd_net -net mainClk_clk_out1 [get_bd_pins mainClk/clk_out1] [get_bd_pins axi_clock_converter_0/m_axi_aclk] [get_bd_pins axi_clock_converter_1/s_axi_aclk] [get_bd_pins homa_sendmsg_fifo/s_axi_aclk] [get_bd_pins homa_recvmsg_fifo/s_axi_aclk] [get_bd_pins sendmsg_32_512/aclk] [get_bd_pins sendmsg_512_32/aclk] [get_bd_pins recvmsg_32_512/aclk] [get_bd_pins recvmsg_512_32/aclk] [get_bd_pins axi_interconnect_1/ACLK] [get_bd_pins axi_interconnect_1/S00_ACLK] [get_bd_pins axi_interconnect_1/M00_ACLK] [get_bd_pins axi_interconnect_1/S01_ACLK] [get_bd_pins axi_datamover_0/m_axi_mm2s_aclk] [get_bd_pins axi_datamover_0/m_axis_mm2s_cmdsts_aclk] [get_bd_pins axi_datamover_0/m_axi_s2mm_aclk] [get_bd_pins axi_datamover_0/m_axis_s2mm_cmdsts_awclk] [get_bd_pins axi_interconnect_3/ACLK] [get_bd_pins axi_interconnect_3/S00_ACLK] [get_bd_pins axi_interconnect_3/M00_ACLK] [get_bd_pins axi_interconnect_3/M01_ACLK] [get_bd_pins axi_interconnect_3/M02_ACLK] [get_bd_pins axi_interconnect_3/M03_ACLK] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins homa_log_out_fifo/s_axi_aclk] [get_bd_pins log_out_128_32/aclk] [get_bd_pins homa_h2c_port_to_phys/s_axi_aclk] [get_bd_pins h2c_port_to_phys_32_96/aclk] [get_bd_pins homa_c2h_port_to_phys/s_axi_aclk] [get_bd_pins c2h_port_to_phys_32_96/aclk] [get_bd_pins axi_interconnect_3/M04_ACLK] [get_bd_pins axi_interconnect_3/M05_ACLK] [get_bd_pins axi_interconnect_3/M06_ACLK] [get_bd_pins homa/ap_clk]
   connect_bd_net -net mainClk_locked [get_bd_pins mainClk/locked] [get_bd_pins proc_sys_reset_0/dcm_locked]
   connect_bd_net -net pcie_perstn_1 [get_bd_ports pcie_perstn] [get_bd_pins xdma_0/sys_rst_n]
-  connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins proc_sys_reset_0/peripheral_aresetn] [get_bd_pins recvmsg_512_32/aresetn] [get_bd_pins sendmsg_512_32/aresetn] [get_bd_pins homa_recvmsg_fifo/s_axi_aresetn] [get_bd_pins recvmsg_32_512/aresetn] [get_bd_pins sendmsg_32_512/aresetn] [get_bd_pins homa_sendmsg_fifo/s_axi_aresetn] [get_bd_pins axi_datamover_0/m_axis_s2mm_cmdsts_aresetn] [get_bd_pins axi_datamover_0/m_axi_s2mm_aresetn] [get_bd_pins axi_datamover_0/m_axis_mm2s_cmdsts_aresetn] [get_bd_pins axi_datamover_0/m_axi_mm2s_aresetn] [get_bd_pins axi_clock_converter_1/s_axi_aresetn] [get_bd_pins axi_interconnect_1/S01_ARESETN] [get_bd_pins axi_interconnect_1/M00_ARESETN] [get_bd_pins axi_interconnect_1/S00_ARESETN] [get_bd_pins axi_interconnect_3/S00_ARESETN] [get_bd_pins axi_interconnect_3/M00_ARESETN] [get_bd_pins axi_interconnect_3/M01_ARESETN] [get_bd_pins axi_interconnect_3/M02_ARESETN] [get_bd_pins axi_interconnect_3/M03_ARESETN] [get_bd_pins axi_clock_converter_0/m_axi_aresetn] [get_bd_pins homa_log_out_fifo/s_axi_aresetn] [get_bd_pins homa/ap_rst_n] [get_bd_pins log_out_128_32/aresetn] [get_bd_pins homa_h2c_port_to_phys/s_axi_aresetn] [get_bd_pins h2c_port_to_phys_32_96/aresetn] [get_bd_pins homa_c2h_port_to_phys/s_axi_aresetn] [get_bd_pins c2h_port_to_phys_32_96/aresetn] [get_bd_pins axi_interconnect_3/M06_ARESETN] [get_bd_pins axi_interconnect_3/M05_ARESETN] [get_bd_pins axi_interconnect_3/M04_ARESETN]
+  connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins proc_sys_reset_0/peripheral_aresetn] [get_bd_pins recvmsg_512_32/aresetn] [get_bd_pins sendmsg_512_32/aresetn] [get_bd_pins homa_recvmsg_fifo/s_axi_aresetn] [get_bd_pins recvmsg_32_512/aresetn] [get_bd_pins sendmsg_32_512/aresetn] [get_bd_pins homa_sendmsg_fifo/s_axi_aresetn] [get_bd_pins axi_datamover_0/m_axis_s2mm_cmdsts_aresetn] [get_bd_pins axi_datamover_0/m_axi_s2mm_aresetn] [get_bd_pins axi_datamover_0/m_axis_mm2s_cmdsts_aresetn] [get_bd_pins axi_datamover_0/m_axi_mm2s_aresetn] [get_bd_pins axi_clock_converter_1/s_axi_aresetn] [get_bd_pins axi_interconnect_1/S01_ARESETN] [get_bd_pins axi_interconnect_1/M00_ARESETN] [get_bd_pins axi_interconnect_1/S00_ARESETN] [get_bd_pins axi_interconnect_3/S00_ARESETN] [get_bd_pins axi_interconnect_3/M00_ARESETN] [get_bd_pins axi_interconnect_3/M01_ARESETN] [get_bd_pins axi_interconnect_3/M02_ARESETN] [get_bd_pins axi_interconnect_3/M03_ARESETN] [get_bd_pins axi_clock_converter_0/m_axi_aresetn] [get_bd_pins homa_log_out_fifo/s_axi_aresetn] [get_bd_pins log_out_128_32/aresetn] [get_bd_pins homa_h2c_port_to_phys/s_axi_aresetn] [get_bd_pins h2c_port_to_phys_32_96/aresetn] [get_bd_pins homa_c2h_port_to_phys/s_axi_aresetn] [get_bd_pins c2h_port_to_phys_32_96/aresetn] [get_bd_pins axi_interconnect_3/M06_ARESETN] [get_bd_pins axi_interconnect_3/M05_ARESETN] [get_bd_pins axi_interconnect_3/M04_ARESETN] [get_bd_pins homa/ap_rst_n]
   connect_bd_net -net resetn_2 [get_bd_ports resetn] [get_bd_pins proc_sys_reset_0/ext_reset_in] [get_bd_pins mainClk/resetn]
   connect_bd_net -net util_ds_buf_1_IBUF_DS_ODIV2 [get_bd_pins util_ds_buf_1/IBUF_DS_ODIV2] [get_bd_pins xdma_0/sys_clk]
   connect_bd_net -net util_ds_buf_1_IBUF_OUT [get_bd_pins util_ds_buf_1/IBUF_OUT] [get_bd_pins xdma_0/sys_clk_gt]
@@ -511,6 +511,7 @@ proc create_root_design { parentCell } {
   # Restore current instance
   current_bd_instance $oldCurInst
 
+  validate_bd_design
   save_bd_design
 }
 # End of create_root_design()
@@ -522,6 +523,4 @@ proc create_root_design { parentCell } {
 
 create_root_design ""
 
-
-common::send_gid_msg -ssname BD::TCL -id 2053 -severity "WARNING" "This Tcl script was generated from a block design that has not been validated. It is possible that design <$design_name> may result in errors during validation."
 

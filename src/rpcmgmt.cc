@@ -72,22 +72,26 @@ void rpc_state(
 	rpcs[onboard_send.local_id] = homa_rpc;
 
 	srpt_queue_entry_t srpt_data_in;
-	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)   = onboard_send.local_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING)  = onboard_send.buff_size;
-
+	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = onboard_send.buff_size;
 	// TODO would be cleaner if we could just set this to RTT_BYTES
 	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)  = onboard_send.buff_size - ((((ap_uint<32>) RTT_BYTES) > onboard_send.buff_size)
 									 ? onboard_send.buff_size : ((ap_uint<32>) RTT_BYTES));
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = onboard_send.buff_size;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID) = onboard_send.h2c_buff_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_ACTIVE;
+
 
 	data_queue_o.write(srpt_data_in);
 
 	srpt_queue_entry_t srpt_fetch_in = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)   = onboard_send.local_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID) = onboard_send.h2c_buff_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING)  = onboard_send.buff_size;
-	fetch_queue_o.write(srpt_data_in);
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)   = SRPT_ACTIVE;
+	fetch_queue_o.write(srpt_fetch_in);
     }
 
     /* RO Paths */
@@ -142,7 +146,6 @@ void rpc_state(
 		    grant_in(SRPT_GRANT_NEW_PEER_ID) = c2h_header.peer_id;
 		    grant_in(SRPT_GRANT_NEW_PMAP)    = c2h_header.packetmap;
 
-
 		    // Notify the grant queue of this receipt
 		    grant_srpt_o.write(grant_in); 
 		} 
@@ -156,8 +159,9 @@ void rpc_state(
 
 	    case GRANT: {
 		srpt_queue_entry_t srpt_grant_notif;
-		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)   = c2h_header.local_id;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)  = c2h_header.local_id;
 		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED) = c2h_header.grant_offset;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_GRANT_UPDATE;
 		data_srpt_o.write(srpt_grant_notif); 
 		break;
 	    }

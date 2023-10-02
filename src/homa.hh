@@ -70,9 +70,6 @@ typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
 
 #define SIG_END 12
 
-/* For cosimulation purposes it is easier to allow a full packet to be
- * buffered in the internal queues.
- */ 
 #define STREAM_DEPTH 2
 
 /* IPv6 Header Constants
@@ -308,9 +305,9 @@ struct rpc_to_offset_t {
  * application to a physical base address of a buffer for data moving
  * from card 2 host
  */
-#define PORT_TO_PHYS_SIZE      96
+#define PORT_TO_PHYS_SIZE 96
 #define PORT_TO_PHYS_ADDR 63,0
-#define PORT_TO_PHYS_PORT      95,64 
+#define PORT_TO_PHYS_PORT 95,64 
 typedef ap_uint<PORT_TO_PHYS_SIZE> port_to_phys_t;
 
 /**
@@ -322,7 +319,7 @@ typedef ap_uint<8> log_status_t;
 /**
  * log_entry_t - A log value for debugging that can be read from the host
  */
-typedef ap_axiu<128, 0, 0, 0> log_entry_t;
+typedef ap_axiu<128, 1, 1, 1> log_entry_t;
 
 /* Cutoff for retramsission
  * 1ms == 1000000ns == 200000 cycles
@@ -411,7 +408,7 @@ struct touch_t {
  * sufficient data on chip such that if an RPC is selected it can run
  * to completion without stalling for data.
  */
-#define NUM_EGRESS_BUFFS 64  // Number of data buffers (max outgoing RPCs) TODO change name
+#define NUM_EGRESS_BUFFS 32  // Number of data buffers (max outgoing RPCs) TODO change name
 #define DBUFF_INDEX      10  // Index into the data buffers
 #define DBUFF_CHUNK_SIZE 64  // Size of a "chunk" of a data buffer
 #define DBUFF_NUM_CHUNKS 256 // Number of "chunks" in one buffer
@@ -530,7 +527,7 @@ struct homa_rpc_t {
  * present to integrate with certain cores that expect a TLAST signal
  * even if there is only a single beat of the stream transaction.
  */
-typedef ap_axiu<MSGHDR_SEND_SIZE, 0, 0, 0> msghdr_send_t;
+typedef ap_axiu<MSGHDR_SEND_SIZE, 1, 1, 1> msghdr_send_t;
 
 /**
  * msghdr_recv_t - input bitvector from the user for recvmsg requests
@@ -538,7 +535,7 @@ typedef ap_axiu<MSGHDR_SEND_SIZE, 0, 0, 0> msghdr_send_t;
  * present to integrate with certain cores that expect a TLAST signal
  * even if there is only a single beat of the stream transaction.
  */
-typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
+typedef ap_axiu<MSGHDR_RECV_SIZE, 1, 1, 1> msghdr_recv_t;
 
 /* Flags which specify the interest and behavior of the recvmsg call
  * from the user.
@@ -708,6 +705,13 @@ struct srpt_grant_t {
 
 #define LOG_DMA_NO_PHYS   0x01
 #define LOG_DMA_NO_OFFSET 0x02
+
+#define SRPT_INVALIDATE   0
+#define SRPT_DBUFF_UPDATE 1
+#define SRPT_GRANT_UPDATE 2 
+#define SRPT_EMPTY        3
+#define SRPT_BLOCKED      4 
+#define SRPT_ACTIVE       5 
 
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,

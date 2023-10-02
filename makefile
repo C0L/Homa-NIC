@@ -104,7 +104,13 @@ single_message_csim: single_message_tester_rtt_5000_bin
 
 ############# Vitis Cosim ############
 
-# COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
+COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
+
+single_message_cosim:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(COSIM_FLAGS) \
+		$(C_TB_DIR)/single_message_tester.cc \
+		"RTT_BYTES=5000" \
 
 ############ Verilog Synthesis ############ 
 

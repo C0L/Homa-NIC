@@ -158,6 +158,7 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 	    srpt_queue_entry_t dbuff_notif;
 	    dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
 	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuffered;
+	    dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_DBUFF_UPDATE;
 	    dbuff_notif_o.write(dbuff_notif);
 	    // }
     }

@@ -45,7 +45,7 @@ if {$job_type == 0} {
     add_files -blackbox $json_src
     config_dataflow -fifo_depth 26 -start_fifo_depth 26 -scalar_fifo_depth 26 -task_level_fifo_depth 26 
     csynth_design
-    cosim_design -trace_level all -wave_debug
+    cosim_design -trace_level all -wave_debug -mflags "-l 64"
 }
 
 exit

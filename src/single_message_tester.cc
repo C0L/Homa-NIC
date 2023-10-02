@@ -47,8 +47,8 @@ int main(int argc, char **argv) {
     uint16_t sport;
     uint16_t dport;
 
-    dport = 0xAA;
-    sport = 0xBB;
+    dport = 1;
+    sport = 1;
 
     recvmsg.data(MSGHDR_SADDR)      = saddr;
     recvmsg.data(MSGHDR_DADDR)      = daddr;
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
 
     // TODO The file is not even that many bytes!?
     int maxi_in_fd = open(src_file, O_RDWR);
-    char * maxi_in = (char*) mmap(NULL, 16384, PROT_WRITE, MAP_PRIVATE, maxi_in_fd, 0);
+    char * maxi_in = (char*) mmap(NULL, 16384 , PROT_WRITE, MAP_PRIVATE, maxi_in_fd, 0);
 
     // int maxi_out_fd = open(dest_file, O_RDWR);
     // char * maxi_out = (char*) mmap(NULL, 16384, PROT_WRITE, MAP_PRIVATE, maxi_out_fd, 0); 
@@ -92,29 +92,25 @@ int main(int argc, char **argv) {
 	 log_out
 	);
 
-
     port_to_phys_t c2h_address_map;
     port_to_phys_t h2c_address_map;
 
-    c2h_address_map(PORT_TO_PHYS_ADDR) = 0xAAAAAAAAAAAAAAAA;
+    c2h_address_map(PORT_TO_PHYS_ADDR) = 0x123456789;
     c2h_address_map(PORT_TO_PHYS_PORT) = sport;
 
-    h2c_address_map(PORT_TO_PHYS_ADDR) = 0xAAAAAAAAAAAAAAAA;
+    h2c_address_map(PORT_TO_PHYS_ADDR) = 0x123456789;
     h2c_address_map(PORT_TO_PHYS_PORT) = sport;
 
     h2c_port_to_phys_i.write(h2c_address_map);
     c2h_port_to_phys_i.write(c2h_address_map);
 
-    // TODO replace this with a stall for some log entry
-
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-    // TODO wrong size comparison
     while (recvmsg_o.empty() || sendmsg_o.empty() || memcmp(maxi_in, maxi_out, len) != 0) {
 
     	if (!link_egress_o.empty()) {
-	    link_ingress_i.write(link_egress_o.read());
-	}
+    	    link_ingress_i.write(link_egress_o.read());
+    	}
 
     	if (!r_cmd_queue_o.empty()) {
     	    am_cmd_t am_cmd = r_cmd_queue_o.read();
@@ -138,12 +134,13 @@ int main(int argc, char **argv) {
     	}
     }
 
+
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     while (!log_out.empty()) {
-	log_entry_t log_entry = log_out.read();
-	std::cerr << "LOG OUT READ: " << log_entry.data(63, 0) << std::endl;
-	std::cerr << "LOG OUT WRITE: " << log_entry.data(127, 64) << std::endl;
+    	log_entry_t log_entry = log_out.read();
+    	std::cerr << "LOG OUT READ: " << log_entry.data(63, 0) << std::endl;
+    	std::cerr << "LOG OUT WRITE: " << log_entry.data(127, 64) << std::endl;
     }
 
     recvmsg_o.read();

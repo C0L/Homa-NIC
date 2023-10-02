@@ -91,7 +91,9 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
 
    always @(posedge ap_clk) begin
       if (ap_rst) begin
-	 fetchq_polarity <= 0;
+	 fetch_out_write_en_o <= 0;
+	 fetchq_polarity      <= 0;
+	 fetch_out_data_o     <= 0;
 
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    fetchq[rst_entry] <= 0;
@@ -272,7 +274,7 @@ module srpt_fetch_queue_tb();
       sendmsg(5, 5, 0, 0, 3000);
       sendmsg(3, 3, 0, 0, 4000);
 
-       #30;
+      #30;
 
       get_output();
       get_output();

@@ -193,7 +193,9 @@ module srpt_data_queue #(parameter MAX_RPCS = 64)
 
    always @(posedge ap_clk) begin
       if (ap_rst) begin
-	 sendq_polarity <= 0;
+	 sendq_polarity      <= 0;
+	 data_pkt_write_en_o <= 0;
+	 data_pkt_data_o     <= 0;
 
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    sendq[rst_entry] <= 0;
@@ -432,7 +434,6 @@ module srpt_data_queue_tb();
       ap_start = 1;
 
       #5;
-      /* Add a bunch of inactive sendmsg requests */
       
       // RPC ID, DBUFF ID, INIT GRANT, INIT DBUFF, MSG LEN, INITIAL STATE
       sendmsg(1, 1, 1000, 1000, 1000);

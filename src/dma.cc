@@ -48,7 +48,10 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 	am_cmd(AM_CMD_BTT)   = 64;
 	am_cmd(AM_CMD_SADDR) = dma_req(DMA_R_REQ_HOST_ADDR);
 
-	dma_read_log_o.write(am_cmd(AM_CMD_SADDR));
+	ap_uint<64> log_entry = am_cmd(AM_CMD_SADDR);
+	log_entry(63,60) = 3;
+
+	dma_read_log_o.write(log_entry);
 
 	cmd_queue_o.write(am_cmd);
 	pending_reqs[write_head++] = dma_req;
@@ -70,6 +73,10 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 
 	std::cerr << "DBUFF ADDR "  << dbuff_in.msg_addr << std::endl;
 	std::cerr << "DBUFF MSG LEN "  << dbuff_in.msg_len << std::endl;
+
+	chunk(63,60) = 4;
+
+	dma_read_log_o.write(chunk(63,0));
 
 	// dbuff_in.last = dma_req.last; // TODO unused
 	dbuff_in_o.write(dbuff_in);
@@ -111,7 +118,16 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        am_cmd(AM_CMD_BTT)   = dma_req.strobe;
        am_cmd(AM_CMD_SADDR) = dma_req.offset;
 
-       dma_write_log_o.write(am_cmd(AM_CMD_SADDR));
+       ap_uint<64> log_entry = am_cmd(AM_CMD_SADDR);
+       log_entry(63,60) = 1;
+
+       // TODO remove test offset
+       dma_write_log_o.write(log_entry);
+
+       log_entry = dma_req.data(63,0);
+       log_entry(63,60) = 2;
+
+       dma_write_log_o.write(log_entry);
 
        cmd_queue_o.write(am_cmd);
        data_queue_o.write(dma_req.data);
