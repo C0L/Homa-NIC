@@ -25,7 +25,7 @@ int main() {
     msghdr_send.sport     = 0x1;
     msghdr_send.dport     = 0x1;
     msghdr_send.buff_addr = 0;
-    msghdr_send.buff_size = 64;
+    msghdr_send.buff_size = 128;
     msghdr_send.id        = 0;
     msghdr_send.cc        = 0;
 
