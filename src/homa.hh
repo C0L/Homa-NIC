@@ -12,17 +12,29 @@
 #define Q(x) #x
 #define QUOTE(x) Q(x)
 
-#define AM_CMD_SIZE  104
-#define AM_CMD_BTT   21,0
-#define AM_CMD_TYPE  22,22
-#define AM_CMD_DSA   28,23
-#define AM_CMD_EOF   29,29
-#define AM_CMD_DRR   31,30
-#define AM_CMD_SADDR 95,32
-#define AM_CMD_TAG   99,96
-#define AM_CMD_RSVD  103,100
+#define AM_CMD_SIZE  32+48+4+4
+#define AM_CMD_BTT   22,0
+#define AM_CMD_TYPE  23,23
+#define AM_CMD_DSA   29,24
+#define AM_CMD_EOF   30,30
+#define AM_CMD_DRR   31,31
+#define AM_CMD_SADDR 32+48-1,32
+#define AM_CMD_TAG   32+48+4-1,32+48
+#define AM_CMD_RSVD  32+48+4+4-1,32+48+4
 
-typedef ap_uint<AM_CMD_SIZE> am_cmd_t;
+
+// 64 bit
+// #define AM_CMD_SIZE  104
+// #define AM_CMD_BTT   22,0
+// #define AM_CMD_TYPE  23,23
+// #define AM_CMD_DSA   29,24
+// #define AM_CMD_EOF   30,30
+// #define AM_CMD_DRR   31,31
+// #define AM_CMD_SADDR 95,32
+// #define AM_CMD_TAG   99,96
+// #define AM_CMD_RSVD  103,100
+
+typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 
 #define AM_STATUS_SIZE   8
 #define AM_STATUS_TAG    3,0
@@ -31,7 +43,7 @@ typedef ap_uint<AM_CMD_SIZE> am_cmd_t;
 #define AM_STATUS_SLVERR 6,6
 #define AM_STATUS_OKAY   7,7
 
-typedef ap_uint<AM_STATUS_SIZE> am_status_t;
+typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
 
 /**
  * integral_t - The homa core operates in 64B chunks. Data in the data
@@ -49,7 +61,7 @@ typedef ap_uint<32> msg_addr_t;
  */
 typedef ap_uint<64> host_addr_t;
 
-typedef ap_axiu<512, 1, 1, 1> raw_stream_t;
+typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
 
 #define SIG_MSGHDR_SEND_I 0
 #define SIG_MSGHDR_SEND_O 1
@@ -319,7 +331,7 @@ typedef ap_uint<8> log_status_t;
 /**
  * log_entry_t - A log value for debugging that can be read from the host
  */
-typedef ap_axiu<128, 1, 1, 1> log_entry_t;
+typedef ap_axiu<128, 0, 0, 0> log_entry_t;
 
 /* Cutoff for retramsission
  * 1ms == 1000000ns == 200000 cycles
@@ -527,7 +539,7 @@ struct homa_rpc_t {
  * present to integrate with certain cores that expect a TLAST signal
  * even if there is only a single beat of the stream transaction.
  */
-typedef ap_axiu<MSGHDR_SEND_SIZE, 1, 1, 1> msghdr_send_t;
+typedef ap_axiu<MSGHDR_SEND_SIZE, 0, 0, 0> msghdr_send_t;
 
 /**
  * msghdr_recv_t - input bitvector from the user for recvmsg requests
@@ -535,7 +547,7 @@ typedef ap_axiu<MSGHDR_SEND_SIZE, 1, 1, 1> msghdr_send_t;
  * present to integrate with certain cores that expect a TLAST signal
  * even if there is only a single beat of the stream transaction.
  */
-typedef ap_axiu<MSGHDR_RECV_SIZE, 1, 1, 1> msghdr_recv_t;
+typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
 
 /* Flags which specify the interest and behavior of the recvmsg call
  * from the user.
@@ -718,10 +730,10 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
 	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
 	  hls::stream<am_cmd_t>      & w_cmd_queue_o,
-	  hls::stream<ap_uint<512>>  & w_data_queue_o,
+	  hls::stream<ap_axiu<512,0,0,0>>  & w_data_queue_o,
 	  hls::stream<am_status_t>   & w_status_queue_i,
 	  hls::stream<am_cmd_t>      & r_cmd_queue_o,
-	  hls::stream<ap_uint<512>>  & r_data_queue_i,
+	  hls::stream<ap_axiu<512,0,0,0>>  & r_data_queue_i,
 	  hls::stream<am_status_t>   & r_status_queue_i,
 	  hls::stream<raw_stream_t>  & link_ingress,
 	  hls::stream<raw_stream_t>  & link_egress,

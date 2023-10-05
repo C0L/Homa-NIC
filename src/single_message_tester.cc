@@ -114,10 +114,10 @@ int main(int argc, char **argv) {
 
     	if (!r_cmd_queue_o.empty()) {
     	    am_cmd_t am_cmd = r_cmd_queue_o.read();
-    	    ap_uint<512> read_data;
+    	    ap_axiu<512,0,0,0> read_data;
     	    am_status_t am_status;
 
-    	    memcpy((char*) &read_data, maxi_in + ((uint32_t) (am_cmd(AM_CMD_SADDR) - h2c_address_map(PORT_TO_PHYS_ADDR))), am_cmd(AM_CMD_BTT) * sizeof(char));
+    	    memcpy((char*) &read_data, maxi_in + ((uint32_t) (am_cmd.data(AM_CMD_SADDR) - h2c_address_map(PORT_TO_PHYS_ADDR))), am_cmd.data(AM_CMD_BTT) * sizeof(char));
     	    r_data_queue_i.write(read_data);
     	    r_status_queue_i.write(am_status);
     	}
@@ -125,11 +125,11 @@ int main(int argc, char **argv) {
     	if (!w_cmd_queue_o.empty()) {
 
     	    am_cmd_t am_cmd = w_cmd_queue_o.read();
-    	    ap_uint<512> write_data = w_data_queue_o.read();
+    	    ap_axiu<512,0,0,0> write_data = w_data_queue_o.read();
 
     	    am_status_t am_status;
 
-    	    memcpy(maxi_out + ((uint32_t) (am_cmd(AM_CMD_SADDR) - c2h_address_map(PORT_TO_PHYS_ADDR))), (char*) &write_data, am_cmd(AM_CMD_BTT) * sizeof(char));
+    	    memcpy(maxi_out + ((uint32_t) (am_cmd.data(AM_CMD_SADDR) - c2h_address_map(PORT_TO_PHYS_ADDR))), (char*) &write_data.data, am_cmd.data(AM_CMD_BTT) * sizeof(char));
     	    w_status_queue_i.write(am_status);
     	}
     }
