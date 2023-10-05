@@ -136,35 +136,37 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
 }
 
 void dump_log(void) {
-    int i, j;
+    int i;
 
     uint32_t rlr;
     uint32_t rdfo;
 
     struct log_entry_t log_entry;
 
-    for (j = 0; j < 4; ++j) {
 
-	
     rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
     rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
 
-    pr_alert("log isr: %x\n", ioread32(log_regs + AXI_STREAM_FIFO_ISR));
-    pr_alert("log rdfo: %x\n", rdfo);
-    pr_alert("log rlr: %x\n", rlr);
+    while (rdfo != 0) {
 
-    // Read 16 bytes of data
-    for (i = 0; i < 4; ++i) {
-	*(((unsigned int*) &log_entry) + i) = ioread32(log_read);
-    }
-
-    iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
-    iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
-
-    pr_alert("Log Entry:\n");
-    pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
-    pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
-
+	pr_alert("log isr: %x\n", ioread32(log_regs + AXI_STREAM_FIFO_ISR));
+	pr_alert("log rdfo: %x\n", rdfo);
+	pr_alert("log rlr: %x\n", rlr);
+	
+	// Read 16 bytes of data
+	for (i = 0; i < 4; ++i) {
+	    *(((unsigned int*) &log_entry) + i) = ioread32(log_read);
+	}
+	
+	iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
+	iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
+	
+	pr_alert("Log Entry:\n");
+	pr_alert("  Log DMA Read: %llx\n", log_entry.dma_r_entry);
+	pr_alert("  Log DMA Write: %llx\n", log_entry.dma_w_entry);
+	
+	rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
+	rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
     }
 }
 
@@ -202,65 +204,66 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
     // New physmap contents
     int i;
 
-    struct device * dev;
-    
     struct msghdr_send_t msghdr_send;
-    void * virt_buff = kmalloc(16384, GFP_ATOMIC);
-    phys_addr_t phys_buff = virt_to_phys(virt_buff);
+    // void * virt_buff = kmalloc(16384, GFP_ATOMIC);
+    // phys_addr_t phys_buff = virt_to_phys(virt_buff);
     struct port_to_phys_t port_to_phys;
     void * cpu_addr;
     dma_addr_t dma_handle;
 
+    char msg[64] = "\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF";
+
     // TODO There is a real way to do this. refer to xdma
     struct pci_dev * pdev = NULL;
-    while ((pdev = pci_get_device(0x10ee, 0x903f, pdev)));
+    pdev = pci_get_device(0x10ee, 0x903f, NULL);
 
-    dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
+    if (!pci_set_dma_mask(pdev, DMA_BIT_MASK(48))) {
+    // if (!dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64))) {
+	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(48));
+        pr_alert("Suitable DMA found\n");
+	// TODO should err here instead
+    }
+
+    pci_enable_device(pdev);
+    pci_set_master(pdev);
+
     cpu_addr = dma_alloc_coherent(&(pdev->dev), 16384, &dma_handle, GFP_ATOMIC);
 
-    char msg[64] = "\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF\xDE\xAD\xBE\xEF";
+    pr_alert("cpu address:%llx\n", (uint64_t) cpu_addr);
+    pr_alert("dma address:%llx\n", (uint64_t) dma_handle);
 
     pr_alert("homasend_write\n");
 
     if (copy_from_user(&msghdr_send, user_buffer, 64))
-        return -EFAULT;
+	return -EFAULT;
 
-    memcpy(virt_buff, msg, 64);
-
-    void __iomem * dma = ioremap(BAR_0, 16384);
+    memcpy(cpu_addr, msg, 64);
 
 // https://www.kernel.org/doc/html/latest/core-api/dma-api-howto.html
 
-    // pr_alert("0x130: %x\n", ioread32(dma + 0x130));
-    // pr_alert("0x144: %x\n", ioread32(dma + 0x144));
-    // pr_alert("0x148: %x\n", ioread32(dma + 0x148));
-    // iowrite32(1, dma + 0x148);
-    // pr_alert("0x130: %x\n", ioread32(dma + 0x148));
+    for (i = 0; i < 64; ++i) pr_alert("Send Buff Message Contents: %02hhX", *(((unsigned char *) cpu_addr) + i));
 
-    // for (i = 0; i < 64; ++i) pr_alert("Send Buff Message Contents: %02hhX", *(((unsigned char *) virt_buff) + i));
+     port_to_phys.phys_addr = ((uint64_t) dma_handle);
+     port_to_phys.port = 1;
 
-    // pr_alert("Physical address:%llx\n", phys_buff);
-    // pr_alert("Physical address:%llx\n", virt_to_phys(virt_buff + 128));
+     h2c_new_physmap(&port_to_phys);
+     port_to_phys.phys_addr = ((uint64_t) dma_handle) + 128;
+     c2h_new_physmap(&port_to_phys);
+     print_msghdr(&msghdr_send);
 
-    // port_to_phys.phys_addr = phys_buff;
-    // port_to_phys.port = 1;
+     sendmsg(&msghdr_send);
 
-    // h2c_new_physmap(&port_to_phys);
-    // port_to_phys.phys_addr = phys_buff + 128;
-    // c2h_new_physmap(&port_to_phys);
-    // print_msghdr(&msghdr_send);
+     print_msghdr(&msghdr_send);
 
-    // sendmsg(&msghdr_send);
+     msleep(1000);
 
-    // print_msghdr(&msghdr_send);
+     dump_log();
 
-    // msleep(1000);
+     for (i = 0; i < 64; ++i) pr_alert("Send Buff Message Contents: %02hhX", *(((unsigned char *) cpu_addr) + 128 + i));
 
-    // dump_log();
+     dma_free_coherent(&(pdev->dev), 16384, cpu_addr, dma_handle);
 
-    // for (i = 0; i < 64; ++i) pr_alert("Send Buff Message Contents: %02hhX", *(((unsigned char *) virt_buff) + 128 + i));
-
-    return size;
+     return size;
 }
 
 int homasend_open(struct inode * inode, struct file * file) {
