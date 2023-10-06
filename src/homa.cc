@@ -121,8 +121,14 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 
 
     /* log streams */
-    hls_thread_local hls::stream<ap_uint<64>, STREAM_DEPTH> h2c_address_map_log;
-    hls_thread_local hls::stream<ap_uint<64>, STREAM_DEPTH> c2h_address_map_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_w_req_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_w_stat_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_r_req_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_r_read_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_r_stat_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> h2c_pkt_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> c2h_pkt_log;
+
 
     // TODO need to selectively route to these in both the sendmsg core and the link ingress core
  
@@ -136,7 +142,9 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	header_in__packetmap__rpc_state,
 	header_in__rpc_state__address_map,
 	grant__rpc_state__srpt_grant,
-	header_in__rpc_state__srpt_data
+	header_in__rpc_state__srpt_data,
+	h2c_pkt_log,
+	c2h_pkt_log
 	);
  
     hls_thread_local hls::task id_map_task(
@@ -210,9 +218,10 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	r_status_queue_i,
 	dma_req__address_map__dma_read,
 	dbuff_in__dma_read__msg_cache,
-	h2c_address_map_log
-	);
-
+	dma_r_req_log,
+	dma_r_read_log,
+	dma_r_stat_log
+        );
 
     hls_thread_local hls::task dma_write_task(
 	dma_write,
@@ -220,7 +229,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	w_data_queue_o,
 	w_status_queue_i,
 	dma_req__address_map__dma_write,
-	c2h_address_map_log
+	dma_w_req_log,
+	dma_w_stat_log
 	);
  
     hls_thread_local hls::task h2c_databuff_task(
@@ -268,8 +278,13 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 
     hls_thread_local hls::task homa_logger(
     	logger,
-    	h2c_address_map_log,
-    	c2h_address_map_log,
+	dma_w_req_log,
+	dma_w_stat_log,
+	dma_r_req_log,
+	dma_r_read_log,
+	dma_r_stat_log,
+	h2c_pkt_log,
+	c2h_pkt_log,
     	log_out_o
     	);
 }

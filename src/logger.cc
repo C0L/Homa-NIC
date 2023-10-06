@@ -1,8 +1,13 @@
 #include "logger.hh"
 
-void logger(hls::stream<ap_uint<64>> & dma_read_log_i,
-	    hls::stream<ap_uint<64>> & dma_write_log_i,
-	    hls::stream<log_entry_t>  & log_out_o) {
+void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
+	    hls::stream<ap_uint<8>> & dma_w_stat_log_i, 
+	    hls::stream<ap_uint<8>> & dma_r_req_log_i,
+	    hls::stream<ap_uint<8>> & dma_r_read_log_i,
+	    hls::stream<ap_uint<8>> & dma_r_stat_log_i,
+	    hls::stream<ap_uint<8>> & h2c_pkt_log_i,
+	    hls::stream<ap_uint<8>> & c2h_pkt_log_i,
+	    hls::stream<log_entry_t> & log_out_o) {
 
     static log_entry_t circular_log[2048];
     static ap_uint<11> read_head  = 0;
@@ -19,17 +24,45 @@ void logger(hls::stream<ap_uint<64>> & dma_read_log_i,
 	log_out_o.write(write_entry);
     }
 
-    ap_uint<64> dma_read_log;
-    if (dma_read_log_i.read_nb(dma_read_log)) {
-	std::cerr << "LOG READ " << dma_read_log << std::endl;
-	new_entry.data(63, 0) = dma_read_log;
+    ap_uint<8> dma_w_req_log;
+    if (dma_w_req_log_i.read_nb(dma_w_req_log)) {
+	new_entry.data(7, 0) = dma_w_req_log;
 	add_entry = true;
     }
 
-    ap_uint<64> dma_write_log;
-    if (dma_write_log_i.read_nb(dma_write_log)) {
-	std::cerr << "LOG WRITE" << dma_write_log << std::endl;
-	new_entry.data(127, 64) = dma_write_log;
+    ap_uint<8> dma_w_stat_log;
+    if (dma_w_stat_log_i.read_nb(dma_w_stat_log)) {
+	new_entry.data(15, 8) = dma_w_stat_log;
+	add_entry = true;
+    }
+
+    ap_uint<8> dma_r_req_log;
+    if (dma_r_req_log_i.read_nb(dma_r_req_log)) {
+	new_entry.data(23, 16) = dma_r_req_log;
+	add_entry = true;
+    }
+
+    ap_uint<8> dma_r_read_log;
+    if (dma_r_read_log_i.read_nb(dma_r_read_log)) {
+	new_entry.data(31, 24) = dma_r_read_log;
+	add_entry = true;
+    }
+
+    ap_uint<8> dma_r_stat_log;
+    if (dma_r_stat_log_i.read_nb(dma_r_stat_log)) {
+	new_entry.data(39, 32) = dma_r_stat_log;
+	add_entry = true;
+    }
+
+    ap_uint<8> h2c_pkt_log;
+    if (h2c_pkt_log_i.read_nb(h2c_pkt_log)) {
+	new_entry.data(47, 40) = h2c_pkt_log;
+	add_entry = true;
+    }
+
+    ap_uint<8> c2h_pkt_log;
+    if (c2h_pkt_log_i.read_nb(c2h_pkt_log)) {
+	new_entry.data(55, 48) = c2h_pkt_log;
 	add_entry = true;
     }
 

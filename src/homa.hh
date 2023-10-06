@@ -712,18 +712,19 @@ struct srpt_grant_t {
 #define STACK_ODD  1
 #define STACK_ALL  2
 
-/* Logging Values */
-#define LOG_GOOD               0xFF // Only used internally
-
-#define LOG_DMA_NO_PHYS   0x01
-#define LOG_DMA_NO_OFFSET 0x02
-
 #define SRPT_INVALIDATE   0
 #define SRPT_DBUFF_UPDATE 1
 #define SRPT_GRANT_UPDATE 2 
 #define SRPT_EMPTY        3
 #define SRPT_BLOCKED      4 
-#define SRPT_ACTIVE       5 
+#define SRPT_ACTIVE       5
+
+/* DMA Log Values */
+#define LOG_DATA_READ 0
+
+/* Packet Selector Values */
+#define LOG_GRANT_OUT 0
+#define LOG_DATA_OUT 1
 
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,

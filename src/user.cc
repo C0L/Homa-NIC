@@ -198,21 +198,6 @@ void h2c_address_map(
 	msg_addr_t msg_addr   = h2c_rpc_to_offset[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)];
 	host_addr_t phys_addr = h2c_port_to_phys[h2c_rpc_to_port[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)]];
 
-	//log_status_t log_status = LOG_GOOD;
-	//if (phys_addr == 0) {
-	//    log_status |= LOG_DMA_NO_PHYS;
-	//}
-
-	//if ((msg_addr & 1) != 1) {
-	//    // TODO failing
-	//    log_status |= LOG_DMA_NO_OFFSET;
-	//}
-
-	//if (log_status != LOG_GOOD) {
-	//    std::cerr << "LOG NOT GOOD!!!\n";
-	//    log_out.write(log_status);
-	//}
-
 	dma_r_req_t dma_r_req;
 	dma_r_req(SRPT_QUEUE_ENTRY_SIZE-1, 0) = dma_fetch;
 	dma_r_req(DMA_R_REQ_MSG_LEN) = h2c_rpc_to_size[dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID)];
@@ -257,20 +242,6 @@ void c2h_address_map(
 	// Get the physical address of this ports entire buffer
 	host_addr_t phys_addr = c2h_port_to_phys[dma_w_req.port];
 	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
-
-	//log_status_t log_status = LOG_GOOD;
-	//if (phys_addr == 0) {
-	//    log_status |= LOG_DMA_NO_PHYS;
-	//}
-
-	//if ((msg_addr & 1) != 1) {
-	//    log_status |= LOG_DMA_NO_OFFSET;
-	//}
-
-	//if (log_status != LOG_GOOD) {
-	//    std::cerr << "LOG NOT GOOD!!!\n";
-	//    log_out.write(log_status);
-	//}
 
 	msg_addr >>= 1;
 	dma_w_req.offset += phys_addr + msg_addr;

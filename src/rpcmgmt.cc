@@ -46,7 +46,9 @@ void rpc_state(
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
     hls::stream<srpt_grant_new_t> & grant_srpt_o,
-    hls::stream<srpt_queue_entry_t> & data_srpt_o
+    hls::stream<srpt_queue_entry_t> & data_srpt_o,
+    hls::stream<ap_uint<8>> & h2c_pkt_log_o,
+    hls::stream<ap_uint<8>> & c2h_pkt_log_o
     ) {
 
     // TODO The tables for client and server can be totally independent?
@@ -97,13 +99,7 @@ void rpc_state(
     /* RO Paths */
     header_t h2c_header;
     if (h2c_header_i.read_nb(h2c_header)) {
-	std::cerr << "RPC STATE READ HEADER OUT\n";
 	homa_rpc_t homa_rpc = rpcs[h2c_header.local_id];
-
-	std::cerr << "LOCAL ID " << h2c_header.local_id << std::endl;
-
-	std::cerr << "BUFF SIZE " << homa_rpc.buff_size << std::endl;
-	std::cerr << "DATA OFF" << h2c_header.data_offset << std::endl;
 
 	h2c_header.daddr = homa_rpc.daddr;
 	h2c_header.dport = homa_rpc.dport;
@@ -118,6 +114,12 @@ void rpc_state(
 	h2c_header.message_length = homa_rpc.buff_size;
 
 	h2c_header_o.write_nb(h2c_header);
+
+	if (h2c_header.type == DATA) {
+	    h2c_pkt_log_o.write(LOG_DATA_OUT);
+	} else if (h2c_header.type == GRANT) {
+	    h2c_pkt_log_o.write(LOG_GRANT_OUT);
+	}
     }
 
     header_t c2h_header;
@@ -150,9 +152,10 @@ void rpc_state(
 		    grant_srpt_o.write(grant_in); 
 		} 
 
-		std::cerr << "RPC STATE FWDED\n";
 		// Instruct the data buffer where to write this message's data
-		c2h_header_o.write(c2h_header); 
+		c2h_header_o.write(c2h_header);
+
+		c2h_pkt_log_o.write(LOG_DATA_OUT);
 
 		break;
 	    }
@@ -162,7 +165,10 @@ void rpc_state(
 		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)  = c2h_header.local_id;
 		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED) = c2h_header.grant_offset;
 		srpt_grant_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_GRANT_UPDATE;
-		data_srpt_o.write(srpt_grant_notif); 
+		data_srpt_o.write(srpt_grant_notif);
+
+		h2c_pkt_log_o.write(LOG_GRANT_OUT);
+
 		break;
 	    }
 	}
