@@ -1,4 +1,4 @@
-obj-m += homasend.o
+obj-m += homanic.o
 
 PWD := $(CURDIR)
 

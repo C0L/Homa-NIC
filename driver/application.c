@@ -29,7 +29,7 @@ int main() {
     msghdr_send.id        = 0;
     msghdr_send.cc        = 0;
 
-    int fd = open("/dev/homasend", O_RDWR);
+    int fd = open("/dev/homanic", O_RDWR);
 
     if (fd < 0) {
 	perror("No homa module\n");

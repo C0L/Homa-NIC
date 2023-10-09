@@ -80,14 +80,17 @@ struct port_to_phys_t {
   uint32_t port;
 }__attribute__((packed));
 
-int     homasend_open(struct inode *, struct file *);
-ssize_t homasend_read(struct file *, char *, size_t, loff_t *);
-ssize_t homasend_write(struct file *, const  char *, size_t, loff_t *);
-int     homasend_close(struct inode *, struct file *);
-struct file_operations homasend_fops = {
+int     homanic_open(struct inode *, struct file *);
+ssize_t homanic_read(struct file *, char *, size_t, loff_t *);
+ssize_t homanic_write(struct file *, const  char *, size_t, loff_t *);
+int     homanic_close(struct inode *, struct file *);
+// int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
+
+struct file_operations homanic_fops = {
   .owner          = THIS_MODULE,
-  .open           = homasend_open,
-  .write          = homasend_write
+  .open           = homanic_open,
+  .write          = homanic_write //,
+  // .mmap           = homanic_mmap
 };
 
 void sendmsg(struct msghdr_send_t *);
@@ -97,14 +100,15 @@ void h2c_new_physmap(struct port_to_phys_t * portmap);
 void c2h_new_physmap(struct port_to_phys_t * portmap);
 void dump_axi_fifo_state(void __iomem * device_regs);
 
-struct homasend_device_data {
+struct homanic_device_data {
   struct cdev cdev;
 };
 
 // This should be the values returned from lspci
+
 // static const struct pci_device_id pci_id = PCI_DEVICE(0x10ee, 0x903f);
 
-struct homasend_device_data homasend_dd;
+struct homanic_device_data homanic_dd;
 struct class * cls;
 
 int dev_major = 0;
@@ -205,7 +209,7 @@ void print_msghdr(struct msghdr_send_t * msghdr_send) {
 
 // TODO virtualize device registers with a large address space of AXI-L registers. Our core interrupters the write operation and queues the data for a particular sender based on that incoming register, then writes that data whenever it gets full. The user has no idea what these addresses are because they are just remapped by the host into the user applications address space.
 
-ssize_t homasend_write(struct file * file, const char __user * user_buffer, size_t size, loff_t * offset) {
+ssize_t homanic_write(struct file * file, const char __user * user_buffer, size_t size, loff_t * offset) {
 
   // https://www.kernel.org/doc/html/latest/core-api/dma-api-howto.html
 
@@ -307,23 +311,33 @@ ssize_t homasend_write(struct file * file, const char __user * user_buffer, size
   return size;
 }
 
-int homasend_open(struct inode * inode, struct file * file) {
-  pr_info("homasend_open\n");
+int homanic_open(struct inode * inode, struct file * file) {
   return 0;
 }
 
-int homasend_close(struct inode * inode, struct file * file) {
-  pr_info("homasend_close\n");
+int homanic_close(struct inode * inode, struct file * file) {
+  pr_info("homanic_close\n");
   return 0;
 }
 
-int homasend_init(void) {
+// TODO ioctl for creating port
+
+// mmap /dev/homanic
+
+/*
+int homanic_mmap(struct file * fp, struct vm_area_struct * vma) {
+  int ret = 0;
+  
+}
+*/
+
+int homanic_init(void) {
   dev_t dev;
   int err;
 
-  pr_info("homasend_init\n");
+  pr_info("homanic_init\n");
 
-  err = alloc_chrdev_region(&dev, 0, 1, "homasend");
+  err = alloc_chrdev_region(&dev, 0, 1, "homanic");
 
   if (err != 0) {
     return err;
@@ -331,11 +345,11 @@ int homasend_init(void) {
 
   dev_major = MAJOR(dev);
 
-  cls = class_create(THIS_MODULE, "homasend");
-  device_create(cls, NULL, MKDEV(dev_major, 0), NULL, "homasend");
+  cls = class_create(THIS_MODULE, "homanic");
+  device_create(cls, NULL, MKDEV(dev_major, 0), NULL, "homanic");
 
-  cdev_init(&homasend_dd.cdev, &homasend_fops);
-  cdev_add(&homasend_dd.cdev, MKDEV(dev_major, 0), 1);
+  cdev_init(&homanic_dd.cdev, &homanic_fops);
+  cdev_add(&homanic_dd.cdev, MKDEV(dev_major, 0), 1);
 
   h2c_physmap_regs = ioremap(BAR_0 + H2C_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
   c2h_physmap_regs = ioremap(BAR_0 + C2H_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
@@ -362,13 +376,13 @@ int homasend_init(void) {
   return 0;
 }
 
-void homasend_exit(void) {
-  pr_info("homasend_exit\n");
+void homanic_exit(void) {
+  pr_info("homanic_exit\n");
 
   device_destroy(cls, MKDEV(dev_major, 0));
   class_destroy(cls);
 
-  cdev_del(&homasend_dd.cdev);
+  cdev_del(&homanic_dd.cdev);
   unregister_chrdev_region(MKDEV(dev_major, 0), 1);
 
   iounmap(sendmsg_regs);
@@ -380,6 +394,6 @@ void homasend_exit(void) {
   iounmap(c2h_physmap_regs);
 }
 
-module_init(homasend_init)
-module_exit(homasend_exit)
+module_init(homanic_init)
+module_exit(homanic_exit)
 MODULE_LICENSE("GPL");
