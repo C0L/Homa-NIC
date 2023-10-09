@@ -349,11 +349,11 @@ proc create_root_design { parentCell } {
   set axi_datamover_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_datamover:5.1 axi_datamover_0 ]
   set_property -dict [list \
     CONFIG.c_addr_width {48} \
-    CONFIG.c_dummy {0} \
+    CONFIG.c_dummy {1} \
     CONFIG.c_enable_mm2s_adv_sig {0} \
     CONFIG.c_enable_s2mm_adv_sig {0} \
     CONFIG.c_include_mm2s_dre {false} \
-    CONFIG.c_include_s2mm_dre {false} \
+    CONFIG.c_include_s2mm_dre {true} \
     CONFIG.c_m_axi_mm2s_data_width {512} \
     CONFIG.c_m_axi_mm2s_id_width {0} \
     CONFIG.c_m_axi_s2mm_data_width {512} \
