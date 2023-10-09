@@ -45,18 +45,19 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
     
     dma_r_req_t dma_req;
     if (dma_req_i.read_nb(dma_req)) {
+
+	dma_req_log_o.write(LOG_DATA_R_REQ | tag);
+
 	am_cmd_t am_cmd;
 
 	am_cmd.data(AM_CMD_TYPE)  = 1;
 	am_cmd.data(AM_CMD_DSA)   = 0;
-	am_cmd.data(AM_CMD_EOF)   = 0;
+	am_cmd.data(AM_CMD_EOF)   = 1;
 	am_cmd.data(AM_CMD_DRR)   = 0;
 	am_cmd.data(AM_CMD_TAG)   = tag++;
 	am_cmd.data(AM_CMD_RSVD)  = 0;
 	am_cmd.data(AM_CMD_BTT)   = 64;
 	am_cmd.data(AM_CMD_SADDR) = dma_req(DMA_R_REQ_HOST_ADDR);
-
-	dma_req_log_o.write(tag);
 
 	cmd_queue_o.write(am_cmd);
 	pending_reqs[write_head++] = dma_req;
@@ -76,7 +77,7 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 	dbuff_in.msg_addr = dma_req(DMA_R_REQ_MSG_LEN) - dma_req(DMA_R_REQ_REMAINING);
 	dbuff_in.msg_len  = dma_req(DMA_R_REQ_MSG_LEN);
 
-	dma_read_log_o.write(LOG_DATA_READ);
+	dma_read_log_o.write(LOG_DATA_R_READ);
 
 	dbuff_in_o.write(dbuff_in);
     }
@@ -99,32 +100,34 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
 	       hls::stream<ap_uint<8>> & dma_req_log_o,
 	       hls::stream<ap_uint<8>> & dma_stat_log_o) {
 
-    static ap_uint<4> tag = 0;
+   static ap_uint<4> tag = 0;
 
 #pragma HLS pipeline II=1
 
    dma_w_req_t dma_req;
 
    if (dma_w_req_i.read_nb(dma_req)) {
-       // TODO describe and check this
-       
        am_cmd_t am_cmd;
        am_cmd.data(AM_CMD_TYPE)  = 1;
        am_cmd.data(AM_CMD_DSA)   = 0;
-       am_cmd.data(AM_CMD_EOF)   = 0;
+       am_cmd.data(AM_CMD_EOF)   = 1;
        am_cmd.data(AM_CMD_DRR)   = 0;
        am_cmd.data(AM_CMD_TAG)   = tag++;
        am_cmd.data(AM_CMD_RSVD)  = 0;
-       am_cmd.data(AM_CMD_BTT)   = dma_req.strobe;
+       am_cmd.data(AM_CMD_BTT)   = 64;
+       // am_cmd.data(AM_CMD_BTT)   = dma_req.strobe;
        am_cmd.data(AM_CMD_SADDR) = dma_req.offset;
 
-       dma_req_log_o.write(tag);
+       // TODO does keep need to match BTT?
+
+       dma_req_log_o.write(LOG_DATA_W_REQ | tag);
 
        cmd_queue_o.write(am_cmd);
 
        ap_axiu<512,0,0,0> data_out;
-       data_out.data = dma_req.data;
-       data_out.last = 1;
+       data_out.data  = dma_req.data;
+       data_out.last  = 1;
+       data_out.keep = 0xFFFFFFFFFFFFFFFF;
 
        data_queue_o.write(data_out);
    }

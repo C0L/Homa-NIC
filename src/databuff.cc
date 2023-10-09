@@ -80,6 +80,8 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	dma_w_req.port = header_in.sport;
 	dma_w_req_o.write(dma_w_req);
 
+	std::cerr << "DMA REQ OFFSET: " << dma_w_req.offset << std::endl;
+
 	buffer >>= (writable_bytes * 8);
 
 	buffer_head = (buffer_head + chunk_in.width) % 64;

@@ -13,6 +13,8 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
     static ap_uint<11> read_head  = 0;
     static ap_uint<11> write_head = 0;
 
+#pragma HLS pipeline II=1
+
     log_entry_t new_entry;
     new_entry.data = 0;
     new_entry.last = 1;

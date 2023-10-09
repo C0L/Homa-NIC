@@ -12,16 +12,15 @@
 #define Q(x) #x
 #define QUOTE(x) Q(x)
 
-#define AM_CMD_SIZE  32+48+4+4
+#define AM_CMD_SIZE  88
 #define AM_CMD_BTT   22,0
 #define AM_CMD_TYPE  23,23
 #define AM_CMD_DSA   29,24
 #define AM_CMD_EOF   30,30
 #define AM_CMD_DRR   31,31
-#define AM_CMD_SADDR 32+48-1,32
-#define AM_CMD_TAG   32+48+4-1,32+48
-#define AM_CMD_RSVD  32+48+4+4-1,32+48+4
-
+#define AM_CMD_SADDR 79,32
+#define AM_CMD_TAG   83,80
+#define AM_CMD_RSVD  87,84
 
 // 64 bit
 // #define AM_CMD_SIZE  104
@@ -720,11 +719,14 @@ struct srpt_grant_t {
 #define SRPT_ACTIVE       5
 
 /* DMA Log Values */
-#define LOG_DATA_READ 0
+#define LOG_DATA_R_READ 0x10
+#define LOG_DATA_R_REQ  0x20
+
+#define LOG_DATA_W_REQ  0x20
 
 /* Packet Selector Values */
-#define LOG_GRANT_OUT 0
-#define LOG_DATA_OUT 1
+#define LOG_GRANT_OUT 0x10
+#define LOG_DATA_OUT 0x20
 
 void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
 	  hls::stream<msghdr_send_t> & msghdr_send_o,
