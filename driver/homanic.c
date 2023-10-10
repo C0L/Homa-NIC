@@ -214,6 +214,7 @@ ssize_t homanic_write(struct file * file, const char __user * user_buffer, size_
   // https://www.kernel.org/doc/html/latest/core-api/dma-api-howto.html
 
   int i;
+  int j;
 
   struct msghdr_send_t msghdr_send;
   struct port_to_phys_t port_to_phys;
@@ -273,9 +274,20 @@ ssize_t homanic_write(struct file * file, const char __user * user_buffer, size_
 
   memcpy(cpu_addr, msg, 512);
 
-  printk(KERN_ALERT "H2C Message Contents: ");
+  *(((char*)cpu_addr) + 18 + 2048) = 0xA;
 
-  for (i = 0; i < 512; ++i) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + i));
+  // iosubmit_cmds512 ?? How to do this from userspace? Just remap and AVX512 it?
+
+  printk(KERN_ALERT "H2C Message Content Start");
+
+  //for (i = 0; i < 512; ++i) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + i));
+
+  for (i = 0; i < 8; ++i) {
+      printk(KERN_ALERT "Chunk: %d", i);
+      for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + j + (i*64)));
+  }
+
+  printk(KERN_ALERT "H2C Message Content End");
 
   port_to_phys.phys_addr = ((uint64_t) dma_handle);
   port_to_phys.port = 1;
@@ -293,7 +305,7 @@ ssize_t homanic_write(struct file * file, const char __user * user_buffer, size_
 
   dump_log();
 
-  printk(KERN_ALERT "C2H Message Contents: ");
+  printk(KERN_ALERT "C2H Message Contents Start");
 
   // TODO need to do this in both places
   // TODO Occasionally a driver needs to access the contents of a streaming DMA buffer with-
@@ -301,7 +313,12 @@ ssize_t homanic_write(struct file * file, const char __user * user_buffer, size_
 // void dma_sync_single_for_cpu(struct device *dev, dma_handle_t bus_addr,
 // size_t size, enum dma_data_direction direction);
 
-  for (i = 0; i < 512; ++i) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + 2048 + i));
+  for (i = 0; i < 8; ++i) {
+      printk(KERN_ALERT "Chunk %d: ", i);
+      for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + 2048 + j + (i*64)));
+  }
+
+  printk(KERN_ALERT "C2H Message Content End");
 
   // dma_unmap_single(&(pdev->dev), h2c_dma_handle, 16384, DMA_TO_DEVICE);
   // dma_unmap_single(&(pdev->dev), c2h_dma_handle, 16384, DMA_FROM_DEVICE);
