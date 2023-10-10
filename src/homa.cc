@@ -128,6 +128,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
     hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_r_stat_log;
     hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> h2c_pkt_log;
     hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> c2h_pkt_log;
+    hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dbuff_notif_log;
 
 
     // TODO need to selectively route to these in both the sendmsg core and the link ingress core
@@ -238,7 +239,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	dbuff_in__dma_read__msg_cache,
 	dbuff_notif__dbuff_egress__srpt_data,  // dbuff_notif_o
 	out_chunk__chunk_egress__dbuff_egress, // out_chunk_i
-	out_chunk__dbuff_egress__pkt_egress    // out_chunk_o
+	out_chunk__dbuff_egress__pkt_egress,   // out_chunk_o
+	dbuff_notif_log
 	);
 
 
@@ -285,6 +287,7 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	dma_r_stat_log,
 	h2c_pkt_log,
 	c2h_pkt_log,
+	dbuff_notif_log,
     	log_out_o
     	);
 }

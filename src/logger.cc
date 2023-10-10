@@ -7,6 +7,7 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
 	    hls::stream<ap_uint<8>> & dma_r_stat_log_i,
 	    hls::stream<ap_uint<8>> & h2c_pkt_log_i,
 	    hls::stream<ap_uint<8>> & c2h_pkt_log_i,
+	    hls::stream<ap_uint<8>> & dbuff_notif_log_i,
 	    hls::stream<log_entry_t> & log_out_o) {
 
     static log_entry_t circular_log[2048];
@@ -65,6 +66,12 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
     ap_uint<8> c2h_pkt_log;
     if (c2h_pkt_log_i.read_nb(c2h_pkt_log)) {
 	new_entry.data(55, 48) = c2h_pkt_log;
+	add_entry = true;
+    }
+
+    ap_uint<8> dbuff_notif_log;
+    if (dbuff_notif_log_i.read_nb(dbuff_notif_log)) {
+	new_entry.data(63, 56) = dbuff_notif_log;
 	add_entry = true;
     }
 

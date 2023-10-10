@@ -159,21 +159,23 @@ module srpt_data_queue #(parameter MAX_RPCS = 64)
       dbuff_in_read_en_o   = 0;
       grant_in_read_en_o   = 0;
       sendq_insert         = 0;
+      data_pkt_write_en_o  = 0;
+      data_pkt_data_o      = 0;
 
       if (sendmsg_in_empty_i) begin
-	 sendq_insert = sendmsg_in_data_i;
-	 
+	 sendq_insert         = sendmsg_in_data_i;
 	 sendmsg_in_read_en_o = 1;
-      end else begin
-	 if (dbuff_in_empty_i) begin
-	    sendq_insert = dbuff_in_data_i;
-
-	    dbuff_in_read_en_o = 1;
-	 end else if (grant_in_empty_i) begin
-	    sendq_insert = grant_in_data_i;
-	    
-	    grant_in_read_en_o = 1;
-	 end      
+      end else if (dbuff_in_empty_i) begin
+	 sendq_insert       = dbuff_in_data_i;
+	 dbuff_in_read_en_o = 1;
+      end else if (grant_in_empty_i) begin
+	 sendq_insert       = grant_in_data_i;
+	 grant_in_read_en_o = 1;
+      end else if (data_pkt_full_i && sendq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin // else: !if(sendmsg_in_empty_i)
+	 if (sendq_ripe) begin
+	    data_pkt_data_o     = sendq_head;
+	    data_pkt_write_en_o = 1; 
+	 end
       end
 
       prioritize_sendq(sendq_swpo[0], sendq_swpo[1], sendq_insert, sendq[0]);
@@ -194,33 +196,23 @@ module srpt_data_queue #(parameter MAX_RPCS = 64)
    always @(posedge ap_clk) begin
       if (ap_rst) begin
 	 sendq_polarity      <= 0;
-	 data_pkt_write_en_o <= 0;
-	 data_pkt_data_o     <= 0;
-
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    sendq[rst_entry] <= 0;
 	    sendq[rst_entry][`QUEUE_ENTRY_PRIORITY] <= `SRPT_EMPTY;
 	 end
       end else if (ap_ce && ap_start) begin // if (ap_rst)
-	 
-	 data_pkt_write_en_o <= 0; 
-	 
 	 if (sendmsg_in_empty_i || dbuff_in_empty_i || grant_in_empty_i) begin
 	    // Adds either the reactivated message or the update to the queue
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
 	       sendq[entry] <= sendq_swpo[entry];
 	    end 
 	 end else if (data_pkt_full_i && sendq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-	    
 	    $display("sendq_granted: %d", sendq_granted);
 	    $display("sendq_dbuffered: %d", sendq_dbuffered);
 	    $display("sendq_empty: %d", sendq_empty);
 	    $display("sendq_ripe: %d", sendq_ripe);
 
 	    if (sendq_ripe) begin
-	       data_pkt_data_o     <= sendq_head;
-	       data_pkt_write_en_o <= 1; 
-
 	       $display("RIPE ENTRY %d", sendq_head[`QUEUE_ENTRY_REMAINING]);
 	       if (sendq_head[`QUEUE_ENTRY_REMAINING] < `HOMA_PAYLOAD_SIZE) begin
 		  $display("INVALIDATING HEAD\n");
@@ -440,6 +432,8 @@ module srpt_data_queue_tb();
       sendmsg(2, 2, 4000, 4000, 4000);
       sendmsg(5, 5, 5000, 5000, 5000);
       sendmsg(3, 3, 3000, 3000, 3000);
+      
+      sendmsg(7, 7, 0, 512, 512);
 
       #100;
       
@@ -459,9 +453,45 @@ module srpt_data_queue_tb();
       
       #30;
       grant_notif(3, 0);
+      //dbuff_notif(3, 2700);
+      //dbuff_notif(3, 2500);
+      //dbuff_notif(3, 2200);
+      //dbuff_notif(3, 1800);
+      //dbuff_notif(3, 1500);
+      //dbuff_notif(3, 1300);
+      //dbuff_notif(3, 500);
+      //dbuff_notif(3, 0);
+
+      dbuff_notif(3, 2700);
+      dbuff_notif(3, 2500);
+      dbuff_notif(3, 2200);
+      dbuff_notif(3, 1800);
+      dbuff_notif(3, 1500);
+      dbuff_notif(3, 1300);
+      dbuff_notif(3, 500);
       dbuff_notif(3, 0);
 
+
+
       #30;
+
+            
+      get_output();
+      get_output();
+      get_output();
+       
+      get_output();
+      get_output();
+      get_output();
+       
+      get_output();
+      get_output();
+      get_output();
+       
+      get_output();
+      get_output();
+      get_output();
+ 
       
       get_output();
       get_output();

@@ -3,7 +3,6 @@
 
 using namespace hls;
 
-
 /**
  * rpc_state() - Maintains state associated with an RPC and augments
  *   flows with that state when needed. There are 3 actions taken by
@@ -61,40 +60,7 @@ void rpc_state(
 #pragma HLS dependence variable=rpcs inter RAW false
 
     onboard_send_t onboard_send;
-    if (onboard_send_i.read_nb(onboard_send)) {
-	homa_rpc_t homa_rpc;
-	homa_rpc.daddr     = onboard_send.daddr;
-	homa_rpc.dport     = onboard_send.dport;
-	homa_rpc.saddr     = onboard_send.saddr;
-	homa_rpc.sport     = onboard_send.sport;
-	homa_rpc.buff_addr = onboard_send.buff_addr;
-	homa_rpc.buff_size = onboard_send.buff_size;
-	homa_rpc.id        = onboard_send.id;
-
-	rpcs[onboard_send.local_id] = homa_rpc;
-
-	srpt_queue_entry_t srpt_data_in;
-	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = onboard_send.buff_size;
-	// TODO would be cleaner if we could just set this to RTT_BYTES
-	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)  = onboard_send.buff_size - ((((ap_uint<32>) RTT_BYTES) > onboard_send.buff_size)
-									 ? onboard_send.buff_size : ((ap_uint<32>) RTT_BYTES));
-	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_ACTIVE;
-
-
-	data_queue_o.write(srpt_data_in);
-
-	srpt_queue_entry_t srpt_fetch_in = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)   = SRPT_ACTIVE;
-	fetch_queue_o.write(srpt_fetch_in);
-    }
+    header_t c2h_header;
 
     /* RO Paths */
     header_t h2c_header;
@@ -120,12 +86,8 @@ void rpc_state(
 	} else if (h2c_header.type == GRANT) {
 	    h2c_pkt_log_o.write(LOG_GRANT_OUT);
 	}
-    }
+    } else if (c2h_header_i.read_nb(c2h_header)) { // TODO return this to parallel
 
-    header_t c2h_header;
-    if (c2h_header_i.read_nb(c2h_header)) {
-
-	std::cerr << "RPC STATE READ HEADER IN\n";
 	homa_rpc_t homa_rpc = rpcs[c2h_header.local_id];
 
 	switch (c2h_header.type) {
@@ -174,7 +136,39 @@ void rpc_state(
 	}
 
 	rpcs[c2h_header.local_id] = homa_rpc;
-    } 
+    } else if (onboard_send_i.read_nb(onboard_send)) { // TODO This does not need to be here
+	homa_rpc_t homa_rpc;
+	homa_rpc.daddr     = onboard_send.daddr;
+	homa_rpc.dport     = onboard_send.dport;
+	homa_rpc.saddr     = onboard_send.saddr;
+	homa_rpc.sport     = onboard_send.sport;
+	homa_rpc.buff_addr = onboard_send.buff_addr;
+	homa_rpc.buff_size = onboard_send.buff_size;
+	homa_rpc.id        = onboard_send.id;
+
+	rpcs[onboard_send.local_id] = homa_rpc;
+
+	srpt_queue_entry_t srpt_data_in;
+	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = onboard_send.buff_size;
+	// TODO would be cleaner if we could just set this to RTT_BYTES
+	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)  = onboard_send.buff_size - ((((ap_uint<32>) RTT_BYTES) > onboard_send.buff_size)
+									 ? onboard_send.buff_size : ((ap_uint<32>) RTT_BYTES));
+	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_ACTIVE;
+
+	data_queue_o.write(srpt_data_in);
+
+	srpt_queue_entry_t srpt_fetch_in = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
+	fetch_queue_o.write(srpt_fetch_in);
+    }
 }
 
 /**
@@ -209,7 +203,6 @@ void id_map(hls::stream<header_t> & header_in_i,
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {
-	std::cerr << "map read header in\n";
 	/* Perform the RPC ID lookup if we are the server */
 	if (!IS_CLIENT(header_in.id)) {
 	    // Check if this RPC is already registered
@@ -238,7 +231,6 @@ void id_map(hls::stream<header_t> & header_in_i,
 	    entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, header_in.peer_id};
 	    peer_hashmap.insert(peer_entry);
 	}
-	std::cerr << "map wrote header out \n";
 	header_in_o.write(header_in);
     }
 }

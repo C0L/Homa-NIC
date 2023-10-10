@@ -65,15 +65,16 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
    integer entry;
 
    always @* begin
-      fetch_in_read_en_o = 0;
-      fetchq_insert      = 0;
-
-      if (fetch_in_empty_i) begin
-	 fetchq_insert = fetch_in_data_i;
-	 
-	 fetch_in_read_en_o = 1;
-      end
+      fetchq_insert        = 0;
+      fetch_in_read_en_o   = 0;
+      fetch_out_write_en_o = 0;
+      fetch_out_data_o     = 0;
       
+      if (fetch_in_empty_i) begin
+	 fetch_in_read_en_o = 1;
+	 fetchq_insert      = fetch_in_data_i;
+      end
+
       prioritize_fetchq(fetchq_swpo[0], fetchq_swpo[1], fetchq_insert, fetchq[0]);
 
       // Compute data_swp_odd
@@ -85,34 +86,30 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
       for (entry = 1; entry < MAX_RPCS; entry=entry+2) begin
 	 prioritize_fetchq(fetchq_swpe[entry-1], fetchq_swpe[entry], fetchq[entry-1], fetchq[entry]);
       end
+
+      if (fetch_out_full_i && fetchq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
+	 fetch_out_write_en_o = 1;
+	 fetch_out_data_o     = fetchq_head;
+      end
    end
 
    integer rst_entry;
 
    always @(posedge ap_clk) begin
       if (ap_rst) begin
-	 fetch_out_write_en_o <= 0;
 	 fetchq_polarity      <= 0;
-	 fetch_out_data_o     <= 0;
 
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    fetchq[rst_entry] <= 0;
 	    fetchq[rst_entry][`QUEUE_ENTRY_PRIORITY] <= `SRPT_EMPTY;
 	 end
       end else if (ap_ce && ap_start) begin // if (ap_rst)
-	 
-	 fetch_out_write_en_o <= 0;
-	 
 	 if (fetch_in_empty_i) begin
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
 	       fetchq[entry] <= fetchq_swpo[entry];
 	    end 
 	 end else if (fetch_out_full_i && fetchq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
 	    $display("Active entry out");
-	    
-	    fetch_out_data_o     <= fetchq_head;
-	    fetch_out_write_en_o <= 1;
-	    
 	    // Did we just request the last block for this message
 	    if (fetchq_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE) begin
 	       $display("Active entry out");
@@ -269,21 +266,20 @@ module srpt_fetch_queue_tb();
       /* Add a bunch of inactive sendmsg requests */
       
       // RPC ID, DBUFF ID, INIT GRANT, INIT DBUFF, MSG LEN
-      sendmsg(1, 1, 0, 0, 1000);
-      sendmsg(2, 2, 0, 0, 2000);
-      sendmsg(5, 5, 0, 0, 3000);
-      sendmsg(3, 3, 0, 0, 4000);
+      // sendmsg(1, 1, 0, 0, 1000);
+      // sendmsg(2, 2, 0, 0, 2000);
+      // sendmsg(5, 5, 0, 0, 3000);
+      // sendmsg(3, 3, 0, 0, 4000);
 
-      #30;
+      sendmsg(7, 7, 0, 0, 512);
+
+      // #30;
 
       get_output();
       get_output();
       get_output();
       get_output();
       get_output();
-      
-      #30;
-      
       get_output();
       get_output();
       get_output();

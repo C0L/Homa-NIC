@@ -192,6 +192,8 @@ struct rpc_hashpack_t {
    }
 };
 
+// TODO Is there any way to make these work as structs??? This is so ugly
+
 /**
  * srpt_grant_send_t - Output of the grant SRPT core which indicates the
  * next best grant packet to be sent.
@@ -235,71 +237,6 @@ typedef ap_uint<SRPT_QUEUE_ENTRY_SIZE> srpt_queue_entry_t;
 #define DMA_R_REQ_MSG_LEN   184,153 // Deprioritize inactive messages
 
 typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
-
-/**
- * srpt_data_new_in_t - Input to the srpt data core which creates a new
- * entry, indicating the RPC is eligible to be transmitted as long as
- * it is granted and buffered.
- */
-//#define SRPT_DATA_NEW_SIZE      66
-//#define SRPT_DATA_NEW_RPC_ID    15,0    // Local ID valid in rpc state core
-//#define SRPT_DATA_NEW_MSG_LEN   35,16   // Total number of bytes in message
-//#define SRPT_DATA_NEW_GRANTED   55,36   // Unscheduled bytes
-//#define SRPT_DATA_NEW_DBUFF_ID  65,56   // On chip data buffer
-// #define SRPT_DATA_NEW_HOST_ADDR 129,66  // Where are we buffering data from
-
-// typedef ap_uint<SRPT_DATA_NEW_SIZE> srpt_data_new_t;
-
-/**
- * srpt_data_send_t - An output from the srpt data core which communicates
- * the best RPC to be sent.
- */
-// #define SRPT_DATA_SEND_SIZE      56
-// #define SRPT_DATA_SEND_RPC_ID    15,0  // Local ID valid in rpc state core
-// #define SRPT_DATA_SEND_REMAINING 35,16 // How many more bytes remaining to send
-// #define SRPT_DATA_SEND_GRANTED   55,36 // Head msg offset granted bytes
-// 
-// typedef ap_uint<SRPT_DATA_SEND_SIZE> srpt_data_send_t;
-
-/**
- * srpt_data_fetch_t - An output from the srpt data core which
- * communicates the next best data chunk to grab from DMA.
- */
-//#define SRPT_DATA_FETCH_SIZE       152
-//#define SRPT_DATA_FETCH_RPC_ID     15,0    // RPC we want data for
-//#define SRPT_DATA_FETCH_DBUFF_ID   25,16   // Where this data will be placed
-//#define SRPT_DATA_FETCH_HOST_ADDR  89,26   // Where in host memory do we read from
-//#define SRPT_DATA_FETCH_PORT       105,90   // Where in host memory do we read from TODO would be nice to remove
-//#define SRPT_DATA_FETCH_MSG_LEN    137,106 // What is the total length of the msg  
-
-// typedef ap_uint<SRPT_DATA_FETCH_SIZE> srpt_data_fetch_t;
-
-/**
- * srpt_dbuff_notif_t - Input notificaiton to the SRPT data core of
- * data arrivial in the on chip cache for outgoing messages. This
- * provides the offset of new data that has been incorporated into the
- * on chip data buffer which can be used to update the internal RPC
- * state of the queue and determine its eligibility.
- */
-//#define SRPT_DATA_DBUFF_NOTIF_SIZE     36
-//#define SRPT_DATA_DBUFF_NOTIF_RPC_ID   15,0  // The local ID this is relevent to
-//#define SRPT_DATA_DBUFF_NOTIF_MSG_ADDR 35,16 // What offset just arrived
-//
-//typedef ap_uint<SRPT_DATA_DBUFF_NOTIF_SIZE> srpt_data_dbuff_notif_t;
-
-/**
- * srpt_grant_notif_t - Input notification to the SRPT data core of a
- * received grant. The very first packet creates the entry in the
- * grant queue. After that, arrived packets are used to notify the
- * core of arrived packets so that it may update its internal state of
- * the RPC to reflect that change.
- */
-//#define SRPT_DATA_GRANT_NOTIF_SIZE     36
-//#define SRPT_DATA_GRANT_NOTIF_RPC_ID   15,0  // The local ID this grant is relevent to
-//#define SRPT_DATA_GRANT_NOTIF_MSG_ADDR 35,16 // Offset granted up to
-//
-//typedef ap_uint<SRPT_DATA_GRANT_NOTIF_SIZE> srpt_data_grant_notif_t;
-
 
 /**
  * rpc_to_offset_t - Provides a mapping from an RPC ID to an offset
@@ -723,6 +660,10 @@ struct srpt_grant_t {
 #define LOG_DATA_R_REQ  0x20
 
 #define LOG_DATA_W_REQ  0x20
+
+/* SRPT Log Values */
+
+#define LOG_DBUFF_NOTIF 0x80
 
 /* Packet Selector Values */
 #define LOG_GRANT_OUT 0x10

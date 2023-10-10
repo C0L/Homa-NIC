@@ -114,8 +114,7 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        am_cmd.data(AM_CMD_DRR)   = 0;
        am_cmd.data(AM_CMD_TAG)   = tag++;
        am_cmd.data(AM_CMD_RSVD)  = 0;
-       am_cmd.data(AM_CMD_BTT)   = 4;
-       // am_cmd.data(AM_CMD_BTT)   = dma_req.strobe;
+       am_cmd.data(AM_CMD_BTT)   = dma_req.strobe;
        am_cmd.data(AM_CMD_SADDR) = dma_req.offset;
 
        // TODO does keep need to match BTT?
@@ -127,8 +126,10 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        ap_axiu<512,0,0,0> data_out;
        data_out.data  = dma_req.data;
        data_out.last  = 1;
-       data_out.keep = 0xF;
-       // data_out.keep = (0xFFFFFFFFFFFFFFFF >> dma_req.strobe);
+       // data_out.keep = 0xF;
+       data_out.keep = (0xFFFFFFFFFFFFFFFF >> (64 - dma_req.strobe));
+
+       std::cerr << "KEEP: " << data_out.keep << std::endl;
 
        data_queue_o.write(data_out);
    }

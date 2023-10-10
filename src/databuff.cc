@@ -129,7 +129,8 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 		  hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
 		  hls::stream<h2c_chunk_t> & h2c_chunk_i,
-		  hls::stream<h2c_chunk_t> & h2c_chunk_o) {
+		  hls::stream<h2c_chunk_t> & h2c_chunk_o,
+		  hls::stream<ap_uint<8>> & dbuff_notif_log_o) {
 
 #pragma HLS pipeline II=1
 
@@ -152,16 +153,15 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 	// TODO this is problematic here
 	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.msg_addr + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
 
-	std::cerr << "dbuff msg_len " << dbuff_in.msg_len << std::endl;
-	std::cerr << "dbuff msg_addr" << dbuff_in.msg_addr << std::endl;
-
-	// TODO fix this
+	// TODO this is a little overwhelming to the SRPT queue, fix
 	// if (dbuff_in.last) {
-	    srpt_queue_entry_t dbuff_notif;
-	    dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
-	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuffered;
-	    dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_DBUFF_UPDATE;
-	    dbuff_notif_o.write(dbuff_notif);
+	srpt_queue_entry_t dbuff_notif;
+	dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuffered;
+	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_DBUFF_UPDATE;
+	dbuff_notif_o.write(dbuff_notif);
+
+	dbuff_notif_log_o.write(LOG_DBUFF_NOTIF | dbuffered);
 	    // }
     }
 

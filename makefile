@@ -61,7 +61,9 @@ SRC_C =                       \
     $(C_SRC_DIR)/dma.hh \
     $(C_SRC_DIR)/logger.cc \
     $(C_SRC_DIR)/logger.hh \
-    $(C_SRC_DIR)/test.hh
+    $(C_SRC_DIR)/test.hh \
+    $(C_SRC_DIR)/cosim_shims.cc \
+    $(C_SRC_DIR)/cosim_shims.hh
 
 PART = xcu250-figd2104-2L-e
 
@@ -83,6 +85,7 @@ synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(CSYNTH_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
+		homa \
 		"RTT_BYTES=5000"
 
 ############ Vitis C Simulation ############
@@ -94,6 +97,7 @@ single_message_tester_rtt_5000_bin:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(CSIM_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
+		homa \
 		"RTT_BYTES=5000" \
 
 single_message_csim: single_message_tester_rtt_5000_bin
@@ -102,15 +106,33 @@ single_message_csim: single_message_tester_rtt_5000_bin
 	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 64
 	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 1
 
+
+srpt_fetch_csim_shim:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(CSIM_FLAGS) \
+		$(C_TB_DIR)/cosim_shim_tester.cc \
+		fetch_shim \
+		"RTT_BYTES=5000"
+	./homa_kernel/solution/csim/build/csim.exe	 
+
 ############# Vitis Cosim ############
 
-COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" "$(SRC_JSON)"
+COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" 
 
 single_message_cosim:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(COSIM_FLAGS) \
+		$(COSIM_FLAGS) $(SRC_JSON)
 		$(C_TB_DIR)/single_message_tester.cc \
 		"RTT_BYTES=5000" \
+
+export DISPLAY=:1
+
+srpt_fetch_cosim_shim:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(COSIM_FLAGS) $(V_SRC_DIR)/srpt_fetch_queue.json \
+		$(C_TB_DIR)/cosim_shim_tester.cc \
+		fetch_shim \
+		"RTT_BYTES=5000"
 
 ############ Verilog Synthesis ############ 
 
