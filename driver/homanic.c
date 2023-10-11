@@ -7,6 +7,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/pci.h>
+#include <linux/set_memory.h>
 
 #define AXI_STREAM_FIFO_ISR  0x00 // Interrupt Status Register (r/clear on w)
 #define AXI_STREAM_FIFO_IER  0x04 // Interrupt Enable Register (r/w)
@@ -25,19 +26,26 @@
 #define AXI_STREAM_FIFO_AXIL_SIZE 0x7C // Number of bytes for AXIL Interface
 #define AXI_STREAM_FIFO_AXIF_SIZE 0x4  // Number of bytes for AXIF Interface
 
-#define SENDMSG_AXIL_OFFSET 0x00101000
-#define SENDMSG_AXIF_OFFSET 0x00104000
-
-#define RECVMSG_AXIL_OFFSET 0x00106000
-#define RECVMSG_AXIF_OFFSET 0x00102000
-
-#define LOG_AXIL_OFFSET 0x0010D000
-#define LOG_AXIF_OFFSET 0x00012000
-
-#define H2C_PORT_TO_PHYS_AXIL_OFFSET 0x0010A000
-#define C2H_PORT_TO_PHYS_AXIL_OFFSET 0x0010C000
+#define LOG_AXIL_OFFSET              0x00001000
+#define LOG_AXIF_OFFSET              0x00002000
+#define RECVMSG_AXIL_OFFSET          0x00005000
+#define RECVMSG_AXIF_OFFSET          0x00006000
+#define SENDMSG_AXIL_OFFSET          0x00009000
+#define SENDMSG_AXIF_OFFSET          0x00010000
+#define C2H_PORT_TO_PHYS_AXIL_OFFSET 0x00012000
+#define H2C_PORT_TO_PHYS_AXIL_OFFSET 0x00013000
 
 #define BAR_0 0xf4000000
+
+#define MINOR_CTL 0
+#define MINOR_H2C 1
+#define MINOR_C2H 2
+
+#define MAX_MINOR 3
+
+#define HOMA_MAX_MESSAGE_LENGTH 1000000 // The maximum number of bytes in a single message
+
+struct pci_dev * pdev;
 
 /* device registers for physical address map onboarding AXI-Stream FIFO */
 void __iomem * h2c_physmap_regs;
@@ -52,15 +60,26 @@ void __iomem * sendmsg_regs;
 void __iomem * sendmsg_write;
 void __iomem * sendmsg_read;
 
+/* single user address for DMA and for CPU */
+// TODO eventually this should be an array indexed by port
+void * h2c_cpu_addr;
+dma_addr_t h2c_dma_handle;
+
+void * c2h_cpu_addr;
+dma_addr_t c2h_dma_handle;
+
+// TODO this will just cycle around an eventually reallocate ports
+uint16_t ports;
+
 struct msghdr_send_t {
-  char saddr[16];
-  char daddr[16];
-  uint16_t sport;
-  uint16_t dport;
-  uint64_t buff_addr;
-  uint32_t buff_size;
-  uint64_t id;
-  uint64_t cc;
+    char saddr[16];
+    char daddr[16];
+    uint16_t sport;
+    uint16_t dport;
+    uint64_t buff_addr;
+    uint32_t buff_size;
+    uint64_t id;
+    uint64_t cc;
 }__attribute__((packed));
 
 struct log_entry_t {
@@ -76,129 +95,90 @@ struct log_entry_t {
 }__attribute__((packed));
 
 struct port_to_phys_t {
-  uint64_t phys_addr;
-  uint32_t port;
+    uint64_t phys_addr;
+    uint32_t port;
 }__attribute__((packed));
 
+/* Kernel Module Functions */
 int     homanic_open(struct inode *, struct file *);
 ssize_t homanic_read(struct file *, char *, size_t, loff_t *);
-ssize_t homanic_write(struct file *, const  char *, size_t, loff_t *);
 int     homanic_close(struct inode *, struct file *);
-// int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
+int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
 
-struct file_operations homanic_fops = {
-  .owner          = THIS_MODULE,
-  .open           = homanic_open,
-  .write          = homanic_write //,
-  // .mmap           = homanic_mmap
-};
-
-void sendmsg(struct msghdr_send_t *);
-void print_msghdr(struct msghdr_send_t *);
+/* Helper Functions */
 void dump_log(void);
 void h2c_new_physmap(struct port_to_phys_t * portmap);
 void c2h_new_physmap(struct port_to_phys_t * portmap);
 void dump_axi_fifo_state(void __iomem * device_regs);
 
-struct homanic_device_data {
-  struct cdev cdev;
+struct file_operations homanic_fops = {
+    .owner          = THIS_MODULE,
+    .open           = homanic_open,
+    .mmap           = homanic_mmap
 };
 
-// This should be the values returned from lspci
+struct device_data {
+    struct cdev cdev;
+};
 
-// static const struct pci_device_id pci_id = PCI_DEVICE(0x10ee, 0x903f);
+struct device_data devs[3];
 
-struct homanic_device_data homanic_dd;
 struct class * cls;
 
 int dev_major = 0;
 
-/* Programming Sequence Using Direct Register Read/Write
- * https://docs.xilinx.com/v/u/4.1-English/pg080-axi-fifo-mm-s
- */
-void sendmsg(struct msghdr_send_t * msghdr_send) {
-  int i;
-  uint32_t rlr;
-  uint32_t rdfo;
-
-  for (i = 0; i < 16; ++i) iowrite32(*(((unsigned int*) msghdr_send) + i), sendmsg_write);
-
-  iowrite32(64, sendmsg_regs + AXI_STREAM_FIFO_TLR);
-
-  rdfo = ioread32(sendmsg_regs + AXI_STREAM_FIFO_RDFO);
-  rlr = ioread32(sendmsg_regs + AXI_STREAM_FIFO_RLR);
-
-  pr_alert("sendmsg rdfo: %x\n", rdfo);
-  pr_alert("sendmsg rlr: %x\n", rlr);
-
-  // TODO should sanity check rlr and rdfo
-  for (i = 0; i < 16; ++i) *(((unsigned int*) msghdr_send) + i) = ioread32(sendmsg_read);
-}
-
 void dump_log(void) {
-  int i;
+    int i;
 
-  uint32_t rlr;
-  uint32_t rdfo;
+    uint32_t rlr;
+    uint32_t rdfo;
 
-  struct log_entry_t log_entry;
-
-  rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
-  rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
-
-  while (rdfo != 0) {
-    // Read 16 bytes of data
-    for (i = 0; i < 4; ++i) {
-      *(((unsigned int*) &log_entry) + i) = ioread32(log_read);
-    }
-	
-    iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
-    iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
+    struct log_entry_t log_entry;
 
     rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
     rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
 
-    // TODO interpret these 
-    pr_alert("Log Entry: ");
-    pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
-    pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
-    pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
-    pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
-    pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
-    pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
-    pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
-    pr_alert("  Timer          - %u", log_entry.timer);
-  }
+    while (rdfo != 0) {
+	// Read 16 bytes of data
+	for (i = 0; i < 4; ++i) {
+	    *(((unsigned int*) &log_entry) + i) = ioread32(log_read);
+	}
+	
+	iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
+	iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
+
+	rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
+	rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
+
+	pr_alert("Log Entry: ");
+	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
+	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
+	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
+	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
+	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
+	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
+	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
+	pr_alert("  Timer          - %u", log_entry.timer);
+    }
 }
 
 void h2c_new_physmap(struct port_to_phys_t * port_to_phys) {
-  int i;
+    int i;
 
-  for (i = 0; i < 3; ++i) iowrite32(*(((unsigned int*) port_to_phys) + i), h2c_physmap_regs + AXI_STREAM_FIFO_TDFD);
+    for (i = 0; i < 3; ++i) iowrite32(*(((unsigned int*) port_to_phys) + i), h2c_physmap_regs + AXI_STREAM_FIFO_TDFD);
 
-  iowrite32(12, h2c_physmap_regs + AXI_STREAM_FIFO_TLR);
+    iowrite32(12, h2c_physmap_regs + AXI_STREAM_FIFO_TLR);
 }
 
 void c2h_new_physmap(struct port_to_phys_t * port_to_phys) {
-  int i;
+    int i;
 
-  for (i = 0; i < 3; ++i) iowrite32(*(((unsigned int*) port_to_phys) + i), c2h_physmap_regs + AXI_STREAM_FIFO_TDFD);
+    for (i = 0; i < 3; ++i) iowrite32(*(((unsigned int*) port_to_phys) + i), c2h_physmap_regs + AXI_STREAM_FIFO_TDFD);
 
-  iowrite32(12, c2h_physmap_regs + AXI_STREAM_FIFO_TLR);
+    iowrite32(12, c2h_physmap_regs + AXI_STREAM_FIFO_TLR);
 }
 
-
-void print_msghdr(struct msghdr_send_t * msghdr_send) {
-  pr_alert("sendmsg content dump:\n");
-  pr_alert("  - source address      : %.*s\n", 16, msghdr_send->saddr);
-  pr_alert("  - destination address : %.*s\n", 16, msghdr_send->saddr);
-  pr_alert("  - source port         : %u\n", (unsigned int) msghdr_send->sport);
-  pr_alert("  - dest port           : %u\n", (unsigned int) msghdr_send->dport);
-  pr_alert("  - buffer address      : %llx\n", msghdr_send->buff_addr);
-  pr_alert("  - buffer size         : %u\n", msghdr_send->buff_size);
-  pr_alert("  - rpc id              : %llu\n", msghdr_send->id);
-  pr_alert("  - completion cookie   : %llu\n", msghdr_send->cc);
-}
+// iosubmit_cmds512 ?? How to do this from userspace? Just remap and AVX512 it?
 
 // TODO Maybe possible to do a 64 byte write from the CPU to PCIe
 // https://stackoverflow.com/questions/51918804/generating-a-64-byte-read-pcie-tlp-from-an-x86-cpu
@@ -207,208 +187,188 @@ void print_msghdr(struct msghdr_send_t * msghdr_send) {
 // _mm256_store_si256(pcie_memory_address+32, ymm1);
 // _mm_mfence();
 
-// TODO virtualize device registers with a large address space of AXI-L registers. Our core interrupters the write operation and queues the data for a particular sender based on that incoming register, then writes that data whenever it gets full. The user has no idea what these addresses are because they are just remapped by the host into the user applications address space.
-
-ssize_t homanic_write(struct file * file, const char __user * user_buffer, size_t size, loff_t * offset) {
-
-  // https://www.kernel.org/doc/html/latest/core-api/dma-api-howto.html
-
-  int i;
-  int j;
-
-  struct msghdr_send_t msghdr_send;
-  struct port_to_phys_t port_to_phys;
-  //void * h2c_cpu_addr;
-  //dma_addr_t h2c_dma_handle;
-
-  //void * c2h_cpu_addr;
-  //dma_addr_t c2h_dma_handle;
-
-  void * cpu_addr;
-  dma_addr_t dma_handle;
-
-  char pattern[4] = "\xDE\xAD\xBE\xEF";
-    
-  char msg[512];
-
-  struct pci_dev * pdev = NULL;
-  pdev = pci_get_device(0x10ee, 0x903f, NULL);
-
-  // ?
-  // pci_enable_capability(pdev, PCI_EXP_DEVCTL_RELAX_EN);
-  // pci_enable_capability(pdev, PCI_EXP_DEVCTL_EXT_TAG);
-
-  // pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
-  // pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
-  
-  /* Wake up the device if suspended and allocate IO and mem regions of the device if BIOS did not */
-  pci_enable_device(pdev);
-
-  /* Enables DMA by setting the bus master bit in PCI_COMMAND register */
-  pci_set_master(pdev);
-
-  pci_set_mwi(pdev);
-
-  // pci_enable_device_mem(pdev);
-  dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
-
-  cpu_addr = dma_alloc_coherent(&(pdev->dev), 16384, &dma_handle, GFP_ATOMIC);
-  // h2c_cpu_addr = kmalloc(16384, GFP_ATOMIC);
-  // c2h_cpu_addr = kmalloc(16384, GFP_ATOMIC);
-
-  // h2c_dma_handle = dma_map_single(&(pdev->dev), h2c_cpu_addr, 16384, DMA_TO_DEVICE);
-  // c2h_dma_handle = dma_map_single(&(pdev->dev), c2h_cpu_addr, 16384, DMA_FROM_DEVICE);
-
-  pr_alert("cpu address:%llx\n", (uint64_t) cpu_addr);
-  pr_alert("dma address:%llx\n", (uint64_t) dma_handle);
-
-  // pr_alert("cpu address:%llx\n", (uint64_t) h2c_cpu_addr);
-  // pr_alert("dma address:%llx\n", (uint64_t) h2c_dma_handle);
-  // pr_alert("cpu address:%llx\n", (uint64_t) c2h_cpu_addr);
-  // pr_alert("dma address:%llx\n", (uint64_t) c2h_dma_handle);
-
-  if (copy_from_user(&msghdr_send, user_buffer, 64))
-    return -EFAULT;
-
-  for (i = 0; i < (512/4); ++i) memcpy(msg + (i*4), pattern, 4);
-
-  memcpy(cpu_addr, msg, 512);
-
-  *(((char*)cpu_addr) + 18 + 2048) = 0xA;
-
-  // iosubmit_cmds512 ?? How to do this from userspace? Just remap and AVX512 it?
-
-  printk(KERN_ALERT "H2C Message Content Start");
-
-  //for (i = 0; i < 512; ++i) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + i));
-
-  for (i = 0; i < 8; ++i) {
-      printk(KERN_ALERT "Chunk: %d", i);
-      for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + j + (i*64)));
-  }
-
-  printk(KERN_ALERT "H2C Message Content End");
-
-  port_to_phys.phys_addr = ((uint64_t) dma_handle);
-  port_to_phys.port = 1;
-
-  h2c_new_physmap(&port_to_phys);
-  port_to_phys.phys_addr = ((uint64_t) dma_handle + 2048);
-  c2h_new_physmap(&port_to_phys);
-  print_msghdr(&msghdr_send);
-
-  sendmsg(&msghdr_send);
-
-  print_msghdr(&msghdr_send);
-
-  msleep(1000);
-
-  dump_log();
-
-  printk(KERN_ALERT "C2H Message Contents Start");
-
-  // TODO need to do this in both places
-  // TODO Occasionally a driver needs to access the contents of a streaming DMA buffer with-
-// out unmapping it. A call has been provided to make this possible:
-// void dma_sync_single_for_cpu(struct device *dev, dma_handle_t bus_addr,
-// size_t size, enum dma_data_direction direction);
-
-  for (i = 0; i < 8; ++i) {
-      printk(KERN_ALERT "Chunk %d: ", i);
-      for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) cpu_addr) + 2048 + j + (i*64)));
-  }
-
-  printk(KERN_ALERT "C2H Message Content End");
-
-  // dma_unmap_single(&(pdev->dev), h2c_dma_handle, 16384, DMA_TO_DEVICE);
-  // dma_unmap_single(&(pdev->dev), c2h_dma_handle, 16384, DMA_FROM_DEVICE);
-
-  dma_free_coherent(&(pdev->dev), 16384, cpu_addr, dma_handle);
-
-  return size;
-}
 
 int homanic_open(struct inode * inode, struct file * file) {
-  return 0;
+    // TODO eventually insert these values into an array indexed by the port
+    // TODO this will allow for recovery when the mmap is called.
+    // TODO How does the port reach the mmap invocation though?
+
+    // int ret;
+    return 0;
 }
 
 int homanic_close(struct inode * inode, struct file * file) {
-  pr_info("homanic_close\n");
-  return 0;
+    // TODO free up the ID
+    // Free the buffers
+    // Wipe user data from the device
+
+    pr_info("homanic_close\n");
+    return 0;
 }
 
-// TODO ioctl for creating port
+int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
+    int ret = 0;
+    struct page * page;
 
-// mmap /dev/homanic
+    pr_alert("homanic_mmap\n");
 
-/*
-int homanic_mmap(struct file * fp, struct vm_area_struct * vma) {
-  int ret = 0;
-  
+    /* Get the minor number to determine if the caller is interested in
+     *     - Control page for device registers
+     *     - h2c memory buffer
+     *     - c2h memory buffer
+     */
+    switch(iminor(file->f_inode)) {
+	case MINOR_CTL:
+
+	    // Get the page associated with the send message device registers
+	    page = virt_to_page(sendmsg_regs);
+
+	    // TODO what is the appropriate size
+	    ret = remap_pfn_range(vma, vma->vm_start, page_to_pfn(page), 65536, vma->vm_page_prot);
+
+	    if (ret != 0) {
+		goto exit;
+	    }
+
+	    pr_alert("device register remap");
+	    break;
+
+	case MINOR_H2C:
+	    pr_alert("h2c buffer remap");
+
+	    ret = dma_mmap_coherent(NULL, vma, h2c_cpu_addr, h2c_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
+
+	    if (ret < 0) {
+		pr_err("h2c dma_mmap_coherent failed\n");
+	    }
+
+	    break;
+
+	case MINOR_C2H:
+	    pr_alert("c2h buffer remap");
+
+	    ret = dma_mmap_coherent(NULL, vma, c2h_cpu_addr, c2h_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
+
+	    if (ret < 0) {
+		pr_err("h2c dma_mmap_coherent failed\n");
+	    }
+
+	    break;
+    }
+
+exit:
+    return ret;
 }
-*/
 
 int homanic_init(void) {
-  dev_t dev;
-  int err;
 
-  pr_info("homanic_init\n");
+    struct port_to_phys_t h2c_port_to_phys;
+    struct port_to_phys_t c2h_port_to_phys;
 
-  err = alloc_chrdev_region(&dev, 0, 1, "homanic");
+    dev_t dev;
+    int err;
 
-  if (err != 0) {
-    return err;
-  }
+    pr_info("homanic_init\n");
 
-  dev_major = MAJOR(dev);
+    pdev = pci_get_device(0x10ee, 0x903f, NULL);
 
-  cls = class_create(THIS_MODULE, "homanic");
-  device_create(cls, NULL, MKDEV(dev_major, 0), NULL, "homanic");
+    /* Wake up the device if suspended and allocate IO and mem regions of the device if BIOS did not */
+    pci_enable_device(pdev);
 
-  cdev_init(&homanic_dd.cdev, &homanic_fops);
-  cdev_add(&homanic_dd.cdev, MKDEV(dev_major, 0), 1);
+    /* Enables DMA by setting the bus master bit in PCI_COMMAND register */
+    pci_set_master(pdev);
 
-  h2c_physmap_regs = ioremap(BAR_0 + H2C_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
-  c2h_physmap_regs = ioremap(BAR_0 + C2H_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    pci_set_mwi(pdev);
 
-  log_regs = ioremap(BAR_0 + LOG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
-  log_read = ioremap(BAR_0 + LOG_AXIF_OFFSET + 0x1000, 4);
+    dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
 
-  sendmsg_regs  = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
-  sendmsg_write  = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET, 4);
-  sendmsg_read = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET + 0x1000, 4);
+    h2c_cpu_addr = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &h2c_dma_handle, GFP_KERNEL);
+    c2h_cpu_addr = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_dma_handle, GFP_KERNEL);
 
-  iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
-  iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
+    pr_alert("cpu address:%llx\n", (uint64_t) h2c_cpu_addr);
+    pr_alert("dma address:%llx\n", (uint64_t) h2c_dma_handle);
+    pr_alert("cpu address:%llx\n", (uint64_t) c2h_cpu_addr);
+    pr_alert("dma address:%llx\n", (uint64_t) c2h_dma_handle);
 
-  iowrite32(0xffffffff, c2h_physmap_regs + AXI_STREAM_FIFO_ISR);
-  iowrite32(0x0C000000, c2h_physmap_regs + AXI_STREAM_FIFO_IER);
+    err = alloc_chrdev_region(&dev, 0, MAX_MINOR, "homanic");
 
-  iowrite32(0xffffffff, h2c_physmap_regs + AXI_STREAM_FIFO_ISR);
-  iowrite32(0x0C000000, h2c_physmap_regs + AXI_STREAM_FIFO_IER);
+    if (err != 0) {
+	return err;
+    }
 
-  iowrite32(0xffffffff, sendmsg_regs + AXI_STREAM_FIFO_ISR);
-  iowrite32(0x0C000000, sendmsg_regs + AXI_STREAM_FIFO_IER);
+    dev_major = MAJOR(dev);
 
-  return 0;
+    cls = class_create(THIS_MODULE, "homanic");
+    device_create(cls, NULL, MKDEV(dev_major, MINOR_CTL), NULL, "homa_nic_ctl");
+    device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C), NULL, "homa_nic_h2c");
+    device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H), NULL, "homa_nic_c2h");
+
+    cdev_init(&devs[MINOR_CTL].cdev, &homanic_fops);
+    cdev_init(&devs[MINOR_H2C].cdev, &homanic_fops);
+    cdev_init(&devs[MINOR_C2H].cdev, &homanic_fops);
+    cdev_add(&devs[MINOR_CTL].cdev, MKDEV(dev_major, MINOR_CTL), 1);
+    cdev_add(&devs[MINOR_H2C].cdev, MKDEV(dev_major, MINOR_H2C), 1);
+    cdev_add(&devs[MINOR_C2H].cdev, MKDEV(dev_major, MINOR_C2H), 1);
+
+    h2c_physmap_regs = ioremap(BAR_0 + H2C_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    c2h_physmap_regs = ioremap(BAR_0 + C2H_PORT_TO_PHYS_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+
+    log_regs = ioremap(BAR_0 + LOG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    log_read = ioremap(BAR_0 + LOG_AXIF_OFFSET + 0x1000, 4);
+
+    sendmsg_regs  = ioremap(BAR_0 + SENDMSG_AXIL_OFFSET, AXI_STREAM_FIFO_AXIL_SIZE);
+    sendmsg_write = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET, 4);
+    sendmsg_read  = ioremap(BAR_0 + SENDMSG_AXIF_OFFSET + 0x1000, 4);
+
+    iowrite32(0xffffffff, log_regs + AXI_STREAM_FIFO_ISR);
+    iowrite32(0x0C000000, log_regs + AXI_STREAM_FIFO_IER);
+
+    iowrite32(0xffffffff, c2h_physmap_regs + AXI_STREAM_FIFO_ISR);
+    iowrite32(0x0C000000, c2h_physmap_regs + AXI_STREAM_FIFO_IER);
+
+    iowrite32(0xffffffff, h2c_physmap_regs + AXI_STREAM_FIFO_ISR);
+    iowrite32(0x0C000000, h2c_physmap_regs + AXI_STREAM_FIFO_IER);
+
+    iowrite32(0xffffffff, sendmsg_regs + AXI_STREAM_FIFO_ISR);
+    iowrite32(0x0C000000, sendmsg_regs + AXI_STREAM_FIFO_IER);
+
+    // TODO eventually be on a per user basis
+    h2c_port_to_phys.phys_addr = ((uint64_t) h2c_dma_handle);
+    h2c_port_to_phys.port      = ports;
+
+    h2c_new_physmap(&h2c_port_to_phys);
+
+    c2h_port_to_phys.phys_addr = ((uint64_t) c2h_dma_handle);
+    c2h_port_to_phys.port      = ports;
+
+    c2h_new_physmap(&c2h_port_to_phys);
+
+    return 0;
 }
 
 void homanic_exit(void) {
-  pr_info("homanic_exit\n");
+    pr_info("homanic_exit\n");
 
-  device_destroy(cls, MKDEV(dev_major, 0));
-  class_destroy(cls);
+    dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_cpu_addr, h2c_dma_handle);
+    dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_cpu_addr, c2h_dma_handle);
 
-  cdev_del(&homanic_dd.cdev);
-  unregister_chrdev_region(MKDEV(dev_major, 0), 1);
+    device_destroy(cls, MKDEV(dev_major, MINOR_CTL));
+    device_destroy(cls, MKDEV(dev_major, MINOR_H2C));
+    device_destroy(cls, MKDEV(dev_major, MINOR_C2H));
+    class_destroy(cls);
 
-  iounmap(sendmsg_regs);
-  iounmap(sendmsg_read);
-  iounmap(sendmsg_write);
-  iounmap(log_regs);
-  iounmap(log_read);
-  iounmap(h2c_physmap_regs);
-  iounmap(c2h_physmap_regs);
+    cdev_del(&devs[MINOR_CTL].cdev);
+    cdev_del(&devs[MINOR_H2C].cdev);
+    cdev_del(&devs[MINOR_C2H].cdev);
+    unregister_chrdev_region(MKDEV(dev_major, 0), MAX_MINOR);
+
+    iounmap(sendmsg_regs);
+    iounmap(sendmsg_read);
+    iounmap(sendmsg_write);
+    iounmap(log_regs);
+    iounmap(log_read);
+    iounmap(h2c_physmap_regs);
+    iounmap(c2h_physmap_regs);
 }
 
 module_init(homanic_init)
