@@ -567,14 +567,14 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets homa_1_w_data_queue_o] [get_bd_i
   connect_bd_net -net xlslice_0_Dout [get_bd_pins xlslice_0/Dout] [get_bd_pins xlconcat_0/In0]
 
   # Create address segments
-  assign_bd_address -offset 0x00012000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_c2h_port_to_phys/S_AXI/Mem0] -force
-  assign_bd_address -offset 0x00013000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_h2c_port_to_phys/S_AXI/Mem0] -force
+  assign_bd_address -offset 0x0000C000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_c2h_port_to_phys/S_AXI/Mem0] -force
+  assign_bd_address -offset 0x0000D000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_h2c_port_to_phys/S_AXI/Mem0] -force
   assign_bd_address -offset 0x00001000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_log_out_fifo/S_AXI/Mem0] -force
   assign_bd_address -offset 0x00002000 -range 0x00002000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_log_out_fifo/S_AXI_FULL/Mem1] -force
   assign_bd_address -offset 0x00005000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_recvmsg_fifo/S_AXI/Mem0] -force
   assign_bd_address -offset 0x00006000 -range 0x00002000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_recvmsg_fifo/S_AXI_FULL/Mem1] -force
   assign_bd_address -offset 0x00009000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_sendmsg_fifo/S_AXI/Mem0] -force
-  assign_bd_address -offset 0x00010000 -range 0x00002000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_sendmsg_fifo/S_AXI_FULL/Mem1] -force
+  assign_bd_address -offset 0x0000A000 -range 0x00002000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs homa_sendmsg_fifo/S_AXI_FULL/Mem1] -force
   assign_bd_address -offset 0x00000000 -range 0x00001000 -target_address_space [get_bd_addr_spaces xdma_0/M_AXI_B] [get_bd_addr_segs xdma_0/S_AXI_LITE/CTL0] -force
   assign_bd_address -offset 0x00000000 -range 0x008000000000 -target_address_space [get_bd_addr_spaces axi_datamover_0/Data] [get_bd_addr_segs xdma_0/S_AXI_B/BAR0] -force
 
