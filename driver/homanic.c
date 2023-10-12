@@ -31,9 +31,9 @@
 #define RECVMSG_AXIL_OFFSET          0x00005000
 #define RECVMSG_AXIF_OFFSET          0x00006000
 #define SENDMSG_AXIL_OFFSET          0x00009000
-#define SENDMSG_AXIF_OFFSET          0x00010000
-#define C2H_PORT_TO_PHYS_AXIL_OFFSET 0x00012000
-#define H2C_PORT_TO_PHYS_AXIL_OFFSET 0x00013000
+#define SENDMSG_AXIF_OFFSET          0x0000A000
+#define C2H_PORT_TO_PHYS_AXIL_OFFSET 0x0000C000
+#define H2C_PORT_TO_PHYS_AXIL_OFFSET 0x0000D000
 
 #define BAR_0 0xf4000000
 
@@ -69,7 +69,7 @@ void * c2h_cpu_addr;
 dma_addr_t c2h_dma_handle;
 
 // TODO this will just cycle around an eventually reallocate ports
-uint16_t ports;
+uint16_t ports = 1;
 
 struct msghdr_send_t {
     char saddr[16];
@@ -114,6 +114,7 @@ void dump_axi_fifo_state(void __iomem * device_regs);
 struct file_operations homanic_fops = {
     .owner          = THIS_MODULE,
     .open           = homanic_open,
+    .release        = homanic_close,
     .mmap           = homanic_mmap
 };
 
@@ -134,6 +135,8 @@ void dump_log(void) {
     uint32_t rdfo;
 
     struct log_entry_t log_entry;
+
+    pr_alert("Dump Log\n");
 
     rdfo = ioread32(log_regs + AXI_STREAM_FIFO_RDFO);
     rlr = ioread32(log_regs + AXI_STREAM_FIFO_RLR);
@@ -202,13 +205,29 @@ int homanic_close(struct inode * inode, struct file * file) {
     // Free the buffers
     // Wipe user data from the device
 
+    int i, j;
+
+    for (i = 0; i < 8; ++i) {
+	printk(KERN_ALERT "Chunk: %d", i);
+	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_cpu_addr) + j + (i*64)));
+    }
+
+    for (i = 0; i < 8; ++i) {
+	printk(KERN_ALERT "Chunk: %d", i);
+	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_cpu_addr) + j + (i*64)));
+    }
+
     pr_info("homanic_close\n");
+
+    dump_log();
+
     return 0;
 }
 
 int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
     int ret = 0;
-    struct page * page;
+    // unsigned long pfn = 0;
+    // struct page * page;
 
     pr_alert("homanic_mmap\n");
 
@@ -219,22 +238,21 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
      */
     switch(iminor(file->f_inode)) {
 	case MINOR_CTL:
+	    pr_alert("device register remap");
 
-	    // Get the page associated with the send message device registers
-	    page = virt_to_page(sendmsg_regs);
-
-	    // TODO what is the appropriate size
-	    ret = remap_pfn_range(vma, vma->vm_start, page_to_pfn(page), 65536, vma->vm_page_prot);
+	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + SENDMSG_AXIL_OFFSET) >> PAGE_SHIFT, 2000000, vma->vm_page_prot);
 
 	    if (ret != 0) {
 		goto exit;
 	    }
 
-	    pr_alert("device register remap");
 	    break;
 
 	case MINOR_H2C:
 	    pr_alert("h2c buffer remap");
+
+	    set_memory_uc((uint64_t) h2c_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	    ret = dma_mmap_coherent(NULL, vma, h2c_cpu_addr, h2c_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
 
@@ -246,6 +264,9 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 
 	case MINOR_C2H:
 	    pr_alert("c2h buffer remap");
+
+	    set_memory_uc((uint64_t) c2h_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	    ret = dma_mmap_coherent(NULL, vma, c2h_cpu_addr, c2h_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
 
@@ -306,6 +327,7 @@ int homanic_init(void) {
     cdev_init(&devs[MINOR_CTL].cdev, &homanic_fops);
     cdev_init(&devs[MINOR_H2C].cdev, &homanic_fops);
     cdev_init(&devs[MINOR_C2H].cdev, &homanic_fops);
+
     cdev_add(&devs[MINOR_CTL].cdev, MKDEV(dev_major, MINOR_CTL), 1);
     cdev_add(&devs[MINOR_H2C].cdev, MKDEV(dev_major, MINOR_H2C), 1);
     cdev_add(&devs[MINOR_C2H].cdev, MKDEV(dev_major, MINOR_C2H), 1);
@@ -336,6 +358,8 @@ int homanic_init(void) {
     h2c_port_to_phys.phys_addr = ((uint64_t) h2c_dma_handle);
     h2c_port_to_phys.port      = ports;
 
+    pr_alert("set port %u\n", ports);
+
     h2c_new_physmap(&h2c_port_to_phys);
 
     c2h_port_to_phys.phys_addr = ((uint64_t) c2h_dma_handle);
@@ -347,7 +371,9 @@ int homanic_init(void) {
 }
 
 void homanic_exit(void) {
+
     pr_info("homanic_exit\n");
+
 
     dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_cpu_addr, h2c_dma_handle);
     dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_cpu_addr, c2h_dma_handle);

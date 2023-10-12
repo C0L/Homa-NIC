@@ -50,8 +50,9 @@ void sendmsg(struct msghdr_send_t * msghdr_send) {
     uint32_t rlr;
     uint32_t rdfo;
 
-    for (i = 0; i < 16; ++i) *((uint32_t *) sendmsg_write) = *(((uint32_t *) msghdr_send) + i );
+    for (i = 0; i < 16; ++i) *((uint32_t *) sendmsg_write) = *(((uint32_t *) msghdr_send) + i);
 
+    printf("sendmsg TDFV: %d\n", *((uint32_t *) (sendmsg_regs + AXI_STREAM_FIFO_TDFV)));
     *((uint32_t *) (sendmsg_regs + AXI_STREAM_FIFO_TLR)) = 64;
 
     rdfo = *((uint32_t *) sendmsg_regs + AXI_STREAM_FIFO_RDFO);
@@ -79,8 +80,8 @@ void print_msghdr(struct msghdr_send_t * msghdr_send) {
 int main() {
 
     int ctl_fd = open("/dev/homa_nic_ctl", O_RDWR|O_SYNC);
-    int h2c_fd = open("/dev/homa_nic_c2h", O_RDWR|O_SYNC);
-    int c2h_fd = open("/dev/homa_nic_h2c", O_RDWR|O_SYNC);
+    int h2c_fd = open("/dev/homa_nic_h2c", O_RDWR|O_SYNC);
+    int c2h_fd = open("/dev/homa_nic_c2h", O_RDWR|O_SYNC);
 
     if (ctl_fd < 0) {
 	perror("Invalid homa_nic_ctl device\n");
@@ -94,7 +95,8 @@ int main() {
 	perror("Invalid homa_nic_c2h device\n");
     }
 
-    ctl_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_LOCKED, ctl_fd, 0);
+
+    ctl_map = mmap(NULL, 2000000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, ctl_fd, 0);
     h2c_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_LOCKED, h2c_fd, 0);
     c2h_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED|MAP_LOCKED, c2h_fd, 0);
 
@@ -113,6 +115,10 @@ int main() {
     sendmsg_regs  = ctl_map + AXIL_OFFSET;
     sendmsg_write = ctl_map + AXIF_OFFSET;
     sendmsg_read  = ctl_map + AXIF_OFFSET + 0x1000;
+
+    printf("sendmsg_regs %p\n", sendmsg_regs);
+    printf("sendmsg_write %p\n", sendmsg_write);
+    printf("sendmsg_read %p\n", sendmsg_read);
 
     struct msghdr_send_t msghdr_send;
 
@@ -137,7 +143,7 @@ int main() {
 
     for (int i = 0; i < 8; ++i) {
 	printf("Chunk %d: ", i);
-	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) h2c_map) + j + (i*64)));
+	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((volatile unsigned char *) h2c_map) + j + (i*64)));
 	printf("\n");
     }
 
@@ -151,9 +157,15 @@ int main() {
 
     for (int i = 0; i < 8; ++i) {
 	printf("Chunk %d: ", i);
-	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_map) + j + (i*64)));
+	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((volatile unsigned char *) c2h_map) + j + (i*64)));
 	printf("\n");
     }
+
+    //for (int i = 0; i < 8; ++i) {
+    //	printf("Chunk %d: ", i);
+    //	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((volatile unsigned char *) h2c_map) + j + (i*64)));
+    //	printf("\n");
+    //}
 
     printf("C2H Message Contents End\n");
 
