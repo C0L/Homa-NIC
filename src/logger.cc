@@ -13,6 +13,7 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
     static log_entry_t circular_log[2048];
     static ap_uint<11> read_head  = 0;
     static ap_uint<11> write_head = 0;
+    static ap_uint<32> count = 0;
 
 #pragma HLS pipeline II=1
 
@@ -21,7 +22,7 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
     new_entry.last = 1;
     bool add_entry = false;
 
-    if (read_head != write_head) {
+    if (read_head != write_head && !log_out_o.full()) {
 	log_entry_t write_entry = circular_log[read_head++];
 	write_entry.last = 1;
 	log_out_o.write(write_entry);
@@ -75,10 +76,14 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
 	add_entry = true;
     }
 
+    new_entry.data(127, 100) = count;
+
     if (add_entry) {
 	circular_log[write_head++] = new_entry;
 	if (write_head == read_head) {
 	    read_head++;
 	}
     }
+
+    count++;
 }

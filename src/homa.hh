@@ -62,24 +62,24 @@ typedef ap_uint<64> host_addr_t;
 
 typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
 
-#define SIG_MSGHDR_SEND_I 0
-#define SIG_MSGHDR_SEND_O 1
-
-#define SIG_MSGHDR_RECV_I 2
-#define SIG_MSGHDR_RECV_O 3
-
-#define SIG_W_CMD_O    4
-#define SIG_W_DATA_O   5
-#define SIG_W_STATUS_I 6
-
-#define SIG_R_CMD_O    7
-#define SIG_R_DATA_I   8
-#define SIG_R_STATUS_I 9
-
-#define SIG_ING_I 10
-#define SIG_EGR_O 11
-
-#define SIG_END 12
+// #define SIG_MSGHDR_SEND_I 0
+// #define SIG_MSGHDR_SEND_O 1
+// 
+// #define SIG_MSGHDR_RECV_I 2
+// #define SIG_MSGHDR_RECV_O 3
+// 
+// #define SIG_W_CMD_O    4
+// #define SIG_W_DATA_O   5
+// #define SIG_W_STATUS_I 6
+// 
+// #define SIG_R_CMD_O    7
+// #define SIG_R_DATA_I   8
+// #define SIG_R_STATUS_I 9
+// 
+// #define SIG_ING_I 10
+// #define SIG_EGR_O 11
+// 
+// #define SIG_END 12
 
 #define STREAM_DEPTH 2
 

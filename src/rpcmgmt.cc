@@ -145,6 +145,7 @@ void rpc_state(
 	homa_rpc.buff_addr = onboard_send.buff_addr;
 	homa_rpc.buff_size = onboard_send.buff_size;
 	homa_rpc.id        = onboard_send.id;
+	homa_rpc.h2c_buff_id = onboard_send.h2c_buff_id;
 
 	rpcs[onboard_send.local_id] = homa_rpc;
 
