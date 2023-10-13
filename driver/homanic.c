@@ -8,6 +8,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/pci.h>
 #include <linux/set_memory.h>
+#include <linux/ioctl.h>
 
 #define AXI_STREAM_FIFO_ISR  0x00 // Interrupt Status Register (r/clear on w)
 #define AXI_STREAM_FIFO_IER  0x04 // Interrupt Enable Register (r/w)
@@ -44,6 +45,8 @@
 #define MAX_MINOR 3
 
 #define HOMA_MAX_MESSAGE_LENGTH 1000000 // The maximum number of bytes in a single message
+
+#define IOCTL_DMA_DUMP 0
 
 struct pci_dev * pdev;
 
@@ -104,6 +107,7 @@ int     homanic_open(struct inode *, struct file *);
 ssize_t homanic_read(struct file *, char *, size_t, loff_t *);
 int     homanic_close(struct inode *, struct file *);
 int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
+long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
 
 /* Helper Functions */
 void dump_log(void);
@@ -115,7 +119,8 @@ struct file_operations homanic_fops = {
     .owner          = THIS_MODULE,
     .open           = homanic_open,
     .release        = homanic_close,
-    .mmap           = homanic_mmap
+    .mmap           = homanic_mmap,
+    .unlocked_ioctl = homanic_ioctl
 };
 
 struct device_data {
@@ -208,21 +213,42 @@ int homanic_close(struct inode * inode, struct file * file) {
     int i, j;
 
     for (i = 0; i < 8; ++i) {
-	printk(KERN_ALERT "Chunk: %d", i);
+	printk(KERN_ALERT "Chunk %d: ", i);
 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_cpu_addr) + j + (i*64)));
     }
 
     for (i = 0; i < 8; ++i) {
-	printk(KERN_ALERT "Chunk: %d", i);
+	printk(KERN_ALERT "Chunk %d: ", i);
 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_cpu_addr) + j + (i*64)));
     }
 
     pr_info("homanic_close\n");
 
-    dump_log();
+    // dump_log();
 
     return 0;
 }
+
+long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioctl_param) {
+    int i, j;
+
+    switch(ioctl_num) {
+	case IOCTL_DMA_DUMP:
+	    dump_log();
+	    for (i = 0; i < 8; ++i) {
+		printk(KERN_ALERT "Chunk %d: ", i);
+		for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_cpu_addr) + j + (i*64)));
+	    }
+	    
+	    for (i = 0; i < 8; ++i) {
+		printk(KERN_ALERT "Chunk %d: ", i);
+		for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_cpu_addr) + j + (i*64)));
+	    }
+    }
+
+    return 0;
+}
+
 
 int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
     int ret = 0;
@@ -374,7 +400,6 @@ void homanic_exit(void) {
 
     pr_info("homanic_exit\n");
 
-
     dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_cpu_addr, h2c_dma_handle);
     dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_cpu_addr, c2h_dma_handle);
 
@@ -398,5 +423,5 @@ void homanic_exit(void) {
 }
 
 module_init(homanic_init)
-module_exit(homanic_exit)
-MODULE_LICENSE("GPL");
+    module_exit(homanic_exit)
+    MODULE_LICENSE("GPL");
