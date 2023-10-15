@@ -123,7 +123,7 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
  */
 void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 		  hls::stream<msghdr_send_t> & msghdr_send_o,
-		  hls::stream<onboard_send_t> & onboard_send_o) {
+		  hls::stream<homa_rpc_t> & onboard_send_o) {
 
 #pragma HLS pipeline II=1
 
@@ -147,7 +147,8 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 
     msghdr_send_i.read(msghdr_send);
 
-    onboard_send_t onboard_send;
+    // TODO this shuffling is very unfortunate
+    homa_rpc_t onboard_send;
     onboard_send.saddr          = msghdr_send.data(MSGHDR_SADDR);
     onboard_send.daddr          = msghdr_send.data(MSGHDR_DADDR);
     onboard_send.sport          = msghdr_send.data(MSGHDR_SPORT);
@@ -178,8 +179,8 @@ void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
 /* A sendmsg request causes a buffer to be selected in the hosts mem */
 void h2c_address_map(
     hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
-    hls::stream<onboard_send_t> & sendmsg_i,
-    hls::stream<onboard_send_t> & sendmsg_o,
+    hls::stream<homa_rpc_t> & sendmsg_i,
+    hls::stream<homa_rpc_t> & sendmsg_o,
     hls::stream<srpt_queue_entry_t> & dma_r_req_i,
     hls::stream<dma_r_req_t> & dma_r_req_o
     ) {
@@ -213,7 +214,7 @@ void h2c_address_map(
 	h2c_port_to_phys[new_h2c_port_to_phys(PORT_TO_PHYS_PORT)] = new_h2c_port_to_phys(PORT_TO_PHYS_ADDR);
     }
 
-    onboard_send_t sendmsg;
+    homa_rpc_t sendmsg;
     if (sendmsg_i.read_nb(sendmsg)) {
 	h2c_rpc_to_offset[sendmsg.local_id] = (sendmsg.buff_addr << 1) | 1;
 	// HACK: This state should not be here

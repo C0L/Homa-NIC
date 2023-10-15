@@ -80,8 +80,8 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__homa_recvmsg;
    
     /* sendmsg streams */
-    hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__address_map__rpc_state;
-    hls_thread_local hls::stream<onboard_send_t, STREAM_DEPTH> sendmsg__homa_sendmsg__address_map;
+    hls_thread_local hls::stream<homa_rpc_t, STREAM_DEPTH> sendmsg__address_map__rpc_state;
+    hls_thread_local hls::stream<homa_rpc_t, STREAM_DEPTH> sendmsg__homa_sendmsg__address_map;
 
     /* out chunk streams */
     hls_thread_local hls::stream<h2c_chunk_t, STREAM_DEPTH> out_chunk__chunk_egress__dbuff_egress;

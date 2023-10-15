@@ -4,10 +4,11 @@
 using namespace hls;
 
 /**
+ * TODO revise
  * rpc_state() - Maintains state associated with an RPC and augments
  *   flows with that state when needed. There are 3 actions taken by
  *   the core: 1) Incorporating new sendmsg requests: New sendmsg
- *   requests arrive on the onboard_send_i stream. Their data is
+ *   requests arrive on the sendmsg_i stream. Their data is
  *   gathered and inserted into the table at the index specified by
  *   the RPC ID. The sendmsg is then passed to the srpt data core so
  *   that it can be scheduled to be sent.
@@ -27,17 +28,21 @@ using namespace hls;
  *   is forwarded to the srpt data queue, indicating it may have more
  *   bytes to transmit.
  *
- * @onboard_send_i - Input for sendmsg requests
- * @onboard_send_o - Output for sendmsg requests
- * @header_out_i   - Input for outgoing headers
- * @header_out_o   - Output for outgoing headers 
- * @header_in_i    - Input for incoming headers
- * @header_in_o    - Output for incoming headers 
- * @grant_in_o     - Output for forwarding data to SRPT grant queue
- * @data_srpt_o    - Output for forwarding data to the SRPT data queue
+ * @sendmsg_i      - Input for sendmsg requests
+ * @data_entry_o   - Output to create entries in the SRPT data queue
+ * @fetch_entry_o  - Output to create entries in the SRPT fetch queue
+ * @h2c_header_i   - Input for headers to link
+ * @h2c_header_o   - Output for headers to link 
+ * @c2h_header_i   - Input for headers from link
+ * @c2h_header_o   - Output for headers from headers 
+ * @grant_update_o - Output for creating entries/updating SRPT grant queue
+ * @data_update_o  - Output for creating updates in the SRPT data queue
+ * @h2c_pkt_log_o  - Log output for host-to-card events
+ * @c2h_pkt_log_o  - Log output for card-to-host events
+ * 
  */
 void rpc_state(
-    hls::stream<onboard_send_t> & onboard_send_i,
+    hls::stream<homa_rpc_t> & sendmsg_i,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
     hls::stream<header_t> & h2c_header_i,
@@ -50,22 +55,41 @@ void rpc_state(
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
     ) {
 
-    // TODO The tables for client and server can be totally independent?
-    // This makes the write operations eaisier?
-    static homa_rpc_t rpcs[MAX_RPCS];
+    /* TODO: this is potentially not densely utilized because of paritiy of
+     * rpc IDs for client vs server.
+     */ 
+    static homa_rpc_t client_rpcs[MAX_RPCS];
+    static homa_rpc_t server_rpcs[MAX_RPCS];
 
 #pragma HLS pipeline II=1
 
-#pragma HLS dependence variable=rpcs inter WAR false
-#pragma HLS dependence variable=rpcs inter RAW false
+    // TODO is this potentially risky with OOO small packets
+#pragma HLS dependence variable=client_rpcs inter WAR false
+#pragma HLS dependence variable=client_rpcs inter RAW false
+#pragma HLS dependence variable=server_rpcs inter WAR false
+#pragma HLS dependence variable=server_rpcs inter RAW false
 
-    onboard_send_t onboard_send;
-    header_t c2h_header;
+    /* For this core to be performant we need to ensure that only a
+     * single execution path results in a write to a BRAM. This is
+     * neccesary because the BRAMs are limited in the number of write
+     * ports. Because we can arbitarily duplicate data we can have as
+     * many read only paths as we please.
+     *
+     * To simplify this logic we break the RPC state into two blocks
+     * of BRAMs, ones for clients and ones for servers. The clients
+     * BRAMs need only be written when there is a new send message
+     * REQUEST initiated by the user. A sendmsg RESPONSE will simply
+     * reuse the entry in the server BRAMs. The server BRAMs need only
+     * be written when there is unrequested bytes for a message that
+     * we have not yet seen before.
+     */
 
-    /* RO Paths */
+    /* read only paths */
     header_t h2c_header;
     if (h2c_header_i.read_nb(h2c_header)) {
-	homa_rpc_t homa_rpc = rpcs[h2c_header.local_id];
+
+	// Is this a REQUEST or RESPONSE
+	homa_rpc_t homa_rpc = (IS_CLIENT(h2c_header.id)) ? client_rpcs[h2c_header.local_id] : server_rpcs[h2c_header.local_id];
 
 	h2c_header.daddr = homa_rpc.daddr;
 	h2c_header.dport = homa_rpc.dport;
@@ -73,101 +97,120 @@ void rpc_state(
 	h2c_header.sport = homa_rpc.sport;
 	h2c_header.id    = homa_rpc.id;
 
-	// TODO will need to move
+	// Log the packet type we are sending
+	h2c_pkt_log_o.write((h2c_header.type == DATA) ? LOG_DATA_OUT : LOG_GRANT_OUT);
+
+	// Get the location of buffered data and prepare for packet construction
 	h2c_header.h2c_buff_id    = homa_rpc.h2c_buff_id;
 	h2c_header.incoming       = homa_rpc.buff_size - h2c_header.incoming;
 	h2c_header.data_offset    = homa_rpc.buff_size - h2c_header.data_offset;
 	h2c_header.message_length = homa_rpc.buff_size;
 
 	h2c_header_o.write_nb(h2c_header);
+    }
 
-	if (h2c_header.type == DATA) {
-	    h2c_pkt_log_o.write(LOG_DATA_OUT);
-	} else if (h2c_header.type == GRANT) {
-	    h2c_pkt_log_o.write(LOG_GRANT_OUT);
+    /* write paths */
+    header_t c2h_header;
+    if (c2h_header_i.read_nb(c2h_header)) {
+
+	/* If we are the client then the entry already exists inside
+	 * rpc_client. If we are the server then the entry needs to be
+	 * created inside rpc_server if this is the first packet received
+	 * for a message. If it is not the first message then the entry
+	 * already exists in server_rpcs.
+	 */
+	if (!IS_CLIENT(c2h_header.id)) {
+
+	    if ((c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
+		homa_rpc_t homa_rpc;
+
+		homa_rpc.saddr = c2h_header.saddr;
+		homa_rpc.daddr = c2h_header.daddr;
+		homa_rpc.dport = c2h_header.dport;
+		homa_rpc.sport = c2h_header.sport;
+		homa_rpc.id    = c2h_header.id;
+
+		server_rpcs[c2h_header.local_id] = homa_rpc;
+	    } else {
+		homa_rpc_t homa_rpc = server_rpcs[c2h_header.local_id];
+
+		c2h_header.id = homa_rpc.id;
+	    }
 	}
-    } else if (c2h_header_i.read_nb(c2h_header)) { // TODO return this to parallel
-
-	homa_rpc_t homa_rpc = rpcs[c2h_header.local_id];
 
 	switch (c2h_header.type) {
 	    case DATA: {
-		if ((c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
-		    homa_rpc.saddr = c2h_header.saddr;
-		    homa_rpc.daddr = c2h_header.daddr;
-		    homa_rpc.dport = c2h_header.dport;
-		    homa_rpc.sport = c2h_header.sport;
-		    homa_rpc.id    = c2h_header.id;
-		} else {
-		    c2h_header.id = homa_rpc.id;
-		}
+		// Will this message ever need grants?
+		if (c2h_header.message_length > c2h_header.incoming) {
 
-		if (c2h_header.message_length > c2h_header.incoming) { 
+		    // TODO convert this to srpt_queue_entry
 		    srpt_grant_new_t grant_in;
-		    // grant_in(SRPT_GRANT_NEW_OFFSET)  = header_in.data_offset;
 		    grant_in(SRPT_GRANT_NEW_MSG_LEN) = c2h_header.message_length;
 		    grant_in(SRPT_GRANT_NEW_RPC_ID)  = c2h_header.local_id;
 		    grant_in(SRPT_GRANT_NEW_PEER_ID) = c2h_header.peer_id;
 		    grant_in(SRPT_GRANT_NEW_PMAP)    = c2h_header.packetmap;
-
+		    
 		    // Notify the grant queue of this receipt
 		    grant_srpt_o.write(grant_in); 
 		} 
-
+		
 		// Instruct the data buffer where to write this message's data
 		c2h_header_o.write(c2h_header);
 
+		// Log the receipt of a data packet
 		c2h_pkt_log_o.write(LOG_DATA_OUT);
-
+		
 		break;
 	    }
-
+		
 	    case GRANT: {
 		srpt_queue_entry_t srpt_grant_notif;
-		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)  = c2h_header.local_id;
-		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED) = c2h_header.grant_offset;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)   = c2h_header.local_id;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED)  = c2h_header.grant_offset;
 		srpt_grant_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_GRANT_UPDATE;
+
+		// Instruct the SRPT data of the new grant
 		data_srpt_o.write(srpt_grant_notif);
 
-		h2c_pkt_log_o.write(LOG_GRANT_OUT);
-
+		// Log the receipt of the grant packet
+		c2h_pkt_log_o.write(LOG_GRANT_OUT);
+		
 		break;
 	    }
+	} 
+    } 
+
+    homa_rpc_t sendmsg;
+    if (sendmsg_i.read_nb(sendmsg)) {
+
+	if (IS_CLIENT(sendmsg.id)) {
+	    client_rpcs[sendmsg.local_id] = sendmsg;
 	}
 
-	rpcs[c2h_header.local_id] = homa_rpc;
-    } else if (onboard_send_i.read_nb(onboard_send)) { // TODO This does not need to be here
-	homa_rpc_t homa_rpc;
-	homa_rpc.daddr     = onboard_send.daddr;
-	homa_rpc.dport     = onboard_send.dport;
-	homa_rpc.saddr     = onboard_send.saddr;
-	homa_rpc.sport     = onboard_send.sport;
-	homa_rpc.buff_addr = onboard_send.buff_addr;
-	homa_rpc.buff_size = onboard_send.buff_size;
-	homa_rpc.id        = onboard_send.id;
-	homa_rpc.h2c_buff_id = onboard_send.h2c_buff_id;
+	// TODO so much type shuffling here.... Some sort of ctor?
 
-	rpcs[onboard_send.local_id] = homa_rpc;
-
-	srpt_queue_entry_t srpt_data_in;
-	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = onboard_send.buff_size;
+      	srpt_queue_entry_t srpt_data_in;
+	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = sendmsg.local_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = sendmsg.h2c_buff_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = sendmsg.buff_size;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = sendmsg.buff_size;
 	// TODO would be cleaner if we could just set this to RTT_BYTES
-	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)  = onboard_send.buff_size - ((((ap_uint<32>) RTT_BYTES) > onboard_send.buff_size)
-									 ? onboard_send.buff_size : ((ap_uint<32>) RTT_BYTES));
-	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_ACTIVE;
+	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)   = sendmsg.buff_size - ((((ap_uint<32>) RTT_BYTES) > sendmsg.buff_size)
+									     ? sendmsg.buff_size : ((ap_uint<32>) RTT_BYTES));
+	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
 
+	// Insert this entry into the SRPT data queue
 	data_queue_o.write(srpt_data_in);
 
 	srpt_queue_entry_t srpt_fetch_in = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = onboard_send.local_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = onboard_send.h2c_buff_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = onboard_send.buff_size;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = sendmsg.local_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = sendmsg.h2c_buff_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = sendmsg.buff_size;
 	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
 	srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
 	srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
+
+	// Insert this entry into the SRPT fetch queue
 	fetch_queue_o.write(srpt_fetch_in);
     }
 }
@@ -200,7 +243,6 @@ void id_map(hls::stream<header_t> & header_in_i,
     // hash(dest addr) -> peer ID
     static hashmap_t<peer_hashpack_t, peer_id_t, PEER_BUCKETS, PEER_BUCKET_SIZE, PEER_SUB_TABLE_INDEX, PEER_HP_SIZE> peer_hashmap;
 
-    onboard_send_t onboard_send;
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {

@@ -7,7 +7,7 @@
 #include "stack.hh"
 
 void rpc_state(
-    hls::stream<onboard_send_t> & onboard_send_i,
+    hls::stream<homa_rpc_t> & onboard_send_i,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
     hls::stream<header_t> & h2c_header_i,

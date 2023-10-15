@@ -22,17 +22,6 @@
 #define AM_CMD_TAG   83,80
 #define AM_CMD_RSVD  87,84
 
-// 64 bit
-// #define AM_CMD_SIZE  104
-// #define AM_CMD_BTT   22,0
-// #define AM_CMD_TYPE  23,23
-// #define AM_CMD_DSA   29,24
-// #define AM_CMD_EOF   30,30
-// #define AM_CMD_DRR   31,31
-// #define AM_CMD_SADDR 95,32
-// #define AM_CMD_TAG   99,96
-// #define AM_CMD_RSVD  103,100
-
 typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 
 #define AM_STATUS_SIZE   8
@@ -61,25 +50,6 @@ typedef ap_uint<32> msg_addr_t;
 typedef ap_uint<64> host_addr_t;
 
 typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
-
-// #define SIG_MSGHDR_SEND_I 0
-// #define SIG_MSGHDR_SEND_O 1
-// 
-// #define SIG_MSGHDR_RECV_I 2
-// #define SIG_MSGHDR_RECV_O 3
-// 
-// #define SIG_W_CMD_O    4
-// #define SIG_W_DATA_O   5
-// #define SIG_W_STATUS_I 6
-// 
-// #define SIG_R_CMD_O    7
-// #define SIG_R_DATA_I   8
-// #define SIG_R_STATUS_I 9
-// 
-// #define SIG_ING_I 10
-// #define SIG_EGR_O 11
-// 
-// #define SIG_END 12
 
 #define STREAM_DEPTH 2
 
@@ -332,7 +302,7 @@ struct touch_t {
 #define CHUNK_HOMA_COMMON_SENDER_ID 431,368
 
 /* Offsets within the second 64B chunk of a packet where DATA header
- * infomration will be placed. These offsets are relative to the second
+ * information will be placed. These offsets are relative to the second
  * 64B chunk! Not the packet as a whole.
  */
 #define CHUNK_HOMA_DATA_MSG_LEN     367,336
@@ -433,21 +403,6 @@ struct h2c_chunk_t {
     ap_uint<1> last;           // Is this the last chunk in the sequence
 };
 
-/**
- * struct homa_rpc_t - State associated with and RPC
- */
-struct homa_rpc_t {
-    ap_uint<128> saddr;         // Address of sender (sendmsg) or receiver (recvmsg)
-    ap_uint<128> daddr;         // Address of receiver (sendmsg) or sender (recvmsg)
-    ap_uint<16>  dport;         // Port of sender (sendmsg) or receiver (recvmsg)
-    ap_uint<16>  sport;         // Port of sender (sendmsg) or receiver (recvmsg)
-    ap_uint<64>  id;            // RPC ID (always local)
-    msg_addr_t   buff_addr;     // Buffer offset at phys addr associated with this port
-    ap_uint<32>  buff_size;     // Size of the message to send
-    // TODO must this be stored in here? It is already in the SRPT_DATA_NEW!?!
-    dbuff_id_t   h2c_buff_id;   //
-};
-
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
  * recvmsg requests that form the msghdr
  */
@@ -516,24 +471,25 @@ struct recv_interest_t {
  * requests into the system. This data is distributed to the rpc_map,
  * rpc_state, and eventually the srpt_data core to be sent.
  */
-struct onboard_send_t {
+
+/**
+ * struct homa_rpc_t - State associated with and RPC
+ */
+struct homa_rpc_t {
     ap_uint<128> saddr;      // Address of sender (sendmsg) or receiver (recvmsg)
     ap_uint<128> daddr;      // Address of receiver (sendmsg) or sender (recvmsg)
-    ap_uint<16>  sport;      // Port of sender (sendmsg) or receiver (recvmsg) 
     ap_uint<16>  dport;      // Port of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<16>  sport;      // Port of sender (sendmsg) or receiver (recvmsg)
+    ap_uint<64>  id;         // RPC ID (always local)
     msg_addr_t   buff_addr;  // Message contents DMA offset
-    ap_uint<32>  buff_size;  // Size of message in DMA space 
-
-    ap_uint<64>  id;         // RPC identifier 
+    ap_uint<32>  buff_size;  // Size of message in DMA space
     ap_uint<64>  cc;         // Completion Cookie
 
-    // ap_uint<32> dbuffered;
-    // ap_uint<32> granted; ?? 
-     
     local_id_t  local_id;    // Local RPC ID 
     dbuff_id_t  h2c_buff_id; // Data buffer ID for outgoing data
     peer_id_t   peer_id;     // Local ID for this destination address
 };
+
 
 /**
  * struct header_t - This structure is passed around for outgoing and

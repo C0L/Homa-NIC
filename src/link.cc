@@ -80,6 +80,10 @@ void next_pkt_selector(hls::stream<srpt_queue_entry_t> & data_pkt_i,
 void pkt_builder(hls::stream<header_t> & header_out_i,
 		 hls::stream<h2c_chunk_t> & chunk_out_o) {
 
+    // TODO use a struct with all the elements then fill it in 64
+    // bytes at a time and cast it to a large ap_uint and take the
+    // respective chunk??
+
 #pragma HLS pipeline II=1 style=flp
 
     static header_t header;
@@ -130,13 +134,13 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    out_chunk.keep  = 64;
 		} else if (processed_bytes == 64) {
 		    // Rest of common header
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                    // Unused (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;                 // doff (4 byte chunks in data header)
-		    natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = DATA;                 // Type
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                    // Unused (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                    // Checksum (unused) (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                    // Unused  (2 bytes) 
-		    natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header.id;            // Sender ID
+		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                  // Unused (2 bytes)
+		    natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;               // doff (4 byte chunks in data header)
+		    natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = DATA;               // Type
+		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                  // Unused (2 bytes)
+		    natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                  // Checksum (unused) (2 bytes)
+		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                  // Unused  (2 bytes) 
+		    natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header.id;          // Sender ID
 
 		    // Data header
 		    natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = header.message_length; // Message Length (entire message)
