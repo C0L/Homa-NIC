@@ -42,7 +42,10 @@ using namespace hls;
  * 
  */
 void rpc_state(
-    hls::stream<homa_rpc_t> & sendmsg_i,
+    // hls::stream<homa_rpc_t> & sendmsg_i,
+    // hls::stream<homa_rpc_t> & sendmsg_i,
+    hls::stream<msghdr_send_t> & msghdr_send_i,
+    hls::stream<msghdr_send_t> & msghdr_send_o,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
     hls::stream<header_t> & h2c_header_i,
@@ -51,6 +54,8 @@ void rpc_state(
     hls::stream<header_t> & c2h_header_o,
     hls::stream<srpt_grant_new_t> & grant_srpt_o,
     hls::stream<srpt_queue_entry_t> & data_srpt_o,
+    hls::stream<srpt_queue_entry> & dbuff_notif_i,
+    hls::stream<srpt_queue_entry> & dbuff_notif_o,
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
     ) {
@@ -61,9 +66,13 @@ void rpc_state(
     static homa_rpc_t client_rpcs[MAX_RPCS];
     static homa_rpc_t server_rpcs[MAX_RPCS];
 
+    static stack_t<local_id_t, MAX_RPCS> client_ids(STACK_EVEN);
+
+
 #pragma HLS pipeline II=1
 
     // TODO is this potentially risky with OOO small packets
+    // Can maybe do a small sort of rebuffering if needed?
 #pragma HLS dependence variable=client_rpcs inter WAR false
 #pragma HLS dependence variable=client_rpcs inter RAW false
 #pragma HLS dependence variable=server_rpcs inter WAR false
@@ -107,6 +116,29 @@ void rpc_state(
 	h2c_header.message_length = homa_rpc.buff_size;
 
 	h2c_header_o.write_nb(h2c_header);
+    }
+
+
+    // TODO get rid of dbuff id in the queue implementation
+    srpt_queue_entry_t dbuff_notif;
+    if (dbuff_notif_i.read_nb(dbuff_notif)) {
+	// TODO sanitize IDs to make sure they refer to a valid entry??
+
+	homa_rpc_t homa_rpc = (IS_CLIENT(h2c_header.id)) ? client_rpcs[h2c_header.local_id] : server_rpcs[h2c_header.local_id];
+
+	ap_uint<32> dbuff_offset = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
+
+	// ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.msg_addr + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID) = homa_rpc.h2c_buff_id;
+	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_DBUFF_UPDATE;
+
+	if (dbuff_offset + DBUFF_CHUNK_SIZE < homa_rpc.buff_size) {
+	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = homa_rpc.buff_size - dbuff_offset + DBUFF_CHUNK_SIZE;
+	} else {
+	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
+	}
+
+	dbuff_notif_o.write(dbuff_notif);
     }
 
     /* write paths */

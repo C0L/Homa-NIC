@@ -121,59 +121,59 @@ void homa_recvmsg(hls::stream<msghdr_recv_t> & msghdr_recv_i,
  * the previous sendmsg request
  * @onboard_send_o - Path to prime the system to send the new message
  */
-void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
-		  hls::stream<msghdr_send_t> & msghdr_send_o,
-		  hls::stream<homa_rpc_t> & onboard_send_o) {
-
-#pragma HLS pipeline II=1
-
-    static stack_t<local_id_t, MAX_RPCS> client_ids(STACK_EVEN);
-
-    /* Eventually we want the SRPT data core to deallocate a buffer
-     * when it becomes the 64th or 128th most desirable RPC. If the
-     * dbuff IDs were hard coded into the entries in the queue then this
-     * would be very challenging, so instead they are managed from here.
-     * The deallocation process within the SRPT queue works by just
-     * setting the number of dbuffered bytes to zero when an entry
-     * exists the active set.
-     *
-     * The top 64 entries of the SRPT queue should be assigned an ID
-     * in the databuffer. They can be created at the time the entry is
-     * added to the queue. As another check in the swap operation, an
-     * entry can steal another entries ID.
-     */
-    static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(STACK_ALL);
-    msghdr_send_t msghdr_send;
-
-    msghdr_send_i.read(msghdr_send);
-
-    // TODO this shuffling is very unfortunate
-    homa_rpc_t onboard_send;
-    onboard_send.saddr          = msghdr_send.data(MSGHDR_SADDR);
-    onboard_send.daddr          = msghdr_send.data(MSGHDR_DADDR);
-    onboard_send.sport          = msghdr_send.data(MSGHDR_SPORT);
-    onboard_send.dport          = msghdr_send.data(MSGHDR_DPORT);
-    onboard_send.buff_addr      = msghdr_send.data(MSGHDR_BUFF_ADDR);
-    onboard_send.buff_size      = msghdr_send.data(MSGHDR_BUFF_SIZE);
-    onboard_send.cc             = msghdr_send.data(MSGHDR_SEND_CC);
-    onboard_send.h2c_buff_id    = msg_cache_ids.pop();
-
-    /* If the caller provided an ID of 0 this is a request message and we
-     * need to generate a new local ID. Otherwise, this is a response
-     * message and the ID is already valid in homa_rpc buffer
-     */
-    if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
-	// Generate a new local ID, and set the RPC ID to be that
-	onboard_send.local_id            = client_ids.pop();
-	onboard_send.id                  = onboard_send.local_id;
-	msghdr_send.data(MSGHDR_SEND_ID) = onboard_send.id;
-    }
-
-    msghdr_send.last = 1;
-    msghdr_send_o.write(msghdr_send);
-
-    onboard_send_o.write(onboard_send);
-}
+// void homa_sendmsg(hls::stream<msghdr_send_t> & msghdr_send_i,
+// 		  hls::stream<msghdr_send_t> & msghdr_send_o,
+// 		  hls::stream<homa_rpc_t> & onboard_send_o) {
+// 
+// #pragma HLS pipeline II=1
+// 
+//     static stack_t<local_id_t, MAX_RPCS> client_ids(STACK_EVEN);
+// 
+//     /* Eventually we want the SRPT data core to deallocate a buffer
+//      * when it becomes the 64th or 128th most desirable RPC. If the
+//      * dbuff IDs were hard coded into the entries in the queue then this
+//      * would be very challenging, so instead they are managed from here.
+//      * The deallocation process within the SRPT queue works by just
+//      * setting the number of dbuffered bytes to zero when an entry
+//      * exists the active set.
+//      *
+//      * The top 64 entries of the SRPT queue should be assigned an ID
+//      * in the databuffer. They can be created at the time the entry is
+//      * added to the queue. As another check in the swap operation, an
+//      * entry can steal another entries ID.
+//      */
+//     static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(STACK_ALL);
+//     msghdr_send_t msghdr_send;
+// 
+//     msghdr_send_i.read(msghdr_send);
+// 
+//     // TODO this shuffling is very unfortunate
+//     homa_rpc_t onboard_send;
+//     onboard_send.saddr          = msghdr_send.data(MSGHDR_SADDR);
+//     onboard_send.daddr          = msghdr_send.data(MSGHDR_DADDR);
+//     onboard_send.sport          = msghdr_send.data(MSGHDR_SPORT);
+//     onboard_send.dport          = msghdr_send.data(MSGHDR_DPORT);
+//     onboard_send.buff_addr      = msghdr_send.data(MSGHDR_BUFF_ADDR);
+//     onboard_send.buff_size      = msghdr_send.data(MSGHDR_BUFF_SIZE);
+//     onboard_send.cc             = msghdr_send.data(MSGHDR_SEND_CC);
+//     onboard_send.h2c_buff_id    = msg_cache_ids.pop();
+// 
+//     /* If the caller provided an ID of 0 this is a request message and we
+//      * need to generate a new local ID. Otherwise, this is a response
+//      * message and the ID is already valid in homa_rpc buffer
+//      */
+//     if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
+// 	// Generate a new local ID, and set the RPC ID to be that
+// 	onboard_send.local_id            = client_ids.pop();
+// 	onboard_send.id                  = onboard_send.local_id;
+// 	msghdr_send.data(MSGHDR_SEND_ID) = onboard_send.id;
+//     }
+// 
+//     msghdr_send.last = 1;
+//     msghdr_send_o.write(msghdr_send);
+// 
+//     onboard_send_o.write(onboard_send);
+// }
 
 
 /* A sendmsg request causes a buffer to be selected in the hosts mem */

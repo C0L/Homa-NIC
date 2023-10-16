@@ -150,15 +150,15 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 
 	dbuff[dbuff_in.dbuff_id][chunk_offset] = dbuff_in.data;
 
-	// TODO this is problematic here
-	ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.msg_addr + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
+	// TODO can now remove msg_len from dbuffered
+	// ap_uint<32> dbuffered = dbuff_in.msg_len - MIN((ap_uint<32>) (dbuff_in.msg_addr + (ap_uint<32>) DBUFF_CHUNK_SIZE), dbuff_in.msg_len);
 
-	// TODO this is a little overwhelming to the SRPT queue, fix
+	// TODO this is a little overwhelming to the SRPT queue if a notif is sent always
 	// if (dbuff_in.last) {
 	srpt_queue_entry_t dbuff_notif;
 	dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuffered;
-	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_DBUFF_UPDATE;
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_in.msg_addr; // TODO not a misleading name
+
 	dbuff_notif_o.write(dbuff_notif);
 
 	dbuff_notif_log_o.write(LOG_DBUFF_NOTIF | dbuffered);
@@ -177,7 +177,7 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 	    ap_uint<1024> double_buff = (dbuff[out_chunk.h2c_buff_id][chunk_offset+1], dbuff[out_chunk.h2c_buff_id][chunk_offset]);
 
 	    // TODO does this do anything???
-#pragma HLS array_partition variable=double_buff complete
+// #pragma HLS array_partition variable=double_buff complete
 
 	    out_chunk.data(511, (512 - (out_chunk.width*8))) = double_buff(((byte_offset + out_chunk.width) * 8) - 1, byte_offset * 8);
 	}

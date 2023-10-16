@@ -37,21 +37,21 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
 	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i, hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
 	  hls::stream<log_entry_t> & log_out_o) {
 
-#pragma HLS interface axis port=msghdr_send_i    depth=64
-#pragma HLS interface axis port=msghdr_recv_i    depth=64
-#pragma HLS interface axis port=w_status_queue_i depth=64
-#pragma HLS interface axis port=r_data_queue_i   depth=64
-#pragma HLS interface axis port=r_status_queue_i depth=64
-#pragma HLS interface axis port=link_ingress_i   depth=64
-#pragma HLS interface axis port=msghdr_send_o    depth=64
-#pragma HLS interface axis port=msghdr_recv_o    depth=64
-#pragma HLS interface axis port=w_cmd_queue_o    depth=64
-#pragma HLS interface axis port=w_data_queue_o   depth=64
-#pragma HLS interface axis port=r_cmd_queue_o    depth=64
-#pragma HLS interface axis port=link_egress_o    depth=64
-#pragma HLS interface axis port=h2c_port_to_phys_i depth=64
-#pragma HLS interface axis port=c2h_port_to_phys_i depth=64
-#pragma HLS interface axis port=log_out_o depth=64
+#pragma HLS interface axis port=msghdr_send_i
+#pragma HLS interface axis port=msghdr_recv_i
+#pragma HLS interface axis port=w_status_queue_i
+#pragma HLS interface axis port=r_data_queue_i
+#pragma HLS interface axis port=r_status_queue_i
+#pragma HLS interface axis port=link_ingress_i
+#pragma HLS interface axis port=msghdr_send_o
+#pragma HLS interface axis port=msghdr_recv_o
+#pragma HLS interface axis port=w_cmd_queue_o
+#pragma HLS interface axis port=w_data_queue_o
+#pragma HLS interface axis port=r_cmd_queue_o 
+#pragma HLS interface axis port=link_egress_o
+#pragma HLS interface axis port=h2c_port_to_phys_i
+#pragma HLS interface axis port=c2h_port_to_phys_i
+#pragma HLS interface axis port=log_out_o
 
 #pragma HLS interface mode=ap_ctrl_none port=return
 
@@ -97,9 +97,11 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
     /* grant SRPT streams */
     hls_thread_local hls::stream<srpt_grant_send_t, STREAM_DEPTH> grant__srpt_grant__egress_sel;
 
-    /* data SRPT streams */
+    /* h2c databuffer streams */
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel;
-    hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dbuff_notif__dbuff_egress__srpt_data ;
+    hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dbuff_notif__h2c_databuff__rpc_state;
+    hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dbuff_notif__rpc_state__srpt_data;
+
 
     /* dma streams */
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dma_req__srpt_data__address_map;
@@ -113,7 +115,6 @@ void homa(hls::stream<msghdr_send_t> & msghdr_send_i, hls::stream<msghdr_send_t>
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_fetch;
 
-    //  hls_thread_local hls::stream<srpt_data_new_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state;
     hls_thread_local hls::stream<srpt_grant_new_t, STREAM_DEPTH> grant__rpc_state__srpt_grant;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> header_in__rpc_state__srpt_data;
