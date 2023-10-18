@@ -63,6 +63,7 @@ void rpc_state(
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
     ) {
+// #pragma HLS latency max=6
 
     // TODO start thrrowing some of this stuff in functions
 
@@ -102,16 +103,13 @@ void rpc_state(
 
 //#pragma HLS dependence variable=rpc_hashmap inter WAR false
 //#pragma HLS dependence variable=rpc_hashmap inter RAW false
-////
 //#pragma HLS dependence variable=peer_hashmap inter WAR false
 //#pragma HLS dependence variable=peer_hashmap inter RAW false
-
+//
 //#pragma HLS dependence variable=rpc_hashmap intra WAR false
 //#pragma HLS dependence variable=rpc_hashmap intra RAW false
-////
 //#pragma HLS dependence variable=peer_hashmap intra WAR false
 //#pragma HLS dependence variable=peer_hashmap intra RAW false
-
 
     // TODO this core handles long term state and resource mgmt
 
@@ -236,7 +234,6 @@ void rpc_state(
     }
 
 
-    // TODO cam + insertion FIFO. cam is just circular buffer?
 
     /* write paths */
     header_t c2h_header;
