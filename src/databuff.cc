@@ -161,7 +161,7 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 
 	dbuff_notif_o.write(dbuff_notif);
 
-	dbuff_notif_log_o.write(LOG_DBUFF_NOTIF | dbuffered);
+	dbuff_notif_log_o.write(LOG_DBUFF_NOTIF);
 	    // }
     }
 

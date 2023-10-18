@@ -38,6 +38,11 @@ struct stack_t {
 	return head;
     }
 
+    T head() {
+	T head = buffer[size];
+	return head;
+    }
+
     bool empty() {
 	return (size == 0);
     }

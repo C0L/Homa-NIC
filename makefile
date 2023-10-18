@@ -92,6 +92,14 @@ synth:
 
 CSIM_FLAGS = $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)"
 
+hashtable_no_cam_csim:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(CSIM_FLAGS) \
+		tb/hashtable_no_cam.cc \
+		rpc_state \
+		"RTT_BYTES=5000"
+	./homa_kernel/solution/csim/build/csim.exe
+
 #TODO can just make this csim.exe path to avoid recomp
 single_message_tester_rtt_5000_bin:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \

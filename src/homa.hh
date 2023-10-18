@@ -125,8 +125,8 @@ typedef ap_uint<8> homa_packet_type_t;
 #define MAX_PEERS            16384 // The number of distinct peers the home core can track
 #define MAX_PEERS_LOG2       14    // An index into the set of peers (leaving room for +1 adjustment)
 #define PEER_BUCKETS         16384 // Each hash bucket has PEER_BUCKET_SIZE entries
-#define PEER_BUCKET_SIZE     8     // How many entries in each bucket
-#define PEER_SUB_TABLE_INDEX 14    // Number of bits to index a PEER_BUCKETS buckets
+#define PEER_TABLE_SIZE      16384 // Size of cuckoo hash sub-tables
+#define PEER_TABLE_INDEX 14    // Index into sub-table entries
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
@@ -143,9 +143,8 @@ struct peer_hashpack_t {
 #define MAX_RPCS_LOG2       14    // Number of bits to express an RPC. TODO this changed
 #define MAX_RPCS            16384 // Maximum number of RPCs
 #define MAX_PORTS           16384 // Maximum number of ports
-#define RPC_BUCKETS         16384 // Size of cuckoo hash sub-tables
-#define RPC_BUCKET_SIZE     8     // Size of cuckoo hash sub-tables
-#define RPC_SUB_TABLE_INDEX 14    // Index into sub-table entries
+#define RPC_TABLE_SIZE      16384 // Size of cuckoo hash sub-tables
+#define RPC_TABLE_INDEX 14    // Index into sub-table entries
 
 typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 
@@ -485,7 +484,7 @@ struct homa_rpc_t {
     ap_uint<32>  buff_size;  // Size of message in DMA space
     ap_uint<64>  cc;         // Completion Cookie
 
-    local_id_t  local_id;    // Local RPC ID 
+    // local_id_t  local_id;    // Local RPC ID 
     dbuff_id_t  h2c_buff_id; // Data buffer ID for outgoing data
     peer_id_t   peer_id;     // Local ID for this destination address
 };
@@ -625,20 +624,22 @@ struct srpt_grant_t {
 #define LOG_GRANT_OUT 0x10
 #define LOG_DATA_OUT 0x20
 
-void homa(hls::stream<msghdr_send_t> & msghdr_send_i,
-	  hls::stream<msghdr_send_t> & msghdr_send_o,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_i,
-	  hls::stream<msghdr_recv_t> & msghdr_recv_o,
-	  hls::stream<am_cmd_t>      & w_cmd_queue_o,
-	  hls::stream<ap_axiu<512,0,0,0>>  & w_data_queue_o,
-	  hls::stream<am_status_t>   & w_status_queue_i,
-	  hls::stream<am_cmd_t>      & r_cmd_queue_o,
-	  hls::stream<ap_axiu<512,0,0,0>>  & r_data_queue_i,
-	  hls::stream<am_status_t>   & r_status_queue_i,
-	  hls::stream<raw_stream_t>  & link_ingress,
-	  hls::stream<raw_stream_t>  & link_egress,
-	  hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
-	  hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
-	  hls::stream<log_entry_t> & log_out_o);
+void homa(
+    hls::stream<msghdr_send_t> & msghdr_send_i,
+    hls::stream<msghdr_send_t> & msghdr_send_o,
+    hls::stream<msghdr_recv_t> & msghdr_recv_i,
+    hls::stream<msghdr_recv_t> & msghdr_recv_o,
+    hls::stream<am_cmd_t> & w_cmd_queue_o,
+    hls::stream<ap_axiu<512,0,0,0>> & w_data_queue_o,
+    hls::stream<am_status_t> & w_status_queue_i,
+    hls::stream<am_cmd_t> & r_cmd_queue_o,
+    hls::stream<ap_axiu<512,0,0,0>> & r_data_queue_i,
+    hls::stream<am_status_t> & r_status_queue_i,
+    hls::stream<raw_stream_t> & link_ingress_i,
+    hls::stream<raw_stream_t> & link_egress_o,
+    hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
+    hls::stream<log_entry_t> & log_out_o
+    );
 
 #endif

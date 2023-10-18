@@ -38,11 +38,8 @@ void packetmap(hls::stream<header_t> & header_in_i,
     if (header_in_i.read_nb(header_in)) {
 	pmap_entry_t packetmap = packetmaps[header_in.local_id];
 
-	std::cerr << "Packetmap read header in \n";
-
 	// Have we recieved any packets for this RPC before
 	if (packetmap.length == 0) {
-	    std::cerr << "packetmap init RPC\n";
 	    header_in.packetmap |= PMAP_INIT;
 
 	    // Populate a new packetmap
@@ -54,9 +51,6 @@ void packetmap(hls::stream<header_t> & header_in_i,
 	}
 
 	int diff = (header_in.data_offset - packetmap.head) / HOMA_PAYLOAD_SIZE;
-
-	std::cerr << "data offset: " << header_in.data_offset << std::endl;
-	std::cerr << "diff: " << diff << std::endl;
 
 	// Is this packet in bounds
 	if (diff < 64 && diff >= 0) {
@@ -84,7 +78,6 @@ void packetmap(hls::stream<header_t> & header_in_i,
 
 		packetmaps[header_in.local_id] = packetmap;
 
-		std::cerr << "Packetmap wrote header out \n";
 		header_in_o.write(header_in);
 	    }
 	}
