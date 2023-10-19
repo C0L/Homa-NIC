@@ -96,20 +96,13 @@ void rpc_state(
 
     /* Maps */
     // hash(dest addr, sender ID, dest port) -> rpc ID
-    static hashmap_t<rpc_hashpack_t, local_id_t, RPC_TABLE_SIZE, RPC_TABLE_INDEX, RPC_HP_SIZE, 8> rpc_hashmap;
+    // static hashmap_t<rpc_hashpack_t, local_id_t, RPC_TABLE_SIZE, RPC_TABLE_INDEX, RPC_HP_SIZE, 8> rpc_hashmap;
 
     // hash(dest addr) -> peer ID
-    static hashmap_t<peer_hashpack_t, peer_id_t, PEER_TABLE_SIZE, PEER_TABLE_INDEX, PEER_HP_SIZE, 8> peer_hashmap;
+    // static hashmap_t<peer_hashpack_t, peer_id_t, PEER_TABLE_SIZE, PEER_TABLE_INDEX, PEER_HP_SIZE, 8> peer_hashmap;
 
-//#pragma HLS dependence variable=rpc_hashmap inter WAR false
-//#pragma HLS dependence variable=rpc_hashmap inter RAW false
-//#pragma HLS dependence variable=peer_hashmap inter WAR false
-//#pragma HLS dependence variable=peer_hashmap inter RAW false
-//
-//#pragma HLS dependence variable=rpc_hashmap intra WAR false
-//#pragma HLS dependence variable=rpc_hashmap intra RAW false
-//#pragma HLS dependence variable=peer_hashmap intra WAR false
-//#pragma HLS dependence variable=peer_hashmap intra RAW false
+    static cam_t<rpc_hashpack_t, local_id_t, 128, 7> rpc_cam;
+    static cam_t<peer_hashpack_t, peer_id_t, 128, 7> peer_cam;
 
     // TODO this core handles long term state and resource mgmt
 
@@ -233,7 +226,8 @@ void rpc_state(
 	c2h_port_to_phys[new_c2h_port_to_phys(PORT_TO_PHYS_PORT)] = new_c2h_port_to_phys(PORT_TO_PHYS_ADDR);
     }
 
-
+    /* TODO Because the number of active messages is relatively few we can just CAM everything.
+       We can have some denser storage back this up that will fill the CAM when needed */
 
     /* write paths */
     header_t c2h_header;
@@ -247,13 +241,13 @@ void rpc_state(
 	if (!IS_CLIENT(c2h_header.id)) {
 	    rpc_hashpack_t rpc_query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
 
-	    c2h_header.local_id = rpc_hashmap.search(rpc_query);
+	    c2h_header.local_id = rpc_cam.search(rpc_query);
  
             // If the rpc is not registered, generate a new RPC ID and register it 
  	    if (c2h_header.local_id == 0) {
  		c2h_header.local_id = server_ids.pop();
-		entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, c2h_header.local_id};
-		rpc_hashmap.insert(rpc_entry);
+		// entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, c2h_header.local_id};
+		rpc_cam.insert(rpc_query, c2h_header.local_id);
 
 		// Store data associated with this RPC
 		homa_rpc_t homa_rpc;
@@ -274,18 +268,15 @@ void rpc_state(
 
 	    /* Perform the peer ID lookup regardless */
 	    peer_hashpack_t peer_query = {c2h_header.saddr};
-	    c2h_header.peer_id          = peer_hashmap.search(peer_query);
+	    //c2h_header.peer_id          = peer_hashmap.search(peer_query);
  	
-	    // If the peer is not registered, generate new ID and register it
-	    if (c2h_header.peer_id == 0) {
-	    	c2h_header.peer_id = peer_ids.pop();
+	    //// If the peer is not registered, generate new ID and register it
+	    //if (c2h_header.peer_id == 0) {
+	    //	c2h_header.peer_id = peer_ids.pop();
 
-		entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, c2h_header.peer_id};
-		peer_hashmap.insert(peer_entry);
- 	    
-	    	// peer_entry = {peer_query, c2h_header.peer_id};
-	    	// peer_hashmap.insert(peer_entry);
-	    }
+	    //	entry_t<peer_hashpack_t, peer_id_t> peer_entry = {peer_query, c2h_header.peer_id};
+	    //	peer_hashmap.insert(peer_entry);
+	    //}
 	} else {
 	    homa_rpc_t homa_rpc = client_rpcs[h2c_header.id];
 
@@ -337,9 +328,7 @@ void rpc_state(
 		break;
 	    }
 	} 
-    } else {
-	rpc_hashmap.process();
-    }
+    } 
 
     /* New Request or Response */
     msghdr_send_t msghdr_send;
