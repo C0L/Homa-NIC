@@ -92,55 +92,74 @@ synth:
 
 CSIM_FLAGS = $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)"
 
-hashtable_no_cam_csim:
+message_tester_rtt_5000_bin:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(CSIM_FLAGS) \
-		tb/hashtable_no_cam.cc \
-		rpc_state \
+		tb/message_tester.cc \
+		homa \
 		"RTT_BYTES=5000"
-	./homa_kernel/solution/csim/build/csim.exe
+	./homa_kernel/solution/csim/build/csim.exe 
+
+
+#srpt_fetch_csim_shim:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs \
+#		$(CSIM_FLAGS) \
+#		$(C_TB_DIR)/cosim_shim_tester.cc \
+#		fetch_shim \
+#		"RTT_BYTES=5000"
+#	./homa_kernel/solution/csim/build/csim.exe	 
+
+
+
+#hashtable_no_cam_csim:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs \
+#		$(CSIM_FLAGS) \
+#		tb/hashtable_no_cam.cc \
+#		rpc_state \
+#		"RTT_BYTES=5000"
+#	./homa_kernel/solution/csim/build/csim.exe
 
 #TODO can just make this csim.exe path to avoid recomp
-single_message_tester_rtt_5000_bin:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(CSIM_FLAGS) \
-		$(C_TB_DIR)/single_message_tester.cc \
-		homa \
-		"RTT_BYTES=5000" \
+#single_message_tester_rtt_5000_bin:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs \
+#		$(CSIM_FLAGS) \
+#		$(C_TB_DIR)/single_message_tester.cc \
+#		homa \
+#		"RTT_BYTES=5000" \
+#
+#single_message_csim: single_message_tester_rtt_5000_bin
+#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 2000
+#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 128
+#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 64
+#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 1
 
-single_message_csim: single_message_tester_rtt_5000_bin
-	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 2000
-	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 128
-	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 64
-	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 1
 
-
-srpt_fetch_csim_shim:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(CSIM_FLAGS) \
-		$(C_TB_DIR)/cosim_shim_tester.cc \
-		fetch_shim \
-		"RTT_BYTES=5000"
-	./homa_kernel/solution/csim/build/csim.exe	 
+#srpt_fetch_csim_shim:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs \
+#		$(CSIM_FLAGS) \
+#		$(C_TB_DIR)/cosim_shim_tester.cc \
+#		fetch_shim \
+#		"RTT_BYTES=5000"
+#	./homa_kernel/solution/csim/build/csim.exe	 
 
 ############# Vitis Cosim ############
 
 COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" 
 
-single_message_cosim:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(COSIM_FLAGS) $(SRC_JSON)
-		$(C_TB_DIR)/single_message_tester.cc \
-		"RTT_BYTES=5000" \
+#single_message_cosim:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs \
+#		$(COSIM_FLAGS) $(SRC_JSON)
+#		$(C_TB_DIR)/single_message_tester.cc \
+#		"RTT_BYTES=5000" \
 
 export DISPLAY=:1
 
-srpt_fetch_cosim_shim:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(COSIM_FLAGS) $(V_SRC_DIR)/srpt_fetch_queue.json \
-		$(C_TB_DIR)/cosim_shim_tester.cc \
-		fetch_shim \
-		"RTT_BYTES=5000"
+#srpt_fetch_cosim_shim:
+#	$(VITIS) tcl/homa_hls.tcl -tclargs \
+#		$(COSIM_FLAGS) $(V_SRC_DIR)/srpt_fetch_queue.json \
+#		$(C_TB_DIR)/cosim_shim_tester.cc \
+#		fetch_shim \
+#		"RTT_BYTES=5000"
 
 ############ Verilog Synthesis ############ 
 

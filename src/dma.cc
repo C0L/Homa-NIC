@@ -129,8 +129,6 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
        // data_out.keep = 0xF;
        data_out.keep = (0xFFFFFFFFFFFFFFFF >> (64 - dma_req.strobe));
 
-       std::cerr << "KEEP: " << data_out.keep << std::endl;
-
        data_queue_o.write(data_out);
    }
 

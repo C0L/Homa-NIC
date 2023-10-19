@@ -118,12 +118,12 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN) = payload_length;   // Payload Length
 		    natural_chunk(CHUNK_IPV6_NEXT_HEADER) = IPPROTO_HOMA;     // Next Header
 		    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;   // Hop Limit
-		    natural_chunk(CHUNK_IPV6_SADDR)       = header.saddr; // Sender Address
-		    natural_chunk(CHUNK_IPV6_DADDR)       = header.daddr; // Destination Address
+		    natural_chunk(CHUNK_IPV6_SADDR)       = header.saddr;     // Sender Address
+		    natural_chunk(CHUNK_IPV6_DADDR)       = header.daddr;     // Destination Address
 
 		    // Start of common header
-		    natural_chunk(CHUNK_HOMA_COMMON_SPORT) = header.sport;  // Sender Port
-		    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = header.dport;  // Destination Port
+		    natural_chunk(CHUNK_HOMA_COMMON_SPORT) = header.sport;    // Sender Port
+		    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = header.dport;    // Destination Port
 
 		    // Unused
 		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;               // Unused
@@ -259,15 +259,12 @@ void pkt_chunk_egress(hls::stream<h2c_chunk_t> & out_chunk_i,
 #pragma HLS pipeline
     if (!out_chunk_i.empty()) {
 
-	std::cerr << "pkt chunk egress\n";
-
 	h2c_chunk_t chunk = out_chunk_i.read();
 	raw_stream_t raw_stream;
 
 	raw_stream.data = chunk.data;
 	raw_stream.last = chunk.last;
 	raw_stream.keep = chunk.keep;
-	// std::cerr << "OUTPUT TKEEP: " << chunk.keep << std::endl; 
 	link_egress.write(raw_stream);
     }
 }
@@ -297,7 +294,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 
     if (!link_ingress.empty()) {
 	raw_stream_t raw_stream = link_ingress.read();
-	std::cerr << "pkt_chunk_ingress\n";
 	
 	c2h_chunk_t data_block;
 	ap_uint<512> natural_chunk;
@@ -346,7 +342,6 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		}
 	    }
 
-	    std::cerr << "forwarded header\n";
 	    header_in_o.write(header_in);
 	} else {
 	    data_block.data  = raw_stream.data;

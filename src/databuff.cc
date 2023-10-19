@@ -52,7 +52,6 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
      *   upstream is fully pipelined.
      */
     if ((pending_buffer != 0 && chunk_in_i.read_nb(chunk_in)) || buffered > 0) {
-	std::cerr << "BUFFERING DATA\n";
 	// How many more bytes can we buffer before reaching our next aligned chunk
 	ap_uint<7> next_boundary = 64 - buffer_head;
 
@@ -79,8 +78,6 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	dma_w_req.strobe = writable_bytes;
 	dma_w_req.port = header_in.sport;
 	dma_w_req_o.write(dma_w_req);
-
-	std::cerr << "DMA REQ OFFSET: " << dma_w_req.offset << std::endl;
 
 	buffer >>= (writable_bytes * 8);
 

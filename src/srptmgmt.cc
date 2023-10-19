@@ -5,9 +5,9 @@
  * WARNING: For C simulation only
  * srpt_data_pkts() - Determines what DATA packet to send next.
  * @sendmsg_i - New request or response messages from the user
-
  * @dbuff_notif_i - Updates about what data is held on-chip
  * @data_pkt_o - The next outgoing DATA packet that should be sent
+ * @grant_notif_i - Authorizations to send more data
  */
 void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 		     hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
@@ -17,15 +17,12 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
     static srpt_queue_entry_t active_rpcs[MAX_RPCS];
 
     if (!sendmsg_i.empty()) {
-	std::cerr << "ADD SENDMSG TO SRPT DATA\n";
 	srpt_queue_entry_t sendmsg = sendmsg_i.read();
 	active_rpcs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)] = sendmsg;
     } else if (!dbuff_notif_i.empty()) {
-	std::cerr << "ADD DBUFF NOTIF TO SRPT DATA\n";
 	srpt_queue_entry_t dbuff_notif = dbuff_notif_i.read();
 	active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
     } else if (!grant_notif_i.empty()) {
-	std::cerr << "ADD GRANT NOTIF TO SRPT DATA\n";
 	srpt_queue_entry_t header_in = grant_notif_i.read();
 	active_rpcs[header_in(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_GRANTED) = header_in(SRPT_QUEUE_ENTRY_GRANTED);
     }
