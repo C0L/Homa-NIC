@@ -224,8 +224,6 @@ int homanic_close(struct inode * inode, struct file * file) {
 
     pr_info("homanic_close\n");
 
-    // dump_log();
-
     return 0;
 }
 
@@ -252,8 +250,6 @@ long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioc
 
 int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
     int ret = 0;
-    // unsigned long pfn = 0;
-    // struct page * page;
 
     pr_alert("homanic_mmap\n");
 
@@ -266,7 +262,7 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	case MINOR_CTL:
 	    pr_alert("device register remap");
 
-	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + SENDMSG_AXIL_OFFSET) >> PAGE_SHIFT, 2000000, vma->vm_page_prot);
+	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + SENDMSG_AXIL_OFFSET) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
 
 	    if (ret != 0) {
 		goto exit;

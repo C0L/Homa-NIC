@@ -45,7 +45,19 @@ void * c2h_map;
 
 void * sendmsg_regs;  
 void * sendmsg_write; 
-void * sendmsg_read;  
+void * sendmsg_read;
+
+void ipv6_to_str(char * str, char * s6_addr) {
+   sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\0",
+                 (int)s6_addr[0], (int)s6_addr[1],
+                 (int)s6_addr[2], (int)s6_addr[3],
+                 (int)s6_addr[4], (int)s6_addr[5],
+                 (int)s6_addr[6], (int)s6_addr[7],
+                 (int)s6_addr[8], (int)s6_addr[9],
+                 (int)s6_addr[10], (int)s6_addr[11],
+                 (int)s6_addr[12], (int)s6_addr[13],
+                 (int)s6_addr[14], (int)s6_addr[15]);
+}
 
 void sendmsg(struct msghdr_send_t * msghdr_send_in, struct msghdr_send_t * msghdr_send_out) {
     int i;
@@ -54,14 +66,10 @@ void sendmsg(struct msghdr_send_t * msghdr_send_in, struct msghdr_send_t * msghd
 
     for (i = 0; i < 16; ++i) *((uint32_t *) sendmsg_write) = *(((uint32_t *) msghdr_send_in) + i);
 
-    printf("sendmsg TDFV: %d\n", *((uint32_t *) (sendmsg_regs + AXI_STREAM_FIFO_TDFV)));
     *((uint32_t *) (sendmsg_regs + AXI_STREAM_FIFO_TLR)) = 64;
 
     rdfo = *((uint32_t *) sendmsg_regs + AXI_STREAM_FIFO_RDFO);
     rlr  = *((uint32_t *) sendmsg_regs + AXI_STREAM_FIFO_RLR);
-
-    printf("sendmsg rdfo: %x\n", rdfo);
-    printf("sendmsg rlr: %x\n", rlr);
 
     // TODO should sanity check rlr and rdfo
     for (i = 0; i < 16; ++i) *(((uint32_t *) msghdr_send_out) + i) = *((uint32_t *) sendmsg_read);
@@ -69,8 +77,15 @@ void sendmsg(struct msghdr_send_t * msghdr_send_in, struct msghdr_send_t * msghd
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
     printf("sendmsg content dump:\n");
-    printf("  - source address      : %.*s\n", 16, msghdr_send->saddr);
-    printf("  - destination address : %.*s\n", 16, msghdr_send->saddr);
+
+    char saddr[64];
+    char daddr[64];
+
+    ipv6_to_str(saddr, msghdr_send->saddr);
+    ipv6_to_str(daddr, msghdr_send->daddr);
+
+    printf("  - source address      : %s\n", saddr);
+    printf("  - destination address : %s\n", daddr);
     printf("  - source port         : %u\n", (unsigned int) msghdr_send->sport);
     printf("  - dest port           : %u\n", (unsigned int) msghdr_send->dport);
     printf("  - buffer address      : %lx\n", msghdr_send->buff_addr);
@@ -85,41 +100,21 @@ int main() {
     int h2c_fd = open("/dev/homa_nic_h2c", O_RDWR|O_SYNC);
     int c2h_fd = open("/dev/homa_nic_c2h", O_RDWR|O_SYNC);
 
-    if (ctl_fd < 0) {
-	perror("Invalid homa_nic_ctl device\n");
+    if (ctl_fd < 0 || h2c_fd < 0 || c2h_fd < 0) {
+	perror("Invalid character device\n");
     }
 
-    if (h2c_fd < 0) {
-	perror("Invalid homa_nic_h2c device\n");
-    }
-
-    if (c2h_fd < 0) {
-	perror("Invalid homa_nic_c2h device\n");
-    }
-
-    ctl_map = mmap(NULL, 2000000, PROT_READ | PROT_WRITE, MAP_SHARED, ctl_fd, 0);
+    ctl_map = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, ctl_fd, 0);
     h2c_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_fd, 0);
     c2h_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_fd, 0);
 
-    if (ctl_map == NULL) {
-	perror("Invalid ctl_fd mmap\n");
-    }
-
-    if (h2c_map == NULL) {
-	perror("Invalid h2c_fd mmap\n");
-    }
-
-    if (c2h_map == NULL) {
-	perror("Invalid c2h_fd mmap\n");
+    if (ctl_map == NULL || h2c_map == NULL || c2h_map == NULL) {
+	perror("mmap failed\n");
     }
 
     sendmsg_regs  = ctl_map + AXIL_OFFSET;
     sendmsg_write = ctl_map + AXIF_OFFSET;
     sendmsg_read  = ctl_map + AXIF_OFFSET + 0x1000;
-
-    printf("sendmsg_regs %p\n", sendmsg_regs);
-    printf("sendmsg_write %p\n", sendmsg_write);
-    printf("sendmsg_read %p\n", sendmsg_read);
 
     struct msghdr_send_t msghdr_send_in;
 
@@ -132,86 +127,54 @@ int main() {
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
 
+
+
     struct msghdr_send_t msghdr_send_out;
 
-    // print_msghdr(&msghdr_send_in);
-
-    // printf("Copying pattern to h2c buffer\n");
-
     char pattern[4] = "\xDE\xAD\xBE\xEF";
-    char clear[4] = "\x00\x00\x00\x00";
 
-    // for (int i = 0; i < (512/4); ++i) memcpy(h2c_map + (i*4), &pattern, 4);
-    for (int i = 0; i < (512/4); ++i) memcpy(c2h_map + (i*4), &clear, 4);
+    for (int i = 0; i < (512/4); ++i) memcpy(h2c_map + (i*4), &pattern, 4);
+    memset(c2h_map, 0, 512);
 
-    time_t now = time(0);
+    printf("H2C Message Content Start\n");
+    for (int i = 0; i < 8; ++i) {
+	printf("Chunk %d: ", i);
+	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) h2c_map) + j + (i*64)));
+	printf("\n");
+    }
+    printf("H2C Message Content End\n");
 
-    // *((unsigned char *) h2c_map) = (unsigned char) now;
-    *((unsigned char *) h2c_map) = 1;
+    printf("C2H Message Content Start\n");
+    for (int i = 0; i < 8; ++i) {
+	printf("Chunk %d: ", i);
+	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_map) + j + (i*64)));
+	printf("\n");
+    }
+    printf("C2H Message Content End\n");
 
-    //printf("H2C Message Content Start\n");
+    printf("Initial Message Header\n");
+    print_msghdr(&msghdr_send_in);
 
-    //for (int i = 0; i < 8; ++i) {
-    //	printf("Chunk %d: ", i);
-    //	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) h2c_map) + j + (i*64)));
-    //	printf("\n");
-    //}
+    sendmsg(&msghdr_send_in, &msghdr_send_out);
 
-    //printf("H2C Message Content End\n");
+    printf("Completed Message Header\n");
+    print_msghdr(&msghdr_send_out);
 
-    time_t start = time(NULL);
+    // ioctl(ctl_fd, 0, NULL);
 
-    for (int i = 0; i < 10; ++i) {
+    printf("C2H Message Contents Start\n");
 
-     	unsigned char test_pattern = *((unsigned char *) h2c_map);
-
-	printf("H2C Message Content Start\n");
-     	for (int i = 0; i < 8; ++i) {
-     	    printf("Chunk %d: ", i);
-     	    for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) h2c_map) + j + (i*64)));
-     	    printf("\n");
-     	}
-
-	printf("H2C Message Content End\n");
-
-	sendmsg(&msghdr_send_in, &msghdr_send_out);
-
-	print_msghdr(&msghdr_send_out);
-
-	sleep(1);
-
-	ioctl(ctl_fd, 0, NULL);
-
-	printf("C2H Message Contents Start\n");
-
-	for (int i = 0; i < 8; ++i) {
-	    printf("Chunk %d: ", i);
-	    for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_map) + j + (i*64)));
-	    printf("\n");
-	}
-
-	printf("C2H Message Contents End\n");
-
-	// while (*((unsigned char *) c2h_map) != test_pattern);
-
-	unsigned char new_pattern = *((unsigned char *) h2c_map)+1;
-
-	*((unsigned char *) h2c_map) = new_pattern;
-	// while (*((unsigned char *) h2c_map) != new_pattern);
-
+    for (int i = 0; i < 8; ++i) {
+	printf("Chunk %d: ", i);
+	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_map) + j + (i*64)));
+	printf("\n");
     }
 
-    time_t end = time(NULL);
-    printf("Took %f seconds\n", difftime(end, start));
+    printf("C2H Message Contents End\n");
 
-    // printf("C2H Message Contents Start\n");
-    // printf("%.2f\n", (double)(time(NULL) - start));
-
-
-
-    munmap(ctl_map, 0);
-    munmap(h2c_map, 0);
-    munmap(c2h_map, 0);
+    munmap(ctl_map, 16384);
+    munmap(h2c_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
+    munmap(c2h_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
 
     close(ctl_fd);
     close(h2c_fd);
