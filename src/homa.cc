@@ -158,7 +158,6 @@ void homa(
 	header_in__chunk_ingress__rpc_state,
 	header_in__rpc_state__packetmap,
 	header_in__dbuff_ingress__homa_recvmsg,
-	grant__rpc_state__srpt_grant,
 	header_in__rpc_state__srpt_data,
 	dbuff_notif__h2c_databuff__rpc_state,
 	dbuff_notif__rpc_state__srpt_data,
@@ -197,16 +196,10 @@ void homa(
 
     hls_thread_local hls::task packetmap_task(
 	packetmap, 
-	header_in__rpc_state__packetmap,  // header_in
-	header_in__packetmap__dbuff_ingress // complete_messages
+	header_in__rpc_state__packetmap,    
+	header_in__packetmap__dbuff_ingress,
+	grant__rpc_state__srpt_grant
 	);
-    //
-    //    hls_thread_local hls::task homa_recvmsg_task(
-    //	homa_recvmsg, 
-    //	msghdr_recv_i,                  // recvmsg_i
-    //	msghdr_recv_o,                  // recvmsg_o
-    //	header_in__dbuff_ingress__homa_recvmsg 
-    //	);
 
     hls_thread_local hls::task dma_read_task(
 	dma_read,

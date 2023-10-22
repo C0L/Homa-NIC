@@ -127,8 +127,10 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 	// The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
 	if ((grant_in(SRPT_GRANT_NEW_PMAP) & PMAP_INIT) == PMAP_INIT) {
 	    entries[grant_in(SRPT_GRANT_NEW_RPC_ID)] = {grant_in(SRPT_GRANT_NEW_PEER_ID), grant_in(SRPT_GRANT_NEW_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_NEW_MSG_LEN) - HOMA_PAYLOAD_SIZE};
+	    std::cerr << "GRANT INIT " << grant_in(SRPT_GRANT_NEW_RPC_ID) << " " << grant_in(SRPT_GRANT_NEW_MSG_LEN) - HOMA_PAYLOAD_SIZE << " " << grant_in(SRPT_GRANT_NEW_PEER_ID) << std::endl;
 	} else {
 	    entries[grant_in(SRPT_GRANT_NEW_RPC_ID)].recv_bytes += HOMA_PAYLOAD_SIZE;
+	    std::cerr << "UDPATED DATA IN GRANT QUEUE " << entries[grant_in(SRPT_GRANT_NEW_RPC_ID)].recv_bytes << std::endl;
 	} 
     } else {
 	srpt_grant_t best[8];
@@ -142,10 +144,10 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 	    srpt_grant_t curr_best = entries[0];
 	    for (int e = 0; e < MAX_RPCS; ++e) {
 
-		if (entries[e].rpc_id == 0) continue; 
-
+		if (entries[e].rpc_id == 0) continue;
 		// Is this entry better than our current best
 		if (entries[e].grantable_bytes < curr_best.grantable_bytes || curr_best.rpc_id == 0) {
+
 		    bool dupe = false;
 		    for (int s = 0; s < 8; s++) {
 			if (entries[e].peer_id == best[s].peer_id) {
@@ -153,6 +155,7 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 			}
 		    }
 
+		    // std::cerr << "POTENTIAL ENTRY " << dupe << std::endl;
 		    curr_best = (!dupe) ? entries[e] : curr_best;
 		}
 	    }
@@ -164,6 +167,7 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 	// Who to grant to next?
 	for (int i = 0; i < 8; ++i) {
 	    if (best[i].grantable_bytes < next_grant.grantable_bytes && best[i].recv_bytes != 0) {
+		std::cerr << "CANDIDATE" << std::endl;
 		next_grant = best[i];
 	    }
 	}
@@ -182,6 +186,8 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 		// grant_out(SRPT_GRANT_SEND_PEER_ID) = next_grant.peer_id;
 		grant_out_o.write(grant_out);
 
+		std::cerr << "GRANT OUT FINAL " << std::endl;
+
 	    } else {
 		entries[next_grant.rpc_id].recv_bytes = 0;
 		entries[next_grant.rpc_id].grantable_bytes -= MIN(next_grant.recv_bytes, entries[next_grant.rpc_id].grantable_bytes);
@@ -193,6 +199,8 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 		// grant_out(SRPT_GRANT_SEND_PEER_ID) = next_grant.peer_id;
 
 		grant_out_o.write(grant_out);
+
+		std::cerr << "GRANT OUT " << std::endl;
 
 		if (next_grant.grantable_bytes == 0) {
 		    entries[next_grant.rpc_id] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};

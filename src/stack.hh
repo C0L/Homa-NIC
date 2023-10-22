@@ -19,7 +19,7 @@ struct stack_t {
 	    size = (MAX_SIZE / 2) - 1;
 	} else if (init == STACK_ALL) {
 	    for (int id = 0; id < MAX_SIZE; ++id) {
-		buffer[id] = (MAX_SIZE - 1 - id);
+		buffer[id] = (MAX_SIZE - 1 - id) + 1;
 	    }
 	    size = MAX_SIZE - 1;
 	} else {

@@ -3,8 +3,39 @@
 
 using namespace hls;
 
+void h2c_header_proc(homa_rpc_t * client_rpcs,
+		homa_rpc_t * server_rpcs,
+		hls::stream<header_t> & pkt_in,
+		hls::stream<header_t> & pkt_out,
+		hls::stream<ap_uint<8>> & log_out) {
+
+#pragma HLS pipeline
+    
+    header_t h2c_header;
+    if (pkt_in.read_nb(h2c_header)) {
+	homa_rpc_t homa_rpc = (IS_CLIENT(h2c_header.local_id)) ? client_rpcs[h2c_header.local_id] : server_rpcs[h2c_header.local_id];
+
+	h2c_header.daddr = homa_rpc.daddr;
+	h2c_header.dport = homa_rpc.dport;
+	h2c_header.saddr = homa_rpc.saddr;
+	h2c_header.sport = homa_rpc.sport;
+	h2c_header.id    = homa_rpc.id;
+
+	// Log the packet type we are sending
+	log_out.write((h2c_header.type == DATA) ? LOG_DATA_OUT : LOG_GRANT_OUT);
+
+	// Get the location of buffered data and prepare for packet construction
+	h2c_header.h2c_buff_id    = homa_rpc.h2c_buff_id;
+	h2c_header.incoming       = homa_rpc.buff_size - h2c_header.incoming;
+	h2c_header.data_offset    = homa_rpc.buff_size - h2c_header.data_offset;
+	h2c_header.message_length = homa_rpc.buff_size;
+
+	pkt_out.write_nb(h2c_header);
+    }
+}
+
+
 /**
- * TODO revise
  * rpc_state() - Maintains state associated with an RPC and augments
  *   flows with that state when needed. There are 3 actions taken by
  *   the core: 1) Incorporating new sendmsg requests: New sendmsg
@@ -52,7 +83,6 @@ void rpc_state(
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
     hls::stream<header_t> & complete_msgs_i,
-    hls::stream<srpt_grant_new_t> & grant_srpt_o,
     hls::stream<srpt_queue_entry_t> & data_srpt_o,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
@@ -96,12 +126,12 @@ void rpc_state(
     static host_addr_t c2h_port_to_headrecv[MAX_PORTS]; // Port -> current offset in RB
 
     /* Port/RPC to user databuffer mapping DMA */
-    static host_addr_t c2h_port_to_msgbuff[MAX_PORTS]; // Port -> large c2h buffer space 
-    static msg_addr_t  c2h_rpc_to_offset[MAX_RPCS];    // RPC -> offset in that buffer space
-    static ap_uint<7>  c2h_buff_ids[MAX_PORTS];        // Next availible offset in buffer space
+    static host_addr_t c2h_port_to_msgbuff[MAX_PORTS];  // Port -> large c2h buffer space 
+    static msg_addr_t  c2h_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
+    static ap_uint<7>  c2h_buff_ids[MAX_PORTS];         // Next availible offset in buffer space
 
-    static host_addr_t h2c_port_to_msgbuff[MAX_PORTS]; // Port -> large h2c buffer space
-    static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];    // RPC -> offset in that buffer space
+    static host_addr_t h2c_port_to_msgbuff[MAX_PORTS];  // Port -> large h2c buffer space
+    static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
 
     /* hash(dest addr, sender ID, dest port) -> rpc ID */
     static cam_t<rpc_hashpack_t, local_id_t, 16, 4> rpc_cam;
@@ -109,7 +139,7 @@ void rpc_state(
     /* hash(dest addr) -> peer ID */
     static cam_t<peer_hashpack_t, peer_id_t, 16, 4> peer_cam;
 
-#pragma HLS pipeline II=1
+#pragma HLS dataflow
 
     // TODO is this potentially risky with OOO small packets
     // Can maybe do a small sort of rebuffering if needed?
@@ -121,7 +151,6 @@ void rpc_state(
     // TODO is this a guarantee??
 #pragma HLS dependence variable=c2h_buff_ids inter RAW false
 #pragma HLS dependence variable=c2h_buff_ids inter WAR false
-
 
 #pragma HLS dependence variable=c2h_port_to_headsend intra WAR false
 #pragma HLS dependence variable=c2h_port_to_headsend intra RAW false
@@ -151,42 +180,15 @@ void rpc_state(
      */
 
     /* read only paths */
-    header_t h2c_header;
-    if (h2c_header_i.read_nb(h2c_header)) {
-
-	// Is this a REQUEST or RESPONSE
-	// TODO use local ID???
-	homa_rpc_t homa_rpc = (IS_CLIENT(h2c_header.local_id)) ? client_rpcs[h2c_header.local_id] : server_rpcs[h2c_header.local_id];
-
-	h2c_header.daddr = homa_rpc.daddr;
-	h2c_header.dport = homa_rpc.dport;
-	h2c_header.saddr = homa_rpc.saddr;
-	h2c_header.sport = homa_rpc.sport;
-	h2c_header.id    = homa_rpc.id;
-
-	// Log the packet type we are sending
-	h2c_pkt_log_o.write((h2c_header.type == DATA) ? LOG_DATA_OUT : LOG_GRANT_OUT);
-
-	// Get the location of buffered data and prepare for packet construction
-	h2c_header.h2c_buff_id    = homa_rpc.h2c_buff_id;
-	h2c_header.incoming       = homa_rpc.buff_size - h2c_header.incoming;
-	h2c_header.data_offset    = homa_rpc.buff_size - h2c_header.data_offset;
-	h2c_header.message_length = homa_rpc.buff_size;
-
-	h2c_header_o.write_nb(h2c_header);
-    }
+    h2c_header_proc(client_rpcs, server_rpcs, h2c_header_i, h2c_header_o, h2c_pkt_log_o);
 	
     srpt_queue_entry_t dbuff_notif;
     if (dbuff_notif_i.read_nb(dbuff_notif)) {
-	// TODO sanitize IDs to make sure they refer to a valid entry??
 	local_id_t id = dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID);
 
 	homa_rpc_t homa_rpc = (IS_CLIENT(id)) ? client_rpcs[id] : server_rpcs[id];
 
 	ap_uint<32> dbuff_offset = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
-
-	// std::cerr << "DBUFF NOTIF " << dbuff_offset << std::endl;
-	// std::cerr << "SIZE " << homa_rpc.buff_size << std::endl;
 
 	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID) = homa_rpc.h2c_buff_id;
 	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_DBUFF_UPDATE;
@@ -273,7 +275,6 @@ void rpc_state(
 	msghdr_resp.data   = new_recv.data;
 
 	ap_uint<64> offset = c2h_port_to_headrecv[complete_msg.sport];
-	// std::cerr << "SET RECV OFFSET: " << offset << std::endl;
 	msghdr_resp.offset = c2h_port_to_metarecv[new_recv.data(MSGHDR_SPORT)] + offset;
 	msghdr_resp.strobe = 64;
 
@@ -313,15 +314,11 @@ void rpc_state(
 	if (!IS_CLIENT(c2h_header.id)) {
 	    rpc_hashpack_t rpc_query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
 
-	    std::cerr << "id to hashmap " << c2h_header.id << std::endl;
-
 	    c2h_header.local_id = rpc_cam.search(rpc_query);
  
             // If the rpc is not registered, generate a new RPC ID and register it 
  	    if (c2h_header.local_id == 0) {
  		c2h_header.local_id = server_ids.pop();
-
-		std::cerr << "Assigned new server ID " << c2h_header.local_id << std::endl;
 
 		// entry_t<rpc_hashpack_t, local_id_t> rpc_entry = {rpc_query, c2h_header.local_id};
 		rpc_cam.insert(rpc_query, c2h_header.local_id);
@@ -353,7 +350,7 @@ void rpc_state(
 	    	peer_cam.insert(peer_query, c2h_header.peer_id);
 	    }
 	} else {
-	    homa_rpc_t homa_rpc = client_rpcs[h2c_header.id];
+	    homa_rpc_t homa_rpc = client_rpcs[c2h_header.id];
 
 	    // If we are the client then a network ID is a local ID
 	    c2h_header.local_id = c2h_header.id;
@@ -363,23 +360,6 @@ void rpc_state(
 	switch (c2h_header.type) {
 	    case DATA: {
 		// Will this message ever need grants?
-		if (c2h_header.message_length > c2h_header.incoming) {
-
-		    // TODO convert this to srpt_queue_entry
-		    srpt_grant_new_t grant_in;
-		    grant_in(SRPT_GRANT_NEW_MSG_LEN) = c2h_header.message_length;
-		    grant_in(SRPT_GRANT_NEW_RPC_ID)  = c2h_header.local_id;
-		    grant_in(SRPT_GRANT_NEW_PEER_ID) = c2h_header.peer_id;
-
-		    // TODO the header has not gone through the packetmap yet here
-		    // TODO this can be determined by the hashmap instead of packetmap
-		    grant_in(SRPT_GRANT_NEW_PMAP)    = c2h_header.packetmap;
-		    
-		    // Notify the grant queue of this receipt
-		    grant_srpt_o.write(grant_in); 
-		} 
-
-		// std::cerr << "rpc state -> databuffer" << std::endl;
 		// Instruct the data buffer where to write this message's data
 		c2h_header_o.write(c2h_header);
 
@@ -444,8 +424,6 @@ void rpc_state(
 	    rpc.buff_size    = msghdr_send.data(MSGHDR_BUFF_SIZE);
 	    rpc.cc           = msghdr_send.data(MSGHDR_SEND_CC);
 	    rpc.h2c_buff_id  = msg_cache_ids.pop();
-
-	    std::cerr << "SERVER NETWORK ID " << rpc.id << std::endl;
 	}
 
 	h2c_rpc_to_offset[id] = (msghdr_send.data(MSGHDR_BUFF_ADDR) << 1) | 1;

@@ -3,7 +3,8 @@
 
 #include "homa.hh"
 
-void packetmap(hls::stream<header_t> & header_in, 
-	       hls::stream<header_t> & complete_messages);
+void packetmap(hls::stream<header_t> & header_in_i, 
+	       hls::stream<header_t> & header_in_o,
+	       hls::stream<srpt_grant_new_t> & grant_srpt_o);
 
 #endif

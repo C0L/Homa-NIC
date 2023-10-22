@@ -130,6 +130,7 @@ struct peer_hashpack_t {
     ap_uint<128> s6_addr;
 #define PEER_HP_SIZE 4
     bool operator==(const peer_hashpack_t & other) const {
+	std::cerr << "COMPARATOR CALLED" << std::endl;
 	return (s6_addr == other.s6_addr); 
     }
 };

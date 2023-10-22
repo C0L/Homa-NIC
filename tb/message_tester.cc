@@ -162,8 +162,6 @@ void process() {
 	
 	am_status_t am_status;
 
-	std::cerr << "write to " << am_cmd.data(AM_CMD_SADDR) << std::endl;
-
 	memcpy((char*) ((uintptr_t) am_cmd.data(AM_CMD_SADDR)), (char*) ((uintptr_t) &write_data.data), am_cmd.data(AM_CMD_BTT) * sizeof(char));
 	w_status_queue_i.write(am_status);
     }
@@ -177,8 +175,8 @@ void random_rpc() {
     std::cerr << "ZEROING: " << ((uint64_t) c2h_msgbuff) << std::endl;
     memset(c2h_msgbuff, 0, 16384);
 
-    // ap_uint<32> size = 4000;
-    ap_uint<32> size = rand() % 4000;
+    ap_uint<32> size = 6000;
+    // ap_uint<32> size = rand() % 4000;
 
     std::cerr << "size: " << size << std::endl;
 
@@ -219,7 +217,8 @@ int main(int argc, char **argv) {
 
     init();
 
-    for (int i = 0; i < 1000; ++i) random_rpc();
+    random_rpc();
+    // for (int i = 0; i < 1000; ++i) random_rpc();
 
     free(h2c_msgbuff);
     free(c2h_msgbuff);

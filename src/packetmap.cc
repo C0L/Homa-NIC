@@ -10,7 +10,8 @@
  * mactched with a recv call and the user notified
  */
 void packetmap(hls::stream<header_t> & header_in_i, 
-	       hls::stream<header_t> & header_in_o) {
+	       hls::stream<header_t> & header_in_o,
+	       hls::stream<srpt_grant_new_t> & grant_srpt_o) {
 
     /* 
      * A 64 bit timestamp is stored for each RPC. 
@@ -79,6 +80,18 @@ void packetmap(hls::stream<header_t> & header_in_i,
 		packetmaps[header_in.local_id] = packetmap;
 
 		header_in_o.write(header_in);
+
+		if (header_in.message_length > header_in.incoming) {
+		    srpt_grant_new_t grant_in;
+		    grant_in(SRPT_GRANT_NEW_MSG_LEN) = header_in.message_length;
+		    grant_in(SRPT_GRANT_NEW_RPC_ID)  = header_in.local_id;
+		    grant_in(SRPT_GRANT_NEW_PEER_ID) = header_in.peer_id;
+
+		    grant_in(SRPT_GRANT_NEW_PMAP)    = header_in.packetmap;
+		    
+		    // Notify the grant queue of this receipt
+		    grant_srpt_o.write(grant_in); 
+		} 
 	    }
 	}
     }

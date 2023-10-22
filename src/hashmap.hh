@@ -19,6 +19,7 @@ struct cam_t {
     ap_uint<INDEX_BITS> write_head;
 
     cam_t() {
+	write_head = 0;
 	for (int i = 0; i < MAX_SIZE; ++i) {
 	    buffer[i].value = 0;
 	}
@@ -34,7 +35,6 @@ struct cam_t {
 #pragma HLS unroll
 	    if (buffer[i].key == key) {
 		return buffer[i].value;
-		// TODO may eventually need to get all matches and return top one when there is a deletion process
 	    }
 	}
 
@@ -46,7 +46,6 @@ struct cam_t {
 
 #pragma HLS pipeline II=1
 #pragma HLS array_partition variable=buffer type=complete
-
 	buffer[write_head++] = (entry_t) {key, value};
     }
 };
