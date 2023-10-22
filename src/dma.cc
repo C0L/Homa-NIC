@@ -77,6 +77,9 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 	dbuff_in.msg_addr = dma_req(DMA_R_REQ_MSG_LEN) - dma_req(DMA_R_REQ_REMAINING);
 	dbuff_in.msg_len  = dma_req(DMA_R_REQ_MSG_LEN);
 
+	// std::cerr << "hackey msg len " << dbuff_in.msg_len << std::endl;
+	// std::cerr << "hackey msg addr " << dbuff_in.msg_addr << std::endl;
+
 	dma_read_log_o.write(LOG_DATA_R_READ);
 
 	dbuff_in_o.write(dbuff_in);
@@ -96,7 +99,9 @@ void dma_read(hls::stream<am_cmd_t> & cmd_queue_o,
 void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
 	       hls::stream<ap_axiu<512,0,0,0>> & data_queue_o,
 	       hls::stream<am_status_t> & status_queue_i,
-	       hls::stream<dma_w_req_t> & dma_w_req_i,
+	       hls::stream<dma_w_req_t> & dma_w_req_data_i,
+	       hls::stream<dma_w_req_t> & dma_w_req_sendmsg_i,
+	       hls::stream<dma_w_req_t> & dma_w_req_recvmsg_i,
 	       hls::stream<ap_uint<8>> & dma_req_log_o,
 	       hls::stream<ap_uint<8>> & dma_stat_log_o) {
 
@@ -106,7 +111,7 @@ void dma_write(hls::stream<am_cmd_t> & cmd_queue_o,
 
    dma_w_req_t dma_req;
 
-   if (dma_w_req_i.read_nb(dma_req)) {
+   if (dma_w_req_sendmsg_i.read_nb(dma_req) || dma_w_req_recvmsg_i.read_nb(dma_req) || dma_w_req_data_i.read_nb(dma_req)) {
        am_cmd_t am_cmd;
        am_cmd.data(AM_CMD_TYPE)  = 1;
        am_cmd.data(AM_CMD_DSA)   = 0;

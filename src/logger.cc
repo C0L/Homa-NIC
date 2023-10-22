@@ -8,7 +8,10 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
 	    hls::stream<ap_uint<8>> & h2c_pkt_log_i,
 	    hls::stream<ap_uint<8>> & c2h_pkt_log_i,
 	    hls::stream<ap_uint<8>> & dbuff_notif_log_i,
+	    hls::stream<ap_uint<8>> & log_control_i,
 	    hls::stream<log_entry_t> & log_out_o) {
+
+    static ap_uint<8> log_state = LOG_RECORD;
 
     static log_entry_t circular_log[2048];
     static ap_uint<11> read_head  = 0;
@@ -22,9 +25,8 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
     new_entry.last = 1;
     bool add_entry = false;
 
-    if (read_head != write_head && !log_out_o.full()) {
+    if (read_head != write_head && log_state == LOG_DRAIN) {
 	log_entry_t write_entry = circular_log[read_head++];
-	write_entry.last = 1;
 	log_out_o.write(write_entry);
     }
 
@@ -84,6 +86,8 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
 	    read_head++;
 	}
     }
+
+    log_control_i.read_nb(log_state);
 
     count++;
 }

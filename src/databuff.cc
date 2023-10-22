@@ -59,6 +59,9 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	buffer(1023, (buffered * 8)) = chunk_in.data(511, 0);
 	pending_buffer -= chunk_in.width;
 
+	//std::cerr << "chunk width " << chunk_in.width << std::endl;
+	//std::cerr << "set pending buffer " << pending_buffer << std::endl;
+
         /* The number of writable bytes is either limited by distance
 	 * to the next alignment or size of the input chunk
 	 */
@@ -93,7 +96,8 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	    (ap_uint<7>) (buffered + chunk_in.width - writable_bytes);
 
 	chunk_offset += writable_bytes;
-    } else if (pending_buffer == 0 && header_in_i.read_nb(header_in)) { 
+    } else if (pending_buffer == 0 && header_in_i.read_nb(header_in)) {
+	// std::cerr << "header into dbuff " << std::endl;
 	/* Though the aligned bytes may begin at an offset, for the
 	 * purpose of determining how many bytes to WRITE, we begin at
 	 * zero bytes buffered. This will ultimately determine the size
@@ -104,7 +108,10 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	chunk_offset   = 0;
 	pending_buffer = header_in.segment_length;
 
+	// std::cerr << "set initial pending buffer " << header_in.segment_length << std::endl;
+
 	if ((header_in.packetmap & PMAP_COMP) == PMAP_COMP) {
+	    // std::cerr << "FORWARDING TO PACKETMAP" << std::endl;
 	    header_in_o.write(header_in);
 	}
     }
@@ -127,6 +134,7 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 		  hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
 		  hls::stream<h2c_chunk_t> & h2c_chunk_i,
 		  hls::stream<h2c_chunk_t> & h2c_chunk_o,
+		  hls::stream<dbuff_id_t> & free_dbuff_id_o,
 		  hls::stream<ap_uint<8>> & dbuff_notif_log_o) {
 
 #pragma HLS pipeline II=1
@@ -154,7 +162,9 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 	// if (dbuff_in.last) {
 	srpt_queue_entry_t dbuff_notif;
 	dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_in.msg_addr; // TODO not a misleading name
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_in.msg_addr; // TODO misleading name
+
+	// std::cerr << "dbuff in msg addr " << dbuff_in.msg_addr << std::endl;
 
 	dbuff_notif_o.write(dbuff_notif);
 
@@ -167,16 +177,18 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
     // Do we need to process any packet chunks?
     if (h2c_chunk_i.read_nb(out_chunk)) {
 	// Is this a data type packet?
-	if (out_chunk.type == DATA && out_chunk.width != 0) {
-	    dbuff_coffset_t chunk_offset = (out_chunk.msg_addr % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
-	    dbuff_boffset_t byte_offset  = out_chunk.msg_addr % DBUFF_CHUNK_SIZE;
+	if (out_chunk.type == DATA && out_chunk.data_bytes != 0) {
+	    dbuff_coffset_t chunk_offset = (out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
+	    dbuff_boffset_t byte_offset  = out_chunk.offset % DBUFF_CHUNK_SIZE;
 
 	    ap_uint<1024> double_buff = (dbuff[out_chunk.h2c_buff_id][chunk_offset+1], dbuff[out_chunk.h2c_buff_id][chunk_offset]);
 
-	    // TODO does this do anything???
-// #pragma HLS array_partition variable=double_buff complete
+	    out_chunk.data(511, (512 - (out_chunk.data_bytes*8))) = double_buff(((byte_offset + out_chunk.data_bytes) * 8) - 1, byte_offset * 8);
 
-	    out_chunk.data(511, (512 - (out_chunk.width*8))) = double_buff(((byte_offset + out_chunk.width) * 8) - 1, byte_offset * 8);
+	    // Read the last chunk for a message
+	    if (out_chunk.last_pkt_chunk == 1) {
+		free_dbuff_id_o.write(out_chunk.h2c_buff_id);
+	    }
 	}
 	h2c_chunk_o.write(out_chunk);
     }

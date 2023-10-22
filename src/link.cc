@@ -98,16 +98,16 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 	h2c_chunk_t out_chunk;
 	ap_uint<512> natural_chunk;
 
-	out_chunk.msg_addr = header.data_offset;
+	out_chunk.offset = header.data_offset;
 
 	switch(header.type) {
 	    case DATA: {
 		if (processed_bytes == 0) {
 
 		    // Ethernet header
-		    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;        // TODO MAC Dest (set by phy?)
-		    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;        // TODO MAC Src (set by phy?)
-		    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE; // Ethertype
+		    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
+		    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;            // TODO MAC Src (set by phy?)
+		    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE;     // Ethertype
 
 		    // IPv6 header
 		    ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
@@ -126,12 +126,12 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = header.dport;    // Destination Port
 
 		    // Unused
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;               // Unused
+		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;             // Unused
 
 		    // Packet block configuration — no data bytes needed
 		    out_chunk.type  = DATA;
-		    out_chunk.width = 0;
-		    out_chunk.keep  = 64;
+		    out_chunk.data_bytes = 0;
+		    out_chunk.link_bytes = 64;
 		} else if (processed_bytes == 64) {
 		    // Rest of common header
 		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                  // Unused (2 bytes)
@@ -150,28 +150,27 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;                     // Pad (1 byte)
 
 		    // Data Segment
-		    natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header.data_offset;    // Offset
-		    natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = header.segment_length; // Segment Length
+		    natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header.data_offset;     // Offset
+		    natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = header.segment_length;  // Segment Length
 
 		    // Ack header
-		    natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;  // Client ID (8 bytes) TODO
-		    natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;  // Client Port (2 bytes) TODO
-		    natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;  // Server Port (2 bytes) TODO
+		    natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;                         // Client ID (8 bytes) TODO
+		    natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;                         // Client Port (2 bytes) TODO
+		    natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;                         // Server Port (2 bytes) TODO
 
 		    // Packet block configuration — 14 data bytes needed
 		    out_chunk.type        = DATA;
-		    out_chunk.width       = 14;
-		    out_chunk.keep        = 64;
+		    out_chunk.data_bytes  = 14; // TODO this grabs more data than needed
+		    out_chunk.link_bytes  = (((header.packet_bytes - DATA_PKT_HEADER) < 14) ? ((ap_int<32>) (header.packet_bytes - DATA_PKT_HEADER)) : ((ap_int<32>) 14)) + 50;
 		    out_chunk.h2c_buff_id = header.h2c_buff_id;
 		    out_chunk.local_id    = header.local_id;
 		    header.data_offset    += 14;
 		} else {
 		    out_chunk.type        = DATA;
-		    out_chunk.width       = 64;
-		    // TODO revise
-		    out_chunk.keep        = ((header.packet_bytes - processed_bytes) < 64) ? ((ap_int<32>) (header.packet_bytes - processed_bytes)) : ((ap_int<32>) 64);
+		    out_chunk.data_bytes  = 64; // TODO this grabs more data than needed
+		    out_chunk.link_bytes = ((header.packet_bytes - processed_bytes) < 64) ? ((ap_int<32>) (header.packet_bytes - processed_bytes)) : ((ap_int<32>) 64);
 		    out_chunk.h2c_buff_id  = header.h2c_buff_id;
-		    out_chunk.local_id = header.local_id;
+		    out_chunk.local_id     = header.local_id;
 		    header.data_offset += 64;
 		}
 		break;
@@ -199,15 +198,16 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    natural_chunk(CHUNK_IPV6_DADDR)          = header.daddr;     // Destination Address
 
 		    // Start of common header
-		    natural_chunk(CHUNK_HOMA_COMMON_SPORT)   = header.sport;  // Sender Port
-		    natural_chunk(CHUNK_HOMA_COMMON_DPORT)   = header.dport;  // Destination Port
+		    natural_chunk(CHUNK_HOMA_COMMON_SPORT)   = header.sport;     // Sender Port
+		    natural_chunk(CHUNK_HOMA_COMMON_DPORT)   = header.dport;     // Destination Port
 
 		    // Unused
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;             // Unused
+		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;                // Unused
 
 		    // Packet block configuration — no data bytes needed
-		    out_chunk.type  = GRANT;
-		    out_chunk.width = 0;
+		    out_chunk.type       = GRANT;
+		    out_chunk.data_bytes = 0;
+		    out_chunk.link_bytes = 64;
 		} else if (processed_bytes == 64) {
 		    // Rest of common header
 		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                // Unused (2 bytes)
@@ -223,8 +223,9 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    natural_chunk(CHUNK_HOMA_GRANT_PRIORITY) = 0;                       // Priority TODO
 
 		    // Packet block configuration — no data bytes needed
-		    out_chunk.type  = GRANT;
-		    out_chunk.width = 0;
+		    out_chunk.type       = GRANT;
+		    out_chunk.data_bytes = 0;
+		    out_chunk.link_bytes = 54;
 		} 
 		break;
 	    }
@@ -232,13 +233,18 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 
 	processed_bytes += 64;
 
+	out_chunk.last_pkt_chunk = 0;
+	out_chunk.last_msg_chunk = 0;
+
 	if (processed_bytes >= header.packet_bytes) {
 	    processed_bytes = 0;
 	    valid = false;
-	    out_chunk.last = 1;
-	} else {
-	    out_chunk.last = 0;
-	}
+	    out_chunk.last_pkt_chunk = 1;
+
+	    if (header.segment_length + header.data_offset >= header.message_length) {
+		out_chunk.last_msg_chunk = 1;
+	    }
+	} 
 
 	network_order(natural_chunk, out_chunk.data);
 	chunk_out_o.write(out_chunk);
@@ -263,8 +269,8 @@ void pkt_chunk_egress(hls::stream<h2c_chunk_t> & out_chunk_i,
 	raw_stream_t raw_stream;
 
 	raw_stream.data = chunk.data;
-	raw_stream.last = chunk.last;
-	raw_stream.keep = chunk.keep;
+	raw_stream.last = chunk.last_pkt_chunk;
+	raw_stream.keep = chunk.link_bytes;
 	link_egress.write(raw_stream);
     }
 }
@@ -293,6 +299,7 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
     static ap_uint<32> processed_bytes = 0;
 
     if (!link_ingress.empty()) {
+
 	raw_stream_t raw_stream = link_ingress.read();
 	
 	c2h_chunk_t data_block;
@@ -334,8 +341,9 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		    // TODO parse acks
 
 		    data_block.data(14 * 8, 0) = raw_stream.data(511, 512-14*8);
-		    data_block.width  = 14;
+		    data_block.width  = raw_stream.keep - 50;
 		    data_block.last   = raw_stream.last;
+
 		    chunk_in_o.write(data_block);
 
 		    break;

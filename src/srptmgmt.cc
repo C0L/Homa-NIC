@@ -52,12 +52,14 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > best_send(SRPT_QUEUE_ENTRY_REMAINING)) 
 	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (best_send(SRPT_QUEUE_ENTRY_REMAINING) - HOMA_PAYLOAD_SIZE));
 
+	std::cerr << "data packet out " << std::endl;
 	data_pkt_o.write(best_send);
 
 	active_rpcs[best_send(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_REMAINING) = remaining;
 
 	// The entry is complete so zero it
 	if (remaining == 0) {
+	    std::cerr << "zeroed entry " << std::endl;
 	    active_rpcs[best_send(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_RPC_ID) = 0;
 	}
     }

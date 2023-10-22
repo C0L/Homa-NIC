@@ -152,7 +152,7 @@ COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)"
 #		$(C_TB_DIR)/single_message_tester.cc \
 #		"RTT_BYTES=5000" \
 
-export DISPLAY=:1
+# export DISPLAY=:1
 
 #srpt_fetch_cosim_shim:
 #	$(VITIS) tcl/homa_hls.tcl -tclargs \

@@ -7,10 +7,6 @@
 #include "ap_axi_sdata.h"
 #include "hls_task.h"
 #include "hls_stream.h"
-#include "hls_vector.h"
-
-#define Q(x) #x
-#define QUOTE(x) Q(x)
 
 #define AM_CMD_SIZE  88
 #define AM_CMD_BTT   22,0
@@ -149,16 +145,16 @@ struct peer_hashpack_t {
 typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 
 struct rpc_hashpack_t {
-   ap_uint<128> s6_addr;
-   ap_uint<64> id;
-   ap_uint<16> port;
-   ap_uint<16> empty;
+    ap_uint<128> s6_addr;
+    ap_uint<64> id;
+    ap_uint<16> port;
+    ap_uint<16> empty;
 
 #define RPC_HP_SIZE 7 // Number of 32 bit chunks to hash for RPC table
 
-   bool operator==(const rpc_hashpack_t & other) const {
-      return (s6_addr == other.s6_addr && id == other.id && port == other.port);
-   }
+    bool operator==(const rpc_hashpack_t & other) const {
+	return (s6_addr == other.s6_addr && id == other.id && port == other.port);
+    }
 };
 
 // TODO Is there any way to make these work as structs??? This is so ugly
@@ -393,13 +389,14 @@ struct c2h_chunk_t {
  */
 struct h2c_chunk_t {
     homa_packet_type_t type;   // What is the type of this outgoing packet
-    dbuff_id_t h2c_buff_id; // Which data buffer is the message stored in
+    dbuff_id_t h2c_buff_id;    // Which data buffer is the message stored in
     local_id_t local_id;       // What is the RPC ID associated with this message
-    msg_addr_t msg_addr;       // What byte offset is this output chunk for
-    ap_uint<32> width;         // What is the total length of this message
-    ap_uint<32> keep;          // What is the total length of this message
+    msg_addr_t offset;         // What byte offset is this output chunk for
+    ap_uint<32> data_bytes;    // Number of data bytes to fetch
+    ap_uint<32> link_bytes;    // Number of valid bytes in this chunk
     integral_t data;           // Data to be sent onto the link
-    ap_uint<1> last;           // Is this the last chunk in the sequence
+    ap_uint<1> last_msg_chunk; // Is this the last chunk in the message 
+    ap_uint<1> last_pkt_chunk; // Is this the last chunk in the packet 
 };
 
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
@@ -420,8 +417,9 @@ struct h2c_chunk_t {
 /* Offsets within the recvmsg bitvector for the recvmsg specific information */
 #define MSGHDR_RECV_ID      447,384 // RPC identifier
 #define MSGHDR_RECV_CC      511,448 // Completion Cookie
-#define MSGHDR_RECV_FLAGS   543,512 // Interest list
-#define MSGHDR_RECV_SIZE    544     // Rounded to nearest 32 bits
+#define MSGHDR_RECV_SIZE    512 // Rounded to nearest 32 bits
+// #define MSGHDR_RECV_FLAGS   543,512 // Interest list
+// #define MSGHDR_RECV_SIZE    544     // Rounded to nearest 32 bits
 
 /**
  * msghdr_send_t - input bitvector from the user for sendmsg requests
@@ -624,11 +622,11 @@ struct srpt_grant_t {
 #define LOG_GRANT_OUT 0x10
 #define LOG_DATA_OUT 0x20
 
+#define LOG_RECORD 0
+#define LOG_DRAIN  1
+
 void homa(
     hls::stream<msghdr_send_t> & msghdr_send_i,
-    hls::stream<msghdr_send_t> & msghdr_send_o,
-    hls::stream<msghdr_recv_t> & msghdr_recv_i,
-    hls::stream<msghdr_recv_t> & msghdr_recv_o,
     hls::stream<am_cmd_t> & w_cmd_queue_o,
     hls::stream<ap_axiu<512,0,0,0>> & w_data_queue_o,
     hls::stream<am_status_t> & w_status_queue_i,
@@ -637,8 +635,11 @@ void homa(
     hls::stream<am_status_t> & r_status_queue_i,
     hls::stream<raw_stream_t> & link_ingress_i,
     hls::stream<raw_stream_t> & link_egress_o,
-    hls::stream<port_to_phys_t> & h2c_port_to_phys_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_phys_i,
+    hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_metasend_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_metarecv_i,
+    hls::stream<ap_uint<8>> & log_control_i,
     hls::stream<log_entry_t> & log_out_o
     );
 
