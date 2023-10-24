@@ -74,14 +74,9 @@ ap_uint<MSGHDR_SEND_SIZE> sendmsg(ap_uint<32> size, ap_uint<64> id) {
 
     ap_uint<MSGHDR_SEND_SIZE> sendmsg_resp;
 
-    // If we just rolled over
-    if (*((uint64_t*) c2h_metasend) == 64) {
-	sendmsg_resp = *((ap_uint<MSGHDR_SEND_SIZE>*) (c2h_metasend + 16384-64));
-    } else {
-	sendmsg_resp = *((ap_uint<MSGHDR_SEND_SIZE>*) (c2h_metasend + sendhead));
-    }
-
     sendhead = *((uint64_t*) c2h_metasend);
+
+    sendmsg_resp = *((ap_uint<MSGHDR_SEND_SIZE>*) (c2h_metasend + sendhead));
 
     return sendmsg_resp;
 }
@@ -93,14 +88,9 @@ ap_uint<MSGHDR_RECV_SIZE> recvmsg() {
 
     ap_uint<512> recvmsg_resp;
 
-    // If we just rolled over
-    if (*((uint64_t*) c2h_metarecv) == 64) {
-	recvmsg_resp = *((ap_uint<512>*) (c2h_metarecv + 16384-64));
-    } else {
-	recvmsg_resp = *((ap_uint<512>*) (c2h_metarecv + recvhead));
-    }
-
     recvhead = *((uint64_t*) c2h_metarecv);
+
+    recvmsg_resp = *((ap_uint<512>*) (c2h_metarecv + recvhead));
 
     return recvmsg_resp;
 }
@@ -114,11 +104,11 @@ void init() {
     c2h_metasend = (char*) malloc(16384 * sizeof(char));
     c2h_metarecv = (char*) malloc(16384 * sizeof(char));
 
-    *((uint64_t*) c2h_metasend) = 64;
-    *((uint64_t*) c2h_metarecv) = 64;
+    *((uint64_t*) c2h_metasend) = 0;
+    *((uint64_t*) c2h_metarecv) = 0;
 
-    sendhead = 64;
-    recvhead = 64;
+    sendhead = 0;
+    recvhead = 0;
 
     c2h_msgbuff_map(PORT_TO_PHYS_ADDR) = (uint64_t) c2h_msgbuff;
     c2h_msgbuff_map(PORT_TO_PHYS_PORT) = sport;
@@ -172,13 +162,10 @@ void random_rpc() {
     char pattern[5] = "\xDE\xAD\xBE\xEF";
 
     for (int i = 0; i < (16384/4); ++i) memcpy(h2c_msgbuff + (i*4), &pattern, 4);
-    std::cerr << "ZEROING: " << ((uint64_t) c2h_msgbuff) << std::endl;
     memset(c2h_msgbuff, 0, 16384);
 
     ap_uint<32> size = 6000;
     // ap_uint<32> size = rand() % 4000;
-
-    std::cerr << "size: " << size << std::endl;
 
     ap_uint<MSGHDR_SEND_SIZE> send = sendmsg(size, 0); // Request
 
@@ -197,8 +184,6 @@ void random_rpc() {
     recv = recvmsg(); // Receipt
 
     std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
-
-
 }
 
 int main(int argc, char **argv) {

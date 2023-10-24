@@ -24,6 +24,7 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 	active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
     } else if (!grant_notif_i.empty()) {
 	srpt_queue_entry_t header_in = grant_notif_i.read();
+	std::cerr << "GRANT NOTIF IN " << header_in(SRPT_QUEUE_ENTRY_RPC_ID) << " " <<  header_in(SRPT_QUEUE_ENTRY_GRANTED) << std::endl;
 	active_rpcs[header_in(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_GRANTED) = header_in(SRPT_QUEUE_ENTRY_GRANTED);
     }
 
@@ -37,7 +38,7 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 	if (active_rpcs[i](SRPT_QUEUE_ENTRY_RPC_ID) != 0) {
 	    // We found a better choice if there are less remaining bytes, or we are setting best_send for the first time
 	    if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) < best_send(SRPT_QUEUE_ENTRY_REMAINING) || best_send(SRPT_QUEUE_ENTRY_RPC_ID) == 0) {
-		bool granted   = (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) + 1 <= active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING)) || (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) == 0);
+		bool granted = (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) + 1 <= active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING)) || (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) == 0);
 		bool dbuffered = (active_rpcs[i](SRPT_QUEUE_ENTRY_DBUFFERED) + HOMA_PAYLOAD_SIZE <= active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING)) || (active_rpcs[i](SRPT_QUEUE_ENTRY_DBUFFERED) == 0);
 
 		if (granted && dbuffered) {
@@ -52,14 +53,12 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 	ap_uint<32> remaining = (HOMA_PAYLOAD_SIZE > best_send(SRPT_QUEUE_ENTRY_REMAINING)) 
 	    ? ((ap_uint<32>) 0) : ((ap_uint<32>) (best_send(SRPT_QUEUE_ENTRY_REMAINING) - HOMA_PAYLOAD_SIZE));
 
-	std::cerr << "data packet out " << std::endl;
 	data_pkt_o.write(best_send);
 
 	active_rpcs[best_send(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_REMAINING) = remaining;
 
 	// The entry is complete so zero it
 	if (remaining == 0) {
-	    std::cerr << "zeroed entry " << std::endl;
 	    active_rpcs[best_send(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_RPC_ID) = 0;
 	}
     }
@@ -126,11 +125,11 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 
 	// The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
 	if ((grant_in(SRPT_GRANT_NEW_PMAP) & PMAP_INIT) == PMAP_INIT) {
+	    std::cerr << "CREATED GRANT ENTRY " << grant_in(SRPT_GRANT_NEW_RPC_ID) << " " << grant_in(SRPT_GRANT_NEW_MSG_LEN) - HOMA_PAYLOAD_SIZE << " " << grant_in(SRPT_GRANT_NEW_PEER_ID) << std::endl;
 	    entries[grant_in(SRPT_GRANT_NEW_RPC_ID)] = {grant_in(SRPT_GRANT_NEW_PEER_ID), grant_in(SRPT_GRANT_NEW_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_NEW_MSG_LEN) - HOMA_PAYLOAD_SIZE};
-	    std::cerr << "GRANT INIT " << grant_in(SRPT_GRANT_NEW_RPC_ID) << " " << grant_in(SRPT_GRANT_NEW_MSG_LEN) - HOMA_PAYLOAD_SIZE << " " << grant_in(SRPT_GRANT_NEW_PEER_ID) << std::endl;
 	} else {
 	    entries[grant_in(SRPT_GRANT_NEW_RPC_ID)].recv_bytes += HOMA_PAYLOAD_SIZE;
-	    std::cerr << "UDPATED DATA IN GRANT QUEUE " << entries[grant_in(SRPT_GRANT_NEW_RPC_ID)].recv_bytes << std::endl;
+	    std::cerr << "UPDATED GRANT ENTRY " << grant_in(SRPT_GRANT_NEW_RPC_ID) << std::endl;
 	} 
     } else {
 	srpt_grant_t best[8];
@@ -152,10 +151,10 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 		    for (int s = 0; s < 8; s++) {
 			if (entries[e].peer_id == best[s].peer_id) {
 			    dupe = true;
+			    // std::cerr << "DUPE" << std::endl;
 			}
 		    }
 
-		    // std::cerr << "POTENTIAL ENTRY " << dupe << std::endl;
 		    curr_best = (!dupe) ? entries[e] : curr_best;
 		}
 	    }
@@ -167,7 +166,6 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 	// Who to grant to next?
 	for (int i = 0; i < 8; ++i) {
 	    if (best[i].grantable_bytes < next_grant.grantable_bytes && best[i].recv_bytes != 0) {
-		std::cerr << "CANDIDATE" << std::endl;
 		next_grant = best[i];
 	    }
 	}
@@ -186,23 +184,23 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 		// grant_out(SRPT_GRANT_SEND_PEER_ID) = next_grant.peer_id;
 		grant_out_o.write(grant_out);
 
-		std::cerr << "GRANT OUT FINAL " << std::endl;
-
 	    } else {
 		entries[next_grant.rpc_id].recv_bytes = 0;
 		entries[next_grant.rpc_id].grantable_bytes -= MIN(next_grant.recv_bytes, entries[next_grant.rpc_id].grantable_bytes);
 
 		srpt_grant_send_t grant_out;
 
-		grant_out(SRPT_GRANT_SEND_MSG_ADDR)   = entries[next_grant.rpc_id].grantable_bytes;
-		grant_out(SRPT_GRANT_SEND_RPC_ID)  = next_grant.rpc_id;
+		grant_out(SRPT_GRANT_SEND_MSG_ADDR) = entries[next_grant.rpc_id].grantable_bytes;
+		grant_out(SRPT_GRANT_SEND_RPC_ID)   = next_grant.rpc_id;
 		// grant_out(SRPT_GRANT_SEND_PEER_ID) = next_grant.peer_id;
 
 		grant_out_o.write(grant_out);
 
-		std::cerr << "GRANT OUT " << std::endl;
+		std::cerr << "GRANT OUT \n";
 
-		if (next_grant.grantable_bytes == 0) {
+		// TODO not the right value??
+		if (entries[next_grant.rpc_id].grantable_bytes == 0) {
+		    std::cerr << "COMPLETED GRANTING" << std::endl;
 		    entries[next_grant.rpc_id] = {0, 0, 0xFFFFFFFF, 0xFFFFFFFF};
 		}
 	    } 
