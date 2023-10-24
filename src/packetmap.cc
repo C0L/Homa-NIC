@@ -10,8 +10,7 @@
  * mactched with a recv call and the user notified
  */
 void packetmap(hls::stream<header_t> & header_in_i, 
-	       hls::stream<header_t> & header_in_o,
-	       hls::stream<srpt_grant_new_t> & grant_srpt_o) {
+	       hls::stream<header_t> & header_in_o) {
 
     /* 
      * A 64 bit timestamp is stored for each RPC. 
@@ -37,63 +36,57 @@ void packetmap(hls::stream<header_t> & header_in_i,
     header_t header_in;
 
     if (header_in_i.read_nb(header_in)) {
-	pmap_entry_t packetmap = packetmaps[header_in.local_id];
 
-	// Have we recieved any packets for this RPC before
-	if (packetmap.length == 0) {
-	    header_in.packetmap |= PMAP_INIT;
+	header_in.packetmap = 0;
 
-	    // Populate a new packetmap
-	    packetmap.map  = 0;
-	    packetmap.head = 0;
-
-	    // Record the total number of bytes in this message
-	    packetmap.length = header_in.message_length;
-	}
-
-	int diff = (header_in.data_offset - packetmap.head) / HOMA_PAYLOAD_SIZE;
-
-	// Is this packet in bounds
-	if (diff < 64 && diff >= 0) {
-
-	    // Is this a new packet we have not seen before?
-	    if (packetmap.map[63-diff] != 1) {
-		packetmap.map[63-diff] = 1;
-
-		int shift = 0;
-		for (int i = 63; i >= 0; --i) {
-#pragma HLS unroll
-		    if (packetmap.map[63-i] == 0) shift = i;
-		}
-
-		packetmap.head += (shift * HOMA_PAYLOAD_SIZE);
-		packetmap.map <<= shift;
-
-		// Has the head reached the length?
-		if (packetmap.head >= packetmap.length) {
-		    // Notify recv system that the message is fully buffered
-		    header_in.packetmap |= PMAP_COMP;
-		    // Disable this RPC
-		    //last_touches[header_in.local_id] = 0;
-		}
-
-		packetmaps[header_in.local_id] = packetmap;
-
-		header_in_o.write(header_in);
-
-		if (header_in.message_length > header_in.incoming) {
-		    srpt_grant_new_t grant_in;
-		    grant_in(SRPT_GRANT_NEW_MSG_LEN) = header_in.message_length;
-		    grant_in(SRPT_GRANT_NEW_RPC_ID)  = header_in.local_id;
-		    grant_in(SRPT_GRANT_NEW_PEER_ID) = header_in.peer_id;
-
-		    grant_in(SRPT_GRANT_NEW_PMAP)    = header_in.packetmap;
+	// TODO grants don't really need to flow through here?
+	if (header_in.type == DATA) {
+	    pmap_entry_t packetmap = packetmaps[header_in.local_id];
+	    
+	    // Have we recieved any packets for this RPC before
+	    if (packetmap.length == 0) {
+		header_in.packetmap |= PMAP_INIT;
+		
+		// Populate a new packetmap
+		packetmap.map  = 0;
+		packetmap.head = 0;
+		
+		// Record the total number of bytes in this message
+		packetmap.length = header_in.message_length;
+	    }
+	    
+	    int diff = (header_in.data_offset - packetmap.head) / HOMA_PAYLOAD_SIZE;
+	    
+	    // Is this packet in bounds
+	    if (diff < 64 && diff >= 0) {
+		
+		// Is this a new packet we have not seen before?
+		if (packetmap.map[63-diff] != 1) {
+		    packetmap.map[63-diff] = 1;
 		    
-		    // Notify the grant queue of this receipt
-		    grant_srpt_o.write(grant_in); 
-		} 
+		    int shift = 0;
+		    for (int i = 63; i >= 0; --i) {
+#pragma HLS unroll
+			if (packetmap.map[63-i] == 0) shift = i;
+		    }
+		    
+		    packetmap.head += (shift * HOMA_PAYLOAD_SIZE);
+		    packetmap.map <<= shift;
+		    
+		    // Has the head reached the length?
+		    if (packetmap.head >= packetmap.length) {
+			// Notify recv system that the message is fully buffered
+			header_in.packetmap |= PMAP_COMP;
+			// Disable this RPC
+			//last_touches[header_in.local_id] = 0;
+		    }
+		    
+		    packetmaps[header_in.local_id] = packetmap;
+		}
 	    }
 	}
+
+	header_in_o.write(header_in);
     }
 
     //static uint64_t time = 0;

@@ -18,19 +18,29 @@ void h2c_header_proc(
 	switch(h2c_header.type) {
 	    case DATA:
 		homa_rpc = send_rpcs[h2c_header.local_id];
+
+		h2c_header.daddr = homa_rpc.daddr;
+		h2c_header.dport = homa_rpc.dport;
+		h2c_header.saddr = homa_rpc.saddr;
+		h2c_header.sport = homa_rpc.sport;
+		h2c_header.id    = homa_rpc.id;
+
 		std::cerr << "data packet out local " << h2c_header.local_id << " net " << homa_rpc.id << std::endl;
+		// std::cerr << "data packet out local " << h2c_header.saddr << " net " << homa_rpc.id << std::endl;
 		break;
 	    case GRANT:
 		homa_rpc = recv_rpcs[h2c_header.local_id];
+
+		h2c_header.daddr = homa_rpc.saddr;
+		h2c_header.dport = homa_rpc.sport;
+		h2c_header.saddr = homa_rpc.daddr;
+		h2c_header.sport = homa_rpc.dport;
+		h2c_header.id    = homa_rpc.id;
+
 		std::cerr << "grant packet out local " << h2c_header.local_id << " net " << homa_rpc.id << std::endl;
 		break;
 	}
 
-	h2c_header.daddr = homa_rpc.daddr;
-	h2c_header.dport = homa_rpc.dport;
-	h2c_header.saddr = homa_rpc.saddr;
-	h2c_header.sport = homa_rpc.sport;
-	h2c_header.id    = homa_rpc.id;
 
 	// Log the packet type we are sending
 	log_out.write((h2c_header.type == DATA) ? LOG_DATA_OUT : LOG_GRANT_OUT);
@@ -60,6 +70,9 @@ void c2h_header_proc(
     msg_addr_t  * c2h_rpc_to_offset,
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
+    hls::stream<header_t> & pm_c2h_header_i,
+    hls::stream<header_t> & pm_c2h_header_o,
+    hls::stream<srpt_grant_new_t> & grant_queue_o,
     hls::stream<srpt_queue_entry_t> & data_srpt_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
     ) {
@@ -76,18 +89,73 @@ void c2h_header_proc(
     /* hash(dest addr) -> peer ID */
     static cam_t<peer_hashpack_t, peer_id_t, 16, 4> peer_cam;
 
-    /* write paths */
+    /* post packet map */
+    header_t pm_c2h_header;
+    if (pm_c2h_header_i.read_nb(pm_c2h_header)) {
+	if ((pm_c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
+	    std::cerr << "init local " << pm_c2h_header.local_id << " network " << pm_c2h_header.id << std::endl;
+	    // Store data associated with this RPC
+	    homa_rpc_t homa_rpc;
+	    homa_rpc.saddr   = pm_c2h_header.saddr;
+	    homa_rpc.daddr   = pm_c2h_header.daddr;
+	    homa_rpc.dport   = pm_c2h_header.dport;
+	    homa_rpc.sport   = pm_c2h_header.sport;
+	    homa_rpc.id      = pm_c2h_header.id;
+	    homa_rpc.peer_id = pm_c2h_header.peer_id;
+
+	    recv_rpcs[pm_c2h_header.local_id] = homa_rpc;
+
+	    msg_addr_t msg_addr = ((c2h_buff_ids[pm_c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
+	    c2h_rpc_to_offset[pm_c2h_header.local_id] = msg_addr;
+	    c2h_buff_ids[pm_c2h_header.sport]++;
+	}
+	
+	// TODO should log errors here for hash table misses
+	switch (pm_c2h_header.type) {
+	    case DATA: {
+		if (pm_c2h_header.message_length > pm_c2h_header.incoming) {
+		    srpt_grant_new_t grant_in;
+
+
+		    grant_in(SRPT_GRANT_NEW_MSG_LEN) = pm_c2h_header.message_length;
+		    grant_in(SRPT_GRANT_NEW_RPC_ID)  = pm_c2h_header.local_id;
+		    grant_in(SRPT_GRANT_NEW_PEER_ID) = pm_c2h_header.peer_id;
+		    
+		    grant_in(SRPT_GRANT_NEW_PMAP)    = pm_c2h_header.packetmap;
+		    
+		    // Notify the grant queue of this receipt
+		    grant_queue_o.write(grant_in); 
+		}
+
+		pm_c2h_header_o.write(pm_c2h_header);
+
+		// Log the receipt of a data packet
+		c2h_pkt_log_o.write(LOG_DATA_OUT);
+		
+		break;
+	    }
+		
+	    case GRANT: {
+
+		srpt_queue_entry_t srpt_grant_notif;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)   = pm_c2h_header.local_id;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED)  = pm_c2h_header.grant_offset;
+		srpt_grant_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_GRANT_UPDATE;
+
+		// Instruct the SRPT data of the new grant
+		data_srpt_o.write(srpt_grant_notif);
+
+		// Log the receipt of the grant packet
+		c2h_pkt_log_o.write(LOG_GRANT_OUT);
+		
+		break;
+	    }
+	}
+    }
+
+    /* pre packet map */
     header_t c2h_header;
     if (c2h_header_i.read_nb(c2h_header)) {
-
-	switch(c2h_header.type) {
-	    case DATA:
-		std::cerr << "DATA packet into c2h" << std::endl;
-		break;
-	    case GRANT:
-		std::cerr << "GRANT packet into c2h" << std::endl;
-		break;
-	}
 
 	/* Perform the peer ID lookup regardless */
 	peer_hashpack_t peer_query = {c2h_header.saddr};
@@ -100,232 +168,35 @@ void c2h_header_proc(
 	    peer_cam.insert(peer_query, c2h_header.peer_id);
 	}
 
-	/* If we are the client then the entry already exists inside
-	 * rpc_client. If we are the server then the entry needs to be
-	 * created inside rpc_server if this is the first packet received
-	 * for a message. If it is not the first message then the entry
-	 * already exists in server_rpcs.
-	 */
+	if (!IS_CLIENT(c2h_header.id)) {
+	    /* If we are the client then the entry already exists inside
+	     * rpc_client. If we are the server then the entry needs to be
+	     * created inside rpc_server if this is the first packet received
+	     * for a message. If it is not the first message then the entry
+	     * already exists in server_rpcs.
+	     */
+	    rpc_hashpack_t rpc_query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
 
-	rpc_hashpack_t rpc_query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
+	    std::cerr << "search saddr " << c2h_header.saddr << std::endl;
 
-	local_id_t search = rpc_cam.search(rpc_query);
+	    c2h_header.local_id = rpc_cam.search(rpc_query);
 
-	// If the rpc is not registered, generate a new RPC ID and register it 
-	if (search == 0) {
-	    c2h_header.local_id = (IS_CLIENT(c2h_header.id)) ? ((local_id_t) c2h_header.id) : server_ids.pop();
+	    if (c2h_header.local_id == 0) {
+		c2h_header.local_id = server_ids.pop();
 
-	    std::cerr << "recv created server entry local " << c2h_header.local_id << " network " << c2h_header.id << std::endl;
-
-	    rpc_cam.insert(rpc_query, c2h_header.local_id);
-
-	    // TODO should not create this for grants
-
-	    // Store data associated with this RPC
-	    homa_rpc_t homa_rpc;
-	    homa_rpc.saddr   = c2h_header.saddr;
-	    homa_rpc.daddr   = c2h_header.daddr;
-	    homa_rpc.dport   = c2h_header.dport;
-	    homa_rpc.sport   = c2h_header.sport;
-	    homa_rpc.id      = c2h_header.id;
-	    homa_rpc.peer_id = c2h_header.peer_id;
-
-	    recv_rpcs[c2h_header.local_id] = homa_rpc;
-
-	    msg_addr_t msg_addr = ((c2h_buff_ids[c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
-	    c2h_rpc_to_offset[c2h_header.local_id] = msg_addr;
-	    c2h_buff_ids[c2h_header.sport]++;
+		// If the rpc is not registered, generate a new RPC ID and register it 
+		rpc_cam.insert(rpc_query, c2h_header.local_id);
+		std::cerr << "map create " << c2h_header.local_id << " net " << c2h_header.id << std::endl;
+	    } else {
+		std::cerr << "map hit local " << c2h_header.local_id << " net " << c2h_header.id << std::endl;
+	    }
 	} else {
-	    c2h_header.local_id = search;
-	    std::cerr << "recv found server entry local " << c2h_header.local_id << " network " << c2h_header.id << std::endl;
+	    c2h_header.local_id = c2h_header.id;
 	}
 
-	// TODO should log errors here for hash table misses
-
-	switch (c2h_header.type) {
-	    case DATA: {
-		// Instruct the data buffer where to write this message's data
-		c2h_header_o.write(c2h_header);
-
-		// Log the receipt of a data packet
-		c2h_pkt_log_o.write(LOG_DATA_OUT);
-		
-		break;
-	    }
-		
-	    case GRANT: {
-		srpt_queue_entry_t srpt_grant_notif;
-		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)   = c2h_header.local_id;
-		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED)  = c2h_header.grant_offset;
-		srpt_grant_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_GRANT_UPDATE;
-
-		// Instruct the SRPT data of the new grant
-		data_srpt_o.write(srpt_grant_notif);
-
-		// Log the receipt of the grant packet
-		c2h_pkt_log_o.write(LOG_GRANT_OUT);
-		
-		break;
-	    }
-	} 
+	c2h_header_o.write(c2h_header);
     }
 }
-
-
-///* Cases:
-// * Is Server:
-// *   - DATA Packet    : Map Network ID -> Local ID. Create entry/id in recv_rpcs on init
-// *   - Control Packet : Map Network ID -> Local ID. Entry already in recv_rpcs
-// * Is Client:
-// *   - DATA Packet:   : Create entry/id in recv_rpcs on init
-// *   - Control Packet : None.
-// */
-//void c2h_header_proc(
-//    homa_rpc_t * send_rpcs,
-//    homa_rpc_t * recv_rpcs,
-//    ap_uint<7> * c2h_buff_ids,
-//    msg_addr_t  * c2h_rpc_to_offset,
-//    hls::stream<header_t> & c2h_header_i,
-//    hls::stream<header_t> & c2h_header_o,
-//    hls::stream<srpt_queue_entry_t> & data_srpt_o,
-//    hls::stream<ap_uint<8>> & c2h_pkt_log_o
-//    ) {
-//
-//    /* Unique local RPC ID assigned when this core is the server */
-//    static stack_t<local_id_t, MAX_RPCS> server_ids(STACK_ODD);
-//
-//    /* Unique local Peer IDs */
-//    static stack_t<peer_id_t, MAX_PEERS> peer_ids(STACK_ALL);
-//
-//    /* hash(dest addr, sender ID, dest port) -> rpc ID */
-//    static cam_t<rpc_hashpack_t, local_id_t, 16, 4> rpc_cam;
-//
-//    /* hash(dest addr) -> peer ID */
-//    static cam_t<peer_hashpack_t, peer_id_t, 16, 4> peer_cam;
-//
-//    /* write paths */
-//    header_t c2h_header;
-//    if (c2h_header_i.read_nb(c2h_header)) {
-//
-//	switch(c2h_header.type) {
-//	    case DATA:
-//		std::cerr << "DATA packet into c2h" << std::endl;
-//		break;
-//	    case GRANT:
-//		std::cerr << "GRANT packet into c2h" << std::endl;
-//		break;
-//	}
-//
-//	/* Perform the peer ID lookup regardless */
-//	peer_hashpack_t peer_query = {c2h_header.saddr};
-//	c2h_header.peer_id          = peer_cam.search(peer_query);
-// 	
-//	// If the peer is not registered, generate new ID and register it
-//	if (c2h_header.peer_id == 0) {
-//	    c2h_header.peer_id = peer_ids.pop();
-//
-//	    peer_cam.insert(peer_query, c2h_header.peer_id);
-//	}
-//
-//	/* If we are the client then the entry already exists inside
-//	 * rpc_client. If we are the server then the entry needs to be
-//	 * created inside rpc_server if this is the first packet received
-//	 * for a message. If it is not the first message then the entry
-//	 * already exists in server_rpcs.
-//	 */
-//
-//	if (!IS_CLIENT(c2h_header.id)) {
-//	    rpc_hashpack_t rpc_query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
-//
-//	    c2h_header.local_id = rpc_cam.search(rpc_query);
-// 
-//            // If the rpc is not registered, generate a new RPC ID and register it 
-// 	    if (c2h_header.local_id == 0) {
-// 		c2h_header.local_id = server_ids.pop();
-//
-//		std::cerr << "recv created server entry local " << c2h_header.local_id << " network " << c2h_header.id << std::endl;
-//
-//		rpc_cam.insert(rpc_query, c2h_header.local_id);
-//
-//		// Store data associated with this RPC
-//		homa_rpc_t homa_rpc;
-//		homa_rpc.saddr = c2h_header.saddr;
-//		homa_rpc.daddr = c2h_header.daddr;
-//		homa_rpc.dport = c2h_header.dport;
-//		homa_rpc.sport = c2h_header.sport;
-//		homa_rpc.id    = c2h_header.id;
-//		homa_rpc.peer_id = c2h_header.peer_id;
-//
-//		recv_rpcs[c2h_header.local_id] = homa_rpc;
-//
-//		msg_addr_t msg_addr = ((c2h_buff_ids[c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
-//		c2h_rpc_to_offset[c2h_header.local_id] = msg_addr;
-//		c2h_buff_ids[c2h_header.sport]++;
-// 	    } else {
-//		std::cerr << "recv found server entry local " << c2h_header.local_id << " network " << c2h_header.id << std::endl;
-//	    }
-//
-//	    // TODO should log errors here for hash table misses
-//
-//	} else {
-//	    // TODO this should not always trigger?
-//	    // Store data associated with this RPC
-//	    homa_rpc_t homa_rpc;
-//	    homa_rpc.saddr = c2h_header.saddr;
-//	    homa_rpc.daddr = c2h_header.daddr;
-//	    homa_rpc.dport = c2h_header.dport;
-//	    homa_rpc.sport = c2h_header.sport;
-//	    homa_rpc.id    = c2h_header.id;
-//	    homa_rpc.peer_id = c2h_header.peer_id;
-//
-//	    // TODO need to assign new server id....
-//
-//	    std::cerr << "created new recv entry " << c2h_header.local_id << " " << c2h_header.id << std::endl;
-//
-//	    recv_rpcs[c2h_header.local_id] = homa_rpc;
-//
-//	    // homa_rpc_t homa_rpc; // = recv_rpcs[c2h_header.local_id];
-//
-//	    //     switch(c2h_header.type) {
-//	    // 	case DATA:
-//	    // 	    homa_rpc = recv_rpcs[c2h_header.local_id];
-//	    // 	    break;
-//	    // 	case GRANT:
-//	    // 	    homa_rpc = send_rpcs[c2h_header.local_id];
-//	    // 	    break;
-//	    //     }
-//
-//	    c2h_header.local_id = c2h_header.id; // ???
-//	}
-//
-//	switch (c2h_header.type) {
-//	    case DATA: {
-//		// Instruct the data buffer where to write this message's data
-//		c2h_header_o.write(c2h_header);
-//
-//		// Log the receipt of a data packet
-//		c2h_pkt_log_o.write(LOG_DATA_OUT);
-//		
-//		break;
-//	    }
-//		
-//	    case GRANT: {
-//		srpt_queue_entry_t srpt_grant_notif;
-//		srpt_grant_notif(SRPT_QUEUE_ENTRY_RPC_ID)   = c2h_header.local_id;
-//		srpt_grant_notif(SRPT_QUEUE_ENTRY_GRANTED)  = c2h_header.grant_offset;
-//		srpt_grant_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_GRANT_UPDATE;
-//
-//		// Instruct the SRPT data of the new grant
-//		data_srpt_o.write(srpt_grant_notif);
-//
-//		// Log the receipt of the grant packet
-//		c2h_pkt_log_o.write(LOG_GRANT_OUT);
-//		
-//		break;
-//	    }
-//	} 
-//    }
-//}
 
 void dbuff_notif_proc(
     homa_rpc_t * send_rpcs,
@@ -440,6 +311,7 @@ void update_host_map_proc(
 
 void send_proc(
     homa_rpc_t * send_rpcs,
+    homa_rpc_t * recv_rpcs,
     host_addr_t * c2h_port_to_metasend,
     host_addr_t * c2h_port_to_headsend,
     msg_addr_t * h2c_rpc_to_offset,
@@ -457,15 +329,18 @@ void send_proc(
     static bool headsend_update = false;
 
     if (!headsend_update && msghdr_send_i.read_nb(msghdr_send)) {
-	local_id_t id = client_ids.pop();
-
-	if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
-	    msghdr_send.data(MSGHDR_SEND_ID) = id;
-	}
-
-	std::cerr << "new send entry local " << id << " network " << msghdr_send.data(MSGHDR_SEND_ID) << std::endl;
 
 	homa_rpc_t rpc;
+
+	if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
+	    msghdr_send.data(MSGHDR_SEND_ID) = client_ids.pop();
+	    rpc.id = msghdr_send.data(MSGHDR_SEND_ID);
+	} else {
+	    rpc.id = recv_rpcs[msghdr_send.data(MSGHDR_SEND_ID)].id;
+	}
+
+	local_id_t id = msghdr_send.data(MSGHDR_SEND_ID);
+
 	rpc.saddr        = msghdr_send.data(MSGHDR_SADDR);
 	rpc.daddr        = msghdr_send.data(MSGHDR_DADDR);
 	rpc.sport        = msghdr_send.data(MSGHDR_SPORT);
@@ -474,7 +349,8 @@ void send_proc(
 	rpc.buff_size    = msghdr_send.data(MSGHDR_BUFF_SIZE);
 	rpc.cc           = msghdr_send.data(MSGHDR_SEND_CC);
 	rpc.h2c_buff_id  = msg_cache_ids.pop();
-	rpc.id           = msghdr_send.data(MSGHDR_SEND_ID);
+
+	std::cerr << "new send entry local " << msghdr_send.data(MSGHDR_SEND_ID) << " network " << rpc.id << std::endl;
 
 	send_rpcs[id]         = rpc;
 	h2c_rpc_to_offset[id] = (msghdr_send.data(MSGHDR_BUFF_ADDR) << 1) | 1;
@@ -482,7 +358,6 @@ void send_proc(
 	dma_w_req_t msghdr_resp;
 	msghdr_resp.data   = msghdr_send.data;
 
-	// ap_uint<64> offset = c2h_port_to_headsend[msghdr_send.data(MSGHDR_SPORT)];
 	ap_uint<64> offset = ((c2h_port_to_headsend[msghdr_send.data(MSGHDR_SPORT)]) % (16384 - 64)) + 64;
 	msghdr_resp.offset = c2h_port_to_metasend[msghdr_send.data(MSGHDR_SPORT)] + offset;
 	msghdr_resp.strobe = 64;
@@ -546,7 +421,6 @@ void recv_proc(
     static bool headrecv_update = false;
 
     if (!headrecv_update && complete_msgs_i.read_nb(complete_msg)) {
-	std::cerr << "COMPLETE MESSAGE\n";
 	msghdr_recv_t new_recv;
 	new_recv.data(MSGHDR_SADDR)      = complete_msg.saddr;
 	new_recv.data(MSGHDR_DADDR)      = complete_msg.daddr;
@@ -554,7 +428,8 @@ void recv_proc(
 	new_recv.data(MSGHDR_DPORT)      = complete_msg.dport;
 	new_recv.data(MSGHDR_BUFF_ADDR)  = complete_msg.host_addr;
 	new_recv.data(MSGHDR_BUFF_SIZE)  = complete_msg.message_length;
-	new_recv.data(MSGHDR_RECV_ID)    = complete_msg.id; 
+	new_recv.data(MSGHDR_RECV_ID)    = complete_msg.local_id; 
+	// new_recv.data(MSGHDR_RECV_ID)    = complete_msg.id; 
 	new_recv.data(MSGHDR_RECV_CC)    = complete_msg.completion_cookie;
 
 	dma_w_req_t msghdr_resp;
@@ -625,10 +500,13 @@ void rpc_state(
     hls::stream<dma_w_req_t> & msghdr_recv_o,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
+    hls::stream<srpt_grant_new_t> & grant_queue_o,
     hls::stream<header_t> & h2c_header_i,
     hls::stream<header_t> & h2c_header_o,
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
+    hls::stream<header_t> & pm_c2h_header_i,
+    hls::stream<header_t> & pm_c2h_header_o,
     hls::stream<header_t> & complete_msgs_i,
     hls::stream<srpt_queue_entry_t> & data_srpt_o,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
@@ -765,6 +643,7 @@ void rpc_state(
 
     send_proc(
 	send_rpcs,
+	recv_rpcs,
 	c2h_port_to_metasend,
 	c2h_port_to_headsend,
 	h2c_rpc_to_offset,
@@ -782,6 +661,9 @@ void rpc_state(
 	c2h_rpc_to_offset,
 	c2h_header_i,
 	c2h_header_o,
+	pm_c2h_header_i,
+	pm_c2h_header_o,
+	grant_queue_o,
 	data_srpt_o,
 	c2h_pkt_log_o
     );

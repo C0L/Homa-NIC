@@ -51,17 +51,45 @@ uint64_t sendhead;
 uint64_t recvhead;
 
 void process();
-ap_uint<MSGHDR_SEND_SIZE> sendmsg(ap_uint<32> size, ap_uint<64> id);
+ap_uint<MSGHDR_SEND_SIZE> sendmsg_A(ap_uint<32> size, ap_uint<64> id);
+ap_uint<MSGHDR_SEND_SIZE> sendmsg_B(ap_uint<32> size, ap_uint<64> id);
 ap_uint<MSGHDR_RECV_SIZE> recvmsg();
 void init();
 
-ap_uint<MSGHDR_SEND_SIZE> sendmsg(ap_uint<32> size, ap_uint<64> id) {
+ap_uint<MSGHDR_SEND_SIZE> sendmsg_A(ap_uint<32> size, ap_uint<64> id) {
     msghdr_send_t sendmsg_req;
 
     sendmsg_req.data(MSGHDR_SADDR)     = saddr;
     sendmsg_req.data(MSGHDR_DADDR)     = daddr;
     sendmsg_req.data(MSGHDR_SPORT)     = sport;
     sendmsg_req.data(MSGHDR_DPORT)     = dport;
+    sendmsg_req.data(MSGHDR_BUFF_ADDR) = 0;
+    sendmsg_req.data(MSGHDR_BUFF_SIZE) = size;
+
+    sendmsg_req.data(MSGHDR_SEND_ID)   = id;
+    sendmsg_req.data(MSGHDR_SEND_CC)   = 99;
+
+    sendmsg_i.write(sendmsg_req);
+
+    while(sendhead == *((uint64_t*) c2h_metasend)) process();
+
+    ap_uint<MSGHDR_SEND_SIZE> sendmsg_resp;
+
+    sendhead = *((uint64_t*) c2h_metasend);
+
+    sendmsg_resp = *((ap_uint<MSGHDR_SEND_SIZE>*) (c2h_metasend + sendhead));
+
+    return sendmsg_resp;
+}
+
+
+ap_uint<MSGHDR_SEND_SIZE> sendmsg_B(ap_uint<32> size, ap_uint<64> id) {
+    msghdr_send_t sendmsg_req;
+
+    sendmsg_req.data(MSGHDR_SADDR)     = daddr;
+    sendmsg_req.data(MSGHDR_DADDR)     = saddr;
+    sendmsg_req.data(MSGHDR_SPORT)     = dport;
+    sendmsg_req.data(MSGHDR_DPORT)     = sport;
     sendmsg_req.data(MSGHDR_BUFF_ADDR) = 0;
     sendmsg_req.data(MSGHDR_BUFF_SIZE) = size;
 
@@ -167,7 +195,7 @@ void random_rpc() {
     ap_uint<32> size = 6000;
     // ap_uint<32> size = rand() % 4000;
 
-    ap_uint<MSGHDR_SEND_SIZE> send = sendmsg(size, 0); // Request
+    ap_uint<MSGHDR_SEND_SIZE> send = sendmsg_A(size, 0); // Request
 
     std::cerr << "SENDMSG ID " << send(MSGHDR_SEND_ID) << std::endl;
 
@@ -177,7 +205,7 @@ void random_rpc() {
 
     std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
 
-    send = sendmsg(size, recv(MSGHDR_RECV_ID));
+    send = sendmsg_B(size, recv(MSGHDR_RECV_ID));
 
     std::cerr << "SENDMSG ID " << send(MSGHDR_SEND_ID) << std::endl;
 
@@ -202,8 +230,8 @@ int main(int argc, char **argv) {
 
     init();
 
-    random_rpc();
-    // for (int i = 0; i < 1000; ++i) random_rpc();
+    // random_rpc();
+    for (int i = 0; i < 1000; ++i) random_rpc();
 
     free(h2c_msgbuff);
     free(c2h_msgbuff);

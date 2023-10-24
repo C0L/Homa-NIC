@@ -89,6 +89,7 @@ void homa(
 
     /* header_in streams */
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_state;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress;
     // hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__dbuff_ingress;
     // hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__address_map__dbuff_ingress;
 
@@ -129,7 +130,8 @@ void homa(
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_fetch;
 
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__dbuff_ingress;
+    // hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__packetmap;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state;
     hls_thread_local hls::stream<srpt_grant_new_t, STREAM_DEPTH> grant__rpc_state__srpt_grant;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> header_in__rpc_state__srpt_data;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__packetmap;
@@ -153,10 +155,13 @@ void homa(
 	recvmsg__rpc_state__dma_write,
 	sendmsg__rpc_state__srpt_data,
 	sendmsg__rpc_state__srpt_fetch,
+	grant__rpc_state__srpt_grant,
 	header_out__egress_sel__rpc_state, 
 	header_out__rpc_state__pkt_builder,
 	header_in__chunk_ingress__rpc_state,
 	header_in__rpc_state__packetmap,
+	header_in__packetmap__rpc_state,
+	header_in__rpc_state__dbuff_ingress,
 	header_in__dbuff_ingress__homa_recvmsg,
 	header_in__rpc_state__srpt_data,
 	dbuff_notif__h2c_databuff__rpc_state,
@@ -197,8 +202,7 @@ void homa(
     hls_thread_local hls::task packetmap_task(
 	packetmap, 
 	header_in__rpc_state__packetmap,    
-	header_in__packetmap__dbuff_ingress,
-	grant__rpc_state__srpt_grant
+	header_in__packetmap__rpc_state
 	);
 
     hls_thread_local hls::task dma_read_task(
@@ -240,7 +244,7 @@ void homa(
 	c2h_databuff,
 	in_chunk__chunk_ingress__dbuff_ingress, // chunk_in_i
 	dma_req__dbuff_ingress__address_map,    // dma_w_req_o
-	header_in__packetmap__dbuff_ingress,    // header_in_i
+	header_in__rpc_state__dbuff_ingress,    // header_in_i
 	header_in__dbuff_ingress__homa_recvmsg  // header_in_o
 	);
 

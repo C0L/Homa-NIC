@@ -12,10 +12,13 @@ void rpc_state(
     hls::stream<dma_w_req_t> & msghdr_recv_o,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
+    hls::stream<srpt_grant_new_t> & grant_queue_o,
     hls::stream<header_t> & h2c_header_i,
     hls::stream<header_t> & h2c_header_o,
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
+    hls::stream<header_t> & pm_c2h_header_i,
+    hls::stream<header_t> & pm_c2h_header_o,
     hls::stream<header_t> & complete_msgs_i,
     hls::stream<srpt_queue_entry_t> & data_srpt_o,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
@@ -31,6 +34,6 @@ void rpc_state(
     hls::stream<dbuff_id_t> & free_dbuff_id_i,
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
-	       );
+    );
 
 #endif
