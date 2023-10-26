@@ -9,6 +9,7 @@
 void rpc_state(
     hls::stream<msghdr_send_t> & msghdr_send_i,
     hls::stream<dma_w_req_t> & msghdr_send_o,
+    hls::stream<msghdr_recv_t> & msghdr_recv_i,
     hls::stream<dma_w_req_t> & msghdr_recv_o,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
@@ -29,8 +30,7 @@ void rpc_state(
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<srpt_queue_entry_t> & dma_r_req_i,
     hls::stream<dma_r_req_t> & dma_r_req_o,
-    hls::stream<port_to_phys_t> & c2h_port_to_metasend_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metarecv_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
     hls::stream<dbuff_id_t> & free_dbuff_id_i,
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o

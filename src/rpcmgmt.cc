@@ -41,7 +41,6 @@ void h2c_header_proc(
 		break;
 	}
 
-
 	// Log the packet type we are sending
 	log_out.write((h2c_header.type == DATA) ? LOG_DATA_OUT : LOG_GRANT_OUT);
 
@@ -105,7 +104,8 @@ void c2h_header_proc(
 
 	    recv_rpcs[pm_c2h_header.local_id] = homa_rpc;
 
-	    msg_addr_t msg_addr = ((c2h_buff_ids[pm_c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
+	    // msg_addr_t msg_addr = ((c2h_buff_ids[pm_c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
+	    msg_addr_t msg_addr = (c2h_buff_ids[pm_c2h_header.sport]);
 	    c2h_rpc_to_offset[pm_c2h_header.local_id] = msg_addr;
 	    c2h_buff_ids[pm_c2h_header.sport]++;
 	}
@@ -280,12 +280,10 @@ void dma_write_proc(
 void update_host_map_proc(
     host_addr_t * h2c_port_to_msgbuff,
     host_addr_t * c2h_port_to_msgbuff,
-    host_addr_t * c2h_port_to_metarecv,
-    host_addr_t * c2h_port_to_metasend,
+    host_addr_t * c2h_port_to_metadata,
     hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metarecv_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metasend_i
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i
     ) {
 
     port_to_phys_t new_h2c_port_to_msgbuff;
@@ -298,22 +296,16 @@ void update_host_map_proc(
 	c2h_port_to_msgbuff[new_c2h_port_to_msgbuff(PORT_TO_PHYS_PORT)] = new_c2h_port_to_msgbuff(PORT_TO_PHYS_ADDR);
     }
 
-    port_to_phys_t new_c2h_port_to_metarecv;
-    if (c2h_port_to_metarecv_i.read_nb(new_c2h_port_to_metarecv)) {
-	c2h_port_to_metarecv[new_c2h_port_to_metarecv(PORT_TO_PHYS_PORT)] = new_c2h_port_to_metarecv(PORT_TO_PHYS_ADDR);
-    }
-
-    port_to_phys_t new_c2h_port_to_metasend;
-    if (c2h_port_to_metasend_i.read_nb(new_c2h_port_to_metasend)) {
-	c2h_port_to_metasend[new_c2h_port_to_metasend(PORT_TO_PHYS_PORT)] = new_c2h_port_to_metasend(PORT_TO_PHYS_ADDR);
+    port_to_phys_t new_c2h_port_to_metadata;
+    if (c2h_port_to_metadata_i.read_nb(new_c2h_port_to_metadata)) {
+	c2h_port_to_metadata[new_c2h_port_to_metadata(PORT_TO_PHYS_PORT)] = new_c2h_port_to_metadata(PORT_TO_PHYS_ADDR);
     }
 }
 
 void send_proc(
     homa_rpc_t * send_rpcs,
     homa_rpc_t * recv_rpcs,
-    host_addr_t * c2h_port_to_metasend,
-    host_addr_t * c2h_port_to_headsend,
+    host_addr_t * c2h_port_to_metadata,
     msg_addr_t * h2c_rpc_to_offset,
     hls::stream<msghdr_send_t> & msghdr_send_i,
     hls::stream<dma_w_req_t> & msghdr_send_o,
@@ -328,7 +320,7 @@ void send_proc(
     static msghdr_send_t msghdr_send;
     static bool headsend_update = false;
 
-    if (!headsend_update && msghdr_send_i.read_nb(msghdr_send)) {
+    if (msghdr_send_i.read_nb(msghdr_send)) {
 
 	homa_rpc_t rpc;
 
@@ -357,9 +349,7 @@ void send_proc(
 
 	dma_w_req_t msghdr_resp;
 	msghdr_resp.data   = msghdr_send.data;
-
-	ap_uint<64> offset = ((c2h_port_to_headsend[msghdr_send.data(MSGHDR_SPORT)]) % (16384 - 64)) + 64;
-	msghdr_resp.offset = c2h_port_to_metasend[msghdr_send.data(MSGHDR_SPORT)] + offset;
+	msghdr_resp.offset = c2h_port_to_metadata[msghdr_send.data(MSGHDR_SPORT)] + (msghdr_send.data(MSGHDR_RETURN) * 64);
 	msghdr_resp.strobe = 64;
 
 	msghdr_send_o.write(msghdr_resp);
@@ -390,18 +380,6 @@ void send_proc(
 	fetch_queue_o.write(srpt_fetch_in);
 
 	headsend_update = true;
-    } else if (headsend_update) {
-	ap_uint<64> offset = ((c2h_port_to_headsend[msghdr_send.data(MSGHDR_SPORT)]) % (16384 - 64)) + 64;
-	c2h_port_to_headsend[msghdr_send.data(MSGHDR_SPORT)] = offset;
-
-	dma_w_req_t msghdr_resp;
-	msghdr_resp.data   = offset;
-	msghdr_resp.offset = c2h_port_to_metasend[msghdr_send.data(MSGHDR_SPORT)];
-	msghdr_resp.strobe = 8;
-
-	msghdr_send_o.write(msghdr_resp);
-	
-	headsend_update = false;
     }
 
     dbuff_id_t dbuff_id;
@@ -411,49 +389,171 @@ void send_proc(
 }
 
 void recv_proc(
-    host_addr_t * c2h_port_to_metarecv,
-    host_addr_t * c2h_port_to_headrecv,
+    hls::stream<msghdr_recv_t> & msghdr_recv_i,
+    host_addr_t * c2h_port_to_metadata,
     hls::stream<header_t> & complete_msgs_i,
     hls::stream<dma_w_req_t> & msghdr_recv_o
     ) {
-    
-    static header_t complete_msg;
-    static bool headrecv_update = false;
 
-    if (!headrecv_update && complete_msgs_i.read_nb(complete_msg)) {
-	msghdr_recv_t new_recv;
-	new_recv.data(MSGHDR_SADDR)      = complete_msg.saddr;
-	new_recv.data(MSGHDR_DADDR)      = complete_msg.daddr;
-	new_recv.data(MSGHDR_SPORT)      = complete_msg.sport;
-	new_recv.data(MSGHDR_DPORT)      = complete_msg.dport;
-	new_recv.data(MSGHDR_BUFF_ADDR)  = complete_msg.host_addr;
-	new_recv.data(MSGHDR_BUFF_SIZE)  = complete_msg.message_length;
-	new_recv.data(MSGHDR_RECV_ID)    = complete_msg.local_id; 
-	// new_recv.data(MSGHDR_RECV_ID)    = complete_msg.id; 
-	new_recv.data(MSGHDR_RECV_CC)    = complete_msg.completion_cookie;
+    static ap_uint<MSGHDR_RECV_SIZE> buffered_complete[MAX_PORTS][MAX_RECV_MATCH];
+    static ap_uint<MSGHDR_RECV_SIZE> buffered_pending[MAX_PORTS][MAX_RECV_MATCH];
+
+#pragma HLS dependence variable=buffered_complete inter WAR false
+#pragma HLS dependence variable=buffered_complete inter RAW false
+#pragma HLS dependence variable=buffered_pending inter WAR false
+#pragma HLS dependence variable=buffered_pending inter RAW false
+
+    static ap_uint<MAX_RECV_LOG2> complete_head[MAX_PORTS];
+    static ap_uint<MAX_RECV_LOG2> pending_head[MAX_PORTS];
+
+#pragma HLS dependence variable=complete_head inter WAR false
+#pragma HLS dependence variable=complete_head inter RAW false
+#pragma HLS dependence variable=pending_head inter WAR false
+#pragma HLS dependence variable=pending_head inter RAW false
+
+    static ap_uint<MSGHDR_RECV_SIZE> search_complete      = 0;
+    static ap_uint<MSGHDR_RECV_SIZE> search_pending       = 0;
+    static ap_uint<MSGHDR_RECV_SIZE> search_result_msghdr = 0;
+    static ap_uint<MSGHDR_RECV_SIZE> search_result_index  = 0;
+    static ap_uint<MAX_RECV_LOG2>    search_index         = 0;
+
+    header_t complete;
+    msghdr_recv_t pending;
+
+    // TODO replace this with stalling CAM
+    //static ap_uint<4> stall = 0;
+    //if (stall != 0) {
+    //	stall--;
+    //} else if (search_complete != 0) {
+    //	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_pending[search_complete(MSGHDR_SPORT)][search_index];
+
+    //	if (candidate != 0) {
+    //        // Is this candidate a match and we don't already have an ID match 
+    //	    if (candidate(MSGHDR_SADDR) == search_complete(MSGHDR_SADDR) &&
+    //		candidate(MSGHDR_DADDR) == search_complete(MSGHDR_DADDR) &&
+    //		candidate(MSGHDR_SPORT) == search_complete(MSGHDR_SPORT) &&
+    //		candidate(MSGHDR_DPORT) == search_complete(MSGHDR_DPORT) &&
+    //		search_result_msghdr(MSGHDR_RECV_ID) != search_complete(MSGHDR_RECV_ID)) {
+    //		switch(candidate(MSGHDR_RECV_FLAGS)) {
+    //		    case HOMA_RECVMSG_REQUEST:
+    //			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_REQUEST) {
+    //			    search_result_msghdr = search_complete;
+    //			    search_result_index  = search_index;
+    //			}
+    //			break;
+    //		    case HOMA_RECVMSG_RESPONSE:
+    //			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_RESPONSE) {
+    //			    search_result_msghdr = search_complete;
+    //			    search_result_index  = search_index;
+    //			}
+    //			break;
+    //		    case HOMA_RECVMSG_ALL:
+    //			search_result_msghdr = search_complete;
+    //			search_result_index  = search_index;
+    //			break;
+    //		}
+    //	    }
+    //	    search_index++;
+    //	} else {
+    //	    if (search_result_msghdr != 0) {
+    //		
+    //		dma_w_req_t msghdr_resp;
+    //		msghdr_resp.data = search_result_msghdr;
+    //		msghdr_resp.offset = c2h_port_to_metadata[search_result_msghdr(MSGHDR_SPORT)] + (search_result_msghdr(MSGHDR_RETURN) * 64);
+    //		msghdr_resp.strobe = 64;
+    //		msghdr_recv_o.write(msghdr_resp);
+
+    //		// buffered_pending[search_complete(MSGHDR_SPORT)][search_result_index] = 0;
+    //		// TODO this prevents the head from being used to insert to buff
+    //		// pending_head[search_complete(MSGHDR_SPORT)]--;
+    //	    } else {
+    //		// buffered_complete[search_complete(MSGHDR_SPORT)][complete_head[search_complete(MSGHDR_SPORT)]] = 0;
+    //		// complete_head[search_complete(MSGHDR_SPORT)]++;
+    //	    }
+
+    //	    stall = 6;
+    //	    search_complete = 0;
+    //	    search_pending  = 0;
+    //	    search_result_msghdr = 0;
+    //	    search_index    = 0;
+    //	}
+    //} else if (search_pending != 0) {
+    //	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_complete[search_pending(MSGHDR_SPORT)][search_index];
+
+    //	if (candidate != 0) {
+    //	    // Is this candidate a match and we don't already have an ID match 
+    //	    if (candidate(MSGHDR_SADDR) == search_pending(MSGHDR_SADDR) &&
+    //		candidate(MSGHDR_DADDR) == search_pending(MSGHDR_DADDR) &&
+    //		candidate(MSGHDR_SPORT) == search_pending(MSGHDR_SPORT) &&
+    //		candidate(MSGHDR_DPORT) == search_pending(MSGHDR_DPORT) &&
+    //		search_result_msghdr(MSGHDR_RECV_ID) != search_pending(MSGHDR_RECV_ID)) {
+    //		switch(candidate(MSGHDR_RECV_FLAGS)) {
+    //		    case HOMA_RECVMSG_REQUEST:
+    //			if (search_pending(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_REQUEST) {
+    //			    search_result_msghdr = candidate;
+    //			}
+    //			break;
+    //		    case HOMA_RECVMSG_RESPONSE:
+    //			if (search_pending(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_RESPONSE) {
+    //			    search_result_msghdr = candidate;
+    //			}
+    //			break;
+    //		    case HOMA_RECVMSG_ALL:
+    //			search_result_msghdr = candidate;
+    //		}
+    //	    }
+    //	} else {
+    //	    if (search_result_msghdr != 0) {
+    //		
+    //		dma_w_req_t msghdr_resp;
+    //		msghdr_resp.data = search_result_msghdr;
+    //		msghdr_resp.offset = c2h_port_to_metadata[search_result_msghdr(MSGHDR_SPORT)] + (search_result_msghdr(MSGHDR_RETURN) * 64);
+    //		msghdr_resp.strobe = 64;
+    //		msghdr_recv_o.write(msghdr_resp);
+
+    //		// buffered_complete[search_pending(MSGHDR_SPORT)][search_result_index] = 0;
+    //		// complete_head[search_complete(MSGHDR_SPORT)]--;
+    //	    } else {
+    //		// buffered_pending[search_complete(MSGHDR_SPORT)][complete_head[search_complete(MSGHDR_SPORT)]] = 0;
+    //		// pending_head[search_complete(MSGHDR_SPORT)]--;
+    //	    }
+    //	}
+
+    //	search_index++;
+    //} else
+
+    if (complete_msgs_i.read_nb(complete)) {
+	std::cerr << "complete msgs in" << std::endl;
+	// TODO swap this
+	search_complete(MSGHDR_SADDR)      = complete.saddr;
+	search_complete(MSGHDR_DADDR)      = complete.daddr;
+	search_complete(MSGHDR_SPORT)      = complete.sport;
+	search_complete(MSGHDR_DPORT)      = complete.dport;
+	search_complete(MSGHDR_BUFF_ADDR)  = complete.host_addr;
+	search_complete(MSGHDR_RETURN)     = complete.host_addr;
+	search_complete(MSGHDR_BUFF_SIZE)  = complete.message_length;
+	search_complete(MSGHDR_RECV_ID)    = complete.local_id; 
+	search_complete(MSGHDR_RECV_CC)    = complete.completion_cookie;
+	search_complete(MSGHDR_RECV_FLAGS) = (IS_CLIENT(complete.local_id)) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
 
 	dma_w_req_t msghdr_resp;
-	msghdr_resp.data   = new_recv.data;
-
-	ap_uint<64> offset = ((c2h_port_to_headrecv[complete_msg.sport]) % (16384 - 64)) + 64;
-	msghdr_resp.offset = c2h_port_to_metarecv[new_recv.data(MSGHDR_SPORT)] + offset;
+	msghdr_resp.data = search_complete;
+	msghdr_resp.offset = c2h_port_to_metadata[search_complete(MSGHDR_SPORT)] + (search_complete(MSGHDR_RETURN) * 64);
 	msghdr_resp.strobe = 64;
-
 	msghdr_recv_o.write(msghdr_resp);
 
-	headrecv_update = true;
-    } else if (headrecv_update) {
-	ap_uint<64> offset = ((c2h_port_to_headrecv[complete_msg.sport]) % (16384 - 64)) + 64;
-	c2h_port_to_headrecv[complete_msg.sport] = offset;
+    } else if (msghdr_recv_i.read_nb(pending)) {
+
+	std::cerr << "pending requests in" << std::endl;
+	search_pending = pending.data;
 
 	dma_w_req_t msghdr_resp;
-	msghdr_resp.data   = offset;
-	msghdr_resp.offset = c2h_port_to_metarecv[complete_msg.sport];
-	msghdr_resp.strobe = 8;
-
+	msghdr_resp.data = search_pending;
+	msghdr_resp.offset = c2h_port_to_metadata[search_pending(MSGHDR_SPORT)] + (search_pending(MSGHDR_RETURN) * 64);
+	msghdr_resp.strobe = 64;
 	msghdr_recv_o.write(msghdr_resp);
-	
-	headrecv_update = false;
+
+
     }
 }
 
@@ -497,6 +597,7 @@ void recv_proc(
 void rpc_state(
     hls::stream<msghdr_send_t> & msghdr_send_i,
     hls::stream<dma_w_req_t> & msghdr_send_o,
+    hls::stream<msghdr_recv_t> & msghdr_recv_i,
     hls::stream<dma_w_req_t> & msghdr_recv_o,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
@@ -517,8 +618,7 @@ void rpc_state(
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<srpt_queue_entry_t> & dma_r_req_i,
     hls::stream<dma_r_req_t> & dma_r_req_o,
-    hls::stream<port_to_phys_t> & c2h_port_to_metasend_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metarecv_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
     hls::stream<dbuff_id_t> & free_dbuff_id_i,
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
@@ -534,16 +634,22 @@ void rpc_state(
 #pragma HLS bind_storage variable=recv_rpcs type=RAM_1WNR
 
     /* Port to metadata mapping DMA */
-    static host_addr_t c2h_port_to_metasend[MAX_PORTS]; // Port -> metadata RB
-    static host_addr_t c2h_port_to_headsend[MAX_PORTS]; // Port -> current offset in RB
-
-    static host_addr_t c2h_port_to_metarecv[MAX_PORTS]; // Port -> metadata RB
-    static host_addr_t c2h_port_to_headrecv[MAX_PORTS]; // Port -> current offset in RB
+    static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer 
+#pragma HLS bind_storage variable=c2h_port_to_metadata type=RAM_1WNR
 
     /* Port/RPC to user databuffer mapping DMA */
     static host_addr_t c2h_port_to_msgbuff[MAX_PORTS];  // Port -> large c2h buffer space 
     static msg_addr_t  c2h_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
     static ap_uint<7>  c2h_buff_ids[MAX_PORTS];         // Next availible offset in buffer space
+    // TODO check this
+#pragma HLS dependence variable=c2h_rpc_to_offset inter WAR false
+#pragma HLS dependence variable=c2h_rpc_to_offset inter RAW false
+#pragma HLS dependence variable=c2h_rpc_to_offset intra WAR false
+#pragma HLS dependence variable=c2h_rpc_to_offset intra RAW false
+#pragma HLS dependence variable=c2h_buff_ids inter WAR false
+#pragma HLS dependence variable=c2h_buff_ids inter RAW false
+#pragma HLS dependence variable=c2h_buff_ids intra WAR false
+#pragma HLS dependence variable=c2h_buff_ids intra RAW false
 
     static host_addr_t h2c_port_to_msgbuff[MAX_PORTS];  // Port -> large h2c buffer space
     static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
@@ -558,18 +664,6 @@ void rpc_state(
     // TODO is this a guarantee??
 #pragma HLS dependence variable=c2h_buff_ids inter RAW false
 #pragma HLS dependence variable=c2h_buff_ids inter WAR false
-
-#pragma HLS dependence variable=c2h_port_to_headsend intra WAR false
-#pragma HLS dependence variable=c2h_port_to_headsend intra RAW false
-
-#pragma HLS dependence variable=c2h_port_to_headrecv intra WAR false
-#pragma HLS dependence variable=c2h_port_to_headrecv intra RAW false
-
-#pragma HLS dependence variable=c2h_port_to_headsend inter WAR false
-#pragma HLS dependence variable=c2h_port_to_headsend inter RAW false
-
-#pragma HLS dependence variable=c2h_port_to_headrecv inter WAR false
-#pragma HLS dependence variable=c2h_port_to_headrecv inter RAW false
 
 #pragma HLS pipeline II=1
 
@@ -625,18 +719,16 @@ void rpc_state(
     update_host_map_proc(
 	h2c_port_to_msgbuff,
 	c2h_port_to_msgbuff,
-	c2h_port_to_metarecv,
-	c2h_port_to_metasend,
+	c2h_port_to_metadata,
 	c2h_port_to_msgbuff_i,
 	h2c_port_to_msgbuff_i,
-	c2h_port_to_metarecv_i,
-	c2h_port_to_metasend_i
+	c2h_port_to_metadata_i
 	);
 
     /* forward completed messages to user */
     recv_proc(
-	c2h_port_to_metarecv,
-	c2h_port_to_headrecv,
+	msghdr_recv_i,
+	c2h_port_to_metadata,
 	complete_msgs_i,
 	msghdr_recv_o
 	);
@@ -644,8 +736,7 @@ void rpc_state(
     send_proc(
 	send_rpcs,
 	recv_rpcs,
-	c2h_port_to_metasend,
-	c2h_port_to_headsend,
+	c2h_port_to_metadata,
 	h2c_rpc_to_offset,
 	msghdr_send_i,
 	msghdr_send_o,

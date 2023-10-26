@@ -46,6 +46,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
 	    // Have we recieved any packets for this RPC before
 	    if (packetmap.length == 0) {
 		header_in.packetmap |= PMAP_INIT;
+		std::cerr << "PACKETMAP INIT" << std::endl;
 		
 		// Populate a new packetmap
 		packetmap.map  = 0;
@@ -77,6 +78,7 @@ void packetmap(hls::stream<header_t> & header_in_i,
 		    if (packetmap.head >= packetmap.length) {
 			// Notify recv system that the message is fully buffered
 			header_in.packetmap |= PMAP_COMP;
+			std::cerr << "PACKETMAP COMP" << std::endl;
 			// Disable this RPC
 			//last_touches[header_in.local_id] = 0;
 		    }

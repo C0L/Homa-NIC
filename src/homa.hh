@@ -406,8 +406,9 @@ struct h2c_chunk_t {
 #define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg) (128 bits)
 #define MSGHDR_SPORT        271,256 // Port of sender (sendmsg) or receiver (recvmsg) (16 bits)
 #define MSGHDR_DPORT        287,272 // Address of receiver (sendmsg) or sender (recvmsg) (16 bits)
-#define MSGHDR_BUFF_ADDR    351,288 // Message contents DMA offset (64 bits)
-#define MSGHDR_BUFF_SIZE    383,352 // Size of message in DMA space (32 bits)
+#define MSGHDR_BUFF_ADDR    319,288 // Message contents DMA offset (32 bits)
+#define MSGHDR_RETURN       331,320 // Offset in metadata space to place result (12 bits)
+#define MSGHDR_BUFF_SIZE    351,332 // Size of message in DMA space (20 bits)
 
 /* Offsets within the sendmsg bitvector for the sendmsg specific information */
 #define MSGHDR_SEND_ID      447,384 // RPC identifier (64 bits)
@@ -415,11 +416,10 @@ struct h2c_chunk_t {
 #define MSGHDR_SEND_SIZE    512     // Rounded to nearest 32 bits
 
 /* Offsets within the recvmsg bitvector for the recvmsg specific information */
+#define MSGHDR_RECV_FLAGS   383,352 // Interest list
 #define MSGHDR_RECV_ID      447,384 // RPC identifier
 #define MSGHDR_RECV_CC      511,448 // Completion Cookie
-#define MSGHDR_RECV_SIZE    512 // Rounded to nearest 32 bits
-// #define MSGHDR_RECV_FLAGS   543,512 // Interest list
-// #define MSGHDR_RECV_SIZE    544     // Rounded to nearest 32 bits
+#define MSGHDR_RECV_SIZE    512     // Rounded to nearest 32 bits
 
 /**
  * msghdr_send_t - input bitvector from the user for sendmsg requests
@@ -442,6 +442,7 @@ typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
  * 
  * TODO not all implemented
  */
+#define HOMA_RECVMSG_ALL           0x00
 #define HOMA_RECVMSG_REQUEST       0x01
 #define HOMA_RECVMSG_RESPONSE      0x02
 #define HOMA_RECVMSG_NONBLOCKING   0x04
@@ -452,6 +453,7 @@ typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
  * can be queued pending a match with a recvmsg request.
  */
 #define MAX_RECV_MATCH 16
+#define MAX_RECV_LOG2  4
 
 /**
  * struct recv_interest_t - Matched with a an incoming completed RPC
@@ -627,6 +629,7 @@ struct srpt_grant_t {
 
 void homa(
     hls::stream<msghdr_send_t> & msghdr_send_i,
+    hls::stream<msghdr_recv_t> & msghdr_recv_i,
     hls::stream<am_cmd_t> & w_cmd_queue_o,
     hls::stream<ap_axiu<512,0,0,0>> & w_data_queue_o,
     hls::stream<am_status_t> & w_status_queue_i,
@@ -637,8 +640,7 @@ void homa(
     hls::stream<raw_stream_t> & link_egress_o,
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metasend_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metarecv_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
     hls::stream<ap_uint<8>> & log_control_i,
     hls::stream<log_entry_t> & log_out_o
     );

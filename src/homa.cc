@@ -31,8 +31,7 @@ using namespace hls;
  */
 void homa(
     hls::stream<msghdr_send_t> & msghdr_send_i,
-    //hls::stream<msghdr_recv_t> & msghdr_recv_i,
-    //hls::stream<msghdr_recv_t> & msghdr_recv_o,
+    hls::stream<msghdr_recv_t> & msghdr_recv_i,
     hls::stream<am_cmd_t> & w_cmd_queue_o,
     hls::stream<ap_axiu<512,0,0,0>> & w_data_queue_o,
     hls::stream<am_status_t> & w_status_queue_i,
@@ -43,27 +42,24 @@ void homa(
     hls::stream<raw_stream_t> & link_egress_o,
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metasend_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metarecv_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
     hls::stream<ap_uint<8>> & log_control_i,
     hls::stream<log_entry_t> & log_out_o
     ) {
 
 #pragma HLS interface axis port=msghdr_send_i
-  // #pragma HLS interface axis port=msghdr_recv_i
+#pragma HLS interface axis port=msghdr_recv_i
 #pragma HLS interface axis port=w_status_queue_i
 #pragma HLS interface axis port=r_data_queue_i
 #pragma HLS interface axis port=r_status_queue_i
 #pragma HLS interface axis port=link_ingress_i
-  // #pragma HLS interface axis port=msghdr_recv_o
 #pragma HLS interface axis port=w_cmd_queue_o
 #pragma HLS interface axis port=w_data_queue_o
 #pragma HLS interface axis port=r_cmd_queue_o 
 #pragma HLS interface axis port=link_egress_o
 #pragma HLS interface axis port=h2c_port_to_msgbuff_i
 #pragma HLS interface axis port=c2h_port_to_msgbuff_i
-#pragma HLS interface axis port=c2h_port_to_metasend_i
-#pragma HLS interface axis port=c2h_port_to_metarecv_i
+#pragma HLS interface axis port=c2h_port_to_metadata_i
 #pragma HLS interface axis port=log_control_i
 #pragma HLS interface axis port=log_out_o
 
@@ -152,6 +148,7 @@ void homa(
 	rpc_state,
 	msghdr_send_i,
 	sendmsg__rpc_state__dma_write,
+	msghdr_recv_i,
 	recvmsg__rpc_state__dma_write,
 	sendmsg__rpc_state__srpt_data,
 	sendmsg__rpc_state__srpt_fetch,
@@ -172,8 +169,7 @@ void homa(
 	h2c_port_to_msgbuff_i,
 	dma_req__srpt_data__address_map, // TODO name change
 	dma_req__address_map__dma_read,  // TODO name change
-	c2h_port_to_metasend_i,
-	c2h_port_to_metarecv_i,
+	c2h_port_to_metadata_i,
 	free_dbuff__h2c_databuff__rpc_state,
 	h2c_pkt_log,
 	c2h_pkt_log
