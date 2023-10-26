@@ -59,9 +59,6 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	buffer(1023, (buffered * 8)) = chunk_in.data(511, 0);
 	pending_buffer -= chunk_in.width;
 
-	//std::cerr << "chunk width " << chunk_in.width << std::endl;
-	//std::cerr << "set pending buffer " << pending_buffer << std::endl;
-
         /* The number of writable bytes is either limited by distance
 	 * to the next alignment or size of the input chunk
 	 */
@@ -79,7 +76,7 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	dma_w_req.offset = dma_offset + header_in.data_offset + chunk_offset;
 	dma_w_req.data   = buffer(511, 0);
 	dma_w_req.strobe = writable_bytes;
-	dma_w_req.port = header_in.sport;
+	dma_w_req.port   = header_in.dport;
 	dma_w_req_o.write(dma_w_req);
 
 	buffer >>= (writable_bytes * 8);
@@ -97,7 +94,6 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 
 	chunk_offset += writable_bytes;
     } else if (pending_buffer == 0 && header_in_i.read_nb(header_in)) {
-	// std::cerr << "header into dbuff " << std::endl;
 	/* Though the aligned bytes may begin at an offset, for the
 	 * purpose of determining how many bytes to WRITE, we begin at
 	 * zero bytes buffered. This will ultimately determine the size
@@ -108,10 +104,7 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	chunk_offset   = 0;
 	pending_buffer = header_in.segment_length;
 
-	// std::cerr << "set initial pending buffer " << header_in.segment_length << std::endl;
-
 	if ((header_in.packetmap & PMAP_COMP) == PMAP_COMP) {
-	    // std::cerr << "FORWARDING TO PACKETMAP" << std::endl;
 	    header_in_o.write(header_in);
 	}
     }
@@ -163,8 +156,6 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 	srpt_queue_entry_t dbuff_notif;
 	dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
 	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_in.msg_addr; // TODO misleading name
-
-	// std::cerr << "dbuff in msg addr " << dbuff_in.msg_addr << std::endl;
 
 	dbuff_notif_o.write(dbuff_notif);
 

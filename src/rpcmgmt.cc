@@ -3,57 +3,6 @@
 
 using namespace hls;
 
-void h2c_header_proc(
-    homa_rpc_t * send_rpcs,
-    homa_rpc_t * recv_rpcs,
-    hls::stream<header_t> & pkt_in,
-    hls::stream<header_t> & pkt_out,
-    hls::stream<ap_uint<8>> & log_out
-    ) {
-    
-    header_t h2c_header;
-    if (pkt_in.read_nb(h2c_header)) {
-	
-	homa_rpc_t homa_rpc;
-	switch(h2c_header.type) {
-	    case DATA:
-		homa_rpc = send_rpcs[h2c_header.local_id];
-
-		h2c_header.daddr = homa_rpc.daddr;
-		h2c_header.dport = homa_rpc.dport;
-		h2c_header.saddr = homa_rpc.saddr;
-		h2c_header.sport = homa_rpc.sport;
-		h2c_header.id    = homa_rpc.id;
-
-		std::cerr << "data packet out local " << h2c_header.local_id << " net " << homa_rpc.id << std::endl;
-		// std::cerr << "data packet out local " << h2c_header.saddr << " net " << homa_rpc.id << std::endl;
-		break;
-	    case GRANT:
-		homa_rpc = recv_rpcs[h2c_header.local_id];
-
-		h2c_header.daddr = homa_rpc.saddr;
-		h2c_header.dport = homa_rpc.sport;
-		h2c_header.saddr = homa_rpc.daddr;
-		h2c_header.sport = homa_rpc.dport;
-		h2c_header.id    = homa_rpc.id;
-
-		std::cerr << "grant packet out local " << h2c_header.local_id << " net " << homa_rpc.id << std::endl;
-		break;
-	}
-
-	// Log the packet type we are sending
-	log_out.write((h2c_header.type == DATA) ? LOG_DATA_OUT : LOG_GRANT_OUT);
-
-	// Get the location of buffered data and prepare for packet construction
-	h2c_header.h2c_buff_id    = homa_rpc.h2c_buff_id;
-	h2c_header.incoming       = homa_rpc.buff_size - h2c_header.incoming;
-	h2c_header.data_offset    = homa_rpc.buff_size - h2c_header.data_offset;
-	h2c_header.message_length = homa_rpc.buff_size;
-
-	pkt_out.write_nb(h2c_header);
-    }
-}
-
 /* Cases:
  * Is Server:
  *   - DATA Packet    : Map Network ID -> Local ID. Create entry/id in recv_rpcs on init
@@ -92,7 +41,6 @@ void c2h_header_proc(
     header_t pm_c2h_header;
     if (pm_c2h_header_i.read_nb(pm_c2h_header)) {
 	if ((pm_c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
-	    std::cerr << "init local " << pm_c2h_header.local_id << " network " << pm_c2h_header.id << std::endl;
 	    // Store data associated with this RPC
 	    homa_rpc_t homa_rpc;
 	    homa_rpc.saddr   = pm_c2h_header.saddr;
@@ -101,6 +49,8 @@ void c2h_header_proc(
 	    homa_rpc.sport   = pm_c2h_header.sport;
 	    homa_rpc.id      = pm_c2h_header.id;
 	    homa_rpc.peer_id = pm_c2h_header.peer_id;
+
+	    std::cerr << "PACKET MAP INIT STORING IN " << pm_c2h_header.local_id << std::endl;
 
 	    recv_rpcs[pm_c2h_header.local_id] = homa_rpc;
 
@@ -177,8 +127,6 @@ void c2h_header_proc(
 	     */
 	    rpc_hashpack_t rpc_query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
 
-	    std::cerr << "search saddr " << c2h_header.saddr << std::endl;
-
 	    c2h_header.local_id = rpc_cam.search(rpc_query);
 
 	    if (c2h_header.local_id == 0) {
@@ -186,374 +134,12 @@ void c2h_header_proc(
 
 		// If the rpc is not registered, generate a new RPC ID and register it 
 		rpc_cam.insert(rpc_query, c2h_header.local_id);
-		std::cerr << "map create " << c2h_header.local_id << " net " << c2h_header.id << std::endl;
-	    } else {
-		std::cerr << "map hit local " << c2h_header.local_id << " net " << c2h_header.id << std::endl;
-	    }
+	    } 
 	} else {
 	    c2h_header.local_id = c2h_header.id;
 	}
 
 	c2h_header_o.write(c2h_header);
-    }
-}
-
-void dbuff_notif_proc(
-    homa_rpc_t * send_rpcs,
-    hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
-    hls::stream<srpt_queue_entry_t> & dbuff_notif_o
-    ) {
-
-    srpt_queue_entry_t dbuff_notif;
-    if (dbuff_notif_i.read_nb(dbuff_notif)) {
-	local_id_t id = dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID);
-
-	homa_rpc_t homa_rpc = send_rpcs[id];
-
-	ap_uint<32> dbuff_offset = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
-
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID) = homa_rpc.h2c_buff_id;
-	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_DBUFF_UPDATE;
-
-	if (dbuff_offset + DBUFF_CHUNK_SIZE < homa_rpc.buff_size) {
-	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = homa_rpc.buff_size - dbuff_offset - DBUFF_CHUNK_SIZE;
-	} else {
-	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
-	}
-
-	// TODO these notifs need to also go to the fetch core?
-
-	dbuff_notif_o.write(dbuff_notif);
-    }
-}
-
-void dma_fetch_proc(
-    homa_rpc_t * send_rpcs,
-    host_addr_t * h2c_port_to_msgbuff,
-    msg_addr_t * h2c_rpc_to_offset,
-    hls::stream<srpt_queue_entry_t> & dma_r_req_i,
-    hls::stream<dma_r_req_t> & dma_r_req_o
-    ) {
-
-    srpt_queue_entry_t dma_fetch;
-    if (dma_r_req_i.read_nb(dma_fetch)) {
-	local_id_t id = dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID);
-	homa_rpc_t homa_rpc = send_rpcs[id];
-
-	// Get the physical address of this ports entire buffer
-
-	msg_addr_t msg_addr   = h2c_rpc_to_offset[id];
-	host_addr_t phys_addr = h2c_port_to_msgbuff[homa_rpc.sport];
-
-	dma_r_req_t dma_r_req;
-	dma_r_req(SRPT_QUEUE_ENTRY_SIZE-1, 0) = dma_fetch;
-	dma_r_req(DMA_R_REQ_MSG_LEN)          = homa_rpc.buff_size;
-
-	msg_addr >>= 1;
-	dma_r_req(DMA_R_REQ_HOST_ADDR) = (homa_rpc.buff_size - dma_fetch(SRPT_QUEUE_ENTRY_REMAINING)) + (phys_addr + msg_addr);
-
-	dma_r_req_o.write(dma_r_req);
-    }
-}
-
-void dma_write_proc(
-    host_addr_t * c2h_port_to_msgbuff,
-    msg_addr_t  * c2h_rpc_to_offset,
-    hls::stream<dma_w_req_t> & dma_w_req_i,
-    hls::stream<dma_w_req_t> & dma_w_req_o
-    ) {
-    dma_w_req_t dma_w_req;
-    if (dma_w_req_i.read_nb(dma_w_req)) {
-	// TODO should error log here if the entry does not exist
-
-	// Get the physical address of this ports entire buffer
-	host_addr_t phys_addr = c2h_port_to_msgbuff[dma_w_req.port];
-	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
-
-	msg_addr >>= 1;
-	dma_w_req.offset += phys_addr + msg_addr;
-
-	dma_w_req_o.write(dma_w_req);
-    }
-}
-
-void update_host_map_proc(
-    host_addr_t * h2c_port_to_msgbuff,
-    host_addr_t * c2h_port_to_msgbuff,
-    host_addr_t * c2h_port_to_metadata,
-    hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
-    hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i
-    ) {
-
-    port_to_phys_t new_h2c_port_to_msgbuff;
-    if (h2c_port_to_msgbuff_i.read_nb(new_h2c_port_to_msgbuff)) {
-	h2c_port_to_msgbuff[new_h2c_port_to_msgbuff(PORT_TO_PHYS_PORT)] = new_h2c_port_to_msgbuff(PORT_TO_PHYS_ADDR);
-    }
-
-    port_to_phys_t new_c2h_port_to_msgbuff;
-    if (c2h_port_to_msgbuff_i.read_nb(new_c2h_port_to_msgbuff)) {
-	c2h_port_to_msgbuff[new_c2h_port_to_msgbuff(PORT_TO_PHYS_PORT)] = new_c2h_port_to_msgbuff(PORT_TO_PHYS_ADDR);
-    }
-
-    port_to_phys_t new_c2h_port_to_metadata;
-    if (c2h_port_to_metadata_i.read_nb(new_c2h_port_to_metadata)) {
-	c2h_port_to_metadata[new_c2h_port_to_metadata(PORT_TO_PHYS_PORT)] = new_c2h_port_to_metadata(PORT_TO_PHYS_ADDR);
-    }
-}
-
-void send_proc(
-    homa_rpc_t * send_rpcs,
-    homa_rpc_t * recv_rpcs,
-    host_addr_t * c2h_port_to_metadata,
-    msg_addr_t * h2c_rpc_to_offset,
-    hls::stream<msghdr_send_t> & msghdr_send_i,
-    hls::stream<dma_w_req_t> & msghdr_send_o,
-    hls::stream<srpt_queue_entry_t> & data_queue_o,
-    hls::stream<srpt_queue_entry_t> & fetch_queue_o,
-    hls::stream<dbuff_id_t> & free_dbuff_id_i
-    ) {
-
-    static stack_t<local_id_t, MAX_RPCS> client_ids(STACK_EVEN);
-    static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(STACK_ALL);
-
-    static msghdr_send_t msghdr_send;
-    static bool headsend_update = false;
-
-    if (msghdr_send_i.read_nb(msghdr_send)) {
-
-	homa_rpc_t rpc;
-
-	if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
-	    msghdr_send.data(MSGHDR_SEND_ID) = client_ids.pop();
-	    rpc.id = msghdr_send.data(MSGHDR_SEND_ID);
-	} else {
-	    rpc.id = recv_rpcs[msghdr_send.data(MSGHDR_SEND_ID)].id;
-	}
-
-	local_id_t id = msghdr_send.data(MSGHDR_SEND_ID);
-
-	rpc.saddr        = msghdr_send.data(MSGHDR_SADDR);
-	rpc.daddr        = msghdr_send.data(MSGHDR_DADDR);
-	rpc.sport        = msghdr_send.data(MSGHDR_SPORT);
-	rpc.dport        = msghdr_send.data(MSGHDR_DPORT);
-	rpc.buff_addr    = msghdr_send.data(MSGHDR_BUFF_ADDR);
-	rpc.buff_size    = msghdr_send.data(MSGHDR_BUFF_SIZE);
-	rpc.cc           = msghdr_send.data(MSGHDR_SEND_CC);
-	rpc.h2c_buff_id  = msg_cache_ids.pop();
-
-	std::cerr << "new send entry local " << msghdr_send.data(MSGHDR_SEND_ID) << " network " << rpc.id << std::endl;
-
-	send_rpcs[id]         = rpc;
-	h2c_rpc_to_offset[id] = (msghdr_send.data(MSGHDR_BUFF_ADDR) << 1) | 1;
-
-	dma_w_req_t msghdr_resp;
-	msghdr_resp.data   = msghdr_send.data;
-	msghdr_resp.offset = c2h_port_to_metadata[msghdr_send.data(MSGHDR_SPORT)] + (msghdr_send.data(MSGHDR_RETURN) * 64);
-	msghdr_resp.strobe = 64;
-
-	msghdr_send_o.write(msghdr_resp);
-	
-	// TODO so much type shuffling here.... 
-    	srpt_queue_entry_t srpt_data_in;
-	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = rpc.buff_size;
-	// TODO would be cleaner if we could just set this to RTT_BYTES
-	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)   = rpc.buff_size - ((((ap_uint<32>) RTT_BYTES) > rpc.buff_size)
-								    ? rpc.buff_size : ((ap_uint<32>) RTT_BYTES));
-	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
-
-	// Insert this entry into the SRPT data queue
-	data_queue_o.write(srpt_data_in);
-	
-	srpt_queue_entry_t srpt_fetch_in = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
-	
-	// Insert this entry into the SRPT fetch queue
-	fetch_queue_o.write(srpt_fetch_in);
-
-	headsend_update = true;
-    }
-
-    dbuff_id_t dbuff_id;
-    if (free_dbuff_id_i.read_nb(dbuff_id)) {
-	msg_cache_ids.push(dbuff_id);
-    }
-}
-
-void recv_proc(
-    hls::stream<msghdr_recv_t> & msghdr_recv_i,
-    host_addr_t * c2h_port_to_metadata,
-    hls::stream<header_t> & complete_msgs_i,
-    hls::stream<dma_w_req_t> & msghdr_recv_o
-    ) {
-
-    static ap_uint<MSGHDR_RECV_SIZE> buffered_complete[MAX_PORTS][MAX_RECV_MATCH];
-    static ap_uint<MSGHDR_RECV_SIZE> buffered_pending[MAX_PORTS][MAX_RECV_MATCH];
-
-#pragma HLS dependence variable=buffered_complete inter WAR false
-#pragma HLS dependence variable=buffered_complete inter RAW false
-#pragma HLS dependence variable=buffered_pending inter WAR false
-#pragma HLS dependence variable=buffered_pending inter RAW false
-
-    static ap_uint<MAX_RECV_LOG2> complete_head[MAX_PORTS];
-    static ap_uint<MAX_RECV_LOG2> pending_head[MAX_PORTS];
-
-#pragma HLS dependence variable=complete_head inter WAR false
-#pragma HLS dependence variable=complete_head inter RAW false
-#pragma HLS dependence variable=pending_head inter WAR false
-#pragma HLS dependence variable=pending_head inter RAW false
-
-    static ap_uint<MSGHDR_RECV_SIZE> search_complete      = 0;
-    static ap_uint<MSGHDR_RECV_SIZE> search_pending       = 0;
-    static ap_uint<MSGHDR_RECV_SIZE> search_result_msghdr = 0;
-    static ap_uint<MSGHDR_RECV_SIZE> search_result_index  = 0;
-    static ap_uint<MAX_RECV_LOG2>    search_index         = 0;
-
-    header_t complete;
-    msghdr_recv_t pending;
-
-    // TODO replace this with stalling CAM
-    //static ap_uint<4> stall = 0;
-    //if (stall != 0) {
-    //	stall--;
-    //} else if (search_complete != 0) {
-    //	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_pending[search_complete(MSGHDR_SPORT)][search_index];
-
-    //	if (candidate != 0) {
-    //        // Is this candidate a match and we don't already have an ID match 
-    //	    if (candidate(MSGHDR_SADDR) == search_complete(MSGHDR_SADDR) &&
-    //		candidate(MSGHDR_DADDR) == search_complete(MSGHDR_DADDR) &&
-    //		candidate(MSGHDR_SPORT) == search_complete(MSGHDR_SPORT) &&
-    //		candidate(MSGHDR_DPORT) == search_complete(MSGHDR_DPORT) &&
-    //		search_result_msghdr(MSGHDR_RECV_ID) != search_complete(MSGHDR_RECV_ID)) {
-    //		switch(candidate(MSGHDR_RECV_FLAGS)) {
-    //		    case HOMA_RECVMSG_REQUEST:
-    //			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_REQUEST) {
-    //			    search_result_msghdr = search_complete;
-    //			    search_result_index  = search_index;
-    //			}
-    //			break;
-    //		    case HOMA_RECVMSG_RESPONSE:
-    //			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_RESPONSE) {
-    //			    search_result_msghdr = search_complete;
-    //			    search_result_index  = search_index;
-    //			}
-    //			break;
-    //		    case HOMA_RECVMSG_ALL:
-    //			search_result_msghdr = search_complete;
-    //			search_result_index  = search_index;
-    //			break;
-    //		}
-    //	    }
-    //	    search_index++;
-    //	} else {
-    //	    if (search_result_msghdr != 0) {
-    //		
-    //		dma_w_req_t msghdr_resp;
-    //		msghdr_resp.data = search_result_msghdr;
-    //		msghdr_resp.offset = c2h_port_to_metadata[search_result_msghdr(MSGHDR_SPORT)] + (search_result_msghdr(MSGHDR_RETURN) * 64);
-    //		msghdr_resp.strobe = 64;
-    //		msghdr_recv_o.write(msghdr_resp);
-
-    //		// buffered_pending[search_complete(MSGHDR_SPORT)][search_result_index] = 0;
-    //		// TODO this prevents the head from being used to insert to buff
-    //		// pending_head[search_complete(MSGHDR_SPORT)]--;
-    //	    } else {
-    //		// buffered_complete[search_complete(MSGHDR_SPORT)][complete_head[search_complete(MSGHDR_SPORT)]] = 0;
-    //		// complete_head[search_complete(MSGHDR_SPORT)]++;
-    //	    }
-
-    //	    stall = 6;
-    //	    search_complete = 0;
-    //	    search_pending  = 0;
-    //	    search_result_msghdr = 0;
-    //	    search_index    = 0;
-    //	}
-    //} else if (search_pending != 0) {
-    //	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_complete[search_pending(MSGHDR_SPORT)][search_index];
-
-    //	if (candidate != 0) {
-    //	    // Is this candidate a match and we don't already have an ID match 
-    //	    if (candidate(MSGHDR_SADDR) == search_pending(MSGHDR_SADDR) &&
-    //		candidate(MSGHDR_DADDR) == search_pending(MSGHDR_DADDR) &&
-    //		candidate(MSGHDR_SPORT) == search_pending(MSGHDR_SPORT) &&
-    //		candidate(MSGHDR_DPORT) == search_pending(MSGHDR_DPORT) &&
-    //		search_result_msghdr(MSGHDR_RECV_ID) != search_pending(MSGHDR_RECV_ID)) {
-    //		switch(candidate(MSGHDR_RECV_FLAGS)) {
-    //		    case HOMA_RECVMSG_REQUEST:
-    //			if (search_pending(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_REQUEST) {
-    //			    search_result_msghdr = candidate;
-    //			}
-    //			break;
-    //		    case HOMA_RECVMSG_RESPONSE:
-    //			if (search_pending(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_RESPONSE) {
-    //			    search_result_msghdr = candidate;
-    //			}
-    //			break;
-    //		    case HOMA_RECVMSG_ALL:
-    //			search_result_msghdr = candidate;
-    //		}
-    //	    }
-    //	} else {
-    //	    if (search_result_msghdr != 0) {
-    //		
-    //		dma_w_req_t msghdr_resp;
-    //		msghdr_resp.data = search_result_msghdr;
-    //		msghdr_resp.offset = c2h_port_to_metadata[search_result_msghdr(MSGHDR_SPORT)] + (search_result_msghdr(MSGHDR_RETURN) * 64);
-    //		msghdr_resp.strobe = 64;
-    //		msghdr_recv_o.write(msghdr_resp);
-
-    //		// buffered_complete[search_pending(MSGHDR_SPORT)][search_result_index] = 0;
-    //		// complete_head[search_complete(MSGHDR_SPORT)]--;
-    //	    } else {
-    //		// buffered_pending[search_complete(MSGHDR_SPORT)][complete_head[search_complete(MSGHDR_SPORT)]] = 0;
-    //		// pending_head[search_complete(MSGHDR_SPORT)]--;
-    //	    }
-    //	}
-
-    //	search_index++;
-    //} else
-
-    if (complete_msgs_i.read_nb(complete)) {
-	std::cerr << "complete msgs in" << std::endl;
-	// TODO swap this
-	search_complete(MSGHDR_SADDR)      = complete.saddr;
-	search_complete(MSGHDR_DADDR)      = complete.daddr;
-	search_complete(MSGHDR_SPORT)      = complete.sport;
-	search_complete(MSGHDR_DPORT)      = complete.dport;
-	search_complete(MSGHDR_BUFF_ADDR)  = complete.host_addr;
-	search_complete(MSGHDR_RETURN)     = complete.host_addr;
-	search_complete(MSGHDR_BUFF_SIZE)  = complete.message_length;
-	search_complete(MSGHDR_RECV_ID)    = complete.local_id; 
-	search_complete(MSGHDR_RECV_CC)    = complete.completion_cookie;
-	search_complete(MSGHDR_RECV_FLAGS) = (IS_CLIENT(complete.local_id)) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
-
-	dma_w_req_t msghdr_resp;
-	msghdr_resp.data = search_complete;
-	msghdr_resp.offset = c2h_port_to_metadata[search_complete(MSGHDR_SPORT)] + (search_complete(MSGHDR_RETURN) * 64);
-	msghdr_resp.strobe = 64;
-	msghdr_recv_o.write(msghdr_resp);
-
-    } else if (msghdr_recv_i.read_nb(pending)) {
-
-	std::cerr << "pending requests in" << std::endl;
-	search_pending = pending.data;
-
-	dma_w_req_t msghdr_resp;
-	msghdr_resp.data = search_pending;
-	msghdr_resp.offset = c2h_port_to_metadata[search_pending(MSGHDR_SPORT)] + (search_pending(MSGHDR_RETURN) * 64);
-	msghdr_resp.strobe = 64;
-	msghdr_recv_o.write(msghdr_resp);
-
-
     }
 }
 
@@ -595,10 +181,7 @@ void recv_proc(
  * 
  */
 void rpc_state(
-    hls::stream<msghdr_send_t> & msghdr_send_i,
-    hls::stream<dma_w_req_t> & msghdr_send_o,
-    hls::stream<msghdr_recv_t> & msghdr_recv_i,
-    hls::stream<dma_w_req_t> & msghdr_recv_o,
+    hls::stream<homa_rpc_t> & new_rpc_i,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
     hls::stream<srpt_grant_new_t> & grant_queue_o,
@@ -608,7 +191,6 @@ void rpc_state(
     hls::stream<header_t> & c2h_header_o,
     hls::stream<header_t> & pm_c2h_header_i,
     hls::stream<header_t> & pm_c2h_header_o,
-    hls::stream<header_t> & complete_msgs_i,
     hls::stream<srpt_queue_entry_t> & data_srpt_o,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
@@ -618,8 +200,9 @@ void rpc_state(
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<srpt_queue_entry_t> & dma_r_req_i,
     hls::stream<dma_r_req_t> & dma_r_req_o,
-    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
-    hls::stream<dbuff_id_t> & free_dbuff_id_i,
+    hls::stream<dbuff_id_t> & free_dbuff_i,
+    hls::stream<dbuff_id_t> & new_dbuff_o,
+    hls::stream<local_id_t> & new_client_o,
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
     ) {
@@ -632,24 +215,15 @@ void rpc_state(
 
 #pragma HLS bind_storage variable=send_rpcs type=RAM_1WNR
 #pragma HLS bind_storage variable=recv_rpcs type=RAM_1WNR
-
-    /* Port to metadata mapping DMA */
-    static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer 
-#pragma HLS bind_storage variable=c2h_port_to_metadata type=RAM_1WNR
+// #pragma HLS bind_storage variable=c2h_port_to_metadata type=RAM_1WNR
 
     /* Port/RPC to user databuffer mapping DMA */
     static host_addr_t c2h_port_to_msgbuff[MAX_PORTS];  // Port -> large c2h buffer space 
     static msg_addr_t  c2h_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
     static ap_uint<7>  c2h_buff_ids[MAX_PORTS];         // Next availible offset in buffer space
-    // TODO check this
-#pragma HLS dependence variable=c2h_rpc_to_offset inter WAR false
-#pragma HLS dependence variable=c2h_rpc_to_offset inter RAW false
-#pragma HLS dependence variable=c2h_rpc_to_offset intra WAR false
-#pragma HLS dependence variable=c2h_rpc_to_offset intra RAW false
-#pragma HLS dependence variable=c2h_buff_ids inter WAR false
-#pragma HLS dependence variable=c2h_buff_ids inter RAW false
-#pragma HLS dependence variable=c2h_buff_ids intra WAR false
-#pragma HLS dependence variable=c2h_buff_ids intra RAW false
+
+    static stack_t<local_id_t, MAX_RPCS> client_ids(STACK_EVEN);
+    static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids(STACK_ALL);
 
     static host_addr_t h2c_port_to_msgbuff[MAX_PORTS];  // Port -> large h2c buffer space
     static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
@@ -682,69 +256,168 @@ void rpc_state(
      * we have not yet seen before.
      */
 
-    /* augment incoming headers with rpc state data*/
-    h2c_header_proc(
-	send_rpcs,
-	recv_rpcs,
-	h2c_header_i,
-	h2c_header_o,
-	h2c_pkt_log_o
-	);
+    static dbuff_id_t new_dbuff = 0;
+    static dbuff_id_t free_dbuff = 0;
+    if (new_dbuff == 0) {
+	new_dbuff = msg_cache_ids.pop();
+    } else if (free_dbuff_i.read_nb(free_dbuff)) {
+	msg_cache_ids.push(free_dbuff);
+    } else if (new_dbuff_o.write_nb(new_dbuff)) {
+	new_dbuff = 0;
+    } 
 
-    /* notify srpt data queue of dbuff updates */
-    dbuff_notif_proc(
-	send_rpcs,
-	dbuff_notif_i,
-	dbuff_notif_o
-	);
+    static local_id_t new_client = 0;
+    if (new_client == 0) {
+	new_client = client_ids.pop();
+    } else if (new_client_o.write_nb(new_client)) {
+	new_client = 0;
+    }
 
-    /* corrdinate DMA message data fetch */
-    dma_fetch_proc(
-	send_rpcs,
-	h2c_port_to_msgbuff,
-	h2c_rpc_to_offset,
-	dma_r_req_i,
-	dma_r_req_o
-	);
+    port_to_phys_t new_h2c_port_to_msgbuff;
+    if (h2c_port_to_msgbuff_i.read_nb(new_h2c_port_to_msgbuff)) {
+	h2c_port_to_msgbuff[new_h2c_port_to_msgbuff(PORT_TO_PHYS_PORT)] = new_h2c_port_to_msgbuff(PORT_TO_PHYS_ADDR);
+    }
 
-    /* forward data to DMA write core */ 
-    dma_write_proc(
-	c2h_port_to_msgbuff,
-	c2h_rpc_to_offset,
-	dma_w_req_i,
-	dma_w_req_o
-	);
+    port_to_phys_t new_c2h_port_to_msgbuff;
+    if (c2h_port_to_msgbuff_i.read_nb(new_c2h_port_to_msgbuff)) {
+	c2h_port_to_msgbuff[new_c2h_port_to_msgbuff(PORT_TO_PHYS_PORT)] = new_c2h_port_to_msgbuff(PORT_TO_PHYS_ADDR);
+    }
 
-    /* incorporate new port to message buffer mappings */
-    update_host_map_proc(
-	h2c_port_to_msgbuff,
-	c2h_port_to_msgbuff,
-	c2h_port_to_metadata,
-	c2h_port_to_msgbuff_i,
-	h2c_port_to_msgbuff_i,
-	c2h_port_to_metadata_i
-	);
+    homa_rpc_t rpc;
+    if (new_rpc_i.read_nb(rpc)) {
+	std::cerr << "NEW RPC IN LOCALID " << rpc.local_id << std::endl;
 
-    /* forward completed messages to user */
-    recv_proc(
-	msghdr_recv_i,
-	c2h_port_to_metadata,
-	complete_msgs_i,
-	msghdr_recv_o
-	);
+	if (rpc.id == 0) {
+	    rpc.id = recv_rpcs[rpc.local_id].id;
+	    std::cerr << "RPC ID " << rpc.id << std::endl;
+	}
 
-    send_proc(
-	send_rpcs,
-	recv_rpcs,
-	c2h_port_to_metadata,
-	h2c_rpc_to_offset,
-	msghdr_send_i,
-	msghdr_send_o,
-	data_queue_o,
-	fetch_queue_o,
-	free_dbuff_id_i
-	);
+	send_rpcs[rpc.local_id]         = rpc;
+	// send_rpcs[rpc.id]         = rpc;
+	h2c_rpc_to_offset[rpc.id] = (rpc.buff_addr << 1) | 1;
+	
+	// TODO so much type shuffling here.... 
+    	srpt_queue_entry_t srpt_data_in = 0;
+	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = rpc.local_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
+	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = rpc.buff_size;
+	// TODO would be cleaner if we could just set this to RTT_BYTES
+	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)   = rpc.buff_size - ((((ap_uint<32>) RTT_BYTES) > rpc.buff_size)
+								    ? rpc.buff_size : ((ap_uint<32>) RTT_BYTES));
+	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
 
+	// Insert this entry into the SRPT data queue
+	data_queue_o.write(srpt_data_in);
+	
+	srpt_queue_entry_t srpt_fetch_in = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = rpc.local_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
+	
+	// Insert this entry into the SRPT fetch queue
+	fetch_queue_o.write(srpt_fetch_in);
+    }
+
+
+    srpt_queue_entry_t dbuff_notif;
+    if (dbuff_notif_i.read_nb(dbuff_notif)) {
+	local_id_t id = dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID);
+
+	homa_rpc_t homa_rpc = send_rpcs[id];
+
+	ap_uint<32> dbuff_offset = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
+
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID) = homa_rpc.h2c_buff_id;
+	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_DBUFF_UPDATE;
+
+	if (dbuff_offset + DBUFF_CHUNK_SIZE < homa_rpc.buff_size) {
+	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = homa_rpc.buff_size - dbuff_offset - DBUFF_CHUNK_SIZE;
+	} else {
+	    dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
+	}
+
+	// TODO these notifs need to also go to the fetch core?
+
+	dbuff_notif_o.write(dbuff_notif);
+    }
+
+    dma_w_req_t dma_w_req;
+    if (dma_w_req_i.read_nb(dma_w_req)) {
+	// TODO should error log here if the entry does not exist
+
+	// Get the physical address of this ports entire buffer
+	host_addr_t phys_addr = c2h_port_to_msgbuff[dma_w_req.port];
+	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
+
+	msg_addr >>= 1;
+
+	dma_w_req.offset += phys_addr + msg_addr;
+
+	dma_w_req_o.write(dma_w_req);
+    }
+
+    srpt_queue_entry_t dma_fetch;
+    if (dma_r_req_i.read_nb(dma_fetch)) {
+	local_id_t id = dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID);
+	homa_rpc_t homa_rpc = send_rpcs[id];
+
+	// Get the physical address of this ports entire buffer
+
+	msg_addr_t msg_addr   = h2c_rpc_to_offset[id];
+	host_addr_t phys_addr = h2c_port_to_msgbuff[homa_rpc.sport];
+
+	dma_r_req_t dma_r_req;
+	dma_r_req(SRPT_QUEUE_ENTRY_SIZE-1, 0) = dma_fetch;
+	dma_r_req(DMA_R_REQ_MSG_LEN)          = homa_rpc.buff_size;
+
+	msg_addr >>= 1;
+	dma_r_req(DMA_R_REQ_HOST_ADDR) = (homa_rpc.buff_size - dma_fetch(SRPT_QUEUE_ENTRY_REMAINING)) + (phys_addr + msg_addr);
+
+	dma_r_req_o.write(dma_r_req);
+    }
+
+    header_t h2c_header;
+    if (h2c_header_i.read_nb(h2c_header)) {
+	
+	homa_rpc_t homa_rpc;
+	switch(h2c_header.type) {
+	    case DATA:
+		homa_rpc = send_rpcs[h2c_header.local_id];
+
+		h2c_header.daddr = homa_rpc.daddr;
+		h2c_header.dport = homa_rpc.dport;
+		h2c_header.saddr = homa_rpc.saddr;
+		h2c_header.sport = homa_rpc.sport;
+		h2c_header.id    = homa_rpc.id;
+		break;
+	    case GRANT:
+		homa_rpc = recv_rpcs[h2c_header.local_id];
+
+		h2c_header.daddr = homa_rpc.saddr;
+		h2c_header.dport = homa_rpc.sport;
+		h2c_header.saddr = homa_rpc.daddr;
+		h2c_header.sport = homa_rpc.dport;
+		h2c_header.id    = homa_rpc.id;
+		break;
+	}
+
+	// Log the packet type we are sending
+	h2c_pkt_log_o.write((h2c_header.type == DATA) ? LOG_DATA_OUT : LOG_GRANT_OUT);
+
+	// Get the location of buffered data and prepare for packet construction
+	h2c_header.h2c_buff_id    = homa_rpc.h2c_buff_id;
+	h2c_header.incoming       = homa_rpc.buff_size - h2c_header.incoming;
+	h2c_header.data_offset    = homa_rpc.buff_size - h2c_header.data_offset;
+	h2c_header.message_length = homa_rpc.buff_size;
+
+	h2c_header_o.write_nb(h2c_header);
+    }
+
+    // TODO break this up
     c2h_header_proc(
 	send_rpcs,
 	recv_rpcs,

@@ -29,8 +29,8 @@ hls::stream<log_entry_t>        log_out_o;
 ap_uint<128> A_saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
 ap_uint<128> A_daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
 
-ap_uint<128> B_saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
-ap_uint<128> B_daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
+ap_uint<128> B_daddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
+ap_uint<128> B_saddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
 
 uint16_t A_sport = 1;
 uint16_t A_dport = 2;
@@ -89,14 +89,41 @@ ap_uint<MSGHDR_SEND_SIZE> sendmsg_A_to_B(ap_uint<32> size, ap_uint<64> id) {
     return sendmsg_resp;
 }
 
+ap_uint<MSGHDR_SEND_SIZE> sendmsg_B_to_A(ap_uint<32> size, ap_uint<64> id) {
+    msghdr_send_t sendmsg_req;
+
+    sendmsg_req.data(MSGHDR_SADDR)     = B_saddr;
+    sendmsg_req.data(MSGHDR_DADDR)     = B_daddr;
+    sendmsg_req.data(MSGHDR_SPORT)     = B_sport;
+    sendmsg_req.data(MSGHDR_DPORT)     = B_dport;
+    sendmsg_req.data(MSGHDR_BUFF_ADDR) = 0;
+    sendmsg_req.data(MSGHDR_BUFF_SIZE) = size;
+    sendmsg_req.data(MSGHDR_RETURN)    = rand() % 256;
+    sendmsg_req.data(MSGHDR_SEND_ID)   = id;
+    sendmsg_req.data(MSGHDR_SEND_CC)   = 99;
+
+    *((ap_uint<MSGHDR_SEND_SIZE>*) (B_c2h_metadata + (sendmsg_req.data(MSGHDR_RETURN) * 64))) = 0;
+
+    sendmsg_i.write(sendmsg_req);
+
+    ap_uint<MSGHDR_SEND_SIZE> sendmsg_resp;
+    while(true) {
+	process();
+	sendmsg_resp = *((ap_uint<MSGHDR_SEND_SIZE>*) (B_c2h_metadata + (sendmsg_req.data(MSGHDR_RETURN) * 64)));
+	if (sendmsg_resp(MSGHDR_RETURN) != 0) break;
+    }
+
+    return sendmsg_resp;
+}
+
 // TODO eventually randomly match on request or response or any
 ap_uint<MSGHDR_RECV_SIZE> recvmsg_A_to_B(ap_uint<64> id) {
     msghdr_recv_t recvmsg_req;
 
-    recvmsg_req.data(MSGHDR_SADDR)     = B_saddr;
-    recvmsg_req.data(MSGHDR_DADDR)     = B_daddr;
-    recvmsg_req.data(MSGHDR_SPORT)     = B_sport;
-    recvmsg_req.data(MSGHDR_DPORT)     = B_dport;
+    recvmsg_req.data(MSGHDR_SADDR)     = B_daddr;
+    recvmsg_req.data(MSGHDR_DADDR)     = B_saddr;
+    recvmsg_req.data(MSGHDR_SPORT)     = B_dport;
+    recvmsg_req.data(MSGHDR_DPORT)     = B_sport;
     recvmsg_req.data(MSGHDR_BUFF_ADDR) = 0;
     recvmsg_req.data(MSGHDR_BUFF_SIZE) = 0;
     recvmsg_req.data(MSGHDR_RETURN)    = rand() % 256;
@@ -118,48 +145,35 @@ ap_uint<MSGHDR_RECV_SIZE> recvmsg_A_to_B(ap_uint<64> id) {
 }
 
 
-//ap_uint<MSGHDR_SEND_SIZE> sendmsg_B(ap_uint<32> size, ap_uint<64> id) {
-//    msghdr_send_t sendmsg_req;
-//
-//    sendmsg_req.data(MSGHDR_SADDR)     = daddr;
-//    sendmsg_req.data(MSGHDR_DADDR)     = saddr;
-//    sendmsg_req.data(MSGHDR_SPORT)     = dport;
-//    sendmsg_req.data(MSGHDR_DPORT)     = sport;
-//    sendmsg_req.data(MSGHDR_BUFF_ADDR) = 0;
-//    sendmsg_req.data(MSGHDR_BUFF_SIZE) = size;
-//
-//    sendmsg_req.data(MSGHDR_SEND_ID)   = id;
-//    sendmsg_req.data(MSGHDR_SEND_CC)   = 99;
-//
-//    sendmsg_i.write(sendmsg_req);
-//
-//    while(sendhead == *((uint64_t*) c2h_metadata)) process();
-//
-//    ap_uint<MSGHDR_SEND_SIZE> sendmsg_resp;
-//
-//    sendhead = *((uint64_t*) c2h_metadata);
-//
-//    sendmsg_resp = *((ap_uint<MSGHDR_SEND_SIZE>*) (c2h_metadata + sendhead));
-//
-//    return sendmsg_resp;
-//}
+// TODO eventually randomly match on request or response or any
+ap_uint<MSGHDR_RECV_SIZE> recvmsg_B_to_A(ap_uint<64> id) {
+    msghdr_recv_t recvmsg_req;
 
-//ap_uint<MSGHDR_RECV_SIZE> recvmsg() {
-//
-//    std::cerr << "STALLING FOR RECVMSG" << std::endl;
-//    while (recvhead == *((uint64_t*) c2h_metadata)) process();
-//
-//    ap_uint<512> recvmsg_resp;
-//
-//    recvhead = *((uint64_t*) c2h_metadata);
-//
-//    recvmsg_resp = *((ap_uint<512>*) (c2h_metadata + recvhead));
-//
-//    return recvmsg_resp;
-//}
+    recvmsg_req.data(MSGHDR_SADDR)     = A_daddr;
+    recvmsg_req.data(MSGHDR_DADDR)     = A_saddr;
+    recvmsg_req.data(MSGHDR_SPORT)     = A_dport;
+    recvmsg_req.data(MSGHDR_DPORT)     = A_sport;
+    recvmsg_req.data(MSGHDR_BUFF_ADDR) = 0;
+    recvmsg_req.data(MSGHDR_BUFF_SIZE) = 0;
+    recvmsg_req.data(MSGHDR_RETURN)    = rand() % 256;
+    recvmsg_req.data(MSGHDR_RECV_ID)   = id;
+    recvmsg_req.data(MSGHDR_RECV_CC)   = 0;
+
+    *((ap_uint<MSGHDR_RECV_SIZE>*) (A_c2h_metadata + (recvmsg_req.data(MSGHDR_RETURN) * 64))) = 0;
+
+    recvmsg_i.write(recvmsg_req);
+
+    ap_uint<MSGHDR_RECV_SIZE> recvmsg_resp;
+    while(true) {
+	process();
+	recvmsg_resp = *((ap_uint<MSGHDR_RECV_SIZE>*) (A_c2h_metadata + (recvmsg_req.data(MSGHDR_RETURN) * 64)));
+	if (recvmsg_resp(MSGHDR_RETURN) != 0) break;
+    }
+
+    return recvmsg_resp;
+}
 
 // short messages fail
-
 void init() {
     A_h2c_msgbuff  = (char*) malloc(16384 * sizeof(char));
     A_c2h_msgbuff  = (char*) malloc(16384 * sizeof(char));
@@ -167,6 +181,12 @@ void init() {
     B_h2c_msgbuff  = (char*) malloc(16384 * sizeof(char));
     B_c2h_msgbuff  = (char*) malloc(16384 * sizeof(char));
     B_c2h_metadata = (char*) malloc(16384 * sizeof(char));
+
+    // std::cerr << "Host A msgbuff: " << (uint64_t) A_h2c_msgbuff << std::endl;
+    // std::cerr << "Host A msgbuff: " << (uint64_t) A_c2h_msgbuff << std::endl;
+    // 
+    // std::cerr << "Host B msgbuff: " << (uint64_t) B_h2c_msgbuff << std::endl;
+    // std::cerr << "Host B msgbuff: " << (uint64_t) B_c2h_msgbuff << std::endl;
 
     A_c2h_msgbuff_map(PORT_TO_PHYS_ADDR) = (uint64_t) A_c2h_msgbuff;
     A_c2h_msgbuff_map(PORT_TO_PHYS_PORT) = A_sport;
@@ -238,19 +258,23 @@ void random_rpc() {
     std::cerr << "SENDMSG ID " << send(MSGHDR_SEND_ID) << std::endl;
 
     // TODO should be a REQUEST flag?
-    ap_uint<MSGHDR_RECV_SIZE> recv = recvmsg_A_to_B(send(MSGHDR_SEND_ID)); // Receipt
+    ap_uint<MSGHDR_RECV_SIZE> recv = recvmsg_A_to_B(0); // Receipt
 
     while (memcmp(A_h2c_msgbuff, B_c2h_msgbuff, size) != 0) process();
 
-    //std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
+    std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
 
-    //send = sendmsg_B(size, recv(MSGHDR_RECV_ID));
+    send = sendmsg_B_to_A(size, recv(MSGHDR_RECV_ID));
 
-    //std::cerr << "SENDMSG ID " << send(MSGHDR_SEND_ID) << std::endl;
+    std::cerr << "SENDMSG ID " << send(MSGHDR_SEND_ID) << std::endl;
 
-    //recv = recvmsg(); // Receipt
+    recv = recvmsg_B_to_A(0); // Receipt
 
-    //std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
+    std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
+
+    while (memcmp(B_h2c_msgbuff, A_c2h_msgbuff, size) != 0) process();
+
+    std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -268,6 +292,8 @@ int main(int argc, char **argv) {
 	);
 
     init();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     random_rpc();
     // for (int i = 0; i < 1000; ++i) random_rpc();

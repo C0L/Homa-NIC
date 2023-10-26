@@ -7,10 +7,7 @@
 #include "stack.hh"
 
 void rpc_state(
-    hls::stream<msghdr_send_t> & msghdr_send_i,
-    hls::stream<dma_w_req_t> & msghdr_send_o,
-    hls::stream<msghdr_recv_t> & msghdr_recv_i,
-    hls::stream<dma_w_req_t> & msghdr_recv_o,
+    hls::stream<homa_rpc_t> & new_rpc_i,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
     hls::stream<srpt_grant_new_t> & grant_queue_o,
@@ -20,7 +17,6 @@ void rpc_state(
     hls::stream<header_t> & c2h_header_o,
     hls::stream<header_t> & pm_c2h_header_i,
     hls::stream<header_t> & pm_c2h_header_o,
-    hls::stream<header_t> & complete_msgs_i,
     hls::stream<srpt_queue_entry_t> & data_srpt_o,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
     hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
@@ -30,8 +26,9 @@ void rpc_state(
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<srpt_queue_entry_t> & dma_r_req_i,
     hls::stream<dma_r_req_t> & dma_r_req_o,
-    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
     hls::stream<dbuff_id_t> & free_dbuff_id_i,
+    hls::stream<dbuff_id_t> & new_dbuff_i,
+    hls::stream<local_id_t> & new_client_i,
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
     );

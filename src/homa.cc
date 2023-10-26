@@ -30,8 +30,8 @@ using namespace hls;
  * @link_egress:  The outgoing AXI Stream of ethernet frames from to the link
  */
 void homa(
-    hls::stream<msghdr_send_t> & msghdr_send_i,
-    hls::stream<msghdr_recv_t> & msghdr_recv_i,
+    hls::stream<msghdr_send_t> & sendmsg_i,
+    hls::stream<msghdr_recv_t> & recvmsg_i,
     hls::stream<am_cmd_t> & w_cmd_queue_o,
     hls::stream<ap_axiu<512,0,0,0>> & w_data_queue_o,
     hls::stream<am_status_t> & w_status_queue_i,
@@ -47,8 +47,8 @@ void homa(
     hls::stream<log_entry_t> & log_out_o
     ) {
 
-#pragma HLS interface axis port=msghdr_send_i
-#pragma HLS interface axis port=msghdr_recv_i
+#pragma HLS interface axis port=sendmsg_i
+#pragma HLS interface axis port=recvmsg_i
 #pragma HLS interface axis port=w_status_queue_i
 #pragma HLS interface axis port=r_data_queue_i
 #pragma HLS interface axis port=r_status_queue_i
@@ -65,18 +65,7 @@ void homa(
 
 #pragma HLS interface mode=ap_ctrl_none port=return
 
-    /* https://docs.xilinx.com/r/en-US/ug1399-vitis-hls/HLS-Stream-Library The
-     * verification depth controls the size of the "RTL verification adapter" This
-     * needs to be configured to be the maximum size of any stream encountered
-     * through the execution of the testbench. This should not effect the actual
-     * generation of the RTL however.
-     *
-     * Synth will claim that this is ignored, but cosim needs it to work.
-     */
-#pragma HLS dataflow disable_start_propagation 
-
     /* Naming scheme: {flow}__{source kernel}__{dest kernel} */
-
     hls_thread_local hls::stream<dbuff_id_t, STREAM_DEPTH> free_dbuff__h2c_databuff__rpc_state;
 
     /* header_out streams */
@@ -86,8 +75,7 @@ void homa(
     /* header_in streams */
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_state;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress;
-    // hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__dbuff_ingress;
-    // hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__address_map__dbuff_ingress;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state;
 
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__homa_recvmsg;
    
@@ -99,10 +87,6 @@ void homa(
     hls_thread_local hls::stream<h2c_chunk_t, STREAM_DEPTH> out_chunk__dbuff_egress__pkt_egress;
 
     /* in chunk streams */
-    /* The depth of this stream is configured based on how many cycles
-     * it takes from a new header to be processed and returned to the msg
-     * spool
-     */
     hls_thread_local hls::stream<c2h_chunk_t, 8> in_chunk__chunk_ingress__dbuff_ingress;
 
     /* grant SRPT streams */
@@ -120,17 +104,18 @@ void homa(
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dma_req__srpt_data__dma_read;
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__dma_write;
 
-
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__dbuff_ingress__address_map;
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> dma_req__address_map__dma_write;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_data;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> sendmsg__rpc_state__srpt_fetch;
 
-    // hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__packetmap;
-    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state;
     hls_thread_local hls::stream<srpt_grant_new_t, STREAM_DEPTH> grant__rpc_state__srpt_grant;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> header_in__rpc_state__srpt_data;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__packetmap;
+
+    hls_thread_local hls::stream<local_id_t, STREAM_DEPTH> new_client;
+    hls_thread_local hls::stream<dbuff_id_t, STREAM_DEPTH> new_dbuff;
+    hls_thread_local hls::stream<homa_rpc_t, STREAM_DEPTH> new_rpc;
 
     /* log streams */
     hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_w_req_log;
@@ -146,10 +131,7 @@ void homa(
  
     hls_thread_local hls::task rpc_state_task(
 	rpc_state,
-	msghdr_send_i,
-	sendmsg__rpc_state__dma_write,
-	msghdr_recv_i,
-	recvmsg__rpc_state__dma_write,
+	new_rpc,
 	sendmsg__rpc_state__srpt_data,
 	sendmsg__rpc_state__srpt_fetch,
 	grant__rpc_state__srpt_grant,
@@ -159,7 +141,6 @@ void homa(
 	header_in__rpc_state__packetmap,
 	header_in__packetmap__rpc_state,
 	header_in__rpc_state__dbuff_ingress,
-	header_in__dbuff_ingress__homa_recvmsg,
 	header_in__rpc_state__srpt_data,
 	dbuff_notif__h2c_databuff__rpc_state,
 	dbuff_notif__rpc_state__srpt_data,
@@ -169,10 +150,24 @@ void homa(
 	h2c_port_to_msgbuff_i,
 	dma_req__srpt_data__address_map, // TODO name change
 	dma_req__address_map__dma_read,  // TODO name change
-	c2h_port_to_metadata_i,
 	free_dbuff__h2c_databuff__rpc_state,
+	new_dbuff,
+	new_client,
 	h2c_pkt_log,
 	c2h_pkt_log
+	);
+
+    hls_thread_local hls::task c2h_metadata_task(
+	c2h_metadata,
+	sendmsg_i,
+	sendmsg__rpc_state__dma_write,
+	new_rpc,
+	recvmsg_i,
+	header_in__dbuff_ingress__homa_recvmsg,
+	recvmsg__rpc_state__dma_write,
+	c2h_port_to_metadata_i,
+	new_client,
+	new_dbuff
 	);
 
     hls_thread_local hls::task srpt_grant_pkts_task(

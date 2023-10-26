@@ -484,7 +484,7 @@ struct homa_rpc_t {
     ap_uint<32>  buff_size;  // Size of message in DMA space
     ap_uint<64>  cc;         // Completion Cookie
 
-    // local_id_t  local_id;    // Local RPC ID 
+    local_id_t  local_id;    // Local RPC ID 
     dbuff_id_t  h2c_buff_id; // Data buffer ID for outgoing data
     peer_id_t   peer_id;     // Local ID for this destination address
 };

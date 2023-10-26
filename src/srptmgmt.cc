@@ -24,7 +24,6 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 	active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED);
     } else if (!grant_notif_i.empty()) {
 	srpt_queue_entry_t header_in = grant_notif_i.read();
-	std::cerr << "srpt_data_queue update " << header_in(SRPT_QUEUE_ENTRY_RPC_ID) << std::endl;
 	active_rpcs[header_in(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_GRANTED) = header_in(SRPT_QUEUE_ENTRY_GRANTED);
     }
 
@@ -125,11 +124,9 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 
 	// The first unscheduled packet creates the entry. Only need an entry if the RPC needs grants.
 	if ((grant_in(SRPT_GRANT_NEW_PMAP) & PMAP_INIT) == PMAP_INIT) {
-	    std::cerr << "srpt_grant_pkts new: " << grant_in(SRPT_GRANT_NEW_RPC_ID) << std::endl;
 	    entries[grant_in(SRPT_GRANT_NEW_RPC_ID)] = {grant_in(SRPT_GRANT_NEW_PEER_ID), grant_in(SRPT_GRANT_NEW_RPC_ID), HOMA_PAYLOAD_SIZE, grant_in(SRPT_GRANT_NEW_MSG_LEN) - HOMA_PAYLOAD_SIZE};
 	} else {
 	    entries[grant_in(SRPT_GRANT_NEW_RPC_ID)].recv_bytes += HOMA_PAYLOAD_SIZE;
-	    std::cerr << "srpt_grant_pkts update: " << grant_in(SRPT_GRANT_NEW_RPC_ID) << std::endl;
 	} 
     } else {
 	srpt_grant_t best[8];
@@ -151,7 +148,6 @@ void srpt_grant_pkts(hls::stream<srpt_grant_new_t> & grant_in_i,
 		    for (int s = 0; s < 8; s++) {
 			if (entries[e].peer_id == best[s].peer_id) {
 			    dupe = true;
-			    // std::cerr << "DUPE" << std::endl;
 			}
 		    }
 
