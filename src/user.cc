@@ -21,6 +21,7 @@ void c2h_metadata(
     ) {
 
     /* Port to metadata mapping DMA */
+    // TODO should this be here?
     static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer
 
 //     #pragma HLS pipeline II=1
@@ -47,16 +48,19 @@ void c2h_metadata(
 	rpc.cc          = msghdr_send.data(MSGHDR_SEND_CC);
 	rpc.h2c_buff_id = new_dbuff_i.read();
 
+	std::cerr << "READ NEW DBUFF\n";
+
 	/* Instruct the user that the sendmsg request is active */
 	dma_w_req_t msghdr_resp;
 	msghdr_resp.data   = msghdr_send.data;
-	std::cerr << "OFFSET " <<  c2h_port_to_metadata[msghdr_send.data(MSGHDR_SPORT)] + (msghdr_send.data(MSGHDR_RETURN) * 64) << std::endl;
 	msghdr_resp.offset = c2h_port_to_metadata[msghdr_send.data(MSGHDR_SPORT)] + (msghdr_send.data(MSGHDR_RETURN) * 64);
 	msghdr_resp.strobe = 64;
 	sendmsg_o.write(msghdr_resp);
 
 	/* Begin evaluating this request */
 	new_rpc_o.write(rpc);
+
+	std::cerr << "user.cc completed onboarding" << std::endl;
     }
 
     port_to_phys_t new_c2h_port_to_metadata;
@@ -93,11 +97,9 @@ void c2h_metadata(
 
     // TODO replace this with stalling CAM
     if (search_complete != 0) {
-	std::cerr << "search complete check " << search_complete(MSGHDR_SPORT) << std::endl;
 	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_pending[search_complete(MSGHDR_SPORT)][search_index];
 
-	std::cerr << "candidate: " << candidate << std::endl;
-	std::cerr << "search complete: " << search_complete << std::endl;
+	std::cerr << "SEARCH INDEX " << search_index << std::endl;
 
     	if (candidate != 0) {
             // Is this candidate a match and we don't already have an ID match 
@@ -106,25 +108,21 @@ void c2h_metadata(
     		candidate(MSGHDR_SPORT) == search_complete(MSGHDR_SPORT) &&
     		candidate(MSGHDR_DPORT) == search_complete(MSGHDR_DPORT) &&
     		search_result_msghdr(MSGHDR_RECV_ID) != search_complete(MSGHDR_RECV_ID)) {
-		std::cerr << "FLAGS: " <<  candidate(MSGHDR_RECV_FLAGS) << std::endl;
 
     		switch(candidate(MSGHDR_RECV_FLAGS)) {
     		    case HOMA_RECVMSG_REQUEST:
-			std::cerr << "RECV REQUEST\n";
     			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_REQUEST) {
     			    search_result_msghdr = candidate;
     			    search_result_index  = search_index;
     			}
     			break;
     		    case HOMA_RECVMSG_RESPONSE:
-			std::cerr << "RECV RESPONSE\n";
     			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_RESPONSE) {
     			    search_result_msghdr = candidate;
     			    search_result_index  = search_index;
     			}
     			break;
     		    case HOMA_RECVMSG_ALL:
-			std::cerr << "RECV ALL\n";
     			search_result_msghdr = candidate;
     			search_result_index  = search_index;
     			break;
@@ -133,20 +131,22 @@ void c2h_metadata(
     	    search_index++;
     	} else {
     	    if (search_result_msghdr != 0) {
-		std::cerr << "Match found writing back" << std::endl;
     		dma_w_req_t msghdr_resp;
 
     		msghdr_resp.data = search_result_msghdr;
     		msghdr_resp.data(MSGHDR_RECV_ID) = search_complete(MSGHDR_RECV_ID);
-		std::cerr << "OFFSET: " << c2h_port_to_metadata[search_result_msghdr(MSGHDR_DPORT)] << std::endl;
     		msghdr_resp.offset = c2h_port_to_metadata[search_result_msghdr(MSGHDR_DPORT)] + (search_result_msghdr(MSGHDR_RETURN) * 64);
+
+		std::cerr << "c2h complete port to meta " << c2h_port_to_metadata[search_result_msghdr(MSGHDR_DPORT)] << std::endl;
+		std::cerr << "c2h complete msg return " << search_result_msghdr(MSGHDR_RETURN) * 64 << std::endl;
+
     		msghdr_resp.strobe = 64;
     		msghdr_recv_o.write(msghdr_resp);
 
     		buffered_pending[search_complete(MSGHDR_SPORT)][search_result_index] = 0;
     		pending_head[search_complete(MSGHDR_SPORT)]--;
     	    } else {
-    		buffered_complete[search_complete(MSGHDR_SPORT)][complete_head[search_complete(MSGHDR_SPORT)]] = 0;
+    		buffered_pending[search_complete(MSGHDR_SPORT)][pending_head[search_complete(MSGHDR_SPORT)]] = search_complete;
     		complete_head[search_complete(MSGHDR_SPORT)]++;
     	    }
 
@@ -156,7 +156,6 @@ void c2h_metadata(
     	    search_index         = 0;
     	}
     } else if (search_pending != 0) { // TODO should not compare the entire thing
-	std::cerr << "search pending check " << search_pending(MSGHDR_SPORT) << std::endl;
     	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_complete[search_pending(MSGHDR_SPORT)][search_index];
 
     	if (candidate != 0) {
@@ -194,10 +193,12 @@ void c2h_metadata(
     		msghdr_resp.strobe = 64;
     		msghdr_recv_o.write(msghdr_resp);
 
+		std::cerr << "c2h pending port to meta " << c2h_port_to_metadata[search_result_msghdr(MSGHDR_DPORT)] << std::endl;
+		std::cerr << "c2h pending msg return " << search_result_msghdr(MSGHDR_RETURN) * 64 << std::endl;
+
     		buffered_complete[search_pending(MSGHDR_SPORT)][search_result_index] = 0;
     		complete_head[search_complete(MSGHDR_SPORT)]--; // TODO This is wrong
     	    } else {
-		std::cerr << "search pending wrote to " << search_pending(MSGHDR_SPORT) << std::endl;
     		buffered_pending[search_pending(MSGHDR_SPORT)][pending_head[search_pending(MSGHDR_SPORT)]] = search_pending;
     		pending_head[search_pending(MSGHDR_SPORT)]++; // TODO This is wrong
     	    }
@@ -208,9 +209,6 @@ void c2h_metadata(
     	    search_index    = 0;
     	}
     } else if (complete_msgs_i.read_nb(complete)) {
-	std::cerr << "complete msg " << std::endl;
-	std::cerr << "local id " << complete.local_id << std::endl;
-	std::cerr << "id " << complete.id << std::endl;
 	// TODO swap this
 	search_complete(MSGHDR_SADDR)      = complete.saddr;
 	search_complete(MSGHDR_DADDR)      = complete.daddr;
@@ -223,7 +221,6 @@ void c2h_metadata(
 	search_complete(MSGHDR_RECV_CC)    = complete.completion_cookie;
 	search_complete(MSGHDR_RECV_FLAGS) = (IS_CLIENT(complete.local_id)) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
     } else if (msghdr_recv_i.read_nb(pending)) {
-	std::cerr << "pending msgs in" << std::endl;
 	search_pending = pending.data;
     }
 }

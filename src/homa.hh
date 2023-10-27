@@ -440,8 +440,8 @@ typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
 #define HOMA_RECVMSG_ALL           0x00
 #define HOMA_RECVMSG_REQUEST       0x01
 #define HOMA_RECVMSG_RESPONSE      0x02
-#define HOMA_RECVMSG_NONBLOCKING   0x04
-#define HOMA_RECVMSG_VALID_FLAGS   0x07
+// #define HOMA_RECVMSG_NONBLOCKING   0x04
+// #define HOMA_RECVMSG_VALID_FLAGS   0x07
 
 /* Maximum number of recvmsgs that can be queued pending a match with
  * a completed packet and the maximum number of completed packets that

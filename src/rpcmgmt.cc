@@ -3,12 +3,6 @@
 
 using namespace hls;
 
-ap_uint<HASHTABLE_INDEX> simple_hash(rpc_hashpack_t key, uint32_t seed) {
-    ap_uint<512> * hashbits = (ap_uint<512>*) &key;
-    ap_uint<HASHTABLE_INDEX> table_idx = ((*hashbits * seed) >> (32 - HASHTABLE_INDEX)) % HASHTABLE_SIZE;
-    return table_idx;
-}
-
 void c2h_header_hashmap(
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
@@ -17,37 +11,21 @@ void c2h_header_hashmap(
     ) {
 
     static hashmap_t<rpc_hashpack_t, local_id_t> rpc_hashmap;
-    // static hashmap_t<peer_hashpack_t, peer_id_t> peer_hashmap;
-
-    // static bool peer_stat = false;
-    // static entry_t<peer_hashpack_t, peer_id_t> peer_ins;
-
-    // static bool rpc_stat = false;
-    // static entry_t<rpc_hashpack_t, local_id_t> rpc_ins;
-    // static ap_uint<HASHTABLE_INDEX> rpc_hash;
-
-
-// #pragma HLS array_partition type=complete variable=search
+    static hashmap_t<peer_hashpack_t, peer_id_t> peer_hashmap;
 
 #pragma HLS pipeline II=1
-    // TODO need to check rpc_ins for a match as well?
 
     header_t c2h_header;
     if (c2h_header_i.read_nb(c2h_header)) {
-
-	std::cerr << "HASHMAP READ IN" << std::endl;
-	// search hashmap for peer
-
 	/* Perform the peer ID lookup regardless */
-	// peer_hashpack_t peer_query = {c2h_header.saddr};
-	// c2h_header.peer_id         = peer_hashmap.search(peer_query);
+	peer_hashpack_t peer_query = {c2h_header.saddr};
+	c2h_header.peer_id         = peer_hashmap.search(peer_query);
 
 	entry_t<peer_hashpack_t, peer_id_t> peer_ins;
-	if (!IS_CLIENT(c2h_header.id) && new_peermap_entry.read_nb(peer_ins)) {
-	    rpc_hashpack_t query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
+	if (!IS_CLIENT(c2h_header.id)) {
+	    //rpc_hashpack_t query = {c2h_header.saddr, c2h_header.id, c2h_header.sport, 0};
 
-	    c2h_header.local_id = rpc_hashmap.search(query);
-
+	    //c2h_header.local_id = rpc_hashmap.search(query);
 	} else {
 	    c2h_header.local_id = c2h_header.id;
 	}
@@ -60,55 +38,10 @@ void c2h_header_hashmap(
 	rpc_hashmap.insert(rpc_ins);
     }
 
-
-    //if (!rpc_stat && new_rpcmap_entry.read_nb(rpc_ins)) {
-    //	rpc_stat = true;
-    //	rpc_ins.op = 0;
-    //	rpc_hash = simple_hash(rpc_ins.key, SEED0);
-    //} else {
-    //	entry_t<rpc_hashpack_t,local_id_t> eviction;
-
-    //	switch(rpc_ins.op) {
-    //	    case 0: {
-    //		eviction = table_0[rpc_hash];
-    //		table_0[rpc_hash] = rpc_ins;
-    //		break;
-    //	    }
-    //	    case 1: {
-    //		eviction = table_1[rpc_hash];
-    //		table_1[rpc_hash] = rpc_ins;
-    //		break;
-    //	    }
-    //	    case 2: {
-    //		eviction = table_2[rpc_hash];
-    //		table_2[rpc_hash] = rpc_ins;
-    //		break;
-    //	    }
-    //	    case 3: {
-    //		eviction = table_3[rpc_hash];                                            	
-    //		table_3[rpc_hash] = rpc_ins;
-    //		break;
-    //	    }
-    //		
-    //	    default: break;
-    //	}
-
-    //	// TODO need the next seed
-    //	rpc_hash = simple_hash(eviction.key, SEED0);
-
-    //	if (eviction.value != 0) {
-    //	    rpc_ins = eviction;
-    //	    rpc_ins.op++;
-    //	    rpc_stat = true;
-
-    //	} else {
-    //	    rpc_stat = false;
-    //	}
-    //}
-
-    //if (!peer_stat && new_peermap_entry.read_nb(peer_ins)) {
-    //	peer_stat = true;
-    //} 
+    static entry_t<peer_hashpack_t, local_id_t> peer_ins;
+    if (new_peermap_entry.read_nb(peer_ins)) {
+	peer_hashmap.insert(peer_ins);
+    }
 }
 
 void c2h_header_cam(
@@ -126,11 +59,10 @@ void c2h_header_cam(
     /* hash(dest addr) -> peer ID */
     static cam_t<peer_hashpack_t, peer_id_t, 16, 4> peer_cam;
 
-// #pragma HLS pipeline II=2
+#pragma HLS pipeline II=1
 
     header_t c2h_header;
     if (c2h_header_i.read_nb(c2h_header)) {
-	std::cerr << "CAM READ IN" << std::endl;
 	if (c2h_header.peer_id == 0) {
 
 	    /* Perform the peer ID lookup regardless */
@@ -162,7 +94,6 @@ void c2h_header_cam(
 
 		if (c2h_header.local_id == 0) {
 		    c2h_header.local_id = new_server.read();
-		    std::cerr << "NEW SERVER ID " << c2h_header.local_id  << std::endl;
 
 		    entry_t<rpc_hashpack_t, local_id_t> new_entry = {rpc_query, c2h_header.local_id};
 
@@ -170,8 +101,6 @@ void c2h_header_cam(
 		    rpc_cam.insert(new_entry);
 		    new_rpcmap_entry.write(new_entry);
 		} 
-	    } else {
-		c2h_header.local_id = c2h_header.id;
 	    }
 	}
 
@@ -179,42 +108,10 @@ void c2h_header_cam(
     }
 }
 
-/**
- * rpc_state() - Maintains state associated with an RPC and augments
- *   flows with that state when needed. There are 3 actions taken by
- *   the core: 1) Incorporating new sendmsg requests: New sendmsg
- *   requests arrive on the sendmsg_i stream. Their data is
- *   gathered and inserted into the table at the index specified by
- *   the RPC ID. The sendmsg is then passed to the srpt data core so
- *   that it can be scheduled to be sent.
- *
- *   2) Augmenting outgoing headers: Headers that need to be sent onto
- *   the link arrive on the header_out_i stream. The RPC ID of the
- *   header out request is used to locate the associated RPC state,
- *   and that state is loaded into the header. That header is then passed to the next core.
- *
- *   3) Augmenting incoming headers: headers that arrive from the link
- *   need to update the state within this core. Their RPC ID is used
- *   to determine where the data should be placed in the rpc
- *   table. Only the first packet in a sequence causes an insertion
- *   into the table. If the message length is greater than the number
- *   of incoming bytes then that means data should be forwarded to the
- *   grant queue. If the incoming packet was a grant then that updated
- *   is forwarded to the srpt data queue, indicating it may have more
- *   bytes to transmit.
- *
- * @sendmsg_i      - Input for sendmsg requests
- * @data_entry_o   - Output to create entries in the SRPT data queue
- * @fetch_entry_o  - Output to create entries in the SRPT fetch queue
- * @h2c_header_i   - Input for headers to link
- * @h2c_header_o   - Output for headers to link 
- * @c2h_header_i   - Input for headers from link
- * @c2h_header_o   - Output for headers from headers 
- * @grant_update_o - Output for creating entries/updating SRPT grant queue
- * @data_update_o  - Output for creating updates in the SRPT data queue
- * @h2c_pkt_log_o  - Log output for host-to-card events
- * @c2h_pkt_log_o  - Log output for card-to-host events
- * 
+/* Maintain long-lived state associated with RPCs/NIC, including:
+ *   - Memory management: client/server IDs, peer IDs, dbuff IDs
+ *   - Userspace mappings
+ *   - RPC setup info: ip addrs, ports, msg size, location, ....
  */
 void rpc_state(
     hls::stream<homa_rpc_t> & new_rpc_i,
@@ -270,6 +167,9 @@ void rpc_state(
     static host_addr_t h2c_port_to_msgbuff[MAX_PORTS];  // Port -> large h2c buffer space
     static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
 
+    /* Port to metadata mapping DMA */
+    static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer
+
     // TODO is this potentially risky with OOO small packets
     // Can maybe do a small sort of rebuffering if needed?
 #pragma HLS dependence variable=send_rpcs inter WAR false
@@ -285,7 +185,7 @@ void rpc_state(
 
     static dbuff_id_t new_dbuff = 0;
     static dbuff_id_t free_dbuff = 0;
-    if (new_dbuff == 0) {
+    if (new_dbuff == 0 && !msg_cache_ids.empty()) {
 	new_dbuff = msg_cache_ids.pop();
     } else if (free_dbuff_i.read_nb(free_dbuff)) {
 	msg_cache_ids.push(free_dbuff);
@@ -294,27 +194,25 @@ void rpc_state(
     } 
 
     static local_id_t new_client = 0;
-    if (new_client == 0) {
+    if (new_client == 0 && !client_ids.empty()) {
 	new_client = client_ids.pop();
     } else if (new_client_o.write_nb(new_client)) {
 	new_client = 0;
     }
 
     static local_id_t new_server = 0;
-    if (new_server == 0) {
+    if (new_server == 0 && !server_ids.empty()) {
 	new_server = server_ids.pop();
     } else if (new_server_o.write_nb(new_server)) {
 	new_server = 0;
     }
 
     static local_id_t new_peer = 0;
-    if (new_peer == 0) {
+    if (new_peer == 0 && !peer_ids.empty()) {
 	new_peer = peer_ids.pop();
     } else if (new_peer_o.write_nb(new_peer)) {
 	new_peer = 0;
     }
-
-
 
     port_to_phys_t new_h2c_port_to_msgbuff;
     if (h2c_port_to_msgbuff_i.read_nb(new_h2c_port_to_msgbuff)) {
@@ -328,11 +226,8 @@ void rpc_state(
 
     homa_rpc_t rpc;
     if (new_rpc_i.read_nb(rpc)) {
-	std::cerr << "NEW RPC IN LOCALID " << rpc.local_id << std::endl;
-
 	if (rpc.id == 0) {
 	    rpc.id = recv_rpcs[rpc.local_id].id;
-	    std::cerr << "RPC ID " << rpc.id << std::endl;
 	}
 
 	send_rpcs[rpc.local_id]   = rpc;
@@ -461,7 +356,6 @@ void rpc_state(
 
     header_t c2h_header;
     if (c2h_header_i.read_nb(c2h_header)) {
-	std::cerr << "RPC STATE HEADER IN" << std::endl;
 	if ((c2h_header.packetmap & PMAP_INIT) == PMAP_INIT) {
 	    // Store data associated with this RPC
 	    homa_rpc_t homa_rpc;
@@ -473,8 +367,6 @@ void rpc_state(
 	    homa_rpc.peer_id = c2h_header.peer_id;
 
 	    recv_rpcs[c2h_header.local_id] = homa_rpc;
-
-	    std::cerr << "PACKETMAP INIT" << std::endl;
 
 	    // msg_addr_t msg_addr = ((c2h_buff_ids[c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
 	    msg_addr_t msg_addr = (c2h_buff_ids[c2h_header.sport]);
