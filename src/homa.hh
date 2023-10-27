@@ -29,6 +29,13 @@ typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 
 typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
 
+template<typename K, typename V>
+struct entry_t {
+    K key;
+    V value;
+    ap_uint<4> op;
+};
+
 /**
  * integral_t - The homa core operates in 64B chunks. Data in the data
  * buffer is stored in 64B entries. Chunks are sent to the link 64B at
@@ -104,25 +111,15 @@ typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
  */
 typedef ap_uint<8> homa_packet_type_t;
 
-/**
- * data_bytes_e - Stored in an outgoing chunk to instruct the data
- * buffer how many bytes need to be captured and stored in the chunk
- */
-//enum data_bytes_e {
-//    NO_DATA      = 0,
-//    ALL_DATA     = 64,
-//    PARTIAL_DATA = 14,
-//}
-
 /* Peer Configuration: Used for storing state associated with a peer
  * and performing lookups on incoming header data to determine the local
  * peer ID.
  */
 #define MAX_PEERS            16384 // The number of distinct peers the home core can track
 #define MAX_PEERS_LOG2       14    // An index into the set of peers (leaving room for +1 adjustment)
-#define PEER_BUCKETS         16384 // Each hash bucket has PEER_BUCKET_SIZE entries
-#define PEER_TABLE_SIZE      16384 // Size of cuckoo hash sub-tables
-#define PEER_TABLE_INDEX 14    // Index into sub-table entries
+
+#define HASHTABLE_SIZE      16384 // Size of cuckoo hash sub-tables
+#define HASHTABLE_INDEX     14    // Index into sub-table entries
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
@@ -139,8 +136,6 @@ struct peer_hashpack_t {
 #define MAX_RPCS_LOG2       14    // Number of bits to express an RPC. TODO this changed
 #define MAX_RPCS            16384 // Maximum number of RPCs
 #define MAX_PORTS           16384 // Maximum number of ports
-#define RPC_TABLE_SIZE      16384 // Size of cuckoo hash sub-tables
-#define RPC_TABLE_INDEX 14    // Index into sub-table entries
 
 typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 

@@ -76,8 +76,9 @@ void homa(
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__chunk_ingress__rpc_state;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__dbuff_ingress;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__packetmap__rpc_state;
-
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__dbuff_ingress__homa_recvmsg;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__hashmap__cam;
+    hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__cam__rpc_state;
    
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> sendmsg__rpc_state__dma_write;
     hls_thread_local hls::stream<dma_w_req_t, STREAM_DEPTH> recvmsg__rpc_state__dma_write;
@@ -113,9 +114,14 @@ void homa(
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> header_in__rpc_state__srpt_data;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__packetmap;
 
+    hls_thread_local hls::stream<local_id_t, STREAM_DEPTH> new_peer;
+    hls_thread_local hls::stream<local_id_t, STREAM_DEPTH> new_server;
     hls_thread_local hls::stream<local_id_t, STREAM_DEPTH> new_client;
     hls_thread_local hls::stream<dbuff_id_t, STREAM_DEPTH> new_dbuff;
     hls_thread_local hls::stream<homa_rpc_t, STREAM_DEPTH> new_rpc;
+
+    hls_thread_local hls::stream<entry_t<rpc_hashpack_t, local_id_t>, STREAM_DEPTH> new_rpcmap_entry;
+    hls_thread_local hls::stream<entry_t<peer_hashpack_t, peer_id_t>, STREAM_DEPTH> new_peermap_entry;
 
     /* log streams */
     hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_w_req_log;
@@ -137,8 +143,6 @@ void homa(
 	grant__rpc_state__srpt_grant,
 	header_out__egress_sel__rpc_state, 
 	header_out__rpc_state__pkt_builder,
-	header_in__chunk_ingress__rpc_state,
-	header_in__rpc_state__packetmap,
 	header_in__packetmap__rpc_state,
 	header_in__rpc_state__dbuff_ingress,
 	header_in__rpc_state__srpt_data,
@@ -153,6 +157,8 @@ void homa(
 	free_dbuff__h2c_databuff__rpc_state,
 	new_dbuff,
 	new_client,
+	new_server,
+	new_peer,
 	h2c_pkt_log,
 	c2h_pkt_log
 	);
@@ -192,7 +198,8 @@ void homa(
 
     hls_thread_local hls::task packetmap_task(
 	packetmap, 
-	header_in__rpc_state__packetmap,    
+	// header_in__rpc_state__packetmap,    
+	header_in__cam__rpc_state,
 	header_in__packetmap__rpc_state
 	);
 
@@ -264,6 +271,25 @@ void homa(
 	out_chunk__dbuff_egress__pkt_egress, // out_chunk_i
 	link_egress_o                        // link_egress
 	);
+
+
+    hls_thread_local hls::task c2h_header_hashmap_task(
+	c2h_header_hashmap,
+	header_in__chunk_ingress__rpc_state,
+	header_in__hashmap__cam,
+	new_rpcmap_entry, 
+	new_peermap_entry
+    );
+
+    hls_thread_local hls::task c2h_header_cam_task(
+	c2h_header_cam,
+	header_in__hashmap__cam,
+	header_in__cam__rpc_state,
+	new_rpcmap_entry,
+	new_peermap_entry,
+	new_server,
+	new_peer
+    );
 
     hls_thread_local hls::task homa_logger(
     	logger,

@@ -23,7 +23,7 @@ void c2h_metadata(
     /* Port to metadata mapping DMA */
     static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer
 
-    #pragma HLS pipeline II=1
+//     #pragma HLS pipeline II=1
 
     msghdr_send_t msghdr_send;
     if (sendmsg_i.read_nb(msghdr_send)) {
@@ -100,22 +100,6 @@ void c2h_metadata(
 	std::cerr << "search complete: " << search_complete << std::endl;
 
     	if (candidate != 0) {
-	    //std::cerr << "candidate " << candidate(MSGHDR_SADDR) << std::endl;
-	    //std::cerr << "complete  " << search_complete(MSGHDR_SADDR) << std::endl;
-
-	    //std::cerr << "candidate " << candidate(MSGHDR_DADDR) << std::endl;
-	    //std::cerr << "complete  " << search_complete(MSGHDR_DADDR) << std::endl;
-
-	    //std::cerr << "candidate " << candidate(MSGHDR_SPORT) << std::endl;
-	    //std::cerr << "complete  " << search_complete(MSGHDR_SPORT) << std::endl;
-
-	    //std::cerr << "candidate " << candidate(MSGHDR_DPORT) << std::endl;
-	    //std::cerr << "complete  " << search_complete(MSGHDR_DPORT) << std::endl;
-
-	    //std::cerr << "candidate " << candidate(MSGHDR_RECV_ID) << std::endl;
-	    //std::cerr << "complete  " << search_complete(MSGHDR_RECV_ID) << std::endl;
-	    //std::cerr << "result    " << search_result_msghdr(MSGHDR_RECV_ID) << std::endl;
-
             // Is this candidate a match and we don't already have an ID match 
     	    if (candidate(MSGHDR_SADDR) == search_complete(MSGHDR_SADDR) &&
     		candidate(MSGHDR_DADDR) == search_complete(MSGHDR_DADDR) &&

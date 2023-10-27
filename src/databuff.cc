@@ -105,6 +105,8 @@ void c2h_databuff(hls::stream<c2h_chunk_t> & chunk_in_i,
 	pending_buffer = header_in.segment_length;
 
 	if ((header_in.packetmap & PMAP_COMP) == PMAP_COMP) {
+
+	    std::cerr << "COMPLETE MESSAGE" << std::endl;
 	    header_in_o.write(header_in);
 	}
     }
