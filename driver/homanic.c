@@ -10,6 +10,9 @@
 #include <linux/set_memory.h>
 #include <linux/ioctl.h>
 
+#define _MM_MALLOC_H_INCLUDED
+#include <immintrin.h>
+
 #define AXI_STREAM_FIFO_ISR  0x00 // Interrupt Status Register (r/clear on w)
 #define AXI_STREAM_FIFO_IER  0x04 // Interrupt Enable Register (r/w)
 #define AXI_STREAM_FIFO_TDFR 0x08 // Transmit Data FIFO Reset (w)
@@ -115,36 +118,23 @@ void c2h_new_metadata(struct port_to_phys_t * portmap);
 
 // https://lore.kernel.org/lkml/157428502934.36836.8119026517510193201.stgit@djiang5-desk3.ch.intel.com/
 // https://stackoverflow.com/questions/51918804/generating-a-64-byte-read-pcie-tlp-from-an-x86-cpu
+// void iomov64b(char * dst, char * src) {
 
-/* from linux src */
-static inline void movdir64b(void __iomem *dst, const void *src) {
-	const struct { char _[64]; } *__src = src;
-	struct { char _[64]; } __iomem *__dst = dst;
+inline void iomov64b(__m256i * dst, __m256i * src) {
+    // __m512i ld = _mm512_stream_load_si512((__m512i*) src);
+    // __m512i ld = _mm512_load_si512((__m512i*) src);
+    // _mm512_store_si512(dst, ld);
+    // _mm_mfence();
 
-	/*
-	 * MOVDIR64B %(rdx), rax.
-	 *
-	 * Both __src and __dst must be memory constraints in order to tell the
-	 * compiler that no other memory accesses should be reordered around
-	 * this one.
-	 *
-	 * Also, both must be supplied as lvalues because this tells
-	 * the compiler what the object is (its size) the instruction accesses.
-	 * I.e., not the pointers but what they point to, thus the deref'ing '*'.
-	 */
-	asm volatile(".byte 0x66, 0x0f, 0x38, 0xf8, 0x02"
-		     : "+m" (*__dst)
-		     :  "m" (*__src), "a" (__dst), "d" (__src));
-}
+    __m256i ymm0;
+    __m256i ymm1; 
 
-static inline void iosubmit_cmds512(void __iomem *dst, const void *src, size_t count) {
-	const u8 *from = src;
-	const u8 *end = from + count * 64;
+    ymm0 = _mm256_stream_load_si256(src);
+    ymm1 = _mm256_stream_load_si256(src+1);
 
-	while (from < end) {
-		movdir64b(dst, from);
-		from += 64;
-	}
+    _mm256_store_si256(dst, ymm0);
+    _mm256_store_si256(dst+1, ymm1);
+    _mm_mfence();
 }
 
 struct file_operations homanic_fops = {
@@ -203,9 +193,10 @@ void dump_log(void) {
 }
 
 void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
-    int i;
+    // iosubmit_cmds512(axi_stream_write, port_to_phys, 1);
+    iomov64b((void*) axi_stream_write, (void*) port_to_phys);
 
-    iosubmit_cmds512(axi_stream_write, port_to_phys, 1);
+    // *((uint32_t*) axi_stream_write) = 0xFFFFFFFF;
 
     printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
     
@@ -217,10 +208,9 @@ void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
 }
 
 void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    int i;
+    iomov64b((void*) axi_stream_write, (void*) port_to_phys);
 
-    iosubmit_cmds512(axi_stream_write, port_to_phys, 1);
-
+    // *((uint32_t*) axi_stream_write) = 0xFFFFFFFF;
     printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
     
 // TODO set the TDEST here 
@@ -231,10 +221,9 @@ void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
 }
 
 void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    int i;
+    iomov64b((void*) axi_stream_write, (void*) port_to_phys);
 
-    iosubmit_cmds512(axi_stream_write, port_to_phys, 1);
-
+    // *((uint32_t*) axi_stream_write) = 0xFFFFFFFF;
     printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
     // iowrite32(12, c2h_physmap_regs + AXI_STREAM_FIFO_TLR);
 
@@ -244,7 +233,6 @@ void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
 
     // iowrite32(12, c2h_physmap_regs + AXI_STREAM_FIFO_TLR);
 }
-
 
 int homanic_open(struct inode * inode, struct file * file) {
     // TODO eventually insert these values into an array indexed by the port
@@ -372,9 +360,14 @@ int homanic_init(void) {
     struct port_to_phys_t h2c_port_to_msgbuff;
     struct port_to_phys_t c2h_port_to_msgbuff;
     struct port_to_phys_t c2h_port_to_metadata;
-
     dev_t dev;
     int err;
+
+
+    set_memory_wc((uint64_t) &h2c_port_to_msgbuff, 1);
+    set_memory_wc((uint64_t) &c2h_port_to_msgbuff, 1);
+    set_memory_wc((uint64_t) &c2h_port_to_metadata, 1);
+
 
     pr_info("homanic_init\n");
 
@@ -423,12 +416,15 @@ int homanic_init(void) {
     cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev, MKDEV(dev_major, MINOR_H2C_MSGBUFF), 1);
     cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev, MKDEV(dev_major, MINOR_C2H_MSGBUFF), 1);
 
-    axi_stream_regs  = ioremap(BAR_0 + AXI_STREAM_AXIL, AXI_STREAM_FIFO_AXIL_SIZE);
-    axi_stream_write = ioremap(BAR_0 + AXI_STREAM_AXIF, 64);
-    axi_stream_read  = ioremap(BAR_0 + AXI_STREAM_AXIF + 0x1000, 64);
+    axi_stream_regs  = ioremap_wc(BAR_0 + AXI_STREAM_AXIL, AXI_STREAM_FIFO_AXIL_SIZE);
+    axi_stream_write = ioremap_wc(BAR_0 + AXI_STREAM_AXIF, 64);
+    axi_stream_read  = ioremap_wc(BAR_0 + AXI_STREAM_AXIF + 0x1000, 64);
 
     iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
     iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
+
+    iowrite32(0x00000000, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    iowrite32(0xffffffff, axi_stream_write);
 
     // TODO eventually be on a per user basis
     h2c_port_to_msgbuff.phys_addr = ((uint64_t) h2c_msgbuff_dma_handle);
