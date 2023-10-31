@@ -30,15 +30,15 @@
 #define AXI_STREAM_FIFO_AXIL_SIZE 0x7C // Number of bytes for AXIL Interface
 #define AXI_STREAM_FIFO_AXIF_SIZE 0x4  // Number of bytes for AXIF Interface
 
-#define AXI_STREAM_AXIL              0x00011000
-#define AXI_STREAM_AXIF              0x00012000
+#define AXI_STREAM_AXIL 0x00011000
+#define AXI_STREAM_AXIF 0x00012000
 
-#define SENDMSG_DEST          0
-#define RECVMSG_DEST          1
-#define H2C_P_2_MSGBUFF_DEST  2
-#define C2H_P_2_MSGBUFF_DEST  3
-#define C2H_P_2_METADATA_DEST 4
-#define LOG_CONTROL_DEST      5
+#define SENDMSG_DEST     0
+#define RECVMSG_DEST     1
+#define H2C_P2MSG_DEST   2
+#define C2H_P2MSG_DEST   3
+#define C2H_P2META_DEST  4
+#define LOG_CONTROL_DEST 5
 
 #define BAR_0 0xf4000000
 
@@ -120,12 +120,7 @@ void c2h_new_metadata(struct port_to_phys_t * portmap);
 // https://stackoverflow.com/questions/51918804/generating-a-64-byte-read-pcie-tlp-from-an-x86-cpu
 // void iomov64b(char * dst, char * src) {
 
-inline void iomov64b(__m256i * dst, __m256i * src) {
-    // __m512i ld = _mm512_stream_load_si512((__m512i*) src);
-    // __m512i ld = _mm512_load_si512((__m512i*) src);
-    // _mm512_store_si512(dst, ld);
-    // _mm_mfence();
-
+inline void iomov64B(__m256i * dst, __m256i * src) {
     __m256i ymm0;
     __m256i ymm1; 
 
@@ -193,45 +188,36 @@ void dump_log(void) {
 }
 
 void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
-    // iosubmit_cmds512(axi_stream_write, port_to_phys, 1);
-    iomov64b((void*) axi_stream_write, (void*) port_to_phys);
-
-    // *((uint32_t*) axi_stream_write) = 0xFFFFFFFF;
+    iomov64B((void*) axi_stream_write, (void*) port_to_phys);
 
     printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
-    
-// TODO set the TDEST here 
 
-    // for (i = 0; i < 3; ++i) iowrite32(*(((unsigned int*) port_to_phys) + i), h2c_physmap_regs + AXI_STREAM_FIFO_TDFD);
+    iowrite32(C2H_P2META_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
-    // iowrite32(12, h2c_physmap_regs + AXI_STREAM_FIFO_TLR);
+    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
 void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iomov64b((void*) axi_stream_write, (void*) port_to_phys);
+    iomov64B((void*) axi_stream_write, (void*) port_to_phys);
 
-    // *((uint32_t*) axi_stream_write) = 0xFFFFFFFF;
     printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
-    
-// TODO set the TDEST here 
 
-    // for (i = 0; i < 3; ++i) iowrite32(*(((unsigned int*) port_to_phys) + i), h2c_physmap_regs + AXI_STREAM_FIFO_TDFD);
+    iowrite32(H2C_P2MSG_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
-    // iowrite32(12, h2c_physmap_regs + AXI_STREAM_FIFO_TLR);
+    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
 void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iomov64b((void*) axi_stream_write, (void*) port_to_phys);
+    iomov64B((void*) axi_stream_write, (void*) port_to_phys);
 
-    // *((uint32_t*) axi_stream_write) = 0xFFFFFFFF;
     printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
-    // iowrite32(12, c2h_physmap_regs + AXI_STREAM_FIFO_TLR);
 
-// TODO set the TDEST here
-    
-    // for (i = 0; i < 3; ++i) iowrite32(*(((unsigned int*) port_to_phys) + i), c2h_physmap_regs + AXI_STREAM_FIFO_TDFD);
+    iowrite32(C2H_P2MSG_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
-    // iowrite32(12, c2h_physmap_regs + AXI_STREAM_FIFO_TLR);
+    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
 int homanic_open(struct inode * inode, struct file * file) {
@@ -383,8 +369,8 @@ int homanic_init(void) {
 
     dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
 
-    h2c_msgbuff_cpu_addr = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &h2c_msgbuff_dma_handle, GFP_KERNEL);
-    c2h_msgbuff_cpu_addr = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_msgbuff_dma_handle, GFP_KERNEL);
+    h2c_msgbuff_cpu_addr  = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &h2c_msgbuff_dma_handle, GFP_KERNEL);
+    c2h_msgbuff_cpu_addr  = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_msgbuff_dma_handle, GFP_KERNEL);
     c2h_metadata_cpu_addr = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_metadata_dma_handle, GFP_KERNEL);
 
     pr_alert("cpu address:%llx\n", (uint64_t) h2c_msgbuff_cpu_addr);

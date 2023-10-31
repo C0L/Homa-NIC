@@ -29,42 +29,39 @@
 #define AXIL_OFFSET 0x00000000
 #define AXIF_OFFSET 0x00001000
 
+#define SENDMSG_DEST     0
+#define RECVMSG_DEST     1
+
 struct msghdr_send_t {
     char saddr[16];
     char daddr[16];
     uint16_t sport;
     uint16_t dport;
     uint64_t buff_addr;
-    uint32_t buff_size;
+    uint32_t metadata;
     uint64_t id;
     uint64_t cc;
 }__attribute__((packed));
 
-void * h2c_metadata;
-void * c2h_metadata; 
-void * h2c_msgbuff;
-void * c2h_msgbuff;
+void * h2c_metadata_map;
+void * c2h_metadata_map;
+void * h2c_msgbuff_map;
+void * c2h_msgbuff_map;
 
 void * axi_stream_regs; 
 void * axi_stream_write;
 void * axi_stream_read;
 
-/* from linux src */
-//static inline void movdir64b(void * dst, const void * src) {
-//	const struct { char _[64]; } *__src = src;
-//	struct { char _[64]; } *__dst = dst;
-//
-//	asm volatile(".byte 0x66, 0x0f, 0x38, 0xf8, 0x02"
-//		     : "+m" (*__dst)
-//		     :  "m" (*__src), "a" (__dst), "d" (__src));
-//}
+inline void iomov64B(__m256i * dst, __m256i * src) {
+    __m256i ymm0;
+    __m256i ymm1; 
 
-// TODO src and dst must be 64b aligned!
-void iomov64b(__m512i * dst, __m512i * src) {
-    // __m512i ld = _mm512_stream_load_si512((__m512i*) src);
-    __m512i ld = _mm512_load_si512((__m512i*) src);
-    _mm512_store_si512(dst, ld);
-    // _mm_mfence(); TODO maybe??
+    ymm0 = _mm256_stream_load_si256(src);
+    ymm1 = _mm256_stream_load_si256(src+1);
+
+    _mm256_store_si256(dst, ymm0);
+    _mm256_store_si256(dst+1, ymm1);
+    _mm_mfence();
 }
 
 void ipv6_to_str(char * str, char * s6_addr) {
@@ -84,19 +81,14 @@ void sendmsg(struct msghdr_send_t * msghdr_send_in, struct msghdr_send_t * msghd
     uint32_t rlr;
     uint32_t rdfo;
 
-    // movdir64b(axi_stream_write, msghdr_send_in);
+    printf("FIFO DEPTH %d\n", *((uint32_t*) axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 
-    // for (i = 0; i < 16; ++i) *((uint32_t *) sendmsg_write) = *(((uint32_t *) msghdr_send_in) + i);
+    // iomov64B(axi_stream_write, msghdr_send_in);
 
+    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
     *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
 
-    rdfo = *((uint32_t *) axi_stream_regs + AXI_STREAM_FIFO_RDFO);
-    rlr  = *((uint32_t *) axi_stream_regs + AXI_STREAM_FIFO_RLR);
-
-    // movdir64b(axi_stream_write, msghdr_send_in);
-
-    // TODO should sanity check rlr and rdfo
-    // for (i = 0; i < 16; ++i) *(((uint32_t *) msghdr_send_out) + i) = *((uint32_t *) sendmsg_read);
+    printf("FIFO DEPTH %d\n", *((uint32_t*) axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
@@ -113,101 +105,100 @@ void print_msghdr(struct msghdr_send_t * msghdr_send) {
     printf("  - source port         : %u\n", (unsigned int) msghdr_send->sport);
     printf("  - dest port           : %u\n", (unsigned int) msghdr_send->dport);
     printf("  - buffer address      : %lx\n", msghdr_send->buff_addr);
-    printf("  - buffer size         : %u\n", msghdr_send->buff_size);
+    printf("  - buffer size         : %u\n",  msghdr_send->metadata);
     printf("  - rpc id              : %lu\n", msghdr_send->id);
     printf("  - completion cookie   : %lu\n", msghdr_send->cc);
 }
 
 int main() {
 
-    //int ctl_fd = open("/dev/homa_nic_ctl", O_RDWR|O_SYNC);
-    //int h2c_fd = open("/dev/homa_nic_h2c", O_RDWR|O_SYNC);
-    //int c2h_fd = open("/dev/homa_nic_c2h", O_RDWR|O_SYNC);
+    int c2h_metadata_fd = open("/dev/homa_nic_c2h_metadata", O_RDWR|O_SYNC);
+    int h2c_metadata_fd = open("/dev/homa_nic_h2c_metadata", O_RDWR|O_SYNC);
+    int c2h_msgbuff_fd  = open("/dev/homa_nic_c2h_msgbuff", O_RDWR|O_SYNC);
+    int h2c_msgbuff_fd  = open("/dev/homa_nic_h2c_msgbuff", O_RDWR|O_SYNC);
 
-    //if (ctl_fd < 0 || h2c_fd < 0 || c2h_fd < 0) {
-    //	perror("Invalid character device\n");
-    //}
+    if (c2h_metadata_fd < 0 || h2c_metadata_fd < 0 || c2h_msgbuff_fd < 0 || h2c_msgbuff_fd < 0) {
+    	perror("Invalid character device\n");
+    }
 
-    //ctl_map = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, ctl_fd, 0);
-    //h2c_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_fd, 0);
-    //c2h_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_fd, 0);
+    h2c_metadata_map = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_metadata_fd, 0);
+    c2h_metadata_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_metadata_fd, 0);
+    h2c_msgbuff_map  = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_msgbuff_fd, 0);
+    c2h_msgbuff_map  = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_msgbuff_fd, 0);
 
-    //if (ctl_map == NULL || h2c_map == NULL || c2h_map == NULL) {
-    //	perror("mmap failed\n");
-    //}
+    if (h2c_metadata_map == NULL || c2h_metadata_map == NULL || h2c_msgbuff_map == NULL || c2h_msgbuff_map == NULL) {
+    	perror("mmap failed\n");
+    }
 
-//    axi_stream_regs  = ctl_map + AXIL_OFFSET;
-//    axi_stream_write = ctl_map + AXIF_OFFSET;
-//    axi_stream_read  = ctl_map + AXIF_OFFSET + 0x1000;
+    axi_stream_regs  = h2c_metadata_map + AXIL_OFFSET;
+    axi_stream_write = h2c_metadata_map + AXIF_OFFSET;
+    axi_stream_read  = h2c_metadata_map + AXIF_OFFSET + 0x1000;
 
     struct msghdr_send_t msghdr_send_in;
+
+    uint32_t size   = 512; // Lte 20 bits used
+    uint32_t retoff = 10;  // Lte 12 bits used
+    uint32_t mask = 0xFFFFFFFF > 12;
 
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
     msghdr_send_in.sport     = 0x1;
     msghdr_send_in.dport     = 0x1;
     msghdr_send_in.buff_addr = 0;
-    msghdr_send_in.buff_size = 512;
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
+
+    msghdr_send_in.metadata  = size;
+    msghdr_send_in.metadata  = msghdr_send_in.metadata | (retoff << 20);
 
     struct msghdr_send_t msghdr_send_out;
 
     char pattern[4] = "\xDE\xAD\xBE\xEF";
-    __m512i h2c_msgbuff;
-    __m512i c2h_msgbuff;
-    // __m512i * h2c_msgbuff = malloc(1*sizeof(__m512i));
-    // __m512i * c2h_msgbuff = malloc(1*sizeof(__m512i));
 
-    for (int i = 0; i < (64/4); ++i) memcpy((((char*) &h2c_msgbuff)) + (i*4), &pattern, 4);
-
-    // for (int i = 0; i < (512/4); ++i) memcpy(h2c_msgbuff + (i*4), &pattern, 4);
-    // for (int i = 0; i < (512/4); ++i) memcpy(h2c_map + (i*4), &pattern, 4);
-   //memset(c2h_msgbuff, 0, 512);
+    for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) &h2c_msgbuff_map)) + (i*4), &pattern, 4);
+    memset(c2h_msgbuff_map, 0, 512);
 
     printf("H2C Message Content Start\n");
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 4; ++i) {
     	printf("Chunk %d: ", i);
-    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &h2c_msgbuff) + j + (i*64)));
+    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &h2c_msgbuff_map) + j + (i*64)));
     	printf("\n");
     }
     printf("H2C Message Content End\n");
 
-    iomov64b(&c2h_msgbuff, &h2c_msgbuff);
-
     printf("C2H Message Content Start\n");
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 4; ++i) {
     	printf("Chunk %d: ", i);
-    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &c2h_msgbuff) + j + (i*64)));
+    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &c2h_msgbuff_map) + j + (i*64)));
     	printf("\n");
     }
     printf("C2H Message Content End\n");
 
-    //printf("Initial Message Header\n");
-    //print_msghdr(&msghdr_send_in);
+    printf("Initial Message Header\n");
+    print_msghdr(&msghdr_send_in);
 
-    //sendmsg(&msghdr_send_in, &msghdr_send_out);
+    sendmsg(&msghdr_send_in, &msghdr_send_out);
 
-    //printf("Completed Message Header\n");
-    //print_msghdr(&msghdr_send_out);
+    printf("Completed Message Header\n");
+    print_msghdr(&msghdr_send_out);
 
-    //// ioctl(ctl_fd, 0, NULL);
+    // ioctl(ctl_fd, 0, NULL);
 
-    //printf("C2H Message Contents Start\n");
+    printf("C2H Message Contents Start\n");
+    for (int i = 0; i < 4; ++i) {
+    	printf("Chunk %d: ", i);
+    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &c2h_msgbuff_map) + j + (i*64)));
+    	printf("\n");
+    }
+    printf("C2H Message Contents End\n");
 
-    //for (int i = 0; i < 8; ++i) {
-    //	printf("Chunk %d: ", i);
-    //	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_map) + j + (i*64)));
-    //	printf("\n");
-    //}
+    munmap(h2c_metadata_map, 16384);
+    munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
+    munmap(h2c_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
+    munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
 
-    //printf("C2H Message Contents End\n");
-
-    //munmap(ctl_map, 16384);
-    //munmap(h2c_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
-    //munmap(c2h_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
-
-    //close(ctl_fd);
-    //close(h2c_fd);
-    //close(c2h_fd);
+    close(h2c_metadata_fd);
+    close(c2h_metadata_fd);
+    close(h2c_msgbuff_fd);
+    close(c2h_msgbuff_fd);
 }
