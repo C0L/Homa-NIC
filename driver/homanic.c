@@ -291,8 +291,6 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + AXI_STREAM_AXIL) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
 	    set_memory_wc((uint64_t) vma->vm_start, 1);
 
-	    // TODO need set_memory_wb
-
 	    if (ret != 0) {
 		goto exit;
 	    }
@@ -353,7 +351,6 @@ int homanic_init(void) {
     struct port_to_phys_t c2h_port_to_metadata;
 
     dev_t dev;
-
     int err;
 
     memset(&h2c_port_to_msgbuff, 0xffffffff, 64);
@@ -440,9 +437,13 @@ void homanic_exit(void) {
 
     pr_info("homanic_exit\n");
 
+    set_memory_wb((uint64_t) c2h_metadata_cpu_addr, 1);
+    set_memory_wb((uint64_t) c2h_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+    set_memory_wb((uint64_t) h2c_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+
     dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_msgbuff_cpu_addr,  h2c_msgbuff_dma_handle);
     dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_msgbuff_cpu_addr,  c2h_msgbuff_dma_handle);
-    dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_metadata_cpu_addr, c2h_metadata_dma_handle);
+    dma_free_coherent(NULL, 1, c2h_metadata_cpu_addr, c2h_metadata_dma_handle);
 
     device_destroy(cls, MKDEV(dev_major, MINOR_H2C_METADATA));
     device_destroy(cls, MKDEV(dev_major, MINOR_C2H_METADATA));
