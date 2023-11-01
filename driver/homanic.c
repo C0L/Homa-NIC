@@ -55,6 +55,8 @@
 
 struct pci_dev * pdev;
 
+
+
 /* device registers for physical address map onboarding AXI-Stream FIFO */
 void __iomem * axi_stream_regs; 
 void __iomem * axi_stream_write;
@@ -118,8 +120,6 @@ void c2h_new_metadata(struct port_to_phys_t * portmap);
 
 // https://lore.kernel.org/lkml/157428502934.36836.8119026517510193201.stgit@djiang5-desk3.ch.intel.com/
 // https://stackoverflow.com/questions/51918804/generating-a-64-byte-read-pcie-tlp-from-an-x86-cpu
-// void iomov64b(char * dst, char * src) {
-
 inline void iomov64B(__m256i * dst, __m256i * src) {
     __m256i ymm0;
     __m256i ymm1; 
@@ -206,6 +206,8 @@ void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
     iowrite32(H2C_P2MSG_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
     iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
+    // printk(KERN_ALERT "ISR: %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_ISR));
+
     printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
@@ -236,14 +238,14 @@ int homanic_close(struct inode * inode, struct file * file) {
 
     int i, j;
 
-    for (i = 0; i < 8; ++i) {
-	printk(KERN_ALERT "Chunk %d: ", i);
-	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
+    for (i = 0; i < 2; ++i) {
+    	printk(KERN_ALERT "Chunk %d: ", i);
+    	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
     }
 
-    for (i = 0; i < 8; ++i) {
-	printk(KERN_ALERT "Chunk %d: ", i);
-	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
+    for (i = 0; i < 2; ++i) {
+    	printk(KERN_ALERT "Chunk %d: ", i);
+    	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
     }
 
     pr_info("homanic_close\n");
@@ -287,6 +289,9 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	    pr_alert("device register remap");
 
 	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + AXI_STREAM_AXIL) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
+	    set_memory_wc((uint64_t) vma->vm_start, 1);
+
+	    // TODO need set_memory_wb
 
 	    if (ret != 0) {
 		goto exit;
@@ -300,7 +305,7 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	    set_memory_uc((uint64_t) c2h_metadata_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
 	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
-	    ret = dma_mmap_coherent(NULL, vma, c2h_metadata_cpu_addr, c2h_metadata_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
+	    ret = dma_mmap_coherent(NULL, vma, c2h_metadata_cpu_addr, c2h_metadata_dma_handle, HOMA_MAX_MESSAGE_LENGTH);
 
 	    if (ret < 0) {
 		pr_err("c2h metadata dma_mmap_coherent failed\n");
@@ -346,14 +351,14 @@ int homanic_init(void) {
     struct port_to_phys_t h2c_port_to_msgbuff;
     struct port_to_phys_t c2h_port_to_msgbuff;
     struct port_to_phys_t c2h_port_to_metadata;
+
     dev_t dev;
+
     int err;
 
-
-    set_memory_wc((uint64_t) &h2c_port_to_msgbuff, 1);
-    set_memory_wc((uint64_t) &c2h_port_to_msgbuff, 1);
-    set_memory_wc((uint64_t) &c2h_port_to_metadata, 1);
-
+    memset(&h2c_port_to_msgbuff, 0xffffffff, 64);
+    memset(&c2h_port_to_msgbuff, 0xffffffff, 64);
+    memset(&c2h_port_to_metadata, 0xffffffff, 64);
 
     pr_info("homanic_init\n");
 
@@ -369,15 +374,6 @@ int homanic_init(void) {
 
     dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
 
-    h2c_msgbuff_cpu_addr  = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &h2c_msgbuff_dma_handle, GFP_KERNEL);
-    c2h_msgbuff_cpu_addr  = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_msgbuff_dma_handle, GFP_KERNEL);
-    c2h_metadata_cpu_addr = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_metadata_dma_handle, GFP_KERNEL);
-
-    pr_alert("cpu address:%llx\n", (uint64_t) h2c_msgbuff_cpu_addr);
-    pr_alert("dma address:%llx\n", (uint64_t) h2c_msgbuff_dma_handle);
-    pr_alert("cpu address:%llx\n", (uint64_t) c2h_msgbuff_cpu_addr);
-    pr_alert("dma address:%llx\n", (uint64_t) c2h_msgbuff_dma_handle);
-
     err = alloc_chrdev_region(&dev, 0, MAX_MINOR, "homanic");
 
     if (err != 0) {
@@ -387,20 +383,30 @@ int homanic_init(void) {
     dev_major = MAJOR(dev);
 
     cls = class_create(THIS_MODULE, "homanic");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_METADATA), NULL, "homa_nic_c2h_metadata");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_METADATA), NULL, "homa_nic_h2c_metadata");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_MSGBUFF), NULL, "homa_nic_h2c_msgbuff");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_MSGBUFF), NULL, "homa_nic_c2h_msgbuff");
+    device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_METADATA), NULL, "homa_nic_h2c_metadata");
+    device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_METADATA), NULL, "homa_nic_c2h_metadata");
+    device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_MSGBUFF),  NULL, "homa_nic_h2c_msgbuff");
+    device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_MSGBUFF),  NULL, "homa_nic_c2h_msgbuff");
 
     cdev_init(&devs[MINOR_H2C_METADATA].cdev, &homanic_fops);
     cdev_init(&devs[MINOR_C2H_METADATA].cdev, &homanic_fops);
-    cdev_init(&devs[MINOR_H2C_MSGBUFF].cdev, &homanic_fops);
-    cdev_init(&devs[MINOR_C2H_MSGBUFF].cdev, &homanic_fops);
+    cdev_init(&devs[MINOR_H2C_MSGBUFF].cdev,  &homanic_fops);
+    cdev_init(&devs[MINOR_C2H_MSGBUFF].cdev,  &homanic_fops);
 
     cdev_add(&devs[MINOR_H2C_METADATA].cdev, MKDEV(dev_major, MINOR_H2C_METADATA), 1);
     cdev_add(&devs[MINOR_C2H_METADATA].cdev, MKDEV(dev_major, MINOR_C2H_METADATA), 1);
-    cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev, MKDEV(dev_major, MINOR_H2C_MSGBUFF), 1);
-    cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev, MKDEV(dev_major, MINOR_C2H_MSGBUFF), 1);
+    cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_H2C_MSGBUFF),  1);
+    cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_C2H_MSGBUFF),  1);
+
+    // TODO pass correct device create to alloc?
+    h2c_msgbuff_cpu_addr  = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &h2c_msgbuff_dma_handle,  GFP_KERNEL);
+    c2h_msgbuff_cpu_addr  = dma_alloc_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_msgbuff_dma_handle,  GFP_KERNEL);
+    c2h_metadata_cpu_addr = dma_alloc_coherent(NULL, 16384, &c2h_metadata_dma_handle, GFP_KERNEL);
+
+    pr_alert("cpu address:%llx\n", (uint64_t) h2c_msgbuff_cpu_addr);
+    pr_alert("dma address:%llx\n", (uint64_t) h2c_msgbuff_dma_handle);
+    pr_alert("cpu address:%llx\n", (uint64_t) c2h_msgbuff_cpu_addr);
+    pr_alert("dma address:%llx\n", (uint64_t) c2h_msgbuff_dma_handle);
 
     axi_stream_regs  = ioremap_wc(BAR_0 + AXI_STREAM_AXIL, AXI_STREAM_FIFO_AXIL_SIZE);
     axi_stream_write = ioremap_wc(BAR_0 + AXI_STREAM_AXIF, 64);
@@ -408,9 +414,6 @@ int homanic_init(void) {
 
     iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
     iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
-
-    iowrite32(0x00000000, axi_stream_regs + AXI_STREAM_FIFO_TDR);
-    iowrite32(0xffffffff, axi_stream_write);
 
     // TODO eventually be on a per user basis
     h2c_port_to_msgbuff.phys_addr = ((uint64_t) h2c_msgbuff_dma_handle);
@@ -437,8 +440,8 @@ void homanic_exit(void) {
 
     pr_info("homanic_exit\n");
 
-    dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_msgbuff_cpu_addr, h2c_msgbuff_dma_handle);
-    dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_msgbuff_cpu_addr, c2h_msgbuff_dma_handle);
+    dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_msgbuff_cpu_addr,  h2c_msgbuff_dma_handle);
+    dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_msgbuff_cpu_addr,  c2h_msgbuff_dma_handle);
     dma_free_coherent(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_metadata_cpu_addr, c2h_metadata_dma_handle);
 
     device_destroy(cls, MKDEV(dev_major, MINOR_H2C_METADATA));

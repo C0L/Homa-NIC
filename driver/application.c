@@ -52,7 +52,8 @@ void * axi_stream_regs;
 void * axi_stream_write;
 void * axi_stream_read;
 
-inline void iomov64B(__m256i * dst, __m256i * src) {
+// TODO inline?
+void iomov64B(__m256i * dst, __m256i * src) {
     __m256i ymm0;
     __m256i ymm1; 
 
@@ -76,19 +77,19 @@ void ipv6_to_str(char * str, char * s6_addr) {
                  (int)s6_addr[14], (int)s6_addr[15]);
 }
 
-void sendmsg(struct msghdr_send_t * msghdr_send_in, struct msghdr_send_t * msghdr_send_out) {
+void sendmsg(struct msghdr_send_t * msghdr_send_in) {
     int i;
     uint32_t rlr;
     uint32_t rdfo;
 
-    printf("FIFO DEPTH %d\n", *((uint32_t*) axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    iomov64B(axi_stream_write, (void *) msghdr_send_in);
 
-    // iomov64B(axi_stream_write, msghdr_send_in);
+    printf("FIFO DEPTH %d\n", *((uint32_t*) (axi_stream_regs + AXI_STREAM_FIFO_TDFV)));
 
     *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
     *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
 
-    printf("FIFO DEPTH %d\n", *((uint32_t*) axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    printf("FIFO DEPTH %d\n", *((uint32_t*) (axi_stream_regs + AXI_STREAM_FIFO_TDFV)));
 }
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
@@ -137,8 +138,7 @@ int main() {
     struct msghdr_send_t msghdr_send_in;
 
     uint32_t size   = 512; // Lte 20 bits used
-    uint32_t retoff = 10;  // Lte 12 bits used
-    uint32_t mask = 0xFFFFFFFF > 12;
+    uint32_t retoff = 0;  // Lte 12 bits used
 
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
@@ -148,20 +148,18 @@ int main() {
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
 
-    msghdr_send_in.metadata  = size;
-    msghdr_send_in.metadata  = msghdr_send_in.metadata | (retoff << 20);
-
-    struct msghdr_send_t msghdr_send_out;
+    msghdr_send_in.metadata  = size | (retoff << 20);
+    printf("%d\n", msghdr_send_in.metadata);
 
     char pattern[4] = "\xDE\xAD\xBE\xEF";
 
-    for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) &h2c_msgbuff_map)) + (i*4), &pattern, 4);
+    for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
     memset(c2h_msgbuff_map, 0, 512);
 
     printf("H2C Message Content Start\n");
     for (int i = 0; i < 4; ++i) {
     	printf("Chunk %d: ", i);
-    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &h2c_msgbuff_map) + j + (i*64)));
+    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) h2c_msgbuff_map) + j + (i*64)));
     	printf("\n");
     }
     printf("H2C Message Content End\n");
@@ -169,7 +167,7 @@ int main() {
     printf("C2H Message Content Start\n");
     for (int i = 0; i < 4; ++i) {
     	printf("Chunk %d: ", i);
-    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &c2h_msgbuff_map) + j + (i*64)));
+    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
     	printf("\n");
     }
     printf("C2H Message Content End\n");
@@ -177,7 +175,11 @@ int main() {
     printf("Initial Message Header\n");
     print_msghdr(&msghdr_send_in);
 
-    sendmsg(&msghdr_send_in, &msghdr_send_out);
+    sendmsg(&msghdr_send_in);
+
+    usleep(100);
+
+    struct msghdr_send_t msghdr_send_out = *((struct msghdr_send_t *) c2h_metadata_map);
 
     printf("Completed Message Header\n");
     print_msghdr(&msghdr_send_out);
@@ -187,13 +189,13 @@ int main() {
     printf("C2H Message Contents Start\n");
     for (int i = 0; i < 4; ++i) {
     	printf("Chunk %d: ", i);
-    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) &c2h_msgbuff_map) + j + (i*64)));
+    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
     	printf("\n");
     }
     printf("C2H Message Contents End\n");
 
     munmap(h2c_metadata_map, 16384);
-    munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
+    munmap(c2h_metadata_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
     munmap(h2c_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
     munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
 
