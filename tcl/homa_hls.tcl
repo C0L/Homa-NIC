@@ -44,14 +44,15 @@ if {$job_type == 0} {
     csim_design -setup
 } elseif {$job_type == 1} {
     add_files $c_src -cflags "-DSYNTH $homa_cfg"
-    add_files -blackbox $json_src 
+    add_files -blackbox $json_src
+    config_dataflow -start_fifo_depth 3 
     csynth_design
     export_design -output ip/ -format ip_catalog
 } elseif {$job_type == 2} {
     add_files $c_src -cflags "-DCOSIM $homa_cfg"
     add_files -tb $test_bench -cflags "-DCOSIM $homa_cfg"
     add_files -blackbox $json_src
-    # config_dataflow -fifo_depth 26 -start_fifo_depth 26 -scalar_fifo_depth 26 -task_level_fifo_depth 26 
+    # config_dataflow -fifo_depth 26 -start_fifo_depth 26 -scalar_fifo_depth 26 -task_level_fifo_depth 26
     csynth_design
     cosim_design -trace_level all -wave_debug -mflags "-l 64"
 }

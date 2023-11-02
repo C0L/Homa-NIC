@@ -42,7 +42,8 @@ SRC_C =                       \
     $(C_SRC_DIR)/databuff.hh  \
     $(C_SRC_DIR)/user.cc      \
     $(C_SRC_DIR)/user.hh      \
-    $(C_SRC_DIR)/hashmap.hh   \
+    $(C_SRC_DIR)/map.cc       \
+    $(C_SRC_DIR)/map.hh       \
     $(C_SRC_DIR)/homa.cc      \
     $(C_SRC_DIR)/homa.hh      \
     $(C_SRC_DIR)/link.cc      \
@@ -61,9 +62,6 @@ SRC_C =                       \
     $(C_SRC_DIR)/dma.hh \
     $(C_SRC_DIR)/logger.cc \
     $(C_SRC_DIR)/logger.hh \
-    $(C_SRC_DIR)/test.hh \
-    $(C_SRC_DIR)/cosim_shims.cc \
-    $(C_SRC_DIR)/cosim_shims.hh
 
 PART = xcu250-figd2104-2L-e
 

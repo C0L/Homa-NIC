@@ -23,7 +23,7 @@ hls::stream<am_status_t>        r_status_queue_i;
 hls::stream<port_to_phys_t>     h2c_port_to_msgbuff_i;
 hls::stream<port_to_phys_t>     c2h_port_to_msgbuff_i;
 hls::stream<port_to_phys_t>     c2h_port_to_metadata_i;
-hls::stream<ap_uint<8>>         log_control_i;
+hls::stream<ap_uint<512>>       log_control_i;
 hls::stream<log_entry_t>        log_out_o;
 
 ap_uint<128> A_saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
@@ -34,9 +34,21 @@ ap_uint<128> B_saddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
 
 uint16_t A_sport = 1;
 uint16_t A_dport = 2;
-
+ 
 uint16_t B_sport = 2;
 uint16_t B_dport = 1;
+
+// ap_uint<128> A_saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
+// ap_uint<128> A_daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
+// 
+// ap_uint<128> B_saddr("DCBAFEDCBAFEDCBADCBAFEDCBAFEDCBA", 16);
+// ap_uint<128> B_daddr("ABCDEFABCDEFABCDABCDEFABCDEFABCD", 16);
+// 
+// uint16_t A_sport = 1;
+// uint16_t A_dport = 1;
+// 
+// uint16_t B_sport = 1;
+// uint16_t B_dport = 1;
 
 port_to_phys_t A_c2h_msgbuff_map;
 port_to_phys_t A_h2c_msgbuff_map;
@@ -55,12 +67,55 @@ char * B_h2c_msgbuff;
 char * B_c2h_msgbuff;
 char * B_c2h_metadata;
 
+struct c_msghdr_send_t {
+    char saddr[16];
+    char daddr[16];
+    uint16_t sport;
+    uint16_t dport;
+    uint64_t buff_addr;
+    uint32_t metadata;
+    uint64_t id;
+    uint64_t cc;
+}__attribute__((packed));
+
+
+void ipv6_to_str(char * str, char * s6_addr) {
+   sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\0",
+                 (int)s6_addr[0],  (int)s6_addr[1],
+                 (int)s6_addr[2],  (int)s6_addr[3],
+                 (int)s6_addr[4],  (int)s6_addr[5],
+                 (int)s6_addr[6],  (int)s6_addr[7],
+                 (int)s6_addr[8],  (int)s6_addr[9],
+                 (int)s6_addr[10], (int)s6_addr[11],
+                 (int)s6_addr[12], (int)s6_addr[13],
+                 (int)s6_addr[14], (int)s6_addr[15]);
+}
+
 ap_uint<MSGHDR_SEND_SIZE> sendmsg_A_to_B(ap_uint<32> size, ap_uint<64> id);
 ap_uint<MSGHDR_SEND_SIZE> sendmsg_B_to_A(ap_uint<32> size, ap_uint<64> id);
 ap_uint<MSGHDR_RECV_SIZE> recvmsg_A_to_B(ap_uint<64> id);
 ap_uint<MSGHDR_RECV_SIZE> recvmsg_B_to_A();
 void process();
 void init();
+
+void print_msghdr(struct c_msghdr_send_t * msghdr_send) {
+    printf("sendmsg content dump:\n");
+
+    char saddr[64];
+    char daddr[64];
+
+    // ipv6_to_str(saddr, msghdr_send->saddr);
+    // ipv6_to_str(daddr, msghdr_send->daddr);
+
+    printf("  - source address      : %s\n", saddr);
+    printf("  - destination address : %s\n", daddr);
+    printf("  - source port         : %u\n", (unsigned int) msghdr_send->sport);
+    printf("  - dest port           : %u\n", (unsigned int) msghdr_send->dport);
+    printf("  - buffer address      : %lx\n", msghdr_send->buff_addr);
+    printf("  - buffer size         : %u\n",  msghdr_send->metadata);
+    printf("  - rpc id              : %lu\n", msghdr_send->id);
+    printf("  - completion cookie   : %lu\n", msghdr_send->cc);
+}
 
 ap_uint<MSGHDR_SEND_SIZE> sendmsg_A_to_B(ap_uint<32> size, ap_uint<64> id) {
     msghdr_send_t sendmsg_req;
@@ -88,6 +143,9 @@ ap_uint<MSGHDR_SEND_SIZE> sendmsg_A_to_B(ap_uint<32> size, ap_uint<64> id) {
     }
 
     std::cerr << "SENDMSG COMPLETE ID: " << id << " ret " << sendmsg_req.data(MSGHDR_RETURN) << std::endl;
+
+
+    print_msghdr((struct c_msghdr_send_t *) &sendmsg_resp);
 
     return sendmsg_resp;
 }
@@ -118,6 +176,8 @@ ap_uint<MSGHDR_SEND_SIZE> sendmsg_B_to_A(ap_uint<32> size, ap_uint<64> id) {
     }
 
     std::cerr << "SENDMSG COMPLETE ID: " << id << " ret " << sendmsg_req.data(MSGHDR_RETURN) << std::endl;
+
+    print_msghdr((struct c_msghdr_send_t *) &sendmsg_resp);
 
     return sendmsg_resp;
 }
@@ -284,6 +344,37 @@ void random_rpc() {
     std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
 }
 
+void print_log_entry(ap_uint<512> log_entry) {
+    std::cerr << "Log Entry -- " << log_entry << std::endl;
+    //std::cerr << "Log Entry -- ";
+
+    //std::cerr << "DMA Wr "
+    //if (log_entry(7,0) != 0) {
+    //	std::cerr << "(" << log_entry(7,0) << ")";
+    //} else {
+    //	std::cerr << "(empty)";
+    //}
+
+    //std::cerr << "DMA Rd "
+    //if (log_entry(15,8) != 0) {
+    //	std::cerr << "(" << log_entry(15,8) << ")";
+    //} else {
+    //	std::cerr << "(empty)";
+    //}
+
+}
+
+void dump_log() {
+    log_control_i.write(LOG_DRAIN);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    log_entry_t log_entry;
+    while (log_out_o.read_nb(log_entry)) {
+	print_log_entry(log_entry.data);
+    }
+}	
+
 int main(int argc, char **argv) {
 
     srand(time(NULL));
@@ -303,9 +394,9 @@ int main(int argc, char **argv) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     // random_rpc();
-    // random_rpc();
-    // random_rpc();
-    for (int i = 0; i < 1000; ++i) random_rpc();
+
+    for (int i = 0; i < 10; ++i) random_rpc();
+    dump_log();
 
     free(A_h2c_msgbuff);
     free(A_c2h_msgbuff);

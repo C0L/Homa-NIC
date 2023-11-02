@@ -15,6 +15,7 @@
 #include "databuff.hh"
 #include "packetmap.hh"
 #include "dma.hh"
+#include "map.hh"
 #include "logger.hh"
 
 using namespace hls;
@@ -43,7 +44,7 @@ void homa(
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
     hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
-    hls::stream<ap_uint<8>> & log_control_i,
+    hls::stream<ap_uint<512>> & log_control_i,
     hls::stream<log_entry_t> & log_out_o
     ) {
 

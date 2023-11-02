@@ -1,5 +1,7 @@
-#ifndef HASHMAP_H
-#define HASHMAP_H
+#ifndef MAP_H
+#define MAP_H
+
+#include "homa.hh"
 
 #define SEED0 0x7BF6BF21
 #define SEED1 0x9FA91FE9
@@ -46,11 +48,11 @@ struct cam_t {
 
 template<typename K, typename V>
 struct hashmap_t {
-    entry_t<K,V> tables[HASHTABLE_SIZE][16];
+    entry_t<K,V> tables[HASHTABLE_SIZE][3];
 
     V search(K query) {
 
-#pragma HLS bind_storage variable=tables type=RAM_1WNR
+// #pragma HLS bind_storage variable=tables type=RAM_1WNR
 #pragma HLS dependence variable=tables inter WAR false
 #pragma HLS dependence variable=tables inter RAW false
 
@@ -58,7 +60,7 @@ struct hashmap_t {
 
 	V result = 0;
 
-	for (ap_uint<HASHTABLE_INDEX> tidx = 0; tidx < 16; tidx++) {
+	for (ap_uint<HASHTABLE_INDEX> tidx = 0; tidx < 3; tidx++) {
 #pragma HLS unroll
 	    entry_t<K,V> search = tables[hash][tidx];
 	    if (query == search.key) result = search.value;
@@ -69,13 +71,13 @@ struct hashmap_t {
 
     void insert(entry_t<K,V> insert) {
 
-#pragma HLS bind_storage variable=tables type=RAM_1WNR
+// #pragma HLS bind_storage variable=tables type=RAM_1WNR
 #pragma HLS dependence variable=tables inter WAR false
 #pragma HLS dependence variable=tables inter RAW false
 
 	ap_uint<HASHTABLE_INDEX> hash = simple_hash(insert.key, SEED0);
 
-	for (ap_uint<HASHTABLE_INDEX> tidx = 16-1; tidx > 1; tidx--) {
+	for (ap_uint<HASHTABLE_INDEX> tidx = 3-1; tidx > 1; tidx--) {
 #pragma HLS unroll
 	    tables[hash][tidx] = tables[hash][tidx-1];
 	}
@@ -91,5 +93,21 @@ struct hashmap_t {
     }
 
 };
+
+void c2h_header_hashmap(
+    hls::stream<header_t> & c2h_header_i,
+    hls::stream<header_t> & c2h_header_o,
+    hls::stream<entry_t<rpc_hashpack_t, local_id_t>> & new_rpcmap_entry,
+    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry
+    );
+
+void c2h_header_cam(
+    hls::stream<header_t> & c2h_header_i,
+    hls::stream<header_t> & c2h_header_o,
+    hls::stream<entry_t<rpc_hashpack_t, local_id_t>> & new_rpcmap_entry,
+    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry,
+    hls::stream<local_id_t> & new_server,
+    hls::stream<peer_id_t> & new_peer
+    );
 
 #endif

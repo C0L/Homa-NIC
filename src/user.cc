@@ -48,8 +48,6 @@ void c2h_metadata(
 	rpc.cc          = msghdr_send.data(MSGHDR_SEND_CC);
 	rpc.h2c_buff_id = new_dbuff_i.read();
 
-	std::cerr << "READ NEW DBUFF\n";
-
 	/* Instruct the user that the sendmsg request is active */
 	dma_w_req_t msghdr_resp;
 	msghdr_resp.data   = msghdr_send.data;
@@ -59,15 +57,13 @@ void c2h_metadata(
 
 	/* Begin evaluating this request */
 	new_rpc_o.write(rpc);
-
-	std::cerr << "user.cc completed onboarding" << std::endl;
     }
 
     port_to_phys_t new_c2h_port_to_metadata;
     if (c2h_port_to_metadata_i.read_nb(new_c2h_port_to_metadata)) {
 	c2h_port_to_metadata[new_c2h_port_to_metadata(PORT_TO_PHYS_PORT)] = new_c2h_port_to_metadata(PORT_TO_PHYS_ADDR);
     }
-
+// TODO should assign these based on active peers
     static ap_uint<MSGHDR_RECV_SIZE> buffered_complete[MAX_PORTS][MAX_RECV_MATCH];
     static ap_uint<MSGHDR_RECV_SIZE> buffered_pending[MAX_PORTS][MAX_RECV_MATCH];
 

@@ -54,7 +54,7 @@ typedef ap_uint<64> host_addr_t;
 
 typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
 
-#define STREAM_DEPTH 2
+#define STREAM_DEPTH 3
 
 /* IPv6 Header Constants
  */
@@ -135,7 +135,8 @@ struct peer_hashpack_t {
  */
 #define MAX_RPCS_LOG2       14    // Number of bits to express an RPC. TODO this changed
 #define MAX_RPCS            16384 // Maximum number of RPCs
-#define MAX_PORTS           16384 // Maximum number of ports
+#define MAX_PORTS           128   // Maximum number of ports
+// #define MAX_PORTS           16384 // Maximum number of ports
 
 typedef ap_uint<MAX_RPCS_LOG2> local_id_t;
 
@@ -193,8 +194,8 @@ typedef ap_uint<SRPT_QUEUE_ENTRY_SIZE> srpt_queue_entry_t;
 #define DMA_R_REQ_DBUFFERED 65,46 // Number of bytes cached
 #define DMA_R_REQ_GRANTED   85,66 // Number of bytes granted
 #define DMA_R_REQ_PRIORITY  88,86 // Deprioritize inactive messages
-#define DMA_R_REQ_HOST_ADDR 152,89 // Deprioritize inactive messages
-#define DMA_R_REQ_MSG_LEN   184,153 // Deprioritize inactive messages
+#define DMA_R_REQ_HOST_ADDR 152,89 // 
+#define DMA_R_REQ_MSG_LEN   184,153 // 
 
 typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 
@@ -216,7 +217,7 @@ struct rpc_to_offset_t {
 #define PORT_TO_PHYS_SIZE 96
 #define PORT_TO_PHYS_ADDR 63,0
 #define PORT_TO_PHYS_PORT 95,64 
-typedef ap_uint<PORT_TO_PHYS_SIZE> port_to_phys_t;
+typedef ap_uint<512> port_to_phys_t;
 
 /**
  * log_entry_t - A single piece of debug information which is clumped
@@ -227,7 +228,7 @@ typedef ap_uint<8> log_status_t;
 /**
  * log_entry_t - A log value for debugging that can be read from the host
  */
-typedef ap_axiu<128, 0, 0, 0> log_entry_t;
+typedef ap_axiu<512, 0, 0, 0> log_entry_t;
 
 /* Cutoff for retramsission
  * 1ms == 1000000ns == 200000 cycles
@@ -447,8 +448,8 @@ typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
  * a completed packet and the maximum number of completed packets that
  * can be queued pending a match with a recvmsg request.
  */
-#define MAX_RECV_MATCH 16
-#define MAX_RECV_LOG2  4
+#define MAX_RECV_MATCH 8
+#define MAX_RECV_LOG2  3
 
 /**
  * struct recv_interest_t - Matched with a an incoming completed RPC
@@ -636,7 +637,7 @@ void homa(
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
     hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
     hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
-    hls::stream<ap_uint<8>> & log_control_i,
+    hls::stream<ap_uint<512>> & log_control_i,
     hls::stream<log_entry_t> & log_out_o
     );
 
