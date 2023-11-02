@@ -2,7 +2,7 @@ obj-m += homanic.o
 
 PWD := $(CURDIR)
 
-CFLAGS_homanic.o := -mavx512f
+CFLAGS_homanic.o := -mavx2
 
 all: 
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules

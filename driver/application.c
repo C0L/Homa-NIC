@@ -43,6 +43,8 @@ struct msghdr_send_t {
     uint64_t cc;
 }__attribute__((packed));
 
+struct msghdr_send_t msghdr_send_in __attribute__((aligned(64)));
+
 void * h2c_metadata_map;
 void * c2h_metadata_map;
 void * h2c_msgbuff_map;
@@ -82,11 +84,12 @@ void sendmsg(struct msghdr_send_t * msghdr_send_in) {
     uint32_t rlr;
     uint32_t rdfo;
 
+    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
+
     iomov64B(axi_stream_write, (void *) msghdr_send_in);
 
     printf("FIFO DEPTH %d\n", *((uint32_t*) (axi_stream_regs + AXI_STREAM_FIFO_TDFV)));
 
-    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
     *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
 
     printf("FIFO DEPTH %d\n", *((uint32_t*) (axi_stream_regs + AXI_STREAM_FIFO_TDFV)));
@@ -135,10 +138,10 @@ int main() {
     axi_stream_write = h2c_metadata_map + AXIF_OFFSET;
     axi_stream_read  = h2c_metadata_map + AXIF_OFFSET + 0x1000;
 
-    struct msghdr_send_t msghdr_send_in;
+
 
     uint32_t size   = 512; // Lte 20 bits used
-    uint32_t retoff = 0;  // Lte 12 bits used
+    uint32_t retoff = 0;   // Lte 12 bits used
 
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
@@ -155,6 +158,7 @@ int main() {
 
     for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
     memset(c2h_msgbuff_map, 0, 512);
+    memset(c2h_metadata_map, 0, 16384);
 
     printf("H2C Message Content Start\n");
     for (int i = 0; i < 4; ++i) {
@@ -174,6 +178,8 @@ int main() {
 
     printf("Initial Message Header\n");
     print_msghdr(&msghdr_send_in);
+
+    printf("addr: %lx\n", (uint64_t) &msghdr_send_in);
 
     sendmsg(&msghdr_send_in);
 
