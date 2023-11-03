@@ -190,7 +190,7 @@ int main() {
     printf("Completed Message Header\n");
     print_msghdr(&msghdr_send_out);
 
-    // ioctl(ctl_fd, 0, NULL);
+    // ioctl(h2c_metadata_fd, 0, NULL);
 
     printf("C2H Message Contents Start\n");
     for (int i = 0; i < 4; ++i) {

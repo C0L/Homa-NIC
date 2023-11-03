@@ -54,6 +54,9 @@
 
 #define IOCTL_DMA_DUMP 0
 
+#define LOG_RECORD 0
+#define LOG_DRAIN  1
+
 struct pci_dev * pdev;
 
 /* device registers for physical address map onboarding AXI-Stream FIFO */
@@ -96,6 +99,7 @@ struct log_entry_t {
     uint8_t  c2h_pkt_log;
     char     empty[5];
     uint32_t timer;
+    char     pad[48];
 }__attribute__((packed));
 
 struct port_to_phys_t {
@@ -104,9 +108,17 @@ struct port_to_phys_t {
     char     pad[52];
 }__attribute__((packed));
 
+struct log_control_t {
+    uint8_t state;
+    char    pad[64];
+}__attribute__((packed));
+
 struct port_to_phys_t h2c_port_to_msgbuff __attribute__((aligned(64)));
 struct port_to_phys_t c2h_port_to_msgbuff __attribute__((aligned(64)));
 struct port_to_phys_t c2h_port_to_metadata __attribute__((aligned(64)));
+
+struct log_control_t log_control __attribute__((aligned(64)));
+struct log_entry_t log_entry __attribute__((aligned(64)));
 
 /* Kernel Module Functions */
 int     homanic_open(struct inode *, struct file *);
@@ -116,7 +128,7 @@ int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
 long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
 
 /* Helper Functions */
-// void dump_log(void);
+void dump_log(void);
 void h2c_new_msgbuff(struct port_to_phys_t * portmap);
 void c2h_new_msgbuff(struct port_to_phys_t * portmap);
 void c2h_new_metadata(struct port_to_phys_t * portmap);
@@ -162,42 +174,49 @@ struct class * cls;
 
 int dev_major = 0;
 
-//void dump_log(void) {
-//    int i;
-//
-//    uint32_t rlr;
-//    uint32_t rdfo;
-//
-//    struct log_entry_t log_entry;
-//
-//    pr_alert("Dump Log\n");
-//
-//    rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
-//    rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
-//
-//    while (rdfo != 0) {
-//	// Read 16 bytes of data
-//	for (i = 0; i < 4; ++i) {
-//	    *(((unsigned int*) &log_entry) + i) = ioread32(axi_stream_read);
-//	}
-//	
-//	iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
-//	iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
-//
-//	rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
-//	rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
-//
-//	pr_alert("Log Entry: ");
-//	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
-//	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
-//	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
-//	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
-//	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
-//	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
-//	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
-//	pr_alert("  Timer          - %u", log_entry.timer);
-//    }
-//}
+void dump_log() {
+    uint32_t rlr = 0;
+    uint32_t rdfo = 0;
+
+    // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+
+    log_control.state = LOG_DRAIN;
+
+    // iomov64B((void*) axi_stream_write, (void*) &log_control);
+
+    // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+
+    pr_alert("Dump Log\n");
+
+    // rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
+    // rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
+
+    while (rdfo != 0) {
+	iomov64B((void *) &log_entry, (void*) axi_stream_read);
+	
+	iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
+	iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
+
+	rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
+	rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
+
+	pr_alert("Log Entry: ");
+	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
+	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
+	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
+	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
+	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
+	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
+	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
+	pr_alert("  Timer          - %u",     log_entry.timer);
+    }
+   
+    log_control.state = LOG_DRAIN;
+
+    // iomov64B((void*) axi_stream_write, (void*) &log_control);
+
+    // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+}
 
 void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
     iowrite32(C2H_P2META_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
@@ -303,7 +322,6 @@ int homanic_close(struct inode * inode, struct file * file) {
     // Free the buffers
     // Wipe user data from the device
 
-    int i, j;
     switch(iminor(file->f_inode)) {
 	case MINOR_C2H_METADATA:
 	    printk(KERN_ALERT "c2h metadata close()");
@@ -340,20 +358,22 @@ int homanic_close(struct inode * inode, struct file * file) {
 }
 
 long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioctl_param) {
-    int i, j;
+    printk(KERN_ALERT "homanic_ioctl\n");
 
     switch(ioctl_num) {
 	case IOCTL_DMA_DUMP:
+
 	    // dump_log();
-	    for (i = 0; i < 8; ++i) {
-		printk(KERN_ALERT "Chunk %d: ", i);
-		for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
-	    }
-	    
-	    for (i = 0; i < 8; ++i) {
-		printk(KERN_ALERT "Chunk %d: ", i);
-		for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
-	    }
+	    // for (i = 0; i < 8; ++i) {
+	    // 	printk(KERN_ALERT "Chunk %d: ", i);
+	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
+	    // }
+	    // 
+	    // for (i = 0; i < 8; ++i) {
+	    // 	printk(KERN_ALERT "Chunk %d: ", i);
+	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
+	    // }
+	    break;
     }
 
     return 0;
