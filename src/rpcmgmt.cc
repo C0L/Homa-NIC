@@ -2,20 +2,19 @@
 
 using namespace hls;
 
-// void mem_mgmt() {
-//     id stuff here
-// }
-
 /* Maintain long-lived state associated with RPCs/NIC, including:
  *   - Memory management: client/server IDs, peer IDs, dbuff IDs
  *   - Userspace mappings
  *   - RPC setup info: ip addrs, ports, msg size, location, ....
  */
 void rpc_state(
-    hls::stream<homa_rpc_t> & new_rpc_i,
+    hls::stream<msghdr_send_t> & sendmsg_i,
+    hls::stream<dma_w_req_t> & sendmsg_dma_o,
     hls::stream<srpt_queue_entry_t> & data_queue_o,
     hls::stream<srpt_queue_entry_t> & fetch_queue_o,
     hls::stream<srpt_grant_new_t> & grant_queue_o,
+    hls::stream<ap_uint<MSGHDR_RECV_SIZE>> & recvmsg_i,
+    hls::stream<dma_w_req_t> & recvmsg_dma_o,
     hls::stream<header_t> & h2c_header_i,
     hls::stream<header_t> & h2c_header_o,
     hls::stream<header_t> & c2h_header_i,
@@ -27,13 +26,10 @@ void rpc_state(
     hls::stream<dma_w_req_t> & dma_w_req_i,
     hls::stream<dma_w_req_t> & dma_w_req_o,
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
     hls::stream<srpt_queue_entry_t> & dma_r_req_i,
     hls::stream<dma_r_req_t> & dma_r_req_o,
     hls::stream<dbuff_id_t> & free_dbuff_i,
-    hls::stream<dbuff_id_t> & new_dbuff_o,
-    hls::stream<local_id_t> & new_client_o,
-    hls::stream<local_id_t> & new_server_o,
-    hls::stream<local_id_t> & new_peer_o,
     hls::stream<ap_uint<8>> & h2c_pkt_log_o,
     hls::stream<ap_uint<8>> & c2h_pkt_log_o
     ) {
@@ -50,23 +46,21 @@ void rpc_state(
     static msg_addr_t  c2h_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
     static ap_uint<7>  c2h_buff_ids[MAX_PORTS];         // Next availible offset in buffer space
 
+    /* Port to metadata mapping DMA */
+    static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer
+#pragma HLS bind_storage variable=c2h_port_to_metadata type=RAM_1WNR
+
     /* Unique local RPC ID assigned when this core is the client */
     static stack_t<local_id_t, MAX_RPCS> client_ids;
 
     /* Unique local databuffer IDs assigned for outgoing data */
     static stack_t<local_id_t, NUM_EGRESS_BUFFS> msg_cache_ids;
 
-    /* Unique local RPC ID assigned when this core is the server */
-    static stack_t<local_id_t, MAX_RPCS> server_ids;
-
-    /* Unique Peer IDs */
-    static stack_t<peer_id_t, MAX_PEERS> peer_ids;
-
     static host_addr_t h2c_port_to_msgbuff[MAX_PORTS];  // Port -> large h2c buffer space
     static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
 
     /* Port to metadata mapping DMA */
-    static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer
+    // static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer
 
     // TODO is this potentially risky with OOO small packets
     // Can maybe do a small sort of rebuffering if needed?
@@ -81,37 +75,6 @@ void rpc_state(
 
 #pragma HLS pipeline II=1
 
-    static dbuff_id_t new_dbuff = 0;
-    static dbuff_id_t free_dbuff = 0;
-    if (new_dbuff == 0 && !msg_cache_ids.empty()) {
-	new_dbuff = msg_cache_ids.pop();
-    } else if (free_dbuff_i.read_nb(free_dbuff)) {
-	msg_cache_ids.push(free_dbuff);
-    } else if (new_dbuff_o.write_nb(new_dbuff)) {
-	new_dbuff = 0;
-    } 
-
-    static local_id_t new_client = 0;
-    if (new_client == 0 && !client_ids.empty()) {
-	new_client = (client_ids.pop() * 2) + 2;
-    } else if (new_client_o.write_nb(new_client)) {
-	new_client = 0;
-    }
-
-    static local_id_t new_server = 0;
-    if (new_server == 0 && !server_ids.empty()) {
-	new_server = (server_ids.pop() * 2) + 1;
-    } else if (new_server_o.write_nb(new_server)) {
-	new_server = 0;
-    }
-
-    static local_id_t new_peer = 0;
-    if (new_peer == 0 && !peer_ids.empty()) {
-	new_peer = peer_ids.pop();
-    } else if (new_peer_o.write_nb(new_peer)) {
-	new_peer = 0;
-    }
-
     port_to_phys_t new_h2c_port_to_msgbuff;
     if (h2c_port_to_msgbuff_i.read_nb(new_h2c_port_to_msgbuff)) {
 	h2c_port_to_msgbuff[new_h2c_port_to_msgbuff(PORT_TO_PHYS_PORT)] = new_h2c_port_to_msgbuff(PORT_TO_PHYS_ADDR);
@@ -122,14 +85,42 @@ void rpc_state(
 	c2h_port_to_msgbuff[new_c2h_port_to_msgbuff(PORT_TO_PHYS_PORT)] = new_c2h_port_to_msgbuff(PORT_TO_PHYS_ADDR);
     }
 
-    homa_rpc_t rpc;
-    if (new_rpc_i.read_nb(rpc)) {
+    port_to_phys_t new_c2h_port_to_metadata;
+    if (c2h_port_to_metadata_i.read_nb(new_c2h_port_to_metadata)) {
+	c2h_port_to_metadata[new_c2h_port_to_metadata(PORT_TO_PHYS_PORT)] = new_c2h_port_to_metadata(PORT_TO_PHYS_ADDR);
+    }
+
+
+    msghdr_send_t msghdr_send;
+    dbuff_id_t dbuff_id;
+    if (sendmsg_i.read_nb(msghdr_send)) {
+	homa_rpc_t rpc;
+	rpc.id = 0;
+	rpc.daddr     = msghdr_send.data(MSGHDR_DADDR);
+	rpc.saddr     = msghdr_send.data(MSGHDR_SADDR);
+	rpc.dport     = msghdr_send.data(MSGHDR_DPORT);
+	rpc.sport     = msghdr_send.data(MSGHDR_SPORT);
+	// rpc.id        = msghdr_send.data(MSGHDR_SEND_ID);
+	rpc.buff_addr = msghdr_send.data(MSGHDR_BUFF_ADDR);
+	rpc.buff_size = msghdr_send.data(MSGHDR_BUFF_SIZE);
+	rpc.cc        = msghdr_send.data(MSGHDR_SEND_CC);
+
+	if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
+	    msghdr_send.data(MSGHDR_SEND_ID) = (2 * client_ids.pop());
+	    std::cerr << "Assigned ID " << msghdr_send.data(MSGHDR_SEND_ID) << std::endl;
+	    rpc.id                           = msghdr_send.data(MSGHDR_SEND_ID);
+	}
+
+	rpc.local_id =  msghdr_send.data(MSGHDR_SEND_ID);
+
 	if (rpc.id == 0) {
 	    rpc.id = recv_rpcs[rpc.local_id].id;
 	}
 
+	rpc.h2c_buff_id = msg_cache_ids.pop();
+
 	send_rpcs[rpc.local_id]   = rpc;
-	h2c_rpc_to_offset[rpc.id] = (rpc.buff_addr << 1) | 1;
+	h2c_rpc_to_offset[rpc.local_id] = (rpc.buff_addr << 1) | 1;
 	
 	// TODO so much type shuffling here.... 
     	srpt_queue_entry_t srpt_data_in = 0;
@@ -155,8 +146,29 @@ void rpc_state(
 	
 	// Insert this entry into the SRPT fetch queue
 	fetch_queue_o.write(srpt_fetch_in);
+
+	/* Instruct the user that the sendmsg request is active */
+	dma_w_req_t msghdr_resp;
+	msghdr_resp.data   = msghdr_send.data;
+	msghdr_resp.offset = c2h_port_to_metadata[msghdr_send.data(MSGHDR_SPORT)] + (msghdr_send.data(MSGHDR_RETURN) * 64);
+	msghdr_resp.strobe = 64;
+
+	sendmsg_dma_o.write(msghdr_resp);
+    } else if (free_dbuff_i.read_nb(dbuff_id)) {
+	msg_cache_ids.push(dbuff_id);
     }
 
+    ap_uint<MSGHDR_RECV_SIZE> msghdr_recv;
+    if (recvmsg_i.read_nb(msghdr_recv)) {
+	dma_w_req_t msghdr_resp;
+
+	msghdr_resp.data = msghdr_recv;
+	msghdr_resp.offset = c2h_port_to_metadata[msghdr_recv(MSGHDR_DPORT)] + (msghdr_recv(MSGHDR_RETURN) * 64);
+	msghdr_resp.strobe = 64;
+
+	recvmsg_dma_o.write(msghdr_resp);
+
+    }
 
     srpt_queue_entry_t dbuff_notif;
     if (dbuff_notif_i.read_nb(dbuff_notif)) {
@@ -316,19 +328,4 @@ void rpc_state(
 	    }
 	}
     }
-
-    // TODO break this up
-    // c2h_header_proc(
-    // 	send_rpcs,
-    // 	recv_rpcs,
-    // 	c2h_buff_ids,
-    // 	c2h_rpc_to_offset,
-    // 	c2h_header_i,
-    // 	c2h_header_o,
-    // 	pm_c2h_header_i,
-    // 	pm_c2h_header_o,
-    // 	grant_queue_o,
-    // 	data_srpt_o,
-    // 	c2h_pkt_log_o
-    // );
 }

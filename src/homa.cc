@@ -115,14 +115,10 @@ void homa(
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> header_in__rpc_state__srpt_data;
     hls_thread_local hls::stream<header_t, STREAM_DEPTH> header_in__rpc_state__packetmap;
 
-    hls_thread_local hls::stream<local_id_t, STREAM_DEPTH> new_peer;
-    hls_thread_local hls::stream<local_id_t, STREAM_DEPTH> new_server;
-    hls_thread_local hls::stream<local_id_t, STREAM_DEPTH> new_client;
-    hls_thread_local hls::stream<dbuff_id_t, STREAM_DEPTH> new_dbuff;
-    hls_thread_local hls::stream<homa_rpc_t, STREAM_DEPTH> new_rpc;
-
     hls_thread_local hls::stream<entry_t<rpc_hashpack_t, local_id_t>, STREAM_DEPTH> new_rpcmap_entry;
     hls_thread_local hls::stream<entry_t<peer_hashpack_t, peer_id_t>, STREAM_DEPTH> new_peermap_entry;
+
+    hls_thread_local hls::stream<ap_uint<MSGHDR_RECV_SIZE>, STREAM_DEPTH> recvmsg_complete_i;
 
     /* log streams */
     hls_thread_local hls::stream<ap_uint<8>, STREAM_DEPTH> dma_w_req_log;
@@ -138,10 +134,13 @@ void homa(
  
     hls_thread_local hls::task rpc_state_task(
 	rpc_state,
-	new_rpc,
+	sendmsg_i,
+	sendmsg__rpc_state__dma_write,
 	sendmsg__rpc_state__srpt_data,
 	sendmsg__rpc_state__srpt_fetch,
 	grant__rpc_state__srpt_grant,
+	recvmsg_complete_i,
+	recvmsg__rpc_state__dma_write,
 	header_out__egress_sel__rpc_state, 
 	header_out__rpc_state__pkt_builder,
 	header_in__packetmap__rpc_state,
@@ -153,28 +152,19 @@ void homa(
 	dma_req__dbuff_ingress__address_map,
 	dma_req__address_map__dma_write,
 	h2c_port_to_msgbuff_i,
+	c2h_port_to_metadata_i,
 	dma_req__srpt_data__address_map, // TODO name change
 	dma_req__address_map__dma_read,  // TODO name change
 	free_dbuff__h2c_databuff__rpc_state,
-	new_dbuff,
-	new_client,
-	new_server,
-	new_peer,
 	h2c_pkt_log,
 	c2h_pkt_log
 	);
 
     hls_thread_local hls::task c2h_metadata_task(
 	c2h_metadata,
-	sendmsg_i,
-	sendmsg__rpc_state__dma_write,
-	new_rpc,
 	recvmsg_i,
-	header_in__dbuff_ingress__homa_recvmsg,
-	recvmsg__rpc_state__dma_write,
-	c2h_port_to_metadata_i,
-	new_client,
-	new_dbuff
+	recvmsg_complete_i,
+	header_in__dbuff_ingress__homa_recvmsg
 	);
 
     hls_thread_local hls::task srpt_grant_pkts_task(
@@ -282,15 +272,13 @@ void homa(
 	new_peermap_entry
     );
 
-    hls_thread_local hls::task c2h_header_cam_task(
-	c2h_header_cam,
-	header_in__hashmap__cam,
-	header_in__cam__rpc_state,
-	new_rpcmap_entry,
-	new_peermap_entry,
-	new_server,
-	new_peer
-    );
+     hls_thread_local hls::task c2h_header_cam_task(
+     	c2h_header_cam,
+     	header_in__hashmap__cam,
+     	header_in__cam__rpc_state,
+     	new_rpcmap_entry,
+     	new_peermap_entry
+     );
 
     hls_thread_local hls::task homa_logger(
     	logger,

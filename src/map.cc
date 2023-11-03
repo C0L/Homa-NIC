@@ -53,9 +53,7 @@ void c2h_header_cam(
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
     hls::stream<entry_t<rpc_hashpack_t, local_id_t>> & new_rpcmap_entry,
-    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry,
-    hls::stream<local_id_t> & new_server,
-    hls::stream<peer_id_t> & new_peer
+    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry
     ) {
 
     /* hash(dest addr, sender ID, dest port) -> rpc ID */
@@ -63,6 +61,14 @@ void c2h_header_cam(
 
     /* hash(dest addr) -> peer ID */
     static cam_t<peer_hashpack_t, peer_id_t, 16, 4> peer_cam;
+
+    // TODO bad
+    /* Unique local RPC ID assigned when this core is the server */
+    static stack_t<local_id_t, MAX_RPCS> server_ids;
+
+    /* Unique Peer IDs */
+    static stack_t<peer_id_t, MAX_PEERS> peer_ids;
+
 
 #pragma HLS pipeline II=1
 
@@ -76,7 +82,7 @@ void c2h_header_cam(
 	    
 	    // If the peer is not registered, generate new ID and register it
 	    if (c2h_header.peer_id == 0) {
-		c2h_header.peer_id = new_peer.read();
+		c2h_header.peer_id = peer_ids.pop();
 
 		entry_t<peer_hashpack_t, local_id_t> new_entry = {peer_query, c2h_header.peer_id};
 
@@ -98,7 +104,7 @@ void c2h_header_cam(
 		c2h_header.local_id = rpc_cam.search(rpc_query);
 
 		if (c2h_header.local_id == 0) {
-		    c2h_header.local_id = new_server.read();
+		    c2h_header.local_id = (2 * server_ids.pop()) + 1;
 
 		    std::cerr << "ASSIGNED NEW SERVER ID " << c2h_header.local_id << std::endl;
 

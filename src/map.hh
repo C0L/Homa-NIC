@@ -2,6 +2,7 @@
 #define MAP_H
 
 #include "homa.hh"
+#include "stack.hh"
 
 #define SEED0 0x7BF6BF21
 #define SEED1 0x9FA91FE9
@@ -105,9 +106,7 @@ void c2h_header_cam(
     hls::stream<header_t> & c2h_header_i,
     hls::stream<header_t> & c2h_header_o,
     hls::stream<entry_t<rpc_hashpack_t, local_id_t>> & new_rpcmap_entry,
-    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry,
-    hls::stream<local_id_t> & new_server,
-    hls::stream<peer_id_t> & new_peer
+    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry
     );
 
 #endif

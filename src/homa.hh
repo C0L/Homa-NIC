@@ -54,7 +54,7 @@ typedef ap_uint<64> host_addr_t;
 
 typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
 
-#define STREAM_DEPTH 3
+#define STREAM_DEPTH 2
 
 /* IPv6 Header Constants
  */
@@ -478,6 +478,7 @@ struct homa_rpc_t {
     ap_uint<64>  id;         // RPC ID (always local)
     msg_addr_t   buff_addr;  // Message contents DMA offset
     ap_uint<32>  buff_size;  // Size of message in DMA space
+    // ap_uint<12>  retoff;     // Offset in metadata buff
     ap_uint<64>  cc;         // Completion Cookie
 
     local_id_t  local_id;    // Local RPC ID 
