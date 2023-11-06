@@ -37,8 +37,9 @@ struct msghdr_send_t {
     char daddr[16];
     uint16_t sport;
     uint16_t dport;
-    uint64_t buff_addr;
+    uint32_t buff_addr;
     uint32_t metadata;
+    uint32_t interest;
     uint64_t id;
     uint64_t cc;
 }__attribute__((packed));
@@ -126,7 +127,7 @@ int main() {
     }
 
     h2c_metadata_map = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_metadata_fd, 0);
-    c2h_metadata_map = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_metadata_fd, 0);
+    c2h_metadata_map = mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_metadata_fd, 0);
     h2c_msgbuff_map  = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_msgbuff_fd, 0);
     c2h_msgbuff_map  = mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_msgbuff_fd, 0);
 
@@ -138,10 +139,8 @@ int main() {
     axi_stream_write = h2c_metadata_map + AXIF_OFFSET;
     axi_stream_read  = h2c_metadata_map + AXIF_OFFSET + 0x1000;
 
-
-
-    uint32_t size   = 512; // Lte 20 bits used
-    uint32_t retoff = 0;   // Lte 12 bits used
+    uint32_t size   = 129; // Lte 20 bits used
+    uint32_t retoff = 4;   // Lte 12 bits used
 
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
@@ -150,8 +149,10 @@ int main() {
     msghdr_send_in.buff_addr = 0;
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
+	
+    // msghdr_send_in.metadata  = size | (retoff << 20);
 
-    msghdr_send_in.metadata  = size | (retoff << 20);
+    msghdr_send_in.metadata  = (size << 12) | retoff;
     printf("%d\n", msghdr_send_in.metadata);
 
     char pattern[4] = "\xDE\xAD\xBE\xEF";
@@ -179,18 +180,21 @@ int main() {
     printf("Initial Message Header\n");
     print_msghdr(&msghdr_send_in);
 
-    printf("addr: %lx\n", (uint64_t) &msghdr_send_in);
+//     struct msghdr_send_t msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
+
+    struct msghdr_send_t msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
+    print_msghdr(&msghdr_send_out);
 
     sendmsg(&msghdr_send_in);
 
-    usleep(100);
+    usleep(1000000);
 
-    struct msghdr_send_t msghdr_send_out = *((struct msghdr_send_t *) c2h_metadata_map);
+    msghdr_send_out = msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
 
     printf("Completed Message Header\n");
     print_msghdr(&msghdr_send_out);
 
-    // ioctl(h2c_metadata_fd, 0, NULL);
+    ioctl(h2c_metadata_fd, 0, NULL);
 
     printf("C2H Message Contents Start\n");
     for (int i = 0; i < 4; ++i) {
@@ -201,7 +205,7 @@ int main() {
     printf("C2H Message Contents End\n");
 
     munmap(h2c_metadata_map, 16384);
-    munmap(c2h_metadata_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
+    munmap(c2h_metadata_map, 16384);
     munmap(h2c_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
     munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
 

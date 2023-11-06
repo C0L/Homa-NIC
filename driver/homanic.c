@@ -84,7 +84,7 @@ struct msghdr_send_t {
     uint16_t sport;
     uint16_t dport;
     uint64_t buff_addr;
-    uint32_t buff_size;
+    uint32_t metadata;
     uint64_t id;
     uint64_t cc;
 }__attribute__((packed));
@@ -97,9 +97,9 @@ struct log_entry_t {
     uint8_t  dma_r_stat_log;
     uint8_t  h2c_pkt_log;
     uint8_t  c2h_pkt_log;
-    char     empty[5];
+    uint8_t  dbuff_notif_log;
+    char     pad[52];
     uint32_t timer;
-    char     pad[48];
 }__attribute__((packed));
 
 struct port_to_phys_t {
@@ -156,6 +156,45 @@ void iomov64B(__m256i * dst, __m256i * src) {
 }
 
 
+void ipv6_to_str(char * str, char * s6_addr) {
+   sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\0",
+                 (int)s6_addr[0],  (int)s6_addr[1],
+                 (int)s6_addr[2],  (int)s6_addr[3],
+                 (int)s6_addr[4],  (int)s6_addr[5],
+                 (int)s6_addr[6],  (int)s6_addr[7],
+                 (int)s6_addr[8],  (int)s6_addr[9],
+                 (int)s6_addr[10], (int)s6_addr[11],
+                 (int)s6_addr[12], (int)s6_addr[13],
+                 (int)s6_addr[14], (int)s6_addr[15]);
+}
+
+void sendmsg(struct msghdr_send_t * msghdr_send_in) {
+    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
+
+    iomov64B(axi_stream_write, (void *) msghdr_send_in);
+
+    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
+}
+
+void print_msghdr(struct msghdr_send_t * msghdr_send) {
+    char saddr[64];
+    char daddr[64];
+
+    pr_alert("sendmsg content dump:\n");
+
+    ipv6_to_str(saddr, msghdr_send->saddr);
+    ipv6_to_str(daddr, msghdr_send->daddr);
+
+    pr_alert("  - source address      : %s\n", saddr);
+    pr_alert("  - destination address : %s\n", daddr);
+    pr_alert("  - source port         : %u\n", (unsigned int) msghdr_send->sport);
+    pr_alert("  - dest port           : %u\n", (unsigned int) msghdr_send->dport);
+    pr_alert("  - buffer address      : %llx\n", msghdr_send->buff_addr);
+    pr_alert("  - buffer size         : %u\n",  msghdr_send->metadata);
+    pr_alert("  - rpc id              : %llu\n", msghdr_send->id);
+    pr_alert("  - completion cookie   : %llu\n", msghdr_send->cc);
+}
+
 struct file_operations homanic_fops = {
     .owner          = THIS_MODULE,
     .open           = homanic_open,
@@ -178,18 +217,18 @@ void dump_log() {
     uint32_t rlr = 0;
     uint32_t rdfo = 0;
 
-    // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
 
     log_control.state = LOG_DRAIN;
 
-    // iomov64B((void*) axi_stream_write, (void*) &log_control);
+    iomov64B((void*) axi_stream_write, (void*) &log_control);
 
-    // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
     pr_alert("Dump Log\n");
 
-    // rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
-    // rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
+    rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
+    rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
 
     while (rdfo != 0) {
 	iomov64B((void *) &log_entry, (void*) axi_stream_read);
@@ -208,14 +247,17 @@ void dump_log() {
 	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
 	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
 	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
+	pr_alert("  Duff Notif     - %02hhX", log_entry.dbuff_notif_log);
 	pr_alert("  Timer          - %u",     log_entry.timer);
     }
    
-    log_control.state = LOG_DRAIN;
+    iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
 
-    // iomov64B((void*) axi_stream_write, (void*) &log_control);
+    log_control.state = LOG_RECORD;
 
-    // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+    iomov64B((void*) axi_stream_write, (void*) &log_control);
+
+    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 }
 
 void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
@@ -323,21 +365,28 @@ int homanic_close(struct inode * inode, struct file * file) {
     // Wipe user data from the device
 
     switch(iminor(file->f_inode)) {
+	case MINOR_H2C_METADATA:
+	    printk(KERN_ALERT "h2c metadata close()");
+	    // set_memory_wb((uint64_t) h2c_metadata_cpu_addr, 16384 / PAGE_SIZE);
+	    // TODO also need to cleanup remap pages?
+
+	    break;
+
 	case MINOR_C2H_METADATA:
 	    printk(KERN_ALERT "c2h metadata close()");
-	    set_memory_wb((uint64_t) c2h_metadata_cpu_addr, 1);
-	    dma_free_coherent(&(pdev->dev), 1, c2h_metadata_cpu_addr, c2h_metadata_dma_handle);
+	    set_memory_wb((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
+	    dma_free_coherent(&(pdev->dev), 16384, c2h_metadata_cpu_addr, c2h_metadata_dma_handle);
 	    break;
 
 	case MINOR_H2C_MSGBUFF:
 	    printk(KERN_ALERT "h2c msgbuff close()");
-	    set_memory_wb((uint64_t) c2h_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+	    set_memory_wb((uint64_t) h2c_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
 	    dma_free_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_msgbuff_cpu_addr,  h2c_msgbuff_dma_handle);
 	    break;
 
 	case MINOR_C2H_MSGBUFF:
 	    printk(KERN_ALERT "c2h msgbuff close()");
-	    set_memory_wb((uint64_t) h2c_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+	    set_memory_wb((uint64_t) c2h_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
 	    dma_free_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_msgbuff_cpu_addr,  c2h_msgbuff_dma_handle);
 	    break;
     }
@@ -363,7 +412,7 @@ long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioc
     switch(ioctl_num) {
 	case IOCTL_DMA_DUMP:
 
-	    // dump_log();
+	    dump_log();
 	    // for (i = 0; i < 8; ++i) {
 	    // 	printk(KERN_ALERT "Chunk %d: ", i);
 	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
@@ -395,7 +444,7 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	    pr_alert("device register remap");
 
 	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + AXI_STREAM_AXIL) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
-	    // set_memory_wc((uint64_t) vma->vm_start, 1);
+	    // set_memory_wc((uint64_t) vma->vm_start, 16384 / PAGE_SIZE);
 
 	    if (ret != 0) {
 		goto exit;
@@ -409,10 +458,10 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	    pr_alert("cpu addr:%llx\n", (uint64_t) c2h_metadata_cpu_addr);
 	    pr_alert("dma handle:%llx\n", (uint64_t) c2h_metadata_dma_handle);
 
-	    set_memory_uc((uint64_t) c2h_metadata_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+	    set_memory_uc((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
 	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
-	    ret = dma_mmap_coherent(&(pdev->dev), vma, c2h_metadata_cpu_addr, c2h_metadata_dma_handle, HOMA_MAX_MESSAGE_LENGTH);
+	    ret = dma_mmap_coherent(&(pdev->dev), vma, c2h_metadata_cpu_addr, c2h_metadata_dma_handle, 16384);
 
 	    if (ret < 0) {
 		pr_err("c2h metadata dma_mmap_coherent failed\n");
