@@ -128,7 +128,7 @@ ap_uint<MSGHDR_SEND_SIZE> sendmsg_A_to_B(ap_uint<32> size, ap_uint<64> id) {
     sendmsg_req.data(MSGHDR_BUFF_SIZE) = size;
     sendmsg_req.data(MSGHDR_RETURN)    = rand() % 256;
     sendmsg_req.data(MSGHDR_SEND_ID)   = id;
-    sendmsg_req.data(MSGHDR_SEND_CC)   = 99;
+    sendmsg_req.data(MSGHDR_SEND_CC)   = 0;
 
     *((ap_uint<MSGHDR_SEND_SIZE>*) (A_c2h_metadata + (sendmsg_req.data(MSGHDR_RETURN) * 64))) = 0;
 
@@ -144,13 +144,12 @@ ap_uint<MSGHDR_SEND_SIZE> sendmsg_A_to_B(ap_uint<32> size, ap_uint<64> id) {
 
     std::cerr << "SENDMSG COMPLETE ID: " << id << " ret " << sendmsg_req.data(MSGHDR_RETURN) << std::endl;
 
-
     print_msghdr((struct c_msghdr_send_t *) &sendmsg_resp);
 
     return sendmsg_resp;
 }
 
-ap_uint<MSGHDR_SEND_SIZE> sendmsg_B_to_A(ap_uint<32> size, ap_uint<64> id) {
+ap_uint<MSGHDR_SEND_SIZE> sendmsg_B_to_A(ap_uint<32> size, ap_uint<64> local_id, ap_uint<64> id) {
     msghdr_send_t sendmsg_req;
 
     sendmsg_req.data(MSGHDR_SADDR)     = B_saddr;
@@ -160,8 +159,8 @@ ap_uint<MSGHDR_SEND_SIZE> sendmsg_B_to_A(ap_uint<32> size, ap_uint<64> id) {
     sendmsg_req.data(MSGHDR_BUFF_ADDR) = 0;
     sendmsg_req.data(MSGHDR_BUFF_SIZE) = size;
     sendmsg_req.data(MSGHDR_RETURN)    = rand() % 256;
-    sendmsg_req.data(MSGHDR_SEND_ID)   = id;
-    sendmsg_req.data(MSGHDR_SEND_CC)   = 99;
+    sendmsg_req.data(MSGHDR_SEND_ID)   = local_id;
+    sendmsg_req.data(MSGHDR_SEND_CC)   = id;
 
     *((ap_uint<MSGHDR_SEND_SIZE>*) (B_c2h_metadata + (sendmsg_req.data(MSGHDR_RETURN) * 64))) = 0;
 
@@ -324,16 +323,17 @@ void random_rpc() {
 
     ap_uint<MSGHDR_SEND_SIZE> send = sendmsg_A_to_B(size, 0); // Request
 
-    std::cerr << "SENDMSG ID " << send(MSGHDR_SEND_ID) << std::endl;
+    std::cerr << "SENDMSG A to B ID " << send(MSGHDR_SEND_ID) << std::endl;
 
     // TODO should be a REQUEST flag?
     ap_uint<MSGHDR_RECV_SIZE> recv = recvmsg_A_to_B(0); // Receipt
 
     while (memcmp(A_h2c_msgbuff, B_c2h_msgbuff, size) != 0) process();
 
-    std::cerr << "RECVMSG ID " << recv(MSGHDR_RECV_ID) << std::endl;
+    std::cerr << "RECVMSG LOCAL ID   " << recv(MSGHDR_RECV_ID) << std::endl;
+    std::cerr << "RECVMSG NETWORK ID " << recv(MSGHDR_RECV_CC) << std::endl;
 
-    send = sendmsg_B_to_A(size, recv(MSGHDR_RECV_ID));
+    send = sendmsg_B_to_A(size, recv(MSGHDR_RECV_ID), recv(MSGHDR_RECV_CC));
 
     std::cerr << "SENDMSG ID " << send(MSGHDR_SEND_ID) << std::endl;
 
@@ -396,7 +396,7 @@ int main(int argc, char **argv) {
     // random_rpc();
 
     for (int i = 0; i < 10; ++i) random_rpc();
-    dump_log();
+    // dump_log();
 
     free(A_h2c_msgbuff);
     free(A_c2h_msgbuff);

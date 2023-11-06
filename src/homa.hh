@@ -118,8 +118,10 @@ typedef ap_uint<8> homa_packet_type_t;
 #define MAX_PEERS            16384 // The number of distinct peers the home core can track
 #define MAX_PEERS_LOG2       14    // An index into the set of peers (leaving room for +1 adjustment)
 
-#define HASHTABLE_SIZE      16384 // Size of cuckoo hash sub-tables
-#define HASHTABLE_INDEX     14    // Index into sub-table entries
+#define HASHTABLE_SIZE      16384/2 // Size of cuckoo hash sub-tables
+// #define HASHTABLE_SIZE      16384 // Size of cuckoo hash sub-tables
+// #define HASHTABLE_INDEX     14    // Index into sub-table entries
+#define HASHTABLE_INDEX     13    // Index into sub-table entries
 
 typedef ap_uint<MAX_PEERS_LOG2> peer_id_t;
 
@@ -134,7 +136,8 @@ struct peer_hashpack_t {
 /* RPC ID Configuration: There are 2^14
  */
 #define MAX_RPCS_LOG2       14    // Number of bits to express an RPC. TODO this changed
-#define MAX_RPCS            16384 // Maximum number of RPCs
+#define MAX_RPCS            16384/2 // Maximum number of RPCs
+// #define MAX_RPCS            16384 // Maximum number of RPCs
 #define MAX_PORTS           128   // Maximum number of ports
 // #define MAX_PORTS           16384 // Maximum number of ports
 
@@ -400,11 +403,11 @@ struct h2c_chunk_t {
  */
 #define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg) (128 bits)
 #define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg) (128 bits)
-#define MSGHDR_SPORT        271,256 // Port of sender (sendmsg) or receiver (recvmsg) (16 bits)
+#define MSGHDR_SPORT        271,256 // Port of sender (sendmsg) or receiver (recvmsg)    (16 bits)
 #define MSGHDR_DPORT        287,272 // Address of receiver (sendmsg) or sender (recvmsg) (16 bits)
-#define MSGHDR_BUFF_ADDR    319,288 // Message contents DMA offset (32 bits)
-#define MSGHDR_RETURN       331,320 // Offset in metadata space to place result (12 bits)
-#define MSGHDR_BUFF_SIZE    351,332 // Size of message in DMA space (20 bits)
+#define MSGHDR_BUFF_ADDR    319,288 // Message contents DMA offset                       (32 bits)
+#define MSGHDR_RETURN       331,320 // Offset in metadata space to place result          (12 bits)
+#define MSGHDR_BUFF_SIZE    351,332 // Size of message in DMA space                      (20 bits)
 
 /* Offsets within the sendmsg bitvector for the sendmsg specific information */
 #define MSGHDR_SEND_ID      447,384 // RPC identifier (64 bits)
@@ -441,6 +444,10 @@ typedef ap_axiu<MSGHDR_RECV_SIZE, 0, 0, 0> msghdr_recv_t;
 #define HOMA_RECVMSG_ALL           0x00
 #define HOMA_RECVMSG_REQUEST       0x01
 #define HOMA_RECVMSG_RESPONSE      0x02
+
+#define HOMA_REQUEST  0x00
+#define HOMA_RESPONSE 0x01
+
 // #define HOMA_RECVMSG_NONBLOCKING   0x04
 // #define HOMA_RECVMSG_VALID_FLAGS   0x07
 
@@ -478,12 +485,28 @@ struct homa_rpc_t {
     ap_uint<64>  id;         // RPC ID (always local)
     msg_addr_t   buff_addr;  // Message contents DMA offset
     ap_uint<32>  buff_size;  // Size of message in DMA space
-    // ap_uint<12>  retoff;     // Offset in metadata buff
     ap_uint<64>  cc;         // Completion Cookie
+
+    ap_uint<16>  type;       // Request/Response?
 
     local_id_t  local_id;    // Local RPC ID 
     dbuff_id_t  h2c_buff_id; // Data buffer ID for outgoing data
     peer_id_t   peer_id;     // Local ID for this destination address
+
+    homa_rpc_t() = default;
+
+    homa_rpc_t (ap_uint<MSGHDR_SEND_SIZE> & sendmsg) {
+	this->daddr     = sendmsg(MSGHDR_DADDR);
+	this->saddr     = sendmsg(MSGHDR_SADDR);
+	this->dport     = sendmsg(MSGHDR_DPORT);
+	this->sport     = sendmsg(MSGHDR_SPORT);
+	this->buff_addr = sendmsg(MSGHDR_BUFF_ADDR);
+	this->buff_size = sendmsg(MSGHDR_BUFF_SIZE);
+	// this->cc        = sendmsg(MSGHDR_SEND_CC);
+	this->local_id  = sendmsg(MSGHDR_SEND_ID);
+	// TODO temporary
+	this->id        = sendmsg(MSGHDR_SEND_CC);
+    }
 };
 
 

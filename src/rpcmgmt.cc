@@ -59,9 +59,6 @@ void rpc_state(
     static host_addr_t h2c_port_to_msgbuff[MAX_PORTS];  // Port -> large h2c buffer space
     static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
 
-    /* Port to metadata mapping DMA */
-    // static host_addr_t c2h_port_to_metadata[MAX_PORTS]; // Port -> metadata buffer
-
     // TODO is this potentially risky with OOO small packets
     // Can maybe do a small sort of rebuffering if needed?
 #pragma HLS dependence variable=send_rpcs inter WAR false
@@ -90,39 +87,35 @@ void rpc_state(
 	c2h_port_to_metadata[new_c2h_port_to_metadata(PORT_TO_PHYS_PORT)] = new_c2h_port_to_metadata(PORT_TO_PHYS_ADDR);
     }
 
-
     msghdr_send_t msghdr_send;
     dbuff_id_t dbuff_id;
     if (sendmsg_i.read_nb(msghdr_send)) {
-	homa_rpc_t rpc;
-	rpc.id = 0;
-	rpc.daddr     = msghdr_send.data(MSGHDR_DADDR);
-	rpc.saddr     = msghdr_send.data(MSGHDR_SADDR);
-	rpc.dport     = msghdr_send.data(MSGHDR_DPORT);
-	rpc.sport     = msghdr_send.data(MSGHDR_SPORT);
-	// rpc.id        = msghdr_send.data(MSGHDR_SEND_ID);
-	rpc.buff_addr = msghdr_send.data(MSGHDR_BUFF_ADDR);
-	rpc.buff_size = msghdr_send.data(MSGHDR_BUFF_SIZE);
-	rpc.cc        = msghdr_send.data(MSGHDR_SEND_CC);
+	// Copy sendmsg data to a homa rpc structure
+	homa_rpc_t rpc(msghdr_send.data);
 
-	if (msghdr_send.data(MSGHDR_SEND_ID) == 0) {
-	    msghdr_send.data(MSGHDR_SEND_ID) = (2 * client_ids.pop());
-	    std::cerr << "Assigned ID " << msghdr_send.data(MSGHDR_SEND_ID) << std::endl;
-	    rpc.id                           = msghdr_send.data(MSGHDR_SEND_ID);
-	}
-
-	rpc.local_id =  msghdr_send.data(MSGHDR_SEND_ID);
-
-	if (rpc.id == 0) {
-	    rpc.id = recv_rpcs[rpc.local_id].id;
-	}
-
+	// Allocate space in the data buffer for this RPC h2c data
 	rpc.h2c_buff_id = msg_cache_ids.pop();
 
-	send_rpcs[rpc.local_id]   = rpc;
-	h2c_rpc_to_offset[rpc.local_id] = (rpc.buff_addr << 1) | 1;
+	// Is this a request or a response
+	if (rpc.local_id == 0) { 
+	    local_id_t new_client = (2 * client_ids.pop());
+
+	    std::cerr << "NEW CLIENT: " << new_client << std::endl;
+
+	    // The network ID and local ID will be the same
+	    rpc.local_id = new_client;
+	    rpc.id       = new_client;
+	}
+
+	msghdr_send.data(MSGHDR_SEND_ID) = rpc.id;
+
+	// Store the state associated with this data
+	send_rpcs[rpc.local_id] = rpc;
+
+	h2c_rpc_to_offset[rpc.local_id] = (rpc.buff_addr << 1) | 1; // TODO can this get removed?
+
+	// TODO use get function from homa_rpc
 	
-	// TODO so much type shuffling here.... 
     	srpt_queue_entry_t srpt_data_in = 0;
 	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = rpc.local_id;
 	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
@@ -209,14 +202,14 @@ void rpc_state(
 
     srpt_queue_entry_t dma_fetch;
     if (dma_r_req_i.read_nb(dma_fetch)) {
-	local_id_t id = dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID);
-	homa_rpc_t homa_rpc = send_rpcs[id];
+	local_id_t local_id = dma_fetch(SRPT_QUEUE_ENTRY_RPC_ID);
+	homa_rpc_t homa_rpc = send_rpcs[local_id];
 
 	// TODO avoid BRAM read dependent on read
 
 	// Get the physical address of this ports entire buffer
 
-	msg_addr_t msg_addr   = h2c_rpc_to_offset[id];
+	msg_addr_t msg_addr   = h2c_rpc_to_offset[local_id];
 	host_addr_t phys_addr = h2c_port_to_msgbuff[homa_rpc.sport];
 
 	dma_r_req_t dma_r_req;
@@ -224,7 +217,13 @@ void rpc_state(
 	dma_r_req(DMA_R_REQ_MSG_LEN)          = homa_rpc.buff_size;
 
 	msg_addr >>= 1;
-	dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_REMAINING) + (phys_addr + msg_addr);
+	// dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_DBUFFERED) + (phys_addr + msg_addr);
+	dma_r_req(DMA_R_REQ_HOST_ADDR) = (homa_rpc.buff_size - dma_fetch(SRPT_QUEUE_ENTRY_REMAINING)) + (phys_addr + msg_addr);
+	// dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_DBUFFERED) + (phys_addr + msg_addr);
+	// std::cerr << "DMA DBUFFED   : " << dma_fetch(SRPT_QUEUE_ENTRY_DBUFFERED)  << std::endl;
+	// std::cerr << "DMA REMAINING : " << dma_fetch(SRPT_QUEUE_ENTRY_REMAINING)  << std::endl;
+
+	//  dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_REMAINING) + (phys_addr + msg_addr);
 
 	dma_r_req_o.write(dma_r_req);
     }

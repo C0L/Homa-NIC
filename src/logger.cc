@@ -14,7 +14,7 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
 	    hls::stream<ap_uint<8>> & c2h_pkt_log_i,
 	    hls::stream<ap_uint<8>> & dbuff_notif_log_i,
 	    hls::stream<ap_uint<512>> & log_control_i,
-	    hls::stream<log_entry_t> & log_out_o) {
+	    hls::stream<log_entry_t>  & log_out_o) {
 
     static ap_uint<512> log_state = LOG_RECORD;
 
@@ -83,7 +83,7 @@ void logger(hls::stream<ap_uint<8>> & dma_w_req_log_i,
 	add_entry = true;
     }
 
-    new_entry.data(127, 100) = count;
+    new_entry.data(511, 479) = count;
 
     if (add_entry) {
 	circular_log[write_head++] = new_entry;

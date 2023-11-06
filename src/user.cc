@@ -32,7 +32,6 @@ void c2h_metadata(
 #pragma HLS dependence variable=complete_head inter RAW false
 #pragma HLS dependence variable=pending_head inter WAR false
 #pragma HLS dependence variable=pending_head inter RAW false
-// #pragma HLS bind_storage variable=c2h_port_to_metadata type=RAM_1WNR
 
     static ap_uint<MSGHDR_RECV_SIZE> search_complete      = 0;
     static ap_uint<MSGHDR_RECV_SIZE> search_pending       = 0;
@@ -82,6 +81,7 @@ void c2h_metadata(
 		ap_uint<MSGHDR_RECV_SIZE> msghdr_resp;
     		msghdr_resp = search_result_msghdr;
     		msghdr_resp(MSGHDR_RECV_ID) = search_complete(MSGHDR_RECV_ID);
+    		msghdr_resp(MSGHDR_RECV_CC) = search_complete(MSGHDR_RECV_CC);
 
 		// std::cerr << "c2h complete port to meta " << c2h_port_to_metadata[search_result_msghdr(MSGHDR_DPORT)] << std::endl;
 		// std::cerr << "c2h complete msg return " << search_result_msghdr(MSGHDR_RETURN) * 64 << std::endl;
@@ -162,8 +162,9 @@ void c2h_metadata(
 	search_complete(MSGHDR_BUFF_ADDR)  = complete.host_addr;
 	search_complete(MSGHDR_RETURN)     = complete.host_addr;
 	search_complete(MSGHDR_BUFF_SIZE)  = complete.message_length;
-	search_complete(MSGHDR_RECV_ID)    = complete.local_id; 
-	search_complete(MSGHDR_RECV_CC)    = complete.completion_cookie;
+	search_complete(MSGHDR_RECV_ID)    = complete.local_id;
+	std::cerr << "COMPLETE MESSAGE ID " <<  complete.id << std::endl;
+	search_complete(MSGHDR_RECV_CC)    = complete.id;
 	search_complete(MSGHDR_RECV_FLAGS) = (IS_CLIENT(complete.local_id)) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
     } else if (msghdr_recv_i.read_nb(pending)) {
 	search_pending = pending.data;

@@ -23,9 +23,7 @@ struct cam_t {
     }
 
     V search(K key) {
-#pragma HLS dependence variable=buffer inter false
-
-#pragma HLS pipeline II=1
+// #pragma HLS dependence variable=buffer inter false
 #pragma HLS array_partition variable=buffer type=complete
 
 	for (int i = 0; i < MAX_SIZE; ++i) {
@@ -39,9 +37,9 @@ struct cam_t {
     }
 
     void insert(entry_t<K,V> entry) {
-#pragma HLS dependence variable=buffer inter false
+// #pragma HLS dependence variable=buffer inter false
 
-#pragma HLS pipeline II=1
+// #pragma HLS pipeline II=1
 #pragma HLS array_partition variable=buffer type=complete
 	buffer[write_head++] = entry;
     }
@@ -97,16 +95,14 @@ struct hashmap_t {
 
 void c2h_header_hashmap(
     hls::stream<header_t> & c2h_header_i,
-    hls::stream<header_t> & c2h_header_o,
-    hls::stream<entry_t<rpc_hashpack_t, local_id_t>> & new_rpcmap_entry,
-    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry
+    hls::stream<header_t> & c2h_header_o
     );
 
-void c2h_header_cam(
-    hls::stream<header_t> & c2h_header_i,
-    hls::stream<header_t> & c2h_header_o,
-    hls::stream<entry_t<rpc_hashpack_t, local_id_t>> & new_rpcmap_entry,
-    hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry
-    );
+// void c2h_header_cam(
+//     hls::stream<header_t> & c2h_header_i,
+//     hls::stream<header_t> & c2h_header_o,
+//     hls::stream<entry_t<rpc_hashpack_t, local_id_t>> & new_rpcmap_entry,
+//     hls::stream<entry_t<peer_hashpack_t, peer_id_t>> & new_peermap_entry
+//     );
 
 #endif

@@ -62,6 +62,9 @@ SRC_C =                       \
     $(C_SRC_DIR)/dma.hh \
     $(C_SRC_DIR)/logger.cc \
     $(C_SRC_DIR)/logger.hh \
+    # $(C_SRC_DIR)/cosim_shim_tester.cc \
+    # $(C_SRC_DIR)/cosim_shims.hh \
+    # $(C_SRC_DIR)/cosim_shims.cc
 
 PART = xcu250-figd2104-2L-e
 
@@ -150,14 +153,12 @@ COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)"
 #		$(C_TB_DIR)/single_message_tester.cc \
 #		"RTT_BYTES=5000" \
 
-# export DISPLAY=:1
-
-#srpt_fetch_cosim_shim:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(COSIM_FLAGS) $(V_SRC_DIR)/srpt_fetch_queue.json \
-#		$(C_TB_DIR)/cosim_shim_tester.cc \
-#		fetch_shim \
-#		"RTT_BYTES=5000"
+srpt_fetch_cosim_shim:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(COSIM_FLAGS) $(V_SRC_DIR)/srpt_fetch_queue.json \
+		$(C_TB_DIR)/cosim_shim_tester.cc \
+		fetch_shim \
+		"RTT_BYTES=5000"
 
 ############ Verilog Synthesis ############ 
 

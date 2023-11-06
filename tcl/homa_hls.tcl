@@ -45,7 +45,7 @@ if {$job_type == 0} {
 } elseif {$job_type == 1} {
     add_files $c_src -cflags "-DSYNTH $homa_cfg"
     add_files -blackbox $json_src
-    config_dataflow -start_fifo_depth 3 
+    # config_dataflow -start_fifo_depth 3 
     csynth_design
     export_design -output ip/ -format ip_catalog
 } elseif {$job_type == 2} {

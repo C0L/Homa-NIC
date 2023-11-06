@@ -7,12 +7,12 @@ int main () {
 
     fetch_shim(sendmsg_i, cache_req_o);
 
-    srpt_queue_entry_t new_fetch;
-    new_fetch(SRPT_QUEUE_ENTRY_RPC_ID) = 1;
-    new_fetch(SRPT_QUEUE_ENTRY_DBUFF_ID) = 1;
+    srpt_queue_entry_t new_fetch = 0;
+    new_fetch(SRPT_QUEUE_ENTRY_RPC_ID)    = 1;
+    new_fetch(SRPT_QUEUE_ENTRY_DBUFF_ID)  = 1;
     new_fetch(SRPT_QUEUE_ENTRY_REMAINING) = 512;
     new_fetch(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
-    new_fetch(SRPT_QUEUE_ENTRY_GRANTED) = 0;
+    new_fetch(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
     new_fetch(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_ACTIVE;
 
     sendmsg_i.write(new_fetch);

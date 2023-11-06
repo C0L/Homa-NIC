@@ -71,8 +71,11 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
       fetch_out_data_o     = 0;
       
       if (fetch_in_empty_i) begin
-	 fetch_in_read_en_o = 1;
-	 fetchq_insert      = fetch_in_data_i;
+	 fetch_in_read_en_o   = 1;
+	 fetchq_insert        = fetch_in_data_i;
+      end else if (fetch_out_full_i && fetchq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
+	 fetch_out_data_o     = fetchq_head;
+	 fetch_out_write_en_o = 1;
       end
 
       prioritize_fetchq(fetchq_swpo[0], fetchq_swpo[1], fetchq_insert, fetchq[0]);
@@ -87,11 +90,7 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
 	 prioritize_fetchq(fetchq_swpe[entry-1], fetchq_swpe[entry], fetchq[entry-1], fetchq[entry]);
       end
 
-      if (fetch_out_full_i && fetchq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-	 fetch_out_write_en_o = 1;
-	 fetch_out_data_o     = fetchq_head;
-      end
-   end
+    end
 
    integer rst_entry;
 
@@ -109,7 +108,6 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
 	       fetchq[entry] <= fetchq_swpo[entry];
 	    end 
 	 end else if (fetch_out_full_i && fetchq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-	    $display("Active entry out");
 	    // Did we just request the last block for this message
 	    if (fetchq_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE) begin
 	       $display("Active entry out");
@@ -216,12 +214,15 @@ module srpt_fetch_queue_tb();
 	 $display("get_output()");
 	 // TODO should also make sure the writer is ready
 	 fetch_out_full_i = 1;
-	 
-	 #5;
-	 fetch_out_full_i = 0;
+
+	 wait(fetch_out_write_en_o == 1);
 	 
 	 $display("queue output: RPC ID: %d, DBUFF ID: %d, REMAINING: %d, DBUFFERED: %d, GRANTED: %d, PRIORITY: %d", fetch_out_data_o[`QUEUE_ENTRY_RPC_ID], fetch_out_data_o[`QUEUE_ENTRY_DBUFF_ID], fetch_out_data_o[`QUEUE_ENTRY_REMAINING], fetch_out_data_o[`QUEUE_ENTRY_DBUFFERED], fetch_out_data_o[`QUEUE_ENTRY_GRANTED], fetch_out_data_o[`QUEUE_ENTRY_PRIORITY]);
-	 wait(fetch_out_write_en_o == 1);
+	 
+	 #5;
+
+	 fetch_out_full_i = 0;
+
       end
    endtask // get_pkt
 
@@ -273,8 +274,9 @@ module srpt_fetch_queue_tb();
 
       sendmsg(7, 7, 0, 0, 512);
 
-      // #30;
+      #30;
 
+      // TODO this seems to fail on the first output?
       get_output();
       get_output();
       get_output();

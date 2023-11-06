@@ -267,18 +267,16 @@ void homa(
     hls_thread_local hls::task c2h_header_hashmap_task(
 	c2h_header_hashmap,
 	header_in__chunk_ingress__rpc_state,
-	header_in__hashmap__cam,
-	new_rpcmap_entry, 
-	new_peermap_entry
+	header_in__cam__rpc_state
     );
 
-     hls_thread_local hls::task c2h_header_cam_task(
-     	c2h_header_cam,
-     	header_in__hashmap__cam,
-     	header_in__cam__rpc_state,
-     	new_rpcmap_entry,
-     	new_peermap_entry
-     );
+    // hls_thread_local hls::task c2h_header_cam_task(
+    // 	c2h_header_cam,
+    // 	header_in__hashmap__cam,
+    // 	header_in__cam__rpc_state,
+    // 	new_rpcmap_entry,
+    // 	new_peermap_entry
+    // );
 
     hls_thread_local hls::task homa_logger(
     	logger,
