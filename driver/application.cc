@@ -57,6 +57,12 @@ char * axi_stream_regs;
 char * axi_stream_write;
 char * axi_stream_read;
 
+inline uint64_t tt_rdtsc(void) {
+	uint32_t lo, hi;
+	__asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
+	return (((uint64_t)hi << 32) | lo);
+}
+
 inline void iomov64B(__m256i * dst, __m256i * src) {
     __m256i ymm0;
     __m256i ymm1; 
@@ -64,15 +70,12 @@ inline void iomov64B(__m256i * dst, __m256i * src) {
     ymm0 = _mm256_stream_load_si256(src);
     ymm1 = _mm256_stream_load_si256(src+1);
 
+    tt(tt_rdtsc(), "64B write", 0, 0, 0, 0);
+
     _mm256_store_si256(dst, ymm0);
     _mm256_store_si256(dst+1, ymm1);
-    _mm_mfence();
-}
-
-inline uint64_t tt_rdtsc(void) {
-	uint32_t lo, hi;
-	__asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
-	return (((uint64_t)hi << 32) | lo);
+    // TODO maybe uneeded?
+    // _mm_mfence();
 }
 
 void ipv6_to_str(char * str, char * addr) {
@@ -87,17 +90,14 @@ void ipv6_to_str(char * str, char * addr) {
                  (int)addr[14], (int)addr[15]);
 }
 
-void sendmsg(struct msghdr_send_t * msghdr_send_in) {
+inline void sendmsg(struct msghdr_send_t * msghdr_send_in) {
     int i;
     uint32_t rlr;
     uint32_t rdfo;
 
-    // uint32_t tdfv = *((uint32_t*) (axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 
-    // *((volatile uint32_t*) c2h_metadata_map) = *((volatile uint32_t*) (axi_stream_regs + AXI_STREAM_FIFO_TDFV));
-
-    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
     iomov64B(reinterpret_cast<__m256i*>(axi_stream_write), reinterpret_cast<__m256i*>(msghdr_send_in));
+    tt(tt_rdtsc(), "TLR", 0, 0, 0, 0);
     *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
 }
 
@@ -186,8 +186,9 @@ int main() {
     // struct msghdr_send_t msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
     // print_msghdr(&msghdr_send_out);
 
+    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
 
-    volatile char * poll = ((char *) c2h_metadata_map) + (retoff * 64);
+    volatile char * poll = ((volatile char *) c2h_metadata_map) + (retoff * 64);
 
     char thread_name[50];
     snprintf(thread_name, sizeof(thread_name), "main");
@@ -196,9 +197,9 @@ int main() {
     for (int i = 0; i < 10; i++) {
 	tt(tt_rdtsc(), "sendmsg start", 0, 0, 0, 0);
 	sendmsg(&msghdr_send_in);
-	while(*poll == 0);
-	// while (*((uint32_t *) c2h_metadata_map) == 0);
 	tt(tt_rdtsc(), "sendmsg end", 0, 0, 0, 0);
+	while(*poll == 0) _mm_clflush((void*) poll);
+	tt(tt_rdtsc(), "sendmsg response", 0, 0, 0, 0);
 	// printf("FIFO DEPTH %d\n", *((uint32_t *) c2h_metadata_map));
 	// *((uint32_t *) c2h_metadata_map) = 0;
 	*poll = 0;
