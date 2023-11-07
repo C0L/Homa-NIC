@@ -410,14 +410,14 @@ struct h2c_chunk_t {
 #define MSGHDR_BUFF_SIZE    351,332 // Size of message in DMA space                      (20 bits)
 
 /* Offsets within the sendmsg bitvector for the sendmsg specific information */
-#define MSGHDR_SEND_ID      447,384 // RPC identifier (64 bits)
-#define MSGHDR_SEND_CC      511,448 // Completion Cookie (64 bits)
-#define MSGHDR_SEND_SIZE    512     // Rounded to nearest 32 bits
+#define MSGHDR_SEND_ID      447,384 // RPC identifier                                    (64 bits)
+#define MSGHDR_SEND_CC      511,448 // Completion Cookie                                 (64 bits)
+#define MSGHDR_SEND_SIZE    512     // Rounded to nearest                                (32 bits)
 
 /* Offsets within the recvmsg bitvector for the recvmsg specific information */
-#define MSGHDR_RECV_FLAGS   383,352 // Interest list
-#define MSGHDR_RECV_ID      447,384 // RPC identifier
-#define MSGHDR_RECV_CC      511,448 // Completion Cookie
+#define MSGHDR_RECV_FLAGS   383,352 // Interest list                                     (32 bits)
+#define MSGHDR_RECV_ID      447,384 // RPC identifier                                    (64 bits)
+#define MSGHDR_RECV_CC      511,448 // Completion Cookie				 (32 bits)
 #define MSGHDR_RECV_SIZE    512     // Rounded to nearest 32 bits
 
 /**

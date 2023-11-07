@@ -232,7 +232,7 @@ proc create_root_design { parentCell } {
     CONFIG.C_USE_RX_CUT_THROUGH {false} \
     CONFIG.C_USE_RX_DATA {1} \
     CONFIG.C_USE_TX_CTRL {0} \
-    CONFIG.C_USE_TX_CUT_THROUGH {0} \
+    CONFIG.C_USE_TX_CUT_THROUGH {1} \
   ] $protocol_conf
 
 
@@ -400,6 +400,11 @@ proc create_root_design { parentCell } {
   set_property CONFIG.C_SLOT_0_AXI_PROTOCOL {AXI4S} $stream_out_ila1
 
 
+  # Create instance: stream_out_ila2, and set properties
+  set stream_out_ila2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:ila:6.2 stream_out_ila2 ]
+  set_property CONFIG.C_SLOT_0_AXI_PROTOCOL {AXI4S} $stream_out_ila2
+
+
   # Create instance: homa, and set properties
   set homa [ create_bd_cell -type ip -vlnv xilinx.com:hls:homa:1.0 homa ]
 
@@ -417,6 +422,7 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets axi_datamover_0_M_AXI] [get_bd_i
   connect_bd_intf_net -intf_net axi_interconnect_3_M01_AXI [get_bd_intf_pins protocol_conf/S_AXI_FULL] [get_bd_intf_pins axi_interconnect_3/M01_AXI]
 connect_bd_intf_net -intf_net [get_bd_intf_nets axi_interconnect_3_M01_AXI] [get_bd_intf_pins protocol_conf/S_AXI_FULL] [get_bd_intf_pins stream_in_ila/SLOT_0_AXI]
   connect_bd_intf_net -intf_net axis_interconnect_0_M00_AXIS [get_bd_intf_pins axis_interconnect_0/M00_AXIS] [get_bd_intf_pins homa/sendmsg_i]
+connect_bd_intf_net -intf_net [get_bd_intf_nets axis_interconnect_0_M00_AXIS] [get_bd_intf_pins axis_interconnect_0/M00_AXIS] [get_bd_intf_pins stream_out_ila2/SLOT_0_AXIS]
   connect_bd_intf_net -intf_net axis_interconnect_0_M01_AXIS [get_bd_intf_pins axis_interconnect_0/M01_AXIS] [get_bd_intf_pins homa/recvmsg_i]
   connect_bd_intf_net -intf_net axis_interconnect_0_M02_AXIS [get_bd_intf_pins axis_interconnect_0/M02_AXIS] [get_bd_intf_pins homa/h2c_port_to_msgbuff_i]
 connect_bd_intf_net -intf_net [get_bd_intf_nets axis_interconnect_0_M02_AXIS] [get_bd_intf_pins axis_interconnect_0/M02_AXIS] [get_bd_intf_pins stream_out_ila1/SLOT_0_AXIS]
@@ -440,7 +446,7 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets protocol_conf_AXI_STR_TXD] [get_
 
   # Create port connections
   connect_bd_net -net ARESETN_1 [get_bd_pins proc_sys_reset_0/interconnect_aresetn] [get_bd_pins axi_interconnect_3/ARESETN] [get_bd_pins axis_interconnect_0/ARESETN]
-  connect_bd_net -net mainClk_clk_out1 [get_bd_pins mainClk/clk_out1] [get_bd_pins axi_clock_converter_0/m_axi_aclk] [get_bd_pins axi_clock_converter_1/s_axi_aclk] [get_bd_pins protocol_conf/s_axi_aclk] [get_bd_pins axi_datamover_0/m_axi_mm2s_aclk] [get_bd_pins axi_datamover_0/m_axis_mm2s_cmdsts_aclk] [get_bd_pins axi_datamover_0/m_axi_s2mm_aclk] [get_bd_pins axi_datamover_0/m_axis_s2mm_cmdsts_awclk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins axi_interconnect_3/ACLK] [get_bd_pins axi_interconnect_3/M01_ACLK] [get_bd_pins axi_interconnect_3/M00_ACLK] [get_bd_pins axi_interconnect_3/S00_ACLK] [get_bd_pins ila_1/clk] [get_bd_pins ila_0/clk] [get_bd_pins ila_3/clk] [get_bd_pins ila_4/clk] [get_bd_pins axis_interconnect_0/ACLK] [get_bd_pins axis_interconnect_0/S00_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M00_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M01_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M02_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M03_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M04_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M05_AXIS_ACLK] [get_bd_pins stream_in_ila/clk] [get_bd_pins stream_out_ila/clk] [get_bd_pins stream_out_ila1/clk] [get_bd_pins homa/ap_clk]
+  connect_bd_net -net mainClk_clk_out1 [get_bd_pins mainClk/clk_out1] [get_bd_pins axi_clock_converter_0/m_axi_aclk] [get_bd_pins axi_clock_converter_1/s_axi_aclk] [get_bd_pins protocol_conf/s_axi_aclk] [get_bd_pins axi_datamover_0/m_axi_mm2s_aclk] [get_bd_pins axi_datamover_0/m_axis_mm2s_cmdsts_aclk] [get_bd_pins axi_datamover_0/m_axi_s2mm_aclk] [get_bd_pins axi_datamover_0/m_axis_s2mm_cmdsts_awclk] [get_bd_pins proc_sys_reset_0/slowest_sync_clk] [get_bd_pins axi_interconnect_3/ACLK] [get_bd_pins axi_interconnect_3/M01_ACLK] [get_bd_pins axi_interconnect_3/M00_ACLK] [get_bd_pins axi_interconnect_3/S00_ACLK] [get_bd_pins ila_1/clk] [get_bd_pins ila_0/clk] [get_bd_pins ila_3/clk] [get_bd_pins ila_4/clk] [get_bd_pins axis_interconnect_0/ACLK] [get_bd_pins axis_interconnect_0/S00_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M00_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M01_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M02_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M03_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M04_AXIS_ACLK] [get_bd_pins axis_interconnect_0/M05_AXIS_ACLK] [get_bd_pins stream_in_ila/clk] [get_bd_pins stream_out_ila/clk] [get_bd_pins stream_out_ila1/clk] [get_bd_pins stream_out_ila2/clk] [get_bd_pins homa/ap_clk]
   connect_bd_net -net mainClk_locked [get_bd_pins mainClk/locked] [get_bd_pins proc_sys_reset_0/dcm_locked]
   connect_bd_net -net pcie_perstn_1 [get_bd_ports pcie_perstn] [get_bd_pins xdma_0/sys_rst_n]
   connect_bd_net -net proc_sys_reset_0_peripheral_aresetn [get_bd_pins proc_sys_reset_0/peripheral_aresetn] [get_bd_pins protocol_conf/s_axi_aresetn] [get_bd_pins axi_datamover_0/m_axis_s2mm_cmdsts_aresetn] [get_bd_pins axi_datamover_0/m_axi_s2mm_aresetn] [get_bd_pins axi_datamover_0/m_axis_mm2s_cmdsts_aresetn] [get_bd_pins axi_datamover_0/m_axi_mm2s_aresetn] [get_bd_pins axi_clock_converter_1/s_axi_aresetn] [get_bd_pins axi_clock_converter_0/m_axi_aresetn] [get_bd_pins axi_interconnect_3/S00_ARESETN] [get_bd_pins axi_interconnect_3/M01_ARESETN] [get_bd_pins axi_interconnect_3/M00_ARESETN] [get_bd_pins axis_interconnect_0/M05_AXIS_ARESETN] [get_bd_pins axis_interconnect_0/M04_AXIS_ARESETN] [get_bd_pins axis_interconnect_0/M03_AXIS_ARESETN] [get_bd_pins axis_interconnect_0/M02_AXIS_ARESETN] [get_bd_pins axis_interconnect_0/M01_AXIS_ARESETN] [get_bd_pins axis_interconnect_0/M00_AXIS_ARESETN] [get_bd_pins axis_interconnect_0/S00_AXIS_ARESETN] [get_bd_pins homa/ap_rst_n]

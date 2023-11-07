@@ -59,8 +59,7 @@ void rpc_state(
     static host_addr_t h2c_port_to_msgbuff[MAX_PORTS];  // Port -> large h2c buffer space
     static msg_addr_t  h2c_rpc_to_offset[MAX_RPCS];     // RPC -> offset in that buffer space
 
-    // TODO is this potentially risky with OOO small packets
-    // Can maybe do a small sort of rebuffering if needed?
+    // TODO will need a small packet OOO buffer to mitigate pipeline hazards
 #pragma HLS dependence variable=send_rpcs inter WAR false
 #pragma HLS dependence variable=send_rpcs inter RAW false
 #pragma HLS dependence variable=recv_rpcs inter WAR false
@@ -115,38 +114,40 @@ void rpc_state(
 	h2c_rpc_to_offset[rpc.local_id] = (rpc.buff_addr << 1) | 1; // TODO can this get removed?
 
 	// TODO use get function from homa_rpc
-	
-    	srpt_queue_entry_t srpt_data_in = 0;
-	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = rpc.local_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
-	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = rpc.buff_size;
-	// TODO would be cleaner if we could just set this to RTT_BYTES
-	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)   = rpc.buff_size - ((((ap_uint<32>) RTT_BYTES) > rpc.buff_size)
-								    ? rpc.buff_size : ((ap_uint<32>) RTT_BYTES));
-	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
 
-	// Insert this entry into the SRPT data queue
-	data_queue_o.write(srpt_data_in);
-	
-	srpt_queue_entry_t srpt_fetch_in = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = rpc.local_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
-	
-	// Insert this entry into the SRPT fetch queue
-	fetch_queue_o.write(srpt_fetch_in);
+	if (rpc.buff_size != 0) {
+	    srpt_queue_entry_t srpt_data_in = 0;
+	    srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = rpc.local_id;
+	    srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
+	    srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
+	    srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = rpc.buff_size;
+	    // TODO would be cleaner if we could just set this to RTT_BYTES
+	    srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)   = rpc.buff_size - ((((ap_uint<32>) RTT_BYTES) > rpc.buff_size)
+									? rpc.buff_size : ((ap_uint<32>) RTT_BYTES));
+	    srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
 
+	    // Insert this entry into the SRPT data queue
+	    data_queue_o.write(srpt_data_in);
+	    
+	    srpt_queue_entry_t srpt_fetch_in = 0;
+	    srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = rpc.local_id;
+	    srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = rpc.h2c_buff_id;
+	    srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = rpc.buff_size;
+	    srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;
+	    srpt_fetch_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0;
+	    srpt_fetch_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
+	    
+	    // Insert this entry into the SRPT fetch queue
+	    fetch_queue_o.write(srpt_fetch_in);
+	}
+    	
 	/* Instruct the user that the sendmsg request is active */
 	dma_w_req_t msghdr_resp;
 	msghdr_resp.data   = msghdr_send.data;
 	msghdr_resp.offset = c2h_port_to_metadata[msghdr_send.data(MSGHDR_SPORT)] + (msghdr_send.data(MSGHDR_RETURN) * 64);
 	msghdr_resp.strobe = 64;
-
 	sendmsg_dma_o.write(msghdr_resp);
+
     } else if (free_dbuff_i.read_nb(dbuff_id)) {
 	msg_cache_ids.push(dbuff_id);
     }
@@ -194,9 +195,7 @@ void rpc_state(
 	msg_addr_t msg_addr   = c2h_rpc_to_offset[dma_w_req.rpc_id];
 
 	msg_addr >>= 1;
-
 	dma_w_req.offset += phys_addr + msg_addr;
-
 	dma_w_req_o.write(dma_w_req);
     }
 
@@ -210,20 +209,18 @@ void rpc_state(
 	// Get the physical address of this ports entire buffer
 
 	msg_addr_t msg_addr   = h2c_rpc_to_offset[local_id];
-	host_addr_t phys_addr = h2c_port_to_msgbuff[homa_rpc.sport];
+	// host_addr_t phys_addr = h2c_port_to_msgbuff[homa_rpc.sport];
 
+	host_addr_t phys_addr = h2c_port_to_msgbuff[homa_rpc.sport];
 	dma_r_req_t dma_r_req;
 	dma_r_req(SRPT_QUEUE_ENTRY_SIZE-1, 0) = dma_fetch;
 	dma_r_req(DMA_R_REQ_MSG_LEN)          = homa_rpc.buff_size;
 
 	msg_addr >>= 1;
-	// dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_DBUFFERED) + (phys_addr + msg_addr);
 	dma_r_req(DMA_R_REQ_HOST_ADDR) = (homa_rpc.buff_size - dma_fetch(SRPT_QUEUE_ENTRY_REMAINING)) + (phys_addr + msg_addr);
-	// dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_DBUFFERED) + (phys_addr + msg_addr);
-	// std::cerr << "DMA DBUFFED   : " << dma_fetch(SRPT_QUEUE_ENTRY_DBUFFERED)  << std::endl;
-	// std::cerr << "DMA REMAINING : " << dma_fetch(SRPT_QUEUE_ENTRY_REMAINING)  << std::endl;
 
-	//  dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_REMAINING) + (phys_addr + msg_addr);
+	// TODO this should work and be a better choice
+	// dma_r_req(DMA_R_REQ_HOST_ADDR) = dma_fetch(SRPT_QUEUE_ENTRY_DBUFFERED) + (phys_addr + msg_addr);
 
 	dma_r_req_o.write(dma_r_req);
     }
@@ -281,16 +278,15 @@ void rpc_state(
 
 	    // msg_addr_t msg_addr = ((c2h_buff_ids[c2h_header.sport] * HOMA_MAX_MESSAGE_LENGTH) << 1);
 	    msg_addr_t msg_addr = (c2h_buff_ids[c2h_header.sport]);
+	    // msg_addr_t msg_addr; // TODO
 	    c2h_rpc_to_offset[c2h_header.local_id] = msg_addr;
 	    c2h_buff_ids[c2h_header.sport]++;
 	}
 	
-	// TODO should log errors here for hash table misses
 	switch (c2h_header.type) {
 	    case DATA: {
 		if (c2h_header.message_length > c2h_header.incoming) {
 		    srpt_grant_new_t grant_in;
-
 
 		    grant_in(SRPT_GRANT_NEW_MSG_LEN) = c2h_header.message_length;
 		    grant_in(SRPT_GRANT_NEW_RPC_ID)  = c2h_header.local_id;
