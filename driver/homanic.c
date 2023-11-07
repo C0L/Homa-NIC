@@ -157,7 +157,7 @@ void iomov64B(__m256i * dst, __m256i * src) {
 
 
 void ipv6_to_str(char * str, char * s6_addr) {
-   sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\0",
+   sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
                  (int)s6_addr[0],  (int)s6_addr[1],
                  (int)s6_addr[2],  (int)s6_addr[3],
                  (int)s6_addr[4],  (int)s6_addr[5],
@@ -374,7 +374,7 @@ int homanic_close(struct inode * inode, struct file * file) {
 
 	case MINOR_C2H_METADATA:
 	    printk(KERN_ALERT "c2h metadata close()");
-	    set_memory_wb((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
+	    // set_memory_wb((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
 	    dma_free_coherent(&(pdev->dev), 16384, c2h_metadata_cpu_addr, c2h_metadata_dma_handle);
 	    break;
 
@@ -458,8 +458,8 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	    pr_alert("cpu addr:%llx\n", (uint64_t) c2h_metadata_cpu_addr);
 	    pr_alert("dma handle:%llx\n", (uint64_t) c2h_metadata_dma_handle);
 
-	    set_memory_uc((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
-	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	    // set_memory_uc((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
+	    // vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	    ret = dma_mmap_coherent(&(pdev->dev), vma, c2h_metadata_cpu_addr, c2h_metadata_dma_handle, 16384);
 
@@ -521,7 +521,8 @@ int homanic_init(void) {
     /* Enables DMA by setting the bus master bit in PCI_COMMAND register */
     pci_set_master(pdev);
 
-    pci_set_mwi(pdev);
+    // pcim_pin_device(pdev);
+    // pci_set_mwi(pdev);
 
     dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
 
