@@ -63,18 +63,10 @@ inline uint64_t tt_rdtsc(void) {
 	return (((uint64_t)hi << 32) | lo);
 }
 
-inline void iomov64B(__m256i * dst, __m256i * src) {
-    __m256i ymm0;
-    __m256i ymm1; 
-
-    ymm0 = _mm256_stream_load_si256(src);
-    ymm1 = _mm256_stream_load_si256(src+1);
-
-    tt(tt_rdtsc(), "64B write", 0, 0, 0, 0);
-
-    _mm256_store_si256(dst, ymm0);
-    _mm256_store_si256(dst+1, ymm1);
-    // TODO maybe uneeded?
+inline void iomov64B(__m512i * dst, __m512i * src) {
+    __m512i ymm0;
+    ymm0 = _mm512_stream_load_si512(src);
+    _mm512_store_si512(dst, ymm0);
     // _mm_mfence();
 }
 
@@ -91,20 +83,13 @@ void ipv6_to_str(char * str, char * addr) {
 }
 
 inline void sendmsg(struct msghdr_send_t * msghdr_send_in) {
-    int i;
-    uint32_t rlr;
-    uint32_t rdfo;
+    iomov64B(reinterpret_cast<__m512i*>(axi_stream_write), reinterpret_cast<__m512i*>(msghdr_send_in));
 
-
-    iomov64B(reinterpret_cast<__m256i*>(axi_stream_write), reinterpret_cast<__m256i*>(msghdr_send_in));
-    tt(tt_rdtsc(), "TLR", 0, 0, 0, 0);
-    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
+    // printf("read: %d\n", *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)));
 }
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
     printf("sendmsg content dump:\n");
-
-    mlockall(MCL_CURRENT | MCL_FUTURE);
 
     char saddr[64];
     char daddr[64];
@@ -141,13 +126,19 @@ int main() {
     	perror("mmap failed\n");
     }
 
-    axi_stream_regs  = h2c_metadata_map + AXIL_OFFSET;
-    axi_stream_write = h2c_metadata_map + AXIF_OFFSET;
-    axi_stream_read  = h2c_metadata_map + AXIF_OFFSET + 0x1000;
+    axi_stream_write = h2c_metadata_map;
+    // axi_stream_write = h2c_metadata_map + 64;
 
+    // axi_stream_regs  = h2c_metadata_map + AXIL_OFFSET;
+    // axi_stream_write = h2c_metadata_map + AXIF_OFFSET;
+    // axi_stream_read  = h2c_metadata_map + AXIF_OFFSET + 0x1000;
+
+    // *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
+
+
+
+    uint32_t retoff = 0; // Lte 12 bits used
     uint32_t size   = 0; // Lte 20 bits used
-    uint32_t retoff = 4;   // Lte 12 bits used
-
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
     msghdr_send_in.sport     = 0x1;
@@ -155,14 +146,87 @@ int main() {
     msghdr_send_in.buff_addr = 0;
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
-	
     msghdr_send_in.metadata  = (size << 12) | retoff;
 
-    char pattern[5] = "\xDE\xAD\xBE\xEF";
+    // sendmsg(&msghdr_send_in);
 
-    for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
-    memset((void *) c2h_msgbuff_map, 0, 512);
-    memset((void *) c2h_metadata_map, 0, 16384);
+    // return 0;
+
+    char thread_name[50];
+    snprintf(thread_name, sizeof(thread_name), "main");
+    time_trace::thread_buffer thread_buffer(thread_name);
+
+    volatile char * poll = ((volatile char *) c2h_metadata_map) + (retoff * 64);
+    *poll = 0;
+
+    for (int i = 0; i < 10; i++) {
+	tt(tt_rdtsc(), "sendmsg start", 0, 0, 0, 0);
+	sendmsg(&msghdr_send_in);
+	while(*poll == 0) _mm_clflush((void*) poll);
+	tt(tt_rdtsc(), "sendmsg response", 0, 0, 0, 0);
+	*poll = 0;
+    }
+
+    time_trace::print_to_file("tt_dump");
+
+    munmap(h2c_metadata_map, 16384);
+    munmap((char *) c2h_metadata_map, 16384);
+    munmap(h2c_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
+    munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
+
+    close(h2c_metadata_fd);
+    close(c2h_metadata_fd);
+    close(h2c_msgbuff_fd);
+    close(c2h_msgbuff_fd);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // struct msghdr_send_t msghdr_send_out = msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
+    // print_msghdr(&msghdr_send_out);
+
+    // ioctl(h2c_metadata_fd, 0, NULL);
+
+    // printf("C2H Message Contents Start\n");
+    // for (int i = 0; i < 4; ++i) {
+    // 	printf("Chunk %d: ", i);
+    // 	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
+    // 	printf("\n");
+    // }
+    // printf("C2H Message Contents End\n");
+
+    // munlockall();
+
+
+    //char pattern[5] = "\xDE\xAD\xBE\xEF";
+
+    //for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
+    //memset((void *) c2h_msgbuff_map, 0, 512);
+    //memset((void *) c2h_metadata_map, 0, 16384);
 
     //printf("H2C Message Content Start\n");
     //for (int i = 0; i < 4; ++i) {
@@ -185,53 +249,3 @@ int main() {
 
     // struct msghdr_send_t msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
     // print_msghdr(&msghdr_send_out);
-
-    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
-
-    volatile char * poll = ((volatile char *) c2h_metadata_map) + (retoff * 64);
-
-    char thread_name[50];
-    snprintf(thread_name, sizeof(thread_name), "main");
-    time_trace::thread_buffer thread_buffer(thread_name);
-
-    for (int i = 0; i < 10; i++) {
-	tt(tt_rdtsc(), "sendmsg start", 0, 0, 0, 0);
-	sendmsg(&msghdr_send_in);
-	tt(tt_rdtsc(), "sendmsg end", 0, 0, 0, 0);
-	while(*poll == 0) _mm_clflush((void*) poll);
-	tt(tt_rdtsc(), "sendmsg response", 0, 0, 0, 0);
-	// printf("FIFO DEPTH %d\n", *((uint32_t *) c2h_metadata_map));
-	// *((uint32_t *) c2h_metadata_map) = 0;
-	*poll = 0;
-	// memset(c2h_metadata_map, 0, 16384);
-    }
-
-    struct msghdr_send_t msghdr_send_out = msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
-
-    time_trace::print_to_file("tt_dump");
-
-    // printf("Completed Message Header\n");
-    print_msghdr(&msghdr_send_out);
-
-    ioctl(h2c_metadata_fd, 0, NULL);
-
-    printf("C2H Message Contents Start\n");
-    for (int i = 0; i < 4; ++i) {
-    	printf("Chunk %d: ", i);
-    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
-    	printf("\n");
-    }
-    printf("C2H Message Contents End\n");
-
-    munlockall();
-
-    munmap(h2c_metadata_map, 16384);
-    munmap((char *) c2h_metadata_map, 16384);
-    munmap(h2c_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
-    munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
-
-    close(h2c_metadata_fd);
-    close(c2h_metadata_fd);
-    close(h2c_msgbuff_fd);
-    close(c2h_msgbuff_fd);
-}

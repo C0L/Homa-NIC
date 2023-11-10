@@ -8,7 +8,7 @@ all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 app:
-	g++ -mavx2 -std=c++17 application.cc time_trace.cc test_utils.cc -o app
+	g++ -mavx2 -mavx512f -std=c++17 application.cc time_trace.cc test_utils.cc -o app
 
 clean: 
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean

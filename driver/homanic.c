@@ -60,9 +60,9 @@
 struct pci_dev * pdev;
 
 /* device registers for physical address map onboarding AXI-Stream FIFO */
-void __iomem * axi_stream_regs; 
-void __iomem * axi_stream_write;
-void __iomem * axi_stream_read;
+void __iomem * io_regs; 
+// void __iomem * axi_stream_write;
+// void __iomem * axi_stream_read;
 
 /* single user address for DMA and for CPU */
 // TODO eventually this should be an array indexed by port
@@ -140,8 +140,8 @@ void iomov64B(__m256i * dst, __m256i * src) {
     __m256i ymm0;
     __m256i ymm1;
 
-    /* AVX registers are not protected.
-     * Will corrupt user state without this?
+    /* avx registers are not protected.
+     * will corrupt user state without this?
      */
     kernel_fpu_begin();
 
@@ -168,13 +168,13 @@ void ipv6_to_str(char * str, char * s6_addr) {
                  (int)s6_addr[14], (int)s6_addr[15]);
 }
 
-void sendmsg(struct msghdr_send_t * msghdr_send_in) {
-    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
-
-    iomov64B(axi_stream_write, (void *) msghdr_send_in);
-
-    *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
-}
+// void sendmsg(struct msghdr_send_t * msghdr_send_in) {
+//     *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
+// 
+//     iomov64B(axi_stream_write, (void *) msghdr_send_in);
+// 
+//     // *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)) = 64;
+// }
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
     char saddr[64];
@@ -214,86 +214,86 @@ struct class * cls;
 int dev_major = 0;
 
 void dump_log() {
-    uint32_t rlr = 0;
-    uint32_t rdfo = 0;
-
-    iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
-
-    log_control.state = LOG_DRAIN;
-
-    iomov64B((void*) axi_stream_write, (void*) &log_control);
-
-    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
-
-    pr_alert("Dump Log\n");
-
-    rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
-    rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
-
-    while (rdfo != 0) {
-	iomov64B((void *) &log_entry, (void*) axi_stream_read);
-	
-	iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
-	iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
-
-	rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
-	rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
-
-	pr_alert("Log Entry: ");
-	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
-	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
-	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
-	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
-	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
-	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
-	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
-	pr_alert("  Duff Notif     - %02hhX", log_entry.dbuff_notif_log);
-	pr_alert("  Timer          - %u",     log_entry.timer);
-    }
-   
-    iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
-
-    log_control.state = LOG_RECORD;
-
-    iomov64B((void*) axi_stream_write, (void*) &log_control);
-
-    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+//     uint32_t rlr = 0;
+//     uint32_t rdfo = 0;
+// 
+//     // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+// 
+//     log_control.state = LOG_DRAIN;
+// 
+//     // iomov64B((void*) axi_stream_write, (void*) &log_control);
+// 
+//     // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+// 
+//     pr_alert("Dump Log\n");
+// 
+//     rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
+//     rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
+// 
+//     while (rdfo != 0) {
+// 	iomov64B((void *) &log_entry, (void*) axi_stream_read);
+// 	
+// 	iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
+// 	iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
+// 
+// 	rdfo = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RDFO);
+// 	rlr  = ioread32(axi_stream_regs + AXI_STREAM_FIFO_RLR);
+// 
+// 	pr_alert("Log Entry: ");
+// 	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
+// 	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
+// 	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
+// 	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
+// 	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
+// 	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
+// 	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
+// 	pr_alert("  Duff Notif     - %02hhX", log_entry.dbuff_notif_log);
+// 	pr_alert("  Timer          - %u",     log_entry.timer);
+//     }
+//    
+//     iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+// 
+//     log_control.state = LOG_RECORD;
+// 
+//     iomov64B((void*) axi_stream_write, (void*) &log_control);
+// 
+//     iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 }
 
 void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
-    iowrite32(C2H_P2META_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    // iowrite32(C2H_P2META_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
 
-    iomov64B((void*) axi_stream_write, (void*) port_to_phys);
+    iomov64B((void*) io_regs + 256, (void*) port_to_phys);
 
-    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    // printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 
-    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+    // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
-    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    // printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
 void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iowrite32(H2C_P2MSG_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    // iowrite32(H2C_P2MSG_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
 
-    iomov64B((void*) axi_stream_write, (void*) port_to_phys);
+    iomov64B((void*) io_regs + 128, (void*) port_to_phys);
 
-    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    // printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
     
-    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+    // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
-    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    // printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
 void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iowrite32(C2H_P2MSG_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+    // iowrite32(C2H_P2MSG_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
 
-    iomov64B((void*) axi_stream_write, (void*) port_to_phys);
+    iomov64B((void*) io_regs + 192, (void*) port_to_phys);
 
-    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    // printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 
-    iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+    // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 
-    printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
+    //printk(KERN_ALERT "FIFO DEPTH %d\n", ioread32(axi_stream_regs + AXI_STREAM_FIFO_TDFV));
 }
 
 int homanic_open(struct inode * inode, struct file * file) {
@@ -309,8 +309,8 @@ int homanic_open(struct inode * inode, struct file * file) {
 
     pr_alert("homanic_open");
 
-    pr_alert("axis address:%llx\n", (uint64_t) axi_stream_regs);
-    pr_alert("axis address:%llx\n", (uint64_t) axi_stream_write);
+    // pr_alert("axis address:%llx\n", (uint64_t) axi_stream_regs);
+    // pr_alert("axis address:%llx\n", (uint64_t) axi_stream_write);
 
     switch(iminor(file->f_inode)) {
 	case MINOR_H2C_METADATA:
@@ -443,7 +443,8 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	case MINOR_H2C_METADATA:
 	    pr_alert("device register remap");
 
-	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + AXI_STREAM_AXIL) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
+	    ret = remap_pfn_range(vma, vma->vm_start, BAR_0 >> PAGE_SHIFT, 16384, vma->vm_page_prot);
+	    // ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + AXI_STREAM_AXIL) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
 	    // set_memory_wc((uint64_t) vma->vm_start, 16384 / PAGE_SIZE);
 
 	    if (ret != 0) {
@@ -458,8 +459,8 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	    pr_alert("cpu addr:%llx\n", (uint64_t) c2h_metadata_cpu_addr);
 	    pr_alert("dma handle:%llx\n", (uint64_t) c2h_metadata_dma_handle);
 
-	    // set_memory_uc((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
-	    // vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	    set_memory_uc((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
+	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
 	    ret = dma_mmap_coherent(&(pdev->dev), vma, c2h_metadata_cpu_addr, c2h_metadata_dma_handle, 16384);
 
@@ -550,15 +551,16 @@ int homanic_init(void) {
     cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_H2C_MSGBUFF),  1);
     cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_C2H_MSGBUFF),  1);
 
-    axi_stream_regs  = ioremap_wc(BAR_0 + AXI_STREAM_AXIL, AXI_STREAM_FIFO_AXIL_SIZE);
-    axi_stream_write = ioremap_wc(BAR_0 + AXI_STREAM_AXIF, 64);
-    axi_stream_read  = ioremap_wc(BAR_0 + AXI_STREAM_AXIF + 0x1000, 64);
+    io_regs = ioremap_wc(BAR_0, 16384);
+    // axi_stream_regs  = ioremap_wc(BAR_0 + AXI_STREAM_AXIL, AXI_STREAM_FIFO_AXIL_SIZE);
+    //axi_stream_write = ioremap_wc(BAR_0 + AXI_STREAM_AXIF, 64);
+    //axi_stream_read  = ioremap_wc(BAR_0 + AXI_STREAM_AXIF + 0x1000, 64);
 
-    pr_alert("axis address:%llx\n", (uint64_t) axi_stream_regs);
-    pr_alert("axis address:%llx\n", (uint64_t) axi_stream_write);
+    //pr_alert("axis address:%llx\n", (uint64_t) axi_stream_regs);
+    //pr_alert("axis address:%llx\n", (uint64_t) axi_stream_write);
 
-    iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
-    iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
+    //iowrite32(0xffffffff, axi_stream_regs + AXI_STREAM_FIFO_ISR);
+    //iowrite32(0x0C000000, axi_stream_regs + AXI_STREAM_FIFO_IER);
 
     return 0;
 }
@@ -579,9 +581,11 @@ void homanic_exit(void) {
     cdev_del(&devs[MINOR_C2H_MSGBUFF].cdev);
     unregister_chrdev_region(MKDEV(dev_major, 0), MAX_MINOR);
 
-    iounmap(axi_stream_regs);
-    iounmap(axi_stream_read);
-    iounmap(axi_stream_write);
+
+    iounmap(io_regs);
+    // iounmap(axi_stream_regs);
+    // iounmap(axi_stream_read);
+    // iounmap(axi_stream_write);
 }
 
 module_init(homanic_init)
