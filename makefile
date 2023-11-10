@@ -37,6 +37,12 @@ SRC_JSON = \
         $(V_SRC_DIR)/srpt_data_queue.json \
         $(V_SRC_DIR)/srpt_fetch_queue.json
 
+CSRC_INF =                     \
+    $(C_SRC_DIR)/interface.cc  \
+    $(C_SRC_DIR)/interface.hh  \
+    $(C_SRC_DIR)/homa.hh       
+
+
 SRC_C =                       \
     $(C_SRC_DIR)/databuff.cc  \
     $(C_SRC_DIR)/databuff.hh  \
@@ -62,9 +68,6 @@ SRC_C =                       \
     $(C_SRC_DIR)/dma.hh \
     $(C_SRC_DIR)/logger.cc \
     $(C_SRC_DIR)/logger.hh \
-    # $(C_SRC_DIR)/cosim_shim_tester.cc \
-    # $(C_SRC_DIR)/cosim_shims.hh \
-    # $(C_SRC_DIR)/cosim_shims.cc
 
 PART = xcu250-figd2104-2L-e
 
@@ -74,20 +77,27 @@ COSIM = 2
 
 ############ Bitstream  Gen ############
 
-# homa: synth
 homa: 
 	$(VIVADO) -mode batch -source tcl/compile.tcl
 
 ############ Vitis C Synth ############
 
-CSYNTH_FLAGS = $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)"
+HOMA_SYNTH_FLAGS = $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)"
 
-synth:
+homa_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(CSYNTH_FLAGS) \
+		$(HOMA_SYNTH_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
 		homa \
 		"RTT_BYTES=5000"
+
+INF_SYNTH_FLAGS = $(PART) $(SYNTH) "$(CSRC_INF)" "null"
+
+inf_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(INF_SYNTH_FLAGS) \
+		$(C_TB_DIR)/interface.cc \
+		interface
 
 ############ Vitis C Simulation ############
 
