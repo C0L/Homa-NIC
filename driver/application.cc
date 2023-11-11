@@ -49,13 +49,11 @@ struct msghdr_send_t {
 struct msghdr_send_t msghdr_send_in __attribute__((aligned(64)));
 
 char * h2c_metadata_map;
-volatile char * c2h_metadata_map;
+char * c2h_metadata_map;
 char * h2c_msgbuff_map;
 char * c2h_msgbuff_map;
 
-char * axi_stream_regs; 
-char * axi_stream_write;
-char * axi_stream_read;
+volatile char * io_regs;
 
 inline uint64_t tt_rdtsc(void) {
 	uint32_t lo, hi;
@@ -65,9 +63,13 @@ inline uint64_t tt_rdtsc(void) {
 
 inline void iomov64B(__m512i * dst, __m512i * src) {
     __m512i ymm0;
-    ymm0 = _mm512_stream_load_si512(src);
+    ymm0 = _mm512_load_si512(src);
+    _mm_mfence();
+
+    // ymm0 = _mm512_stream_load_si512(src);
+    tt(tt_rdtsc(), "sendmsg start", 0, 0, 0, 0);
     _mm512_store_si512(dst, ymm0);
-    // _mm_mfence();
+
 }
 
 void ipv6_to_str(char * str, char * addr) {
@@ -82,11 +84,11 @@ void ipv6_to_str(char * str, char * addr) {
                  (int)addr[14], (int)addr[15]);
 }
 
-inline void sendmsg(struct msghdr_send_t * msghdr_send_in) {
-    iomov64B(reinterpret_cast<__m512i*>(axi_stream_write), reinterpret_cast<__m512i*>(msghdr_send_in));
-
-    // printf("read: %d\n", *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)));
-}
+// inline void sendmsg(struct msghdr_send_t * msghdr_send_in) {
+//     iomov64B(reinterpret_cast<__m512i*>(axi_stream_write), reinterpret_cast<__m512i*>(msghdr_send_in));
+// 
+//     // printf("read: %d\n", *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TLR)));
+// }
 
 void print_msghdr(struct msghdr_send_t * msghdr_send) {
     printf("sendmsg content dump:\n");
@@ -126,16 +128,7 @@ int main() {
     	perror("mmap failed\n");
     }
 
-    axi_stream_write = h2c_metadata_map;
-    // axi_stream_write = h2c_metadata_map + 64;
-
-    // axi_stream_regs  = h2c_metadata_map + AXIL_OFFSET;
-    // axi_stream_write = h2c_metadata_map + AXIF_OFFSET;
-    // axi_stream_read  = h2c_metadata_map + AXIF_OFFSET + 0x1000;
-
-    // *((uint32_t *) (axi_stream_regs + AXI_STREAM_FIFO_TDR)) = SENDMSG_DEST;
-
-
+    io_regs = h2c_metadata_map;
 
     uint32_t retoff = 0; // Lte 12 bits used
     uint32_t size   = 0; // Lte 20 bits used
@@ -148,22 +141,20 @@ int main() {
     msghdr_send_in.cc        = 0;
     msghdr_send_in.metadata  = (size << 12) | retoff;
 
-    // sendmsg(&msghdr_send_in);
-
-    // return 0;
-
     char thread_name[50];
     snprintf(thread_name, sizeof(thread_name), "main");
     time_trace::thread_buffer thread_buffer(thread_name);
 
-    volatile char * poll = ((volatile char *) c2h_metadata_map) + (retoff * 64);
+    char * poll = ((char *) c2h_metadata_map) + (retoff * 64);
     *poll = 0;
 
-    for (int i = 0; i < 10; i++) {
-	tt(tt_rdtsc(), "sendmsg start", 0, 0, 0, 0);
-	sendmsg(&msghdr_send_in);
-	while(*poll == 0) _mm_clflush((void*) poll);
+    for (int i = 0; i < 100; i++) {
+
+	// uint32_t rd = *((volatile uint32_t *) io_regs);
+	iomov64B(reinterpret_cast<__m512i*>((char *) io_regs), reinterpret_cast<__m512i*>(&msghdr_send_in));
+	while(*poll == 0);
 	tt(tt_rdtsc(), "sendmsg response", 0, 0, 0, 0);
+	// printf("read: %d\n", rd);
 	*poll = 0;
     }
 
