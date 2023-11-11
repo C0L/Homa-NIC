@@ -10,7 +10,7 @@
 #include <sys/ioctl.h>
 #include <immintrin.h>
 
-#include "time_trace.h"
+#include "tt/time_trace.h"
 
 #define HOMA_MAX_MESSAGE_LENGTH 1000000 // The maximum number of bytes in a single message
 
@@ -157,6 +157,9 @@ int main() {
 	// printf("read: %d\n", rd);
 	*poll = 0;
     }
+
+    // struct msghdr_send_t msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
+    // print_msghdr(&msghdr_send_out);
 
     time_trace::print_to_file("tt_dump");
 
