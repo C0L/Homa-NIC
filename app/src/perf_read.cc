@@ -20,6 +20,8 @@ char * c2h_metadata_map;
 char * h2c_msgbuff_map;
 char * c2h_msgbuff_map;
 
+// volatile char * io_regs;
+
 int main() {
     int c2h_metadata_fd = open("/dev/homa_nic_c2h_metadata", O_RDWR|O_SYNC);
     int h2c_metadata_fd = open("/dev/homa_nic_h2c_metadata", O_RDWR|O_SYNC);
@@ -39,37 +41,20 @@ int main() {
     	perror("mmap failed\n");
     }
 
-    uint32_t retoff = 0; // Lte 12 bits used
-    uint32_t size   = 0; // Lte 20 bits used
-    memset(msghdr_send_in.saddr, 0xF, 16);
-    memset(msghdr_send_in.daddr, 0xA, 16); 
-    msghdr_send_in.sport     = 0x1;
-    msghdr_send_in.dport     = 0x1;
-    msghdr_send_in.buff_addr = 0;
-    msghdr_send_in.id        = 0;
-    msghdr_send_in.cc        = 0;
-    msghdr_send_in.metadata  = (size << 12) | retoff;
-
-    char * poll = ((char *) c2h_metadata_map) + (retoff * 64);
-    *poll = 0;
-
     char thread_name[50];
     snprintf(thread_name, sizeof(thread_name), "main");
     time_trace::thread_buffer thread_buffer(thread_name);
 
     for (int i = 0; i < 1000; i++) {
 	__m512i ymm0;
-	ymm0 = _mm512_load_si512(reinterpret_cast<__m512i*>(&msghdr_send_in));
+	tt(rdtsc(), "read request", 0, 0, 0, 0);
 	_mm_mfence();
-
-	tt(rdtsc(), "write request", 0, 0, 0, 0);
-	_mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
-	while(*poll == 0);
-	tt(rdtsc(), "write response", 0, 0, 0, 0);
-	*poll = 0;
+	ymm0 = _mm512_load_si512(reinterpret_cast<__m512i*>((char*) h2c_metadata_map));
+	_mm_mfence();
+	tt(rdtsc(), "read response", 0, 0, 0, 0);
     }
 
-    time_trace::print_to_file("parse/perf_write.tt");
+    time_trace::print_to_file("parse/perf_read.tt");
 
     munmap(h2c_metadata_map, 16384);
     munmap(c2h_metadata_map, 16384);

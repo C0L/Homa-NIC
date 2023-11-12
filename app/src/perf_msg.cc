@@ -39,8 +39,13 @@ int main() {
     	perror("mmap failed\n");
     }
 
+    char pattern[5] = "\xDE\xAD\xBE\xEF";
+
+    for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
+    memset((void *) c2h_msgbuff_map, 0, 512);
+
     uint32_t retoff = 0; // Lte 12 bits used
-    uint32_t size   = 0; // Lte 20 bits used
+    uint32_t size   = 64; // Lte 20 bits used
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
     msghdr_send_in.sport     = 0x1;
@@ -50,7 +55,7 @@ int main() {
     msghdr_send_in.cc        = 0;
     msghdr_send_in.metadata  = (size << 12) | retoff;
 
-    char * poll = ((char *) c2h_metadata_map) + (retoff * 64);
+    char * poll = ((char *) c2h_msgbuff_map);
     *poll = 0;
 
     char thread_name[50];
@@ -62,14 +67,14 @@ int main() {
 	ymm0 = _mm512_load_si512(reinterpret_cast<__m512i*>(&msghdr_send_in));
 	_mm_mfence();
 
-	tt(rdtsc(), "write request", 0, 0, 0, 0);
-	_mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
-	while(*poll == 0);
-	tt(rdtsc(), "write response", 0, 0, 0, 0);
-	*poll = 0;
-    }
+     	tt(rdtsc(), "write request", 0, 0, 0, 0);
+     	_mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
+     	while(*poll == 0);
+     	tt(rdtsc(), "write response", 0, 0, 0, 0);
+     	*poll = 0;
+     }
 
-    time_trace::print_to_file("parse/perf_write.tt");
+    time_trace::print_to_file("parse/perf_msg.tt");
 
     munmap(h2c_metadata_map, 16384);
     munmap(c2h_metadata_map, 16384);
