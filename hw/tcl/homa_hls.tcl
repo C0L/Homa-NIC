@@ -27,7 +27,7 @@ foreach cfg [lrange $argv 6 end] {
 
 puts $homa_cfg
 
-open_project -reset homa_kernel
+open_project -reset $top\_kernel
 set_top $top 
 
 open_solution -reset "solution" -flow_target vivado 
