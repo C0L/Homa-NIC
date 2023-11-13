@@ -8,7 +8,8 @@ void interface(
     hls::stream<msghdr_recv_t> & recvmsg,
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff,
     hls::stream<port_to_phys_t> & c2h_port_to_msgbuff,
-    hls::stream<port_to_phys_t> & c2h_port_to_metadata
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata,
+    hls::stream<ap_uint<512>> & log_control 
     ) {
 
 #pragma HLS interface bram port=infmem
@@ -18,16 +19,15 @@ void interface(
 #pragma HLS interface axis port=h2c_port_to_msgbuff
 #pragma HLS interface axis port=c2h_port_to_msgbuff
 #pragma HLS interface axis port=c2h_port_to_metadata
+#pragma HLS interface axis port=log_control
 
 #pragma HLS interface mode=ap_ctrl_none port=return
 #pragma HLS pipeline II=1
 
     ap_uint<64> off = addr_in.read();
 
-    // TODO offset in terms of bytes or chunks?
     ap_uint<512> cmd = *(infmem + (off / 64));
 
-    // TODO switch case here
     switch(off) {
 	case 0: {
 	    msghdr_send_t msghdr_send;
@@ -51,6 +51,10 @@ void interface(
 	}
 	case 256: {
 	    c2h_port_to_metadata.write(cmd);
+	    break;
+	}
+	case 320: {
+	    log_control.write(cmd);
 	    break;
 	}
     }

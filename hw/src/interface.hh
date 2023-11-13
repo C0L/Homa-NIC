@@ -16,7 +16,8 @@ void interface(
     hls::stream<msghdr_recv_t> & recvmsg,
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff,
     hls::stream<port_to_phys_t> & c2h_port_to_msgbuff,
-    hls::stream<port_to_phys_t> & c2h_port_to_metadata
+    hls::stream<port_to_phys_t> & c2h_port_to_metadata,
+    hls::stream<ap_uint<512>> & log_control 
     );
 
 #endif 
