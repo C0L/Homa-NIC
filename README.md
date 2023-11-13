@@ -1,5 +1,39 @@
 # Homa-NIC
-## Dependencies
+
+## Software Flow
+### Dependencies
+- Linux Kernel 4.15
+### Kernel Module
+#### Build
+```
+cd driver
+make
+```
+#### Install
+```
+sudo insmod homanic.ko
+```
+
+### Remove
+```
+sudo rmmod homanic.ko
+```
+
+### Applications
+#### Build
+```
+cd app
+make apps
+```
+
+#### Tests
+##### Perf Testing
+Stresses the NIC with 64B echo requests, 64B device register reads, 64B packet loopback.
+```
+make parse
+```
+
+## HW-Dev Dependencies
 - Vitis HLS 2023.1
 - Vivado 2023.1
 - [Alveo U250 XDC File](https://www.xilinx.com/bin/public/openDownload?filename=alveo-u250-xdc_20210909.zip)
@@ -18,18 +52,12 @@ unzip *alveo-u250-xdc*.zip -d $HOMA_NIC/xdc
 ```
 ## Vitis Flow
 ### Synthesis
-TODO
-```make synth```
+```make homa_synth```
+```make inf_synth```
 
 ### Tests
 ### C-simulation Tests
-TODO
-```make ...```
-
-### Co-simulation Tests
-TODO
 ```make ...```
 
 ## Vivado Flow
-TODO
 ```make homa```
