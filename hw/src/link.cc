@@ -270,7 +270,7 @@ void pkt_chunk_egress(hls::stream<h2c_chunk_t> & out_chunk_i,
 
 	raw_stream.data = chunk.data;
 	raw_stream.last = chunk.last_pkt_chunk;
-	raw_stream.keep = chunk.link_bytes;
+	raw_stream.keep = (0xFFFFFFFFFFFFFFFF >> (64 - chunk.link_bytes));
 	link_egress.write(raw_stream);
     }
 }
@@ -341,7 +341,14 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 		    // TODO parse acks
 
 		    data_block.data(14 * 8, 0) = raw_stream.data(511, 512-14*8);
-		    data_block.width  = raw_stream.keep - 50;
+
+		    ap_uint<8> pop  = 0;
+		    for (int i = 0; i < 64; i++) {
+#pragma HLS unroll
+		      pop += ((raw_stream.keep >> i) & 1);
+		    }
+
+		    data_block.width  = pop - 50;
 		    data_block.last   = raw_stream.last;
 
 		    chunk_in_o.write(data_block);
@@ -353,7 +360,14 @@ void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
 	    header_in_o.write(header_in);
 	} else {
 	    data_block.data  = raw_stream.data;
-	    data_block.width = raw_stream.keep;
+
+	    ap_uint<8> pop  = 0;
+	    for (int i = 0; i < 64; i++) {
+#pragma HLS unroll
+	      pop += ((raw_stream.keep >> i) & 1);
+	    }
+
+	    data_block.width = pop;
 	    data_block.last  = raw_stream.last;
 
 	    chunk_in_o.write(data_block);
