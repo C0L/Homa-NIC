@@ -389,6 +389,8 @@ proc create_root_design { parentCell } {
   set_property -dict [list \
     CONFIG.Clock_Type_AXI {Independent_Clock} \
     CONFIG.Enable_TLAST {true} \
+    CONFIG.FIFO_Application_Type_axis {Packet_FIFO} \
+    CONFIG.FIFO_Implementation_axis {Independent_Clocks_Block_RAM} \
     CONFIG.HAS_TKEEP {true} \
     CONFIG.INTERFACE_TYPE {AXI_STREAM} \
     CONFIG.Input_Depth_axis {512} \
@@ -401,7 +403,10 @@ proc create_root_design { parentCell } {
   set_property -dict [list \
     CONFIG.Clock_Type_AXI {Independent_Clock} \
     CONFIG.Enable_TLAST {true} \
+    CONFIG.FIFO_Application_Type_axis {Data_FIFO} \
+    CONFIG.FIFO_Implementation_axis {Independent_Clocks_Block_RAM} \
     CONFIG.HAS_TKEEP {true} \
+    CONFIG.HAS_TSTRB {false} \
     CONFIG.INTERFACE_TYPE {AXI_STREAM} \
     CONFIG.Input_Depth_axis {512} \
     CONFIG.TDATA_NUM_BYTES {64} \
