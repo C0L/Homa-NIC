@@ -41,10 +41,12 @@ int main() {
 
     char pattern[5] = "\xDE\xAD\xBE\xEF";
 
+    // for (int i = 0; i < HOMA_MAX_MESSAGE_LENGTH/4; ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
     for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
     memset((void *) c2h_msgbuff_map, 0, 512);
 
     uint32_t retoff = 0; // Lte 12 bits used
+    // uint32_t size   = (64*8); // Lte 20 bits used
     uint32_t size   = 64; // Lte 20 bits used
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
@@ -56,6 +58,7 @@ int main() {
     msghdr_send_in.metadata  = (size << 12) | retoff;
 
     char * poll = ((char *) c2h_msgbuff_map);
+    // char * poll = ((char *) c2h_msgbuff_map + (64*8) - 1);
     *poll = 0;
 
     char thread_name[50];
@@ -70,6 +73,7 @@ int main() {
      	tt(rdtsc(), "write request", 0, 0, 0, 0);
      	_mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
      	while(*poll == 0);
+	printf("Response\n");
      	tt(rdtsc(), "write response", 0, 0, 0, 0);
      	*poll = 0;
      }

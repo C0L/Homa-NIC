@@ -15,7 +15,7 @@ parse: $(patsubst %,%.tt,$(PERFS))
 	@echo "64 Byte Device Register Read Perf"
 	python3 ./parse/ttsum.py -f "read request" ./parse/perf_read.tt
 	@echo "64 Byte Loopback"
-	python3 ./parse/ttsum.py -f "write request" ./parse/perf_msg.tt
+# python3 ./parse/ttsum.py -f "write request" ./parse/perf_msg.tt
 
 %.tt: bin/%
 	sudo ./$<
