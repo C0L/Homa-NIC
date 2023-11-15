@@ -147,12 +147,21 @@ void iomov64B(__m256i * dst, __m256i * src) {
 
 // https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Without-AXI4-Lite-Interface
 void init_eth() {
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0200));
+
     // pr_alert(ioread32(io_regs + AXI_CMAC + 0x0204));
 
     // iowrite32(0x00000001, io_regs + AXI_CMAC + 0x00000);
+
+    // iowrite32(0x00000001, io_regs + AXI_CMAC + 0x00000);
+    // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00000);
     // iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC + 0x00004);
+    // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00004);
+
     iowrite32(0x00000001, io_regs + AXI_CMAC + 0x00090);
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0090));
+
+    // pr_alert("CMAC 
 
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x02B0);
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00090);
@@ -176,6 +185,7 @@ void init_eth() {
     // // TODO should instead poll on particular bit?
     while(ioread32(io_regs + AXI_CMAC + 0x0204) == 0xC0);
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0200));
 
     iowrite32(0x00000001, io_regs + AXI_CMAC + 0x0000C);
 

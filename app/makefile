@@ -29,4 +29,4 @@ bin/%: src/%.o $(LIBSO)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f lib/*.o parse/*.tt bin/*
+	rm -f lib/*.o src/*.o parse/*.tt bin/*
