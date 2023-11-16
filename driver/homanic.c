@@ -31,8 +31,9 @@
 // #define AXI_STREAM_FIFO_AXIL_SIZE 0x7C // Number of bytes for AXIL Interface
 // #define AXI_STREAM_FIFO_AXIF_SIZE 0x4  // Number of bytes for AXIF Interface
 
-#define BAR_0    0xf4000000
-#define AXI_CMAC 0x00020000
+#define BAR_0      0xf4000000
+#define AXI_CMAC_0 0x00020000
+#define AXI_CMAC_1 0x00030000
 
 #define MINOR_H2C_METADATA 0
 #define MINOR_C2H_METADATA 1
@@ -147,8 +148,10 @@ void iomov64B(__m256i * dst, __m256i * src) {
 
 // https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Without-AXI4-Lite-Interface
 void init_eth() {
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0200));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 
     // pr_alert(ioread32(io_regs + AXI_CMAC + 0x0204));
 
@@ -159,9 +162,8 @@ void init_eth() {
     // iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC + 0x00004);
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00004);
 
-    iowrite32(0x00000001, io_regs + AXI_CMAC + 0x00090);
-
-    // pr_alert("CMAC 
+    // last level loopback
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00090);
 
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x02B0);
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00090);
@@ -178,16 +180,28 @@ void init_eth() {
     // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0204));
     // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0208));
 
-    iowrite32(0x00000001, io_regs + AXI_CMAC + 0x00014);
-    iowrite32(0x00000010, io_regs + AXI_CMAC + 0x0000C);
+    iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00014);
+    iowrite32(0x00000010, io_regs + AXI_CMAC_0 + 0x0000C);
+
+    iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00014);
+    iowrite32(0x00000010, io_regs + AXI_CMAC_1 + 0x0000C);
 
     // // TODO 2.Wait for RX_aligned then write the below registers:
     // // TODO should instead poll on particular bit?
-    while(ioread32(io_regs + AXI_CMAC + 0x0204) == 0xC0);
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0200));
+    while(ioread32(io_regs + AXI_CMAC_0 + 0x0204) == 0xC0);
+    while(ioread32(io_regs + AXI_CMAC_1 + 0x0204) == 0xC0);
 
-    iowrite32(0x00000001, io_regs + AXI_CMAC + 0x0000C);
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
+
+
+    iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x0000C);
+    iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x0000C);
+
+
 
   // 0x0000C : 32'h00000001 [CONFIGURATION_TX_REG1 for ctl_tx_enable to 1’b1 and ctl_tx_send_rfi to 1’b0]
 } 
@@ -550,7 +564,7 @@ int homanic_init(void) {
     cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_H2C_MSGBUFF),  1);
     cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_C2H_MSGBUFF),  1);
 
-    io_regs = ioremap_wc(BAR_0, 0x30000);
+    io_regs = ioremap_wc(BAR_0, 0x40000);
 
     iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
     iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
