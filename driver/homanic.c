@@ -31,7 +31,9 @@
 // #define AXI_STREAM_FIFO_AXIL_SIZE 0x7C // Number of bytes for AXIL Interface
 // #define AXI_STREAM_FIFO_AXIF_SIZE 0x4  // Number of bytes for AXIF Interface
 
-#define BAR_0      0xf4000000
+// #define BAR_0      0xf4000000
+
+#define BAR_0      0xec000000
 #define AXI_CMAC_0 0x00020000
 #define AXI_CMAC_1 0x00030000
 
@@ -110,6 +112,9 @@ struct port_to_phys_t c2h_port_to_metadata __attribute__((aligned(64)));
 struct log_control_t log_control __attribute__((aligned(64)));
 struct log_entry_t log_entry __attribute__((aligned(64)));
 
+extern char _binary_mb_start[];
+extern char _binary_mb_end[];
+
 /* Kernel Module Functions */
 int     homanic_open(struct inode *, struct file *);
 ssize_t homanic_read(struct file *, char *, size_t, loff_t *);
@@ -120,6 +125,7 @@ long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long i
 /* Helper Functions */
 void dump_log(void);
 void init_eth(void);
+void init_mb(void);
 void h2c_new_msgbuff(struct port_to_phys_t * portmap);
 void c2h_new_msgbuff(struct port_to_phys_t * portmap);
 void c2h_new_metadata(struct port_to_phys_t * portmap);
@@ -146,30 +152,88 @@ void iomov64B(__m256i * dst, __m256i * src) {
     kernel_fpu_end();
 }
 
+
+void init_mb() {
+    
+    // pr_alert("mb: %llx\n", (uint64_t) (_binary_mb_end - _binary_mb_start));
+
+    // iowrite64(0xdeadbeef, io_regs + 0x42048);
+    // *((uint64_t*) (((char*) io_regs) + 0x42048)) = 0xdeadbeef;
+
+    for (int i = 0; i < ((_binary_mb_end - _binary_mb_start) / 8); ++i) {
+	*((uint64_t*) (io_regs + 0x40000)) + i)) = *(((uint64_t*) _binary_mb_start) + i);
+    }
+    // iowrite32(0x1, io_regs + 0x50000);
+    // iowrite32(0x0, io_regs + 0x50000);
+
+    // pr_alert("imem read %llx\n", *((uint64_t*) (((char*) io_regs) + 0x48000)));
+}
+
 // https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Without-AXI4-Lite-Interface
 void init_eth() {
+
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00008);
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00008);
+
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
+
+    // iowrite32(0x00000000, io_regs + AXI_CMAC_0 + 0x00090);
+
+    // Set rs fec
+
+    iowrite32(0x3, io_regs + AXI_CMAC_0 + 0x0107C);
+    iowrite32(0x3, io_regs + AXI_CMAC_1 + 0x0107C);
+
+    // iowrite32(0x7, io_regs + AXI_CMAC_0 + 0x01000);
+    // iowrite32(0x7, io_regs + AXI_CMAC_1 + 0x01000);
+
+    iowrite32(0x7, io_regs + AXI_CMAC_0 + 0x01000);
+    iowrite32(0x7, io_regs + AXI_CMAC_1 + 0x01000);
+
+    // iowrite32(0xC0000000, io_regs + AXI_CMAC_0 + 0x00004);
+    // iowrite32(0xC0000000, io_regs + AXI_CMAC_1 + 0x00004);
+
+    // iowrite32(0x00000000, io_regs + AXI_CMAC_0 + 0x00004);
+    // iowrite32(0x00000000, io_regs + AXI_CMAC_1 + 0x00004);
+
+    // -- 
+
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00000);
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00000);
+
+    // iowrite32(0x00000000, io_regs + AXI_CMAC_0 + 0x00000);
+    // iowrite32(0x00000000, io_regs + AXI_CMAC_1 + 0x00000);
+
+
+    // iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x00004);
+    // iowrite32(0x00000000, io_regs + AXI_CMAC_0 + 0x00004);
+
+    // iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x00004);
+    // iowrite32(0x00000000, io_regs + AXI_CMAC_1 + 0x00004);
+
+
+
+    // iowrite32(0xffffffff, io_regs + AXI_CMAC_0 + 0x01000);
+    // iowrite32(0xffffffff, io_regs + AXI_CMAC_1 + 0x01000);
 
     // pr_alert(ioread32(io_regs + AXI_CMAC + 0x0204));
 
     // iowrite32(0x00000001, io_regs + AXI_CMAC + 0x00000);
-
-    // iowrite32(0x00000001, io_regs + AXI_CMAC + 0x00000);
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00000);
-    // iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC + 0x00004);
-    // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00004);
+
 
     // last level loopback
     // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00090);
+
 
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x02B0);
     // iowrite32(0x00000000, io_regs + AXI_CMAC + 0x00090);
 
     // iowrite32(0xffffffff, io_regs + AXI_CMAC + 0x00004);
-
     // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0000));
     // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0004));
     // iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC + 0x00004);
@@ -179,17 +243,54 @@ void init_eth() {
     // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0200));
     // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0204));
     // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC + 0x0208));
-
     iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00014);
     iowrite32(0x00000010, io_regs + AXI_CMAC_0 + 0x0000C);
 
-    iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00014);
-    iowrite32(0x00000010, io_regs + AXI_CMAC_1 + 0x0000C);
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00014);
+    // iowrite32(0x00000010, io_regs + AXI_CMAC_1 + 0x0000C);
 
-    // // TODO 2.Wait for RX_aligned then write the below registers:
-    // // TODO should instead poll on particular bit?
-    while(ioread32(io_regs + AXI_CMAC_0 + 0x0204) == 0xC0);
-    while(ioread32(io_regs + AXI_CMAC_1 + 0x0204) == 0xC0);
+    // TODO 2.Wait for RX_aligned then write the below registers:
+    // TODO should instead poll on particular bit?
+    iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x0000C);
+    while((ioread32(io_regs + AXI_CMAC_0 + 0x0204) & 0x2) != 0x2);
+    while((ioread32(io_regs + AXI_CMAC_1 + 0x0204) & 0x2) != 0x2);
+
+
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x0000C);
+
+
+    iowrite32(0x00003DFF, io_regs + AXI_CMAC_0 + 0x0084);
+    iowrite32(0x0001C631, io_regs + AXI_CMAC_0 + 0x0088);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x0048);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x004C);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x0050);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x0054);
+    iowrite32(0x0000FFFF, io_regs + AXI_CMAC_0 + 0x0058);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x0034);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x0038);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x003C);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_0 + 0x0040);
+    iowrite32(0x0000FFFF, io_regs + AXI_CMAC_0 + 0x0044);
+    iowrite32(0x000001FF, io_regs + AXI_CMAC_0 + 0x0030);
+
+
+    iowrite32(0x00003DFF, io_regs + AXI_CMAC_1 + 0x0084);
+    iowrite32(0x0001C631, io_regs + AXI_CMAC_1 + 0x0088);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x0048);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x004C);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x0050);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x0054);
+    iowrite32(0x0000FFFF, io_regs + AXI_CMAC_1 + 0x0058);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x0034);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x0038);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x003C);
+    iowrite32(0xFFFFFFFF, io_regs + AXI_CMAC_1 + 0x0040);
+    iowrite32(0x0000FFFF, io_regs + AXI_CMAC_1 + 0x0044);
+    iowrite32(0x000001FF, io_regs + AXI_CMAC_1 + 0x0030);
+
+
+    iowrite32(0x1, io_regs + AXI_CMAC_0 + 0x002B0);
+    iowrite32(0x1, io_regs + AXI_CMAC_1 + 0x002B0);
 
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
@@ -197,13 +298,54 @@ void init_eth() {
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 
+    iowrite32(0x1, io_regs + AXI_CMAC_0 + 0x002B0);
+    iowrite32(0x1, io_regs + AXI_CMAC_1 + 0x002B0);
 
-    iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x0000C);
-    iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x0000C);
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
 
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 
+    iowrite32(0x1, io_regs + AXI_CMAC_0 + 0x002B0);
+    iowrite32(0x1, io_regs + AXI_CMAC_1 + 0x002B0);
 
-  // 0x0000C : 32'h00000001 [CONFIGURATION_TX_REG1 for ctl_tx_enable to 1’b1 and ctl_tx_send_rfi to 1’b0]
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
+
+    iowrite32(0x1, io_regs + AXI_CMAC_0 + 0x002B0);
+    iowrite32(0x1, io_regs + AXI_CMAC_1 + 0x002B0);
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
+
+    iowrite32(0x1, io_regs + AXI_CMAC_0 + 0x002B0);
+    iowrite32(0x1, io_regs + AXI_CMAC_1 + 0x002B0);
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
+
+    iowrite32(0x1, io_regs + AXI_CMAC_0 + 0x002B0);
+    iowrite32(0x1, io_regs + AXI_CMAC_1 + 0x002B0);
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
+    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
+
+    iowrite32(0x1, io_regs + AXI_CMAC_0 + 0x002B0);
+    iowrite32(0x1, io_regs + AXI_CMAC_1 + 0x002B0);
+
 } 
 
 void ipv6_to_str(char * str, char * s6_addr) {
@@ -530,6 +672,8 @@ int homanic_init(void) {
 
     pr_info("homanic_init\n");
 
+
+
     pdev = pci_get_device(0x10ee, 0x903f, NULL);
 
     /* Wake up the device if suspended and allocate IO and mem regions of the device if BIOS did not */
@@ -564,12 +708,27 @@ int homanic_init(void) {
     cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_H2C_MSGBUFF),  1);
     cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_C2H_MSGBUFF),  1);
 
-    io_regs = ioremap_wc(BAR_0, 0x40000);
+    io_regs = ioremap_wc(BAR_0, 0xA0000);
 
     iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
     iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
 
-    init_eth();
+    init_mb();
+    // init_eth();
+
+    //iowrite32(0x1, io_regs + 0x50000);
+    //iowrite32(0x0, io_regs + 0x50000);
+
+    // iowrite64(0xdeadbeef, io_regs + 0x42048);
+    // *((uint64_t*) (((char*) io_regs) + 0x42048)) = 0xdeadbeef;
+
+    // pr_alert("imem read %llx\n", *((uint64_t*) (((char*) io_regs) + 0x42048)));
+
+    // pr_alert("imem read %llx\n", ioread64(io_regs + 0x42048));
+    // pr_alert("imem read %llx\n", ioread64(io_regs + 0x42048));
+    // pr_alert("imem read %llx\n", ioread64(io_regs + 0x42048));
+    // pr_alert("imem read %llx\n", ioread64(io_regs + 0x42048));
+    // pr_alert("imem read %llx\n", ioread64(io_regs + 0x42048));
 
     return 0;
 }
