@@ -3,7 +3,7 @@
 volatile int test = 0;
 volatile int test2;
 
-void _start(){
+void main(){
     test = 0xdeadbeef;
     return;
     // unsigned int * a = (unsigned int *)argv[1];
