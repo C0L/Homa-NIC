@@ -71,8 +71,8 @@ typedef ap_axiu<512, 0, 0, 0> raw_stream_t;
  * TODO: Who is responsible for setting the MAX_DST and MAX_SRC? The
  * PHY?
  */
-#define MAC_DST 0xAAAAAAAAAAAA
-#define MAC_SRC 0xBBBBBBBBBBBB
+#define MAC_DST 0xFFFFFFFFFFFF
+#define MAC_SRC 0xDEADBEEFDEAD
 
 /* Homa Header Constants: Used for computing packet chunk offsets
  */
