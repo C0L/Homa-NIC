@@ -1,6 +1,6 @@
 set target homa
 set bd homa
-set new_ip_paths ./ip
+set new_ip_paths [list "./ip/homa" "./ip/interface"]
 set part xcu250-figd2104-2L-e
 set board xilinx.com:au250:part0:1.3 
 
@@ -9,12 +9,14 @@ create_project $target $target -force -part $part
 set_property board_part xilinx.com:au250:part0:1.3 [current_project]
 
 add_files -fileset constrs_1 ./xdc/homa.xdc
+add_files -fileset sources_1 ./ip/picorv32/picorv32.v
 set_property is_enabled true [get_files ./xdc/homa.xdc]
 add_files -fileset constrs_1 ./xdc/alveo-u250-xdc.xdc
 set_property is_enabled true [get_files ./xdc/alveo-u250-xdc.xdc]
 
 set cur_ip_paths [get_property ip_repo_paths [current_project]]
-set_property ip_repo_paths [lappend new_ip_paths $cur_ip_paths] [current_project]
+set_property ip_repo_paths [concat $new_ip_paths $cur_ip_paths] [current_project]
+# set_property ip_repo_paths [lappend new_ip_paths $cur_ip_paths] [current_project]
 update_ip_catalog
 
 source ./tcl/homa.tcl
