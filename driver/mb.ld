@@ -7,7 +7,7 @@ SECTIONS
 	*(.boot)
 	*(.text)
     }
-    . = 0x2000;
+    . = 0x0100;
     .data   : { *(.data) }
     .bss    : { *(.bss)  }
     . = 0x4000;

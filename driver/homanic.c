@@ -5,6 +5,7 @@
 #include <linux/pci.h>
 #include <linux/set_memory.h>
 #include <asm/fpu/api.h>
+#include <linux/delay.h>
 
 #define _MM_MALLOC_H_INCLUDED
 #include <x86intrin.h>
@@ -109,8 +110,8 @@ struct port_to_phys_t c2h_port_to_metadata __attribute__((aligned(64)));
 struct log_control_t log_control __attribute__((aligned(64)));
 struct log_entry_t log_entry __attribute__((aligned(64)));
 
-extern char _binary_mb_start[];
-extern char _binary_mb_end[];
+extern char _binary_softprog_start[];
+extern char _binary_softprog_end[];
 
 /* Kernel Module Functions */
 int     homanic_open(struct inode *, struct file *);
@@ -123,6 +124,7 @@ long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long i
 void dump_log(void);
 void init_eth(void);
 void init_mb(void);
+void dump_mb(void);
 void h2c_new_msgbuff(struct port_to_phys_t * portmap);
 void c2h_new_msgbuff(struct port_to_phys_t * portmap);
 void c2h_new_metadata(struct port_to_phys_t * portmap);
@@ -149,6 +151,15 @@ void iomov64B(__m256i * dst, __m256i * src) {
     kernel_fpu_end();
 }
 
+void dump_mb() {
+    int i;
+
+    volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40000);
+ 
+    for (i = 0; i < 2048; ++i) {
+	pr_alert("mem index %x: %llx\n", i * 8, *((uint64_t*) (prog_mem + i)));
+    }
+}
 
 void init_mb() {
     int i;
@@ -156,7 +167,10 @@ void init_mb() {
 
     // iowrite64(0xdeadbeef, io_regs + 0x42048);
     // *((uint64_t*) (((char*) io_regs) + 0x42048)) = 0xdeadbeef;
-    volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40008);
+
+    uint32_t * prog_mem = (uint32_t*) (io_regs + 0x40000);
+    // volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40000);
+    // volatile char * prog_mem = (volatile char*) (io_regs + 0x40000);
 
     // *((uint64_t*) (((char*) io_regs) + 0x40000)) = 0xdeadbeefdeadbeef;
     // pr_alert("mem: %llx\n", *(((uint64_t*) (((char*) io_regs) + 0x40000))));
@@ -175,28 +189,42 @@ void init_mb() {
     // iowrite32(0xBBBBBBBB, io_regs + 0x42052);
     // iowrite32(0xBBBBBBBB, (((char*) io_regs) + 0x42048));
 
-    for (i = 0; i < ((_binary_mb_end - _binary_mb_start) / 8); ++i) {
-    	*(prog_mem + i) = *(((uint64_t*) _binary_mb_start) + i);
-     	pr_alert("mem: %llx\n", *(prog_mem + i));
+    // TODO uses word addressing???
+
+
+    // pr_alert("mem: %llx\n", ((_binary_mb_end - _binary_mb_start)));
+
+    // TODO This is a hack and a memory error
+    // for (i = 0; i < ((_binary_mb_end - _binary_mb_start) / 8) + 1; ++i) {
+    // *((uint64_t*) (prog_mem + i)) = *(((uint64_t*) _binary_mb_start) + i);
+    // pr_alert("mem: %llx\n", *(((uint64_t*) _binary_mb_start) + i));
+    // }
+
+    // for (i = 0; i < ((_binary_mb_end - _binary_mb_start) / 8) + 1; ++i) {
+    // pr_alert("mem index %x: %llx\n", i * 8, *((uint64_t*) (prog_mem + i)));
+    // }
+
+    for (i = 0; i < ((_binary_softprog_end - _binary_softprog_start) / 4); ++i) {
+	iowrite32(*(((uint32_t*) _binary_softprog_start) + i), prog_mem + i);
+	// *((uint64_t*) (prog_mem + i)) = *(((uint64_t*) _binary_mb_start) + i);
+	// pr_alert("mem: %llx\n", *(((uint64_t*) _binary_mb_start) + i));
     }
 
-    //// 	pr_alert("mem: %x\n", ioread32((((uint32_t*) (((char*) io_regs) + 0x42048)) + i)));
-    //// 	// pr_alert("mem: %llx\n", *(((uint64_t*) _binary_mb_start) + i));
-    ////  }
+    // for (i = 0; i < ((_binary_mb_end - _binary_mb_start) / 4); ++i) {
+    for (i = 0; i < 64; ++i) {
+	pr_alert("mem index %x: %x\n", i * 4, ioread32(prog_mem + i));
+	// pr_alert("mem index %x: %llx\n", i * 8, *((uint64_t*) (prog_mem + i)));
+    }
+
 
     //for (i = 0; i < ((_binary_mb_end - _binary_mb_start) / 8); ++i) {
     // 	pr_alert("mem: %llx\n", *(((uint64_t*) (((char*) io_regs) + 0x40000)) + i));
     //}
 
-    iowrite32(0x0, io_regs + 0x50000);
-    iowrite32(0x1, io_regs + 0x50000);
+    //iowrite32(0x0, io_regs + 0x50000);
+    //iowrite32(0x1, io_regs + 0x50000);
 
-    prog_mem = (volatile uint64_t*) (io_regs + 0x42000);
-
-    for (i = 0; i < 64; ++i) {
-     	pr_alert("mem: %llx\n", *(prog_mem + i));
-    }
-
+    //prog_mem = (volatile uint64_t*) (io_regs + 0x42000);
 
     // pr_alert("imem read %llx\n", *((uint64_t*) (((char*) io_regs) + 0x48000)));
 }
@@ -745,11 +773,25 @@ int homanic_init(void) {
     iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
     iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
 
-    // iowrite32(0x0, io_regs + 0x50000);
+    iowrite32(0x0, io_regs + 0x50000);
     // iowrite32(0x1, io_regs + 0x50000);
     // iowrite32(0x2, io_regs + 0x50000);
 
     init_mb();
+
+    // TODO should not be needed
+    msleep(10000);
+
+    iowrite32(0x1, io_regs + 0x50000);
+    // iowrite32(0x2, io_regs + 0x50000);  // Hold in interrupt
+    // iowrite32(0x3, io_regs + 0x50000);  // reset + interrupt
+    // iowrite32(0x2, io_regs + 0x50000);  // Hold in interrupt
+    // iowrite32(0x1, io_regs + 0x50000);
+    msleep(10000);
+    iowrite32(0x0, io_regs + 0x50000);
+
+    dump_mb();
+
     // init_eth();
     // iowrite64(0xdeadbeef, io_regs + 0x42048);
     // *((uint64_t*) (((char*) io_regs) + 0x42048)) = 0xdeadbeea;
