@@ -1,0 +1,128 @@
+Edo Cluster Cfg:
+	Each switch port can operate at 100G or split into 4x10G/20G
+	Switch port 11 is split into four interfaces, two of which are connected to the edo3 machine
+	These NICs are mapped to the client-colin VM
+	Both switch ports 21/- and 22/- appear to be attached to the FPGA
+
+Switch Functionality Testing:
+
+	Edo-Client:
+	
+	sudo ifconfig ens16 10.0.0.1 netmask 255.255.0.0
+	sudo ifconfig ens17 10.0.0.2 netmask 255.255.0.0
+	
+	ifconfig
+	
+	ens16: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+	        inet 10.0.0.1  netmask 255.255.0.0  broadcast 10.0.255.255
+	        inet6 fe80::3efd:feff:fee9:73b8  prefixlen 64  scopeid 0x20<link>
+	        ether 3c:fd:fe:e9:73:b8  txqueuelen 1000  (Ethernet)
+	        RX packets 0  bytes 0 (0.0 B)
+	        RX errors 0  dropped 0  overruns 0  frame 0
+	        TX packets 562  bytes 30128 (30.1 KB)
+	        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+	
+	ens17: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+	        inet 10.0.0.2  netmask 255.255.0.0  broadcast 10.0.255.255
+	        inet6 fe80::3efd:feff:fee9:73b9  prefixlen 64  scopeid 0x20<link>
+	        ether 3c:fd:fe:e9:73:b9  txqueuelen 1000  (Ethernet)
+	        RX packets 100  bytes 6000 (6.0 KB)
+	        RX errors 0  dropped 0  overruns 0  frame 0
+	        TX packets 165  bytes 10382 (10.3 KB)
+	        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+	
+	
+	Monitor incoming requests:
+	sudo tcpdump -xx -a --interface ens17
+	
+	Monitor outgoing requests:
+	sudo tcpdump -xx -a --interface ens16
+	
+	Generate traffic:
+	sudo arping -c 100 -I ens16 10.0.0.2 -t 3c:fd:fe:e9:73:b9
+	
+	
+	
+	Tofino:
+	
+	cd onl
+	./bf-sde-docker.sh
+	
+	cd /bf-sde
+	./run_switchd.sh -p basic_switching
+	
+	ucli
+	pm
+	port-add 11/- 10G NONE
+	an-set 11/- 2
+	port-enb 11/-
+	show
+	
+	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
+	PORT |MAC |D_P|P/PT|SPEED  |FEC |RDY|ADM|OPR|LPBK    |FRAMES RX       |FRAMES TX       |E
+	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
+	11/0 |13/0| 44|1/44|10G    |NONE|YES|ENB|UP |  NONE  |               4|               0|
+	11/1 |13/1| 45|1/45|10G    |NONE|YES|ENB|UP |  NONE  |               5|               0|
+	11/2 |13/2| 46|1/46|10G    |NONE|YES|ENB|UP |  NONE  |               3|               0|
+	11/3 |13/3| 47|1/47|10G    |NONE|YES|ENB|UP |  NONE  |               3|               0|
+	
+	
+	..
+	exit
+	
+	pd-basic-switching device 0
+	pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b8 action_egress_spec 44
+	pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b9 action_egress_spec 45
+	end
+
+
+FPGA Link:
+	* Program FPGA attached to colin-fpga
+		
+	cd onl
+	./bf-sde-docker.sh
+	
+	cd /bf-sde
+	./run_switchd.sh -p basic_switching
+	
+	ucli
+	pm
+	port-add 11/- 10G NONE
+	an-set 11/- 2
+	port-enb 11/-
+	port-add 21/- 100G NONE
+	an-set 21/- 2
+	port-enb 21/-
+	port-add 22/- 100G NONE
+	an-set 22/- 2
+	port-enb 22/-
+	show
+
+	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
+	PORT |MAC |D_P|P/PT|SPEED  |FEC |RDY|ADM|OPR|LPBK    |FRAMES RX       |FRAMES TX       |E
+	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
+	11/0 |13/0| 44|1/44|10G    |NONE|YES|ENB|UP |  NONE  |            2762|             190|
+	11/1 |13/1| 45|1/45|10G    |NONE|YES|ENB|UP |  NONE  |            2338|             161|
+	11/2 |13/2| 46|1/46|10G    |NONE|YES|ENB|UP |  NONE  |            2196|               0|
+	11/3 |13/3| 47|1/47|10G    |NONE|YES|ENB|UP |  NONE  |            2196|               0|
+	21/0 | 3/0| 32|1/32|100G   |NONE|YES|ENB|UP |  NONE  |               0|               0|
+	22/0 | 2/0| 40|1/40|100G   |NONE|YES|ENB|UP |  NONE  |               0|               0|
+	
+	..
+	exit
+	
+	pd-basic-switching device 0
+	pd forward add_entry set_egr ethernet_dstAddr 1b304a0c6302 action_egress_spec 32
+	# pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b8 action_egress_spec 44
+	# pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b8 action_egress_spec 44
+	# pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b9 action_egress_spec 45
+	end
+
+
+	* Load Kernel Module on colin-fpga
+		dmesg should report sucessful link conditioning	
+		We assign MAC address 1b304a0c6302 to FPGA
+		We connect this to MAC address 3cfdfee973b8
+				    
+	* From colin-client	
+			
