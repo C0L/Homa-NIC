@@ -1,0 +1,6 @@
+[submodule "hw/ip/wb2axip"]
+	path = hw/ip/wb2axip
+	url = https://github.com/ZipCPU/wb2axip.git
+[submodule "hw/ip/picorv32"]
+	path = hw/ip/picorv32
+	url = https://github.com/YosysHQ/picorv32.git
