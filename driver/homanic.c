@@ -26,9 +26,6 @@
 #define AXI_STREAM_FIFO_TDR  0x2C // Transmit Destination Register (w)
 #define AXI_STREAM_FIFO_RDR  0x30 // Receive Destination Register (r)
 
-// #define AXI_STREAM_FIFO_AXIL_SIZE 0x7C // Number of bytes for AXIL Interface
-// #define AXI_STREAM_FIFO_AXIF_SIZE 0x4  // Number of bytes for AXIF Interface
-
 // #define BAR_0      0xf4000000
 
 #define BAR_0      0xec000000
@@ -110,8 +107,8 @@ struct port_to_phys_t c2h_port_to_metadata __attribute__((aligned(64)));
 struct log_control_t log_control __attribute__((aligned(64)));
 struct log_entry_t log_entry __attribute__((aligned(64)));
 
-extern char _binary_softprog_start[];
-extern char _binary_softprog_end[];
+extern char _binary_firmware_start[];
+extern char _binary_firmware_end[];
 
 /* Kernel Module Functions */
 int     homanic_open(struct inode *, struct file *);
@@ -166,8 +163,8 @@ void init_mb() {
 
     uint32_t * prog_mem = (uint32_t*) (io_regs + 0x40000);
 
-    for (i = 0; i < ((_binary_softprog_end - _binary_softprog_start) / 4); ++i) {
-	iowrite32(*(((uint32_t*) _binary_softprog_start) + i), prog_mem + i);
+    for (i = 0; i < ((_binary_firmware_end - _binary_firmware_start) / 4); ++i) {
+	iowrite32(*(((uint32_t*) _binary_firmware_start) + i), prog_mem + i);
     }
 
     for (i = 0; i < 64; ++i) {
