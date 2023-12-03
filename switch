@@ -81,41 +81,38 @@ FPGA Link:
 		
 	cd onl
 	./bf-sde-docker.sh
+
+	// TODO add p4_build stuff
 	
 	cd /bf-sde
-	./run_switchd.sh -p basic_switching
+	./run_switchd.sh -p basic_switching_custom
 	
 	ucli
 	pm
-	port-add 11/- 10G NONE
-	an-set 11/- 2
-	port-enb 11/-
-	port-add 21/- 100G NONE
 	an-set 21/- 2
 	port-enb 21/-
 	port-add 22/- 100G NONE
 	an-set 22/- 2
 	port-enb 22/-
+	an-set 23/- 2
+	port-enb 23/-
+	port-add 24/- 100G NONE
+	an-set 24/- 2
+	port-enb 24/-
 	show
 
-	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
-	PORT |MAC |D_P|P/PT|SPEED  |FEC |RDY|ADM|OPR|LPBK    |FRAMES RX       |FRAMES TX       |E
-	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
-	11/0 |13/0| 44|1/44|10G    |NONE|YES|ENB|UP |  NONE  |            2762|             190|
-	11/1 |13/1| 45|1/45|10G    |NONE|YES|ENB|UP |  NONE  |            2338|             161|
-	11/2 |13/2| 46|1/46|10G    |NONE|YES|ENB|UP |  NONE  |            2196|               0|
-	11/3 |13/3| 47|1/47|10G    |NONE|YES|ENB|UP |  NONE  |            2196|               0|
-	21/0 | 3/0| 32|1/32|100G   |NONE|YES|ENB|UP |  NONE  |               0|               0|
-	22/0 | 2/0| 40|1/40|100G   |NONE|YES|ENB|UP |  NONE  |               0|               0|
-	
+
+
 	..
 	exit
 	
-	pd-basic-switching device 0
-	pd forward add_entry set_egr ethernet_dstAddr 1b304a0c6302 action_egress_spec 32
-	# pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b8 action_egress_spec 44
-	# pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b8 action_egress_spec 44
-	# pd forward add_entry set_egr ethernet_dstAddr 3cfdfee973b9 action_egress_spec 45
+	pd-basic-switching-custom device 0
+	pd forward add_entry set_egr device_id ig_intr_md_ingress_port 22 action_egress_spec 23
+	pd forward add_entry set_egr device_id ig_intr_md_ingress_port 21 action_egress_spec 23
+
+	pd forward add_entry set_egr device_id ig_intr_md_ingress_port 23 action_egress_spec 22
+	// pd forward add_entry set_egr device_id ig_intr_md_ingress_port 23 action_egress_spec 21
+	????
 	end
 
 
