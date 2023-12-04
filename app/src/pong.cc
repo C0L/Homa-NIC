@@ -66,10 +66,12 @@ int main() {
     _mm_mfence();
 
     // Stall for msg
-    while(*poll == 0);
-
-    // Send msg
-    _mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
+    while (1) {
+    	while(*poll == 0);
+    	// Send msg
+    	_mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
+    	*poll = 0;
+    }
 
     munmap(h2c_metadata_map, 16384);
     munmap(c2h_metadata_map, 16384);
