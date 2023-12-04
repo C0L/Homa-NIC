@@ -28,7 +28,7 @@
 
 // #define BAR_0      0xf4000000
 
-#define BAR_0      0xec000000
+// #define BAR_0      0xec000000
 #define AXI_CMAC_0 0x00060000
 #define AXI_CMAC_1 0x00030000
 
@@ -47,6 +47,7 @@
 #define LOG_DRAIN  1
 
 struct pci_dev * pdev;
+uint32_t BAR_0;
 
 /* device registers for physical address map onboarding AXI-Stream FIFO */
 void __iomem * io_regs; 
@@ -174,6 +175,7 @@ void init_mb() {
 
 // https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Without-AXI4-Lite-Interface
 void init_eth() {
+    iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00000);
 
     //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
     //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
@@ -181,47 +183,39 @@ void init_eth() {
     //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 
-    //iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00014);
-    //iowrite32(0x00000010, io_regs + AXI_CMAC_0 + 0x0000C);
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00014);
+    // iowrite32(0x00000010, io_regs + AXI_CMAC_0 + 0x0000C);
+
+    iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00014);
+    iowrite32(0x00000010, io_regs + AXI_CMAC_1 + 0x0000C);
 
     //// TODO 2.Wait for RX_aligned then write the below registers:
     //// TODO should instead poll on particular bit?
-    //iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x0000C);
-    //while((ioread32(io_regs + AXI_CMAC_0 + 0x0204) & 0x2) != 0x2);
-    //while((ioread32(io_regs + AXI_CMAC_1 + 0x0204) & 0x2) != 0x2);
+    // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x0000C);
+    iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x0000C);
+    // while((ioread32(io_regs + AXI_CMAC_0 + 0x0204) & 0x2) != 0x2);
+    while((ioread32(io_regs + AXI_CMAC_1 + 0x0204) & 0x2) != 0x2);
 
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
-
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
-
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
 
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
 
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
 
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
-
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
-
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
+    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
 
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
@@ -558,6 +552,11 @@ int homanic_init(void) {
 
     /* Enables DMA by setting the bus master bit in PCI_COMMAND register */
     pci_set_master(pdev);
+
+    // pr_alert("rom: %llx\n", (uint64_t) pci_resource_start(pdev, 0));
+    //
+
+    BAR_0 = pci_resource_start(pdev, 0);
 
     dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
 
