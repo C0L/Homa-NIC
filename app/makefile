@@ -20,7 +20,7 @@ parse: $(patsubst %,%.tt,$(PERFS))
 %.tt: bin/%
 	sudo ./$<
 
-apps: bin/perf_write bin/perf_read bin/perf_msg
+apps: bin/perf_write bin/perf_read bin/perf_msg bin/ping bin/pong
 
 bin/%: src/%.o $(LIBSO)
 	$(CC) $(CFLAGS) $< $(LIBSO) -o $@
