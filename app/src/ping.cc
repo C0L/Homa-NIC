@@ -63,18 +63,21 @@ int main() {
     snprintf(thread_name, sizeof(thread_name), "main");
     time_trace::thread_buffer thread_buffer(thread_name);
 
-//     for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1000; i++) {
 
-    __m512i ymm0;
-    ymm0 = _mm512_load_si512(reinterpret_cast<__m512i*>(&msghdr_send_in));
-    _mm_mfence();
+	__m512i ymm0;
+	ymm0 = _mm512_load_si512(reinterpret_cast<__m512i*>(&msghdr_send_in));
+	_mm_mfence();
 
-    tt(rdtsc(), "write request", 0, 0, 0, 0);
-    _mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
+	tt(rdtsc(), "ping", 0, 0, 0, 0);
+	_mm512_store_si512(reinterpret_cast<__m512i*>((char *) h2c_metadata_map), ymm0);
 
-    while(*poll == 0);
+	while(*poll == 0);
+	tt(rdtsc(), "pong", 0, 0, 0, 0);
+	*poll = 0;
+    }
 
-    time_trace::print_to_file("parse/perf_msg.tt");
+    time_trace::print_to_file("parse/ping_pong.tt");
 
     munmap(h2c_metadata_map, 16384);
     munmap(c2h_metadata_map, 16384);
