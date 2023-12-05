@@ -89,30 +89,30 @@ FPGA Link:
 	
 	ucli
 	pm
-	an-set 21/- 2
-	port-enb 21/-
 	port-add 22/- 100G NONE
-	an-set 22/- 2
-	port-enb 22/-
-	an-set 23/- 2
-	port-enb 23/-
 	port-add 24/- 100G NONE
+	an-set 22/- 2
 	an-set 24/- 2
+	port-enb 22/-
 	port-enb 24/-
 	show
 
-
+	bf-sde.pm> show
+	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
+	PORT |MAC |D_P|P/PT|SPEED  |FEC |RDY|ADM|OPR|LPBK    |FRAMES RX       |FRAMES TX       |E
+	-----+----+---+----+-------+----+---+---+---+--------+----------------+----------------+-
+	21/0 | 3/0| 32|1/32|100G   |NONE|YES|ENB|DWN|  NONE  |               0|               0|
+	22/0 | 2/0| 40|1/40|100G   |NONE|YES|ENB|UP |  NONE  |               2|               0|
+	23/0 | 1/0| 48|1/48|100G   |NONE|YES|ENB|DWN|  NONE  |               0|               0|
+	24/0 | 0/0| 56|1/56|100G   |NONE|YES|ENB|UP |  NONE  |               1|               0|
 
 	..
 	exit
 	
 	pd-basic-switching-custom device 0
-	pd forward add_entry set_egr device_id ig_intr_md_ingress_port 22 action_egress_spec 23
-	pd forward add_entry set_egr device_id ig_intr_md_ingress_port 21 action_egress_spec 23
 
-	pd forward add_entry set_egr device_id ig_intr_md_ingress_port 23 action_egress_spec 22
-	// pd forward add_entry set_egr device_id ig_intr_md_ingress_port 23 action_egress_spec 21
-	????
+	pd forward add_entry set_egr ig_intr_md_ingress_port 56 action_egress_spec 40
+ 	pd forward add_entry set_egr ig_intr_md_ingress_port 40 action_egress_spec 56
 	end
 
 
