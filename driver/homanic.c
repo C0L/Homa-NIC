@@ -26,11 +26,7 @@
 #define AXI_STREAM_FIFO_TDR  0x2C // Transmit Destination Register (w)
 #define AXI_STREAM_FIFO_RDR  0x30 // Receive Destination Register (r)
 
-// #define BAR_0      0xf4000000
-
-// #define BAR_0      0xec000000
-#define AXI_CMAC_0 0x00060000
-#define AXI_CMAC_1 0x00030000
+#define AXI_CMAC_1 0x30000
 
 #define MINOR_H2C_METADATA 0
 #define MINOR_C2H_METADATA 1
@@ -154,8 +150,8 @@ void dump_mb() {
 
     volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40000);
  
-    for (i = 0; i < 2048; ++i) {
-	pr_alert("mem index %x: %llx\n", i * 8, *((uint64_t*) (prog_mem + i)));
+    for (i = 0; i < 200; ++i) {
+	pr_alert("mem index %x: %x\n", i * 4, *((uint32_t*) (prog_mem + i)));
     }
 }
 
@@ -168,8 +164,8 @@ void init_mb() {
 	iowrite32(*(((uint32_t*) _binary_firmware_start) + i), prog_mem + i);
     }
 
-    for (i = 0; i < 64; ++i) {
-	pr_alert("mem index %x: %x\n", i * 4, ioread32(prog_mem + i));
+    for (i = 0; i < 150; ++i) {
+    	pr_alert("mem index %x: %x\n", i * 4, ioread32(prog_mem + i));
     }
 }
 
@@ -554,7 +550,6 @@ int homanic_init(void) {
     pci_set_master(pdev);
 
     // pr_alert("rom: %llx\n", (uint64_t) pci_resource_start(pdev, 0));
-    //
 
     BAR_0 = pci_resource_start(pdev, 0);
 
@@ -589,18 +584,20 @@ int homanic_init(void) {
     iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
     iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
 
-    iowrite32(0x0, io_regs + 0x50000);
-
-    // init_mb();
-
-    // TODO should not be needed
-    // msleep(10000);
-
-    // iowrite32(0x1, io_regs + 0x50000);
-    // msleep(10000);
     // iowrite32(0x0, io_regs + 0x50000);
 
-    // dump_mb();
+    init_mb();
+
+    // TODO should not be needed
+    msleep(1000);
+
+    iowrite32(0x1, io_regs + 0x50000);
+
+    msleep(1000);
+
+    iowrite32(0x0, io_regs + 0x50000);
+
+    dump_mb();
 
     init_eth();
 
