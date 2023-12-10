@@ -10,8 +10,7 @@ typedef ap_axiu<MSGHDR_SEND_SIZE, 0, 0, 0> msghdr_send_t;
 typedef ap_uint<512> port_to_phys_t;
 
 void interface(
-    ap_uint<512> * infmem,
-    hls::stream<ap_uint<64>> & addr_in,
+    hls::stream<ap_axiu<512, 32, 0, 0>> & addr_in,
     hls::stream<msghdr_send_t> & sendmsg,
     hls::stream<msghdr_recv_t> & recvmsg,
     hls::stream<port_to_phys_t> & h2c_port_to_msgbuff,

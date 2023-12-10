@@ -48,7 +48,7 @@ typedef ap_uint<512> integral_t;
  */
 typedef ap_uint<32> msg_addr_t;
 
-/* Offset host memory (very large)
+/* Offset host memory
  */
 typedef ap_uint<64> host_addr_t;
 

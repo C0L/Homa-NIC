@@ -8,165 +8,66 @@
 
 using namespace std;
 
-// TODO rename
+// No buffering of complete messages
+// Assume the recv from host has arrived before the complete message
+// Assign 256 slots to each port: pointer + count
+
+// Trying to match a complete and buffered message to its socket listener
+// The process has a set of slots in its metadata buffer
+// These slots are subdivided among threads
+// Just create a FIFO for each port?
+
 void c2h_metadata(
     hls::stream<msghdr_recv_t> & msghdr_recv_i,
     hls::stream<ap_uint<MSGHDR_RECV_SIZE>> & msghdr_dma_o,
     hls::stream<header_t> & complete_msgs_i
     ) {
 
-// TODO should assign these based on active peers
-    static ap_uint<MSGHDR_RECV_SIZE> buffered_complete[MAX_PORTS][MAX_RECV_MATCH];
-    static ap_uint<MSGHDR_RECV_SIZE> buffered_pending[MAX_PORTS][MAX_RECV_MATCH];
+    static ap_uint<12> listening[MAX_PORTS][1024];
+    static ap_uint<8> heads[MAX_PORTS];
 
-    static ap_uint<MAX_RECV_LOG2> complete_head[MAX_PORTS];
-    static ap_uint<MAX_RECV_LOG2> pending_head[MAX_PORTS];
+// #pragma HLS dependence variable=buffered intra WAR false
+// #pragma HLS dependence variable=buffered intra RAW false
+// #pragma HLS dependence variable=heads intra WAR false
+// #pragma HLS dependence variable=heads intra RAW false
+// #pragma HLS dependence variable=listening intra WAR false
+// #pragma HLS dependence variable=listening intra RAW false
 
-#pragma HLS dependence variable=buffered_complete inter WAR false
-#pragma HLS dependence variable=buffered_complete inter RAW false
-#pragma HLS dependence variable=buffered_pending inter WAR false
-#pragma HLS dependence variable=buffered_pending inter RAW false
-#pragma HLS dependence variable=buffered_pending inter WAR false
-#pragma HLS dependence variable=buffered_pending inter RAW false
-#pragma HLS dependence variable=complete_head inter WAR false
-#pragma HLS dependence variable=complete_head inter RAW false
-#pragma HLS dependence variable=pending_head inter WAR false
-#pragma HLS dependence variable=pending_head inter RAW false
+// #pragma HLS array_partition variable=buffered type=block factor=256
 
-    static ap_uint<MSGHDR_RECV_SIZE> search_complete      = 0;
-    static ap_uint<MSGHDR_RECV_SIZE> search_pending       = 0;
-    static ap_uint<MSGHDR_RECV_SIZE> search_result_msghdr = 0;
-    static ap_uint<MSGHDR_RECV_SIZE> search_result_index  = 0;
-    static ap_uint<MAX_RECV_LOG2>    search_index         = 0;
-
-    header_t complete;
+#pragma HLS pipeline II=3
     msghdr_recv_t pending;
+    header_t header_complete;
+    if (complete_msgs_i.read_nb(header_complete)) {
+	ap_uint<MSGHDR_RECV_SIZE> complete;
 
-    // TODO replace this with stalling CAM
-    if (search_complete != 0) {
-	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_pending[search_complete(MSGHDR_SPORT)][search_index];
+ 	complete(MSGHDR_SADDR)      = header_complete.saddr;
+ 	complete(MSGHDR_DADDR)      = header_complete.daddr;
+ 	complete(MSGHDR_SPORT)      = header_complete.sport;
+ 	complete(MSGHDR_DPORT)      = header_complete.dport;
+ 	complete(MSGHDR_BUFF_ADDR)  = header_complete.host_addr;
+ 	complete(MSGHDR_RETURN)     = header_complete.host_addr;
+ 	complete(MSGHDR_BUFF_SIZE)  = header_complete.message_length;
+ 	complete(MSGHDR_RECV_ID)    = header_complete.local_id;
+ 	complete(MSGHDR_RECV_CC)    = header_complete.id;
+ 	complete(MSGHDR_RECV_FLAGS) = (IS_CLIENT(header_complete.local_id)) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
 
-	std::cerr << "SEARCH INDEX " << search_index << std::endl;
+	std::cerr << "Complete message at port " << complete(MSGHDR_DPORT) << std::endl;
 
-    	if (candidate != 0) {
-            // Is this candidate a match and we don't already have an ID match 
-    	    if (candidate(MSGHDR_SADDR) == search_complete(MSGHDR_SADDR) &&
-    		candidate(MSGHDR_DADDR) == search_complete(MSGHDR_DADDR) &&
-    		candidate(MSGHDR_SPORT) == search_complete(MSGHDR_SPORT) &&
-    		candidate(MSGHDR_DPORT) == search_complete(MSGHDR_DPORT) &&
-    		search_result_msghdr(MSGHDR_RECV_ID) != search_complete(MSGHDR_RECV_ID)) {
+	ap_uint<8> head = heads[complete(MSGHDR_DPORT)];
+	ap_uint<12> listener = listening[complete(MSGHDR_DPORT)][head-1];
 
-    		switch(candidate(MSGHDR_RECV_FLAGS)) {
-    		    case HOMA_RECVMSG_REQUEST:
-    			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_REQUEST) {
-    			    search_result_msghdr = candidate;
-    			    search_result_index  = search_index;
-    			}
-    			break;
-    		    case HOMA_RECVMSG_RESPONSE:
-    			if (search_complete(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_RESPONSE) {
-    			    search_result_msghdr = candidate;
-    			    search_result_index  = search_index;
-    			}
-    			break;
-    		    case HOMA_RECVMSG_ALL:
-    			search_result_msghdr = candidate;
-    			search_result_index  = search_index;
-    			break;
-    		}
-    	    }
-    	    search_index++;
-    	} else {
-    	    if (search_result_msghdr != 0) {
-		ap_uint<MSGHDR_RECV_SIZE> msghdr_resp;
-    		msghdr_resp = search_result_msghdr;
-    		msghdr_resp(MSGHDR_RECV_ID) = search_complete(MSGHDR_RECV_ID);
-    		msghdr_resp(MSGHDR_RECV_CC) = search_complete(MSGHDR_RECV_CC);
+	std::cerr << "got head " << head << std::endl;
 
-		// std::cerr << "c2h complete port to meta " << c2h_port_to_metadata[search_result_msghdr(MSGHDR_DPORT)] << std::endl;
-		// std::cerr << "c2h complete msg return " << search_result_msghdr(MSGHDR_RETURN) * 64 << std::endl;
-
-		msghdr_dma_o.write(msghdr_resp);
-
-    		buffered_pending[search_complete(MSGHDR_SPORT)][search_result_index] = 0;
-    		pending_head[search_complete(MSGHDR_SPORT)]--;
-    	    } else {
-    		buffered_pending[search_complete(MSGHDR_SPORT)][pending_head[search_complete(MSGHDR_SPORT)]] = search_complete;
-    		complete_head[search_complete(MSGHDR_SPORT)]++;
-    	    }
-
-    	    search_complete      = 0;
-    	    search_pending       = 0;
-    	    search_result_msghdr = 0;
-    	    search_index         = 0;
-    	}
-    } else if (search_pending != 0) { // TODO should not compare the entire thing
-    	ap_uint<MSGHDR_RECV_SIZE> candidate = buffered_complete[search_pending(MSGHDR_SPORT)][search_index];
-
-    	if (candidate != 0) {
-    	    // Is this candidate a match and we don't already have an ID match 
-    	    if (candidate(MSGHDR_SADDR) == search_pending(MSGHDR_SADDR) &&
-    		candidate(MSGHDR_DADDR) == search_pending(MSGHDR_DADDR) &&
-    		candidate(MSGHDR_SPORT) == search_pending(MSGHDR_SPORT) &&
-    		candidate(MSGHDR_DPORT) == search_pending(MSGHDR_DPORT) &&
-    		search_result_msghdr(MSGHDR_RECV_ID) != search_pending(MSGHDR_RECV_ID)) {
-    		switch(candidate(MSGHDR_RECV_FLAGS)) {
-    		    case HOMA_RECVMSG_REQUEST:
-    			if (search_pending(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_REQUEST) {
-    			    search_result_msghdr = candidate;
-    			    search_result_index  = search_index;
-    			}
-    			break;
-    		    case HOMA_RECVMSG_RESPONSE:
-    			if (search_pending(MSGHDR_RECV_FLAGS) == HOMA_RECVMSG_RESPONSE) {
-    			    search_result_msghdr = candidate;
-    			    search_result_index  = search_index;
-    			}
-    			break;
-    		    case HOMA_RECVMSG_ALL:
-    			search_result_msghdr = candidate;
-			search_result_index  = search_index;
-    		}
-    	    }
-	    search_index++;
-    	} else {
-    	    if (search_result_msghdr != 0) {
-		ap_uint<MSGHDR_RECV_SIZE> msghdr_resp;
-
-    		msghdr_resp = search_result_msghdr;
-
-		msghdr_dma_o.write(msghdr_resp);
-
-		// std::cerr << "c2h pending port to meta " << c2h_port_to_metadata[search_result_msghdr(MSGHDR_DPORT)] << std::endl;
-		// std::cerr << "c2h pending msg return " << search_result_msghdr(MSGHDR_RETURN) * 64 << std::endl;
-
-    		buffered_complete[search_pending(MSGHDR_SPORT)][search_result_index] = 0;
-    		complete_head[search_complete(MSGHDR_SPORT)]--; // TODO This is wrong
-
-    	    } else {
-    		buffered_pending[search_pending(MSGHDR_SPORT)][pending_head[search_pending(MSGHDR_SPORT)]] = search_pending;
-    		pending_head[search_pending(MSGHDR_SPORT)]++; // TODO This is wrong
-    	    }
-
-    	    search_complete = 0;
-    	    search_pending  = 0;
-    	    search_result_msghdr = 0;
-    	    search_index    = 0;
-    	}
-    } else if (complete_msgs_i.read_nb(complete)) {
-	// TODO swap this
-	search_complete(MSGHDR_SADDR)      = complete.saddr;
-	search_complete(MSGHDR_DADDR)      = complete.daddr;
-	search_complete(MSGHDR_SPORT)      = complete.sport;
-	search_complete(MSGHDR_DPORT)      = complete.dport;
-	search_complete(MSGHDR_BUFF_ADDR)  = complete.host_addr;
-	search_complete(MSGHDR_RETURN)     = complete.host_addr;
-	search_complete(MSGHDR_BUFF_SIZE)  = complete.message_length;
-	search_complete(MSGHDR_RECV_ID)    = complete.local_id;
-	std::cerr << "COMPLETE MESSAGE ID " <<  complete.id << std::endl;
-	search_complete(MSGHDR_RECV_CC)    = complete.id;
-	search_complete(MSGHDR_RECV_FLAGS) = (IS_CLIENT(complete.local_id)) ? HOMA_RECVMSG_RESPONSE : HOMA_RECVMSG_REQUEST;
+	if (head != 0) {
+	    complete(MSGHDR_RETURN) = listener;
+	    heads[complete(MSGHDR_DPORT)] = head - 1;
+	    msghdr_dma_o.write(complete);
+	}
     } else if (msghdr_recv_i.read_nb(pending)) {
-	search_pending = pending.data;
+	std::cerr << "NEW ENTRY AT PORT " << pending.data(MSGHDR_RETURN) << std::endl;
+	ap_uint<8> head = head[pending.data(MSGHDR_DPORT)];
+	listening[pending.data(MSGHDR_DPORT)][head] = pending.data(MSGHDR_RETURN);
+	heads[pending.data(MSGHDR_DPORT)] = head + 1;
     }
 }

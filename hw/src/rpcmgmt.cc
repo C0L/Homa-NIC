@@ -161,7 +161,6 @@ void rpc_state(
 	msghdr_resp.strobe = 64;
 
 	recvmsg_dma_o.write(msghdr_resp);
-
     }
 
     srpt_queue_entry_t dbuff_notif;
