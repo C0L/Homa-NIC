@@ -89,7 +89,7 @@ homa_synth:
 		$(HOMA_SYNTH_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
 		homa \
-		"RTT_BYTES=5000"
+		"RTT_BYTES=1000000"
 
 INF_SYNTH_FLAGS = $(PART) $(SYNTH) "$(CSRC_INF)" "null"
 
