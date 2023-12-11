@@ -108,9 +108,10 @@ message_tester_rtt_5000_bin:
 		$(CSIM_FLAGS) \
 		tb/message_tester.cc \
 		homa \
-		"RTT_BYTES=5000"
+		"RTT_BYTES=1000000"
 	./homa_kernel/solution/csim/build/csim.exe 
 
+	# "RTT_BYTES=5000"
 
 #srpt_fetch_csim_shim:
 #	$(VITIS) tcl/homa_hls.tcl -tclargs \

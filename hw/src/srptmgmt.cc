@@ -37,6 +37,7 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 	if (active_rpcs[i](SRPT_QUEUE_ENTRY_RPC_ID) != 0) {
 	    // We found a better choice if there are less remaining bytes, or we are setting best_send for the first time
 	    if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) < best_send(SRPT_QUEUE_ENTRY_REMAINING) || best_send(SRPT_QUEUE_ENTRY_RPC_ID) == 0) {
+
 		bool granted = (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) + 1 <= active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING)) || (active_rpcs[i](SRPT_QUEUE_ENTRY_GRANTED) == 0);
 		bool dbuffered = (active_rpcs[i](SRPT_QUEUE_ENTRY_DBUFFERED) + HOMA_PAYLOAD_SIZE <= active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING)) || (active_rpcs[i](SRPT_QUEUE_ENTRY_DBUFFERED) == 0);
 
@@ -64,6 +65,7 @@ void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 }
 
 void srpt_fetch_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
+		      hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
 		      hls::stream<srpt_queue_entry_t> & cache_req_o) {
 
     static srpt_queue_entry_t active_rpcs[MAX_RPCS];
@@ -72,17 +74,32 @@ void srpt_fetch_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 	srpt_queue_entry_t sendmsg = sendmsg_i.read();
 
 	active_rpcs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)] = sendmsg;
+
+	std::cerr << "INIT REM " << sendmsg(SRPT_QUEUE_ENTRY_REMAINING) << std::endl;
+	std::cerr << "RPC ID " << sendmsg(SRPT_QUEUE_ENTRY_RPC_ID) << std::endl;
+    }
+
+
+    if (!dbuff_notif_i.empty()) {
+	// std::cerr << "DBUFF REFILL \n";
+	    srpt_queue_entry_t dbuff_notif = dbuff_notif_i.read();
+
+	    std::cerr << "rpc id " << dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID) << std::endl;
+	    std::cerr << "pre curr dbuff " << active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) << std::endl;
+
+	    std::cerr << "pre curr dbuff " << active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_REMAINING) << std::endl;
+	    active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) = active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) - 1386;
+	    std::cerr << "post curr dbuff " << active_rpcs[dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) << std::endl;
     }
 
     /* Find Next RPC to Fetch Data */
-
     srpt_queue_entry_t best_fetch;
     best_fetch(SRPT_QUEUE_ENTRY_REMAINING) = 0;
 
     // Brute force finding next best RPC to get data for
     for (int i = 0; i < MAX_RPCS; ++i) {
 	// Check if there is data remaining to buffer
-	if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) != 0) {
+	if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) != 0 && active_rpcs[i](SRPT_QUEUE_ENTRY_DBUFFERED) <= (16384 - 64)) {
 	    if (active_rpcs[i](SRPT_QUEUE_ENTRY_REMAINING) < best_fetch(SRPT_QUEUE_ENTRY_REMAINING) || best_fetch(SRPT_QUEUE_ENTRY_REMAINING) == 0) {
 		best_fetch = active_rpcs[i];
 	    }
@@ -95,7 +112,6 @@ void srpt_fetch_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 
 	active_rpcs[best_fetch(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_REMAINING) = dbuffered;
 	active_rpcs[best_fetch(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) = active_rpcs[best_fetch(SRPT_QUEUE_ENTRY_RPC_ID)](SRPT_QUEUE_ENTRY_DBUFFERED) + 64;
-
 	cache_req_o.write(best_fetch);
     }
 }

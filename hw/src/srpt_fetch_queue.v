@@ -18,6 +18,8 @@
 `define HOMA_PAYLOAD_SIZE 20'h56a
 `define CACHE_BLOCK_SIZE 64
 
+`define CACHE_SIZE 16384
+
 /**
  *
  */
@@ -27,6 +29,10 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
     input			       fetch_in_empty_i,
     output reg			       fetch_in_read_en_o,
     input [`QUEUE_ENTRY_SIZE-1:0]      fetch_in_data_i,
+
+    input			       dbuff_in_empty_i,
+    output reg			       dbuff_in_read_en_o,
+    input [`QUEUE_ENTRY_SIZE-1:0]      dbuff_in_data_i,
    
     input			       fetch_out_full_i,
     output reg			       fetch_out_write_en_o,
@@ -53,6 +59,11 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
 	     : (low_i[`QUEUE_ENTRY_REMAINING] > high_i[`QUEUE_ENTRY_REMAINING])) begin
 	    high_o = low_i;
 	    low_o  = high_i;
+	    if (low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_DBUFF_UPDATE 
+		&& low_i[`QUEUE_ENTRY_DBUFF_ID] == high_i[`QUEUE_ENTRY_DBUFF_ID]) begin
+	       low_o[`QUEUE_ENTRY_DBUFFERED] = low_o[`QUEUE_ENTRY_DBUFFERED] - 1386;
+	       low_o[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+	    end 
 	 end else begin 
 	    high_o = high_i;
 	    low_o  = low_i;
@@ -67,13 +78,17 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
    always @* begin
       fetchq_insert        = 0;
       fetch_in_read_en_o   = 0;
+      dbuff_in_read_en_o   = 0;
       fetch_out_write_en_o = 0;
       fetch_out_data_o     = 0;
       
       if (fetch_in_empty_i) begin
 	 fetch_in_read_en_o   = 1;
 	 fetchq_insert        = fetch_in_data_i;
-      end else if (fetch_out_full_i && fetchq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
+      end else if (dbuff_in_empty_i) begin
+	 dbuff_in_read_en_o   = 1;
+	 fetchq_insert        = dbuff_in_data_i;
+      end if (fetch_out_full_i && fetchq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
 	 fetch_out_data_o     = fetchq_head;
 	 fetch_out_write_en_o = 1;
       end
@@ -89,7 +104,6 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
       for (entry = 1; entry < MAX_RPCS; entry=entry+2) begin
 	 prioritize_fetchq(fetchq_swpe[entry-1], fetchq_swpe[entry], fetchq[entry-1], fetchq[entry]);
       end
-
     end
 
    integer rst_entry;
@@ -103,7 +117,7 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
 	    fetchq[rst_entry][`QUEUE_ENTRY_PRIORITY] <= `SRPT_EMPTY;
 	 end
       end else if (ap_ce && ap_start) begin // if (ap_rst)
-	 if (fetch_in_empty_i) begin
+	 if (fetch_in_empty_i || dbuff_in_empty_i) begin
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
 	       fetchq[entry] <= fetchq_swpo[entry];
 	    end 
@@ -117,10 +131,17 @@ module srpt_fetch_queue #(parameter MAX_RPCS = 64)
 	       $display("Dbuffered more");
 	       fetchq[0][`QUEUE_ENTRY_REMAINING] <= fetchq[0][`QUEUE_ENTRY_REMAINING] - `CACHE_BLOCK_SIZE;
 	       fetchq[0][`QUEUE_ENTRY_DBUFFERED] <= fetchq[0][`QUEUE_ENTRY_DBUFFERED] + `CACHE_BLOCK_SIZE;
+
+	       // TODO could also swap here?
+	       if (fetchq[0][`QUEUE_ENTRY_DBUFFERED] >= `CACHE_SIZE - `CACHE_BLOCK_SIZE) begin
+		  fetchq[0][`QUEUE_ENTRY_PRIORITY] <= `SRPT_BLOCKED;
+		  // We have buffered as much as we can
+		  // Block the entry
+	       end
+	      // TODO updates will modify the DBUFFERED count?  
 	    end
 	 end else begin
 	    if (fetchq_polarity == 1'b0) begin
-	       // Assumes that write does not keep data around
 	       for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
 		  fetchq[entry] <= fetchq_swpe[entry];
 	       end
@@ -162,12 +183,17 @@ module srpt_fetch_queue_tb();
    reg	fetch_in_empty_i;
    wire	fetch_in_read_en_o;
    reg [`QUEUE_ENTRY_SIZE-1:0] fetch_in_data_i;
+   
+   reg			       dbuff_in_empty_i;
+   wire			       dbuff_in_read_en_o;
+   reg [`QUEUE_ENTRY_SIZE-1:0] dbuff_in_data_i;
 
    reg			        fetch_out_full_i;
    wire 			fetch_out_write_en_o;
    wire [`QUEUE_ENTRY_SIZE-1:0]	fetch_out_data_o;
    
-   srpt_fetch_queue srpt_fetch_queue_tb(.ap_clk(ap_clk), 
+   srpt_fetch_queue srpt_fetch_queue_tb(
+					.ap_clk(ap_clk), 
 					.ap_rst(ap_rst), 
 					.ap_ce(ap_ce), 
 					.ap_start(ap_start), 
@@ -175,12 +201,16 @@ module srpt_fetch_queue_tb();
 					.fetch_in_empty_i(fetch_in_empty_i),
 					.fetch_in_read_en_o(fetch_in_read_en_o),
 					.fetch_in_data_i(fetch_in_data_i),
+					.dbuff_in_empty_i(dbuff_in_empty_i),
+					.dbuff_in_read_en_o(dbuff_in_read_en_o),
+					.dbuff_in_data_i(dbuff_in_data_i),
 					.fetch_out_full_i(fetch_out_full_i),
 					.fetch_out_write_en_o(fetch_out_write_en_o),
 					.fetch_out_data_o(fetch_out_data_o),
 					.ap_idle(ap_idle),
 					.ap_done(ap_done), 
-					.ap_ready(ap_ready));
+					.ap_ready(ap_ready)
+					);
 
    task sendmsg(input [15:0] rpc_id, 
 		input [9:0]  dbuff_id, 
@@ -205,6 +235,23 @@ module srpt_fetch_queue_tb();
 
 	 fetch_in_empty_i  = 0;
 	 wait(fetch_in_read_en_o == 1);
+      end
+      
+   endtask // sendmsg
+
+ 
+   task update(input [9:0]  dbuff_id);
+      begin
+	 dbuff_in_data_i[`QUEUE_ENTRY_DBUFF_ID]  = dbuff_id;
+	 dbuff_in_data_i[`QUEUE_ENTRY_PRIORITY]  = `SRPT_DBUFF_UPDATE;
+
+	 dbuff_in_empty_i  = 1;
+	 // TODO should also make sure the reader is ready
+
+	 #5;
+
+	 dbuff_in_empty_i  = 0;
+	 wait(dbuff_in_read_en_o == 1);
       end
       
    endtask // sendmsg
@@ -251,6 +298,8 @@ module srpt_fetch_queue_tb();
    initial begin
       fetch_in_data_i  = 0;
       fetch_in_empty_i = 0;
+      dbuff_in_data_i  = 0;
+      dbuff_in_empty_i = 0;
       fetch_out_full_i = 0;
 
       // Send reset signal
@@ -272,20 +321,30 @@ module srpt_fetch_queue_tb();
       // sendmsg(5, 5, 0, 0, 3000);
       // sendmsg(3, 3, 0, 0, 4000);
 
-      sendmsg(7, 7, 0, 0, 512);
+      sendmsg(7, 7, 0, 0, 1000000);
 
       #30;
 
-      // TODO this seems to fail on the first output?
+      for (integer i = 0; i < 256; i=i+1) begin
+	 get_output();
+      end
+
+      #30;
+
+      update(7);
+      // update(7);
+      // update(7);
+
+      $display("\n\n\n\n\n UPDATE \n\n\n\n\n");
+
       get_output();
       get_output();
       get_output();
       get_output();
-      get_output();
-      get_output();
-      get_output();
-      get_output();
-      
+      //for (integer i = 0; i < 300; i=i+1) begin
+      //	 get_output();
+      //end
+     
       #1000;
       $stop;
    end

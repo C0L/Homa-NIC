@@ -87,22 +87,26 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 #pragma HLS pipeline II=1 style=flp
 
     static header_t header;
-    static ap_uint<32> processed_bytes = 0; 
+    static ap_uint<32> processed_bytes = 0;
+    static ap_uint<32> data_bytes = 0; 
     static bool valid = false;
 
     // TODO revise the use of valid
     if (valid || (!valid && header_out_i.read_nb(header))) {
+
+	// std::cerr << header.data_offset << std::endl;
 
 	valid = true;
 
 	h2c_chunk_t out_chunk;
 	ap_uint<512> natural_chunk;
 
-	out_chunk.offset = header.data_offset;
+	out_chunk.offset = header.data_offset + data_bytes;
 
 	switch(header.type) {
 	    case DATA: {
 		if (processed_bytes == 0) {
+		    // std::cerr << "PROCESSED BYTES INIT" << std::endl;
 
 		    // Ethernet header
 		    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
@@ -164,14 +168,16 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		    out_chunk.link_bytes  = (((header.packet_bytes - DATA_PKT_HEADER) < 14) ? ((ap_int<32>) (header.packet_bytes - DATA_PKT_HEADER)) : ((ap_int<32>) 14)) + 50;
 		    out_chunk.h2c_buff_id = header.h2c_buff_id;
 		    out_chunk.local_id    = header.local_id;
-		    header.data_offset    += 14;
+		    data_bytes += 14;
+		    // header.data_offset    += 14;
 		} else {
 		    out_chunk.type        = DATA;
 		    out_chunk.data_bytes  = 64; // TODO this grabs more data than needed
 		    out_chunk.link_bytes = ((header.packet_bytes - processed_bytes) < 64) ? ((ap_int<32>) (header.packet_bytes - processed_bytes)) : ((ap_int<32>) 64);
 		    out_chunk.h2c_buff_id  = header.h2c_buff_id;
 		    out_chunk.local_id     = header.local_id;
-		    header.data_offset += 64;
+		    data_bytes += 64;
+		    // header.data_offset += 64;
 		}
 		break;
 	    }
@@ -237,13 +243,17 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 	out_chunk.last_msg_chunk = 0;
 
 	if (processed_bytes >= header.packet_bytes) {
-	    processed_bytes = 0;
+
 	    valid = false;
 	    out_chunk.last_pkt_chunk = 1;
+
+	    processed_bytes = 0;
 
 	    if (header.segment_length + header.data_offset >= header.message_length) {
 		out_chunk.last_msg_chunk = 1;
 	    }
+
+	    data_bytes = 0;
 	} 
 
 	network_order(natural_chunk, out_chunk.data);

@@ -21,6 +21,15 @@
 	    }
 	},
 	{
+	    "c_name":"dbuff_notif_i",
+	    "c_port_direction":"in",
+	    "rtl_ports":{
+		"FIFO_empty_flag":"dbuff_in_empty_i",
+		"FIFO_read_enable":"dbuff_in_read_en_o",
+		"FIFO_data_read_in":"dbuff_in_data_i"
+	    }
+	},
+	{
 	    "c_name":"cache_req_o",
 	    "c_port_direction":"out",
 	    "rtl_ports":{

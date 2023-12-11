@@ -98,6 +98,7 @@ void homa(
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> ready_data_pkt__srpt_data__egress_sel;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dbuff_notif__h2c_databuff__rpc_state;
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dbuff_notif__rpc_state__srpt_data;
+    hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dbuff_notif__h2c_databuff__srpt_fetch;
 
     /* dma streams */
     hls_thread_local hls::stream<srpt_queue_entry_t, STREAM_DEPTH> dma_req__srpt_data__address_map;
@@ -184,7 +185,8 @@ void homa(
     hls_thread_local hls::task srpt_fetch_queue_task(
 	srpt_fetch_queue,
 	sendmsg__rpc_state__srpt_fetch, // sendmsg_i
-	dma_req__srpt_data__address_map // 
+	dbuff_notif__h2c_databuff__srpt_fetch, // dbuff_notif_i
+	dma_req__srpt_data__address_map
 	);
 
     hls_thread_local hls::task packetmap_task(
@@ -225,7 +227,8 @@ void homa(
 	out_chunk__chunk_egress__dbuff_egress, // out_chunk_i
 	out_chunk__dbuff_egress__pkt_egress,   // out_chunk_o
 	free_dbuff__h2c_databuff__rpc_state,
-	dbuff_notif_log
+	dbuff_notif_log,
+	dbuff_notif__h2c_databuff__srpt_fetch
 	);
 
     // rpc_state -> packetmap -> databuff -> rpc_state
@@ -263,12 +266,11 @@ void homa(
 	link_egress_o                        // link_egress
 	);
 
-
     hls_thread_local hls::task c2h_header_hashmap_task(
 	c2h_header_hashmap,
 	header_in__chunk_ingress__rpc_state,
 	header_in__cam__rpc_state
-    );
+	);
 
     // hls_thread_local hls::task c2h_header_cam_task(
     // 	c2h_header_cam,

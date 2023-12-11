@@ -130,7 +130,8 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 		  hls::stream<h2c_chunk_t> & h2c_chunk_i,
 		  hls::stream<h2c_chunk_t> & h2c_chunk_o,
 		  hls::stream<dbuff_id_t> & free_dbuff_id_o,
-		  hls::stream<ap_uint<8>> & dbuff_notif_log_o) {
+		  hls::stream<ap_uint<8>> & dbuff_notif_log_o,
+		  hls::stream<srpt_queue_entry_t> & dbuff_update_o) {
 
 #pragma HLS pipeline II=1
 
@@ -159,10 +160,12 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 	dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)    = dbuff_in.local_id;
 	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = dbuff_in.msg_addr; // TODO misleading name
 
+	// std::cerr << "DBUFFED UP TO " << dbuff_in.msg_addr << std::endl;
+
 	dbuff_notif_o.write(dbuff_notif);
 
 	dbuff_notif_log_o.write(LOG_DBUFF_NOTIF);
-	    // }
+	// }
     }
 
     h2c_chunk_t out_chunk;
@@ -174,12 +177,25 @@ void h2c_databuff(hls::stream<h2c_dbuff_t> & dbuff_egress_i,
 	    dbuff_coffset_t chunk_offset = (out_chunk.offset % (DBUFF_CHUNK_SIZE * DBUFF_NUM_CHUNKS)) / DBUFF_CHUNK_SIZE;
 	    dbuff_boffset_t byte_offset  = out_chunk.offset % DBUFF_CHUNK_SIZE;
 
+// 	    std::cerr << "read from " << byte_offset << std::endl;
+
 	    ap_uint<1024> double_buff = (dbuff[out_chunk.h2c_buff_id][chunk_offset+1], dbuff[out_chunk.h2c_buff_id][chunk_offset]);
 
 	    out_chunk.data(511, (512 - (out_chunk.data_bytes*8))) = double_buff(((byte_offset + out_chunk.data_bytes) * 8) - 1, byte_offset * 8);
 
+	    if (out_chunk.last_pkt_chunk) {
+		std::cerr << "LAST PACKET CHUNK\n";
+	    	srpt_queue_entry_t dbuff_notif;
+	    	dbuff_notif(SRPT_QUEUE_ENTRY_RPC_ID)   = out_chunk.local_id;
+	    	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID) = out_chunk.h2c_buff_id;
+		std::cerr << "BUFF ID " << out_chunk.h2c_buff_id << std::endl;
+	    	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY) = SRPT_DBUFF_UPDATE;
+	    	dbuff_update_o.write(dbuff_notif);
+	    }
+
 	    // Read the last chunk for a message
-	    if (out_chunk.last_pkt_chunk == 1) {
+	    if (out_chunk.last_msg_chunk == 1) {
+		std::cerr << "FREED CHUNK\n\n\n\n\n\n";
 		free_dbuff_id_o.write(out_chunk.h2c_buff_id);
 	    }
 	}

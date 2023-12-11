@@ -94,6 +94,7 @@ void rpc_state(
 
 	// Allocate space in the data buffer for this RPC h2c data
 	rpc.h2c_buff_id = msg_cache_ids.pop();
+	std::cerr << "\n\n\n POP \n\n\n";
 
 	// Is this a request or a response
 	if (rpc.local_id == 0) { 
@@ -161,6 +162,7 @@ void rpc_state(
 	msghdr_resp.strobe = 64;
 
 	recvmsg_dma_o.write(msghdr_resp);
+
     }
 
     srpt_queue_entry_t dbuff_notif;

@@ -246,11 +246,11 @@ ap_uint<MSGHDR_RECV_SIZE> recvmsg_B_to_A(ap_uint<64> id) {
 
 // short messages fail
 void init() {
-    A_h2c_msgbuff  = (char*) malloc(16384 * sizeof(char));
-    A_c2h_msgbuff  = (char*) malloc(16384 * sizeof(char));
+    A_h2c_msgbuff  = (char*) malloc(100000 * sizeof(char));
+    A_c2h_msgbuff  = (char*) malloc(100000 * sizeof(char));
     A_c2h_metadata = (char*) malloc(16384 * sizeof(char));
-    B_h2c_msgbuff  = (char*) malloc(16384 * sizeof(char));
-    B_c2h_msgbuff  = (char*) malloc(16384 * sizeof(char));
+    B_h2c_msgbuff  = (char*) malloc(100000 * sizeof(char));
+    B_c2h_msgbuff  = (char*) malloc(100000 * sizeof(char));
     B_c2h_metadata = (char*) malloc(16384 * sizeof(char));
 
     A_c2h_msgbuff_map(PORT_TO_PHYS_ADDR) = (uint64_t) A_c2h_msgbuff;
@@ -318,7 +318,7 @@ void random_rpc() {
     memset(A_h2c_msgbuff, 0, 16384);
 
     for (int i = 0; i < (16384/4); ++i) memcpy(A_h2c_msgbuff + (i*4), &pattern, 4);
-    ap_uint<32> size = 6000;
+    ap_uint<32> size = 16385;
     // ap_uint<32> size = rand() % 4000;
 
     ap_uint<MSGHDR_SEND_SIZE> send = sendmsg_A_to_B(size, 0); // Request

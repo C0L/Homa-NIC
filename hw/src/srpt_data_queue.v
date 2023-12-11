@@ -214,7 +214,7 @@ module srpt_data_queue #(parameter MAX_RPCS = 64)
 
 	    if (sendq_ripe) begin
 	       $display("RIPE ENTRY %d", sendq_head[`QUEUE_ENTRY_REMAINING]);
-	       if (sendq_head[`QUEUE_ENTRY_REMAINING] < `HOMA_PAYLOAD_SIZE) begin
+	       if (sendq_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE) begin
 		  $display("INVALIDATING HEAD\n");
 		  sendq[0] <= sendq[1];
 		  sendq[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;

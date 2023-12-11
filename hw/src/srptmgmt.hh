@@ -4,9 +4,9 @@
 #include "homa.hh"
 #include "rpcmgmt.hh"
 
-
 void srpt_fetch_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
-                    hls::stream<srpt_queue_entry_t> & cache_req_o);
+		      hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
+		      hls::stream<srpt_queue_entry_t> & cache_req_o);
 
 void srpt_data_queue(hls::stream<srpt_queue_entry_t> & sendmsg_i,
 		    hls::stream<srpt_queue_entry_t> & dbuff_notif_i,
