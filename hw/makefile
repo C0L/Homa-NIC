@@ -125,6 +125,11 @@ user_synth:
 		user \
 		src/control/homa.cc
 
+pkt_builder:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		pkt_builder \
+		src/packet/packet.cc
 
 
 ############ Verilog Synthesis ############ 

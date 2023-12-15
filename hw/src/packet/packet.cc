@@ -1,7 +1,7 @@
 #include "link.hh"
 
-#include <iostream>
-#include <fstream>
+// #include <iostream>
+// #include <fstream>
 
 using namespace std;
 
@@ -77,9 +77,9 @@ void network_order(integral_t & in, integral_t & out) {
  * @chunk_out_o  - 64 byte structured packet chunks output to this stream to
  * be augmented with data from the data buffer
  */
-void pkt_builder(ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
+void pkt_builder(ap_uint<1024> cache[128 * NUM_EGRESS_BUFFS],
 		 hls::stream<header_block_t> & header_out_i,
-		 hls::stream<h2c_chunk_t> & chunk_out_o) {
+		 hls::stream<ap_axiu<512, 0, 0, 0>> & chunk_out_o) {
 
 #pragma HLS interface mode=ap_ctrl_none port=return
 
@@ -93,116 +93,140 @@ void pkt_builder(ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
     static ap_uint<32> processed_bytes = 0;
     static ap_uint<32> data_bytes = 0; 
     static bool valid = false;
-
+ 
     // TODO revise the use of valid
     if (valid || (!valid && header_out_i.read_nb(header))) {
 
 	valid = true;
 
-	h2c_chunk_t out_chunk;
 	ap_uint<512> natural_chunk;
 
-	out_chunk.offset = header.data_offset + data_bytes;
+	ap_uint<32> offset = header(HDR_BLOCK_MSG_ADDR) + data_bytes;
 
-	switch(header.type) {
-	    case DATA: {
-		if (processed_bytes == 0) {
-		    // Ethernet header
-		    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
-		    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;            // TODO MAC Src (set by phy?)
-		    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE;     // Ethertype
+	ap_uint<32> chunk_offset = (offset % 16384) / 64;
+	ap_uint<32> byte_offset  = offset % 64;
 
-		    // IPv6 header
-		    ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
+	// ap_uint<1024> double_buff = (dbuff[out_chunk.h2c_buff_id][chunk_offset+1], dbuff[out_chunk.h2c_buff_id][chunk_offset]);
+	ap_uint<1024> double_buff = cache[chunk_offset];
 
-		    natural_chunk(CHUNK_IPV6_VERSION)     = IPV6_VERSION;     // Version
-		    natural_chunk(CHUNK_IPV6_TRAFFIC)     = IPV6_TRAFFIC;     // Traffic Class
-		    natural_chunk(CHUNK_IPV6_FLOW)        = IPV6_FLOW;        // Flow Label
-		    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN) = payload_length;   // Payload Length
-		    natural_chunk(CHUNK_IPV6_NEXT_HEADER) = IPPROTO_HOMA;     // Next Header
-		    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;   // Hop Limit
-		    natural_chunk(CHUNK_IPV6_SADDR)       = header.saddr;     // Sender Address
-		    natural_chunk(CHUNK_IPV6_DADDR)       = header.daddr;     // Destination Address
 
-		    // Start of common header
-		    natural_chunk(CHUNK_HOMA_COMMON_SPORT) = header.sport;    // Sender Port
-		    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = header.dport;    // Destination Port
+	// switch(header.type) {
+	// case DATA: {
+	if (processed_bytes == 0) {
+	    // Ethernet header
+	    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
+	    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;            // TODO MAC Src (set by phy?)
+	    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE;     // Ethertype
 
-		    // Unused
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;             // Unused
+	    // IPv6 header
+	    // ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
 
-		    // Packet block configuration — no data bytes needed
-		    out_chunk.type  = DATA;
-		    out_chunk.data_bytes = 0;
-		    out_chunk.link_bytes = 64;
-		} else if (processed_bytes == 64) {
-		    // Rest of common header
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                  // Unused (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;               // doff (4 byte chunks in data header)
-		    natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = DATA;               // Type
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                  // Unused (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                  // Checksum (unused) (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                  // Unused  (2 bytes) 
-		    natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header.id;          // Sender ID
+	    natural_chunk(CHUNK_IPV6_VERSION)     = IPV6_VERSION;     // Version
+	    natural_chunk(CHUNK_IPV6_TRAFFIC)     = IPV6_TRAFFIC;     // Traffic Class
+	    natural_chunk(CHUNK_IPV6_FLOW)        = IPV6_FLOW;        // Flow Label
+	    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN) = 0xffffffff;       // Payload Length TODO
+	    natural_chunk(CHUNK_IPV6_NEXT_HEADER) = IPPROTO_HOMA;     // Next Header
+	    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;   // Hop Limit
+	    natural_chunk(CHUNK_IPV6_SADDR)       = header(HDR_BLOCK_SADDR);     // Sender Address
+	    natural_chunk(CHUNK_IPV6_DADDR)       = header(HDR_BLOCK_DADDR);     // Destination Address
 
-		    // Data header
-		    natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = header.message_length; // Message Length (entire message)
-		    natural_chunk(CHUNK_HOMA_DATA_INCOMING) = header.incoming;       // Incoming
-		    natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;                     // Cutoff Version (unimplemented) (2 bytes) TODO
-		    natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;                     // Retransmit (unimplemented) (1 byte) TODO
-		    natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;                     // Pad (1 byte)
+	    // Start of common header
+	    natural_chunk(CHUNK_HOMA_COMMON_SPORT) = header(HDR_BLOCK_SPORT);    // Sender Port
+	    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = header(HDR_BLOCK_DPORT);    // Destination Port
 
-		    // Data Segment
-		    natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header.data_offset;     // Offset
-		    natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = header.segment_length;  // Segment Length
+	    // Unused
+	    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;             // Unused
 
-		    // Ack header
-		    natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;                         // Client ID (8 bytes) TODO
-		    natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;                         // Client Port (2 bytes) TODO
-		    natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;                         // Server Port (2 bytes) TODO
 
-		    // Packet block configuration — 14 data bytes needed
-		    out_chunk.type        = DATA;
-		    out_chunk.data_bytes  = 14; // TODO this grabs more data than needed
-		    out_chunk.link_bytes  = (((header.packet_bytes - DATA_PKT_HEADER) < 14) ? ((ap_int<32>) (header.packet_bytes - DATA_PKT_HEADER)) : ((ap_int<32>) 14)) + 50;
-		    out_chunk.h2c_buff_id = header.h2c_buff_id;
-		    out_chunk.local_id    = header.local_id;
-		    data_bytes += 14;
-		    // header.data_offset    += 14;
-		} else {
-		    out_chunk.type        = DATA;
-		    out_chunk.data_bytes  = 64; // TODO this grabs more data than needed
-		    out_chunk.link_bytes = ((header.packet_bytes - processed_bytes) < 64) ? ((ap_int<32>) (header.packet_bytes - processed_bytes)) : ((ap_int<32>) 64);
-		    out_chunk.h2c_buff_id  = header.h2c_buff_id;
-		    out_chunk.local_id     = header.local_id;
-		    data_bytes += 64;
-		    // header.data_offset += 64;
-		}
-		break;
-	    }
+	} else if (processed_bytes == 64) {
+	    // Rest of common header
+	    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                        // Unused (2 bytes)
+	    natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;                     // doff (4 byte chunks in data header)
+	    natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = DATA;                     // Type
+	    natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                        // Unused (2 bytes)
+	    natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                        // Checksum (unused) (2 bytes)
+	    natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                        // Unused  (2 bytes) 
+	    natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header(HDR_BLOCK_RPC_ID); // Sender ID
 
+	    // Data header
+	    natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = 0xffffffff;      // Message Length (entire message) TODO
+	    natural_chunk(CHUNK_HOMA_DATA_INCOMING) = 0xffffffff;      // Incoming TODO
+	    natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;               // Cutoff Version (unimplemented) (2 bytes) TODO
+	    natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;               // Retransmit (unimplemented) (1 byte) TODO
+	    natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;               // Pad (1 byte)
+
+	    // Data Segment
+	    natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = header(HDR_BLOCK_MSG_ADDR);     // Offset
+	    natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = header(HDR_BLOCK_LENGTH);  // Segment Length
+
+	    // Ack header
+	    natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;                         // Client ID (8 bytes) TODO
+	    natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;                         // Client Port (2 bytes) TODO
+	    natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;                         // Server Port (2 bytes) TODO
+
+	    // Packet block configuration — 14 data bytes needed
+	    // out_chunk.type        = DATA;
+
+	    // 14 bytes
+	    out_chunk.data(511, 400) = double_buff(((byte_offset + 14) * 8) - 1, byte_offset * 8);
+
+	    // out_chunk.data_bytes  = 14;
+	    // out_chunk.link_bytes  = (((header.packet_bytes - DATA_PKT_HEADER) < 14) ? ((ap_int<32>) (header.packet_bytes - DATA_PKT_HEADER)) : ((ap_int<32>) 14)) + 50;
+	    // out_chunk.h2c_buff_id = header.h2c_buff_id;
+	    // out_chunk.local_id    = header.local_id;
+	    // data_bytes += 14;
+	} else {
+	    // out_chunk.type        = DATA;
+	    // out_chunk.data_bytes  = 64;
+
+	    out_chunk.data(511, 0) = double_buff(((byte_offset + 64) * 8) - 1, byte_offset * 8);
+
+	    // out_chunk.link_bytes = ((header.packet_bytes - processed_bytes) < 64) ? ((ap_int<32>) (header.packet_bytes - processed_bytes)) : ((ap_int<32>) 64);
+	    // out_chunk.h2c_buff_id  = header.h2c_buff_id;
+	    // out_chunk.local_id     = header.local_id;
+	    // data_bytes += 64;
 	}
+	// break;
+		// }
+
+	// }
 
 	processed_bytes += 64;
 
-	out_chunk.last_pkt_chunk = 0;
-	out_chunk.last_msg_chunk = 0;
+	// out_chunk.last_pkt_chunk = 0;
+	// out_chunk.last_msg_chunk = 0;
 
-	if (processed_bytes >= header.packet_bytes) {
-
+	if (processed_bytes >= header(HDR_BLOCK_LENGTH)) {
 	    valid = false;
-	    out_chunk.last_pkt_chunk = 1;
 
 	    processed_bytes = 0;
 
-	    if (header.segment_length + header.data_offset >= header.message_length) {
-		out_chunk.last_msg_chunk = 1;
-	    }
-
 	    data_bytes = 0;
-	} 
+	    out_chunk.last = 1;
+	}
+
+
+	//     out_chunk.last_pkt_chunk = 1;
+
+
+
+	//     if (header.segment_length + header.data_offset >= header.message_length) {
+	// 	out_chunk.last_msg_chunk = 1;
+	//     }
+
+	//     data_bytes = 0;
+	// } 
 
 	network_order(natural_chunk, out_chunk.data);
+
+// 	raw_stream.last = chunk.last_pkt_chunk;
+// 	raw_stream.keep = (0xFFFFFFFFFFFFFFFF >> (64 - chunk.link_bytes));
+// 	link_egress.write(raw_stream);
+
+	// raw_stream.keep = (0xFFFFFFFFFFFFFFFF >> (64 - link_bytes)); ??????
+
+	raw_stream.keep = 0xFFFFFFFFFFFFFFFF;
+
 	chunk_out_o.write(out_chunk);
     }
 }
@@ -272,20 +296,20 @@ void pkt_builder(ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
  * @out_chunk_i - Chunks to be output onto the link
  * @link_egress - Outgoign AXI Stream to the link
  */
-void pkt_chunk_egress(hls::stream<h2c_chunk_t> & out_chunk_i,
-		      hls::stream<raw_stream_t> & link_egress) {
-#pragma HLS pipeline
-    if (!out_chunk_i.empty()) {
-
-	h2c_chunk_t chunk = out_chunk_i.read();
-	raw_stream_t raw_stream;
-
-	raw_stream.data = chunk.data;
-	raw_stream.last = chunk.last_pkt_chunk;
-	raw_stream.keep = (0xFFFFFFFFFFFFFFFF >> (64 - chunk.link_bytes));
-	link_egress.write(raw_stream);
-    }
-}
+// void pkt_chunk_egress(hls::stream<h2c_chunk_t> & out_chunk_i,
+// 		      hls::stream<raw_stream_t> & link_egress) {
+// #pragma HLS pipeline
+//     if (!out_chunk_i.empty()) {
+// 
+// 	h2c_chunk_t chunk = out_chunk_i.read();
+// 	raw_stream_t raw_stream;
+// 
+// 	raw_stream.data = chunk.data;
+// 	raw_stream.last = chunk.last_pkt_chunk;
+// 	raw_stream.keep = (0xFFFFFFFFFFFFFFFF >> (64 - chunk.link_bytes));
+// 	link_egress.write(raw_stream);
+//     }
+// }
 
 /**
  * pkt_chunk_ingress() - Take packet chunks from the link, reconstruct packets,
@@ -301,94 +325,94 @@ void pkt_chunk_egress(hls::stream<h2c_chunk_t> & out_chunk_i,
  * Could alternatively send all packets through the same path but this approach
  * seems simpler
  */
-void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
-		       hls::stream<header_t> & header_in_o,
-		       hls::stream<c2h_chunk_t> & chunk_in_o) {
-
-#pragma HLS pipeline II=1 style=flp
-
-    static header_t header_in;
-    static ap_uint<32> processed_bytes = 0;
-
-    if (!link_ingress.empty()) {
-
-	raw_stream_t raw_stream = link_ingress.read();
-	
-	c2h_chunk_t data_block;
-	ap_uint<512> natural_chunk;
-
-	network_order(raw_stream.data, natural_chunk);
-
-	// For every type of homa packet we need to read at least two blocks
-	if (processed_bytes == 0) {
-
-	    header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
-
-	    header_in.saddr          = natural_chunk(CHUNK_IPV6_SADDR);
-	    header_in.daddr          = natural_chunk(CHUNK_IPV6_DADDR);
-	    header_in.sport          = natural_chunk(CHUNK_HOMA_COMMON_SPORT);
-	    header_in.dport          = natural_chunk(CHUNK_HOMA_COMMON_DPORT);
-
-	} else if (processed_bytes == 64) {
-
-	    header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
-	    header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
-	    header_in.id   = LOCALIZE_ID(header_in.id);
-
-	    switch(header_in.type) {
-		case GRANT: {
-		    // Grant header
-		    header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
-		    header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
-
-		    break;
-		}
-
-		case DATA: {
-		    header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
-		    header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
-		    header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
-		    header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
-
-		    // TODO parse acks
-
-		    data_block.data(14 * 8, 0) = raw_stream.data(511, 512-14*8);
-
-		    ap_uint<8> pop  = 0;
-		    for (int i = 0; i < 64; i++) {
-#pragma HLS unroll
-		      pop += ((raw_stream.keep >> i) & 1);
-		    }
-
-		    data_block.width  = pop - 50;
-		    data_block.last   = raw_stream.last;
-
-		    chunk_in_o.write(data_block);
-
-		    break;
-		}
-	    }
-
-	    header_in_o.write(header_in);
-	} else {
-	    data_block.data  = raw_stream.data;
-
-	    ap_uint<8> pop  = 0;
-	    for (int i = 0; i < 64; i++) {
-#pragma HLS unroll
-	      pop += ((raw_stream.keep >> i) & 1);
-	    }
-
-	    data_block.width = pop;
-	    data_block.last  = raw_stream.last;
-
-	    chunk_in_o.write(data_block);
-	}
-
-	processed_bytes += 64;
-
-	if (raw_stream.last) {
-	    processed_bytes = 0;
-	}
-    }
-}
+// void pkt_chunk_ingress(hls::stream<raw_stream_t> & link_ingress,
+// 		       hls::stream<header_t> & header_in_o,
+// 		       hls::stream<c2h_chunk_t> & chunk_in_o) {
+// 
+// #pragma HLS pipeline II=1 style=flp
+// 
+//     static header_t header_in;
+//     static ap_uint<32> processed_bytes = 0;
+// 
+//     if (!link_ingress.empty()) {
+// 
+// 	raw_stream_t raw_stream = link_ingress.read();
+// 	
+// 	c2h_chunk_t data_block;
+// 	ap_uint<512> natural_chunk;
+// 
+// 	network_order(raw_stream.data, natural_chunk);
+// 
+// 	// For every type of homa packet we need to read at least two blocks
+// 	if (processed_bytes == 0) {
+// 
+// 	    header_in.payload_length = natural_chunk(CHUNK_IPV6_PAYLOAD_LEN);
+// 
+// 	    header_in.saddr          = natural_chunk(CHUNK_IPV6_SADDR);
+// 	    header_in.daddr          = natural_chunk(CHUNK_IPV6_DADDR);
+// 	    header_in.sport          = natural_chunk(CHUNK_HOMA_COMMON_SPORT);
+// 	    header_in.dport          = natural_chunk(CHUNK_HOMA_COMMON_DPORT);
+// 
+// 	} else if (processed_bytes == 64) {
+// 
+// 	    header_in.type = natural_chunk(CHUNK_HOMA_COMMON_TYPE);      // Packet type
+// 	    header_in.id   = natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID); // Sender RPC ID
+// 	    header_in.id   = LOCALIZE_ID(header_in.id);
+// 
+// 	    switch(header_in.type) {
+// 		case GRANT: {
+// 		    // Grant header
+// 		    header_in.grant_offset = natural_chunk(CHUNK_HOMA_GRANT_OFFSET);   // Byte offset of grant
+// 		    header_in.priority     = natural_chunk(CHUNK_HOMA_GRANT_PRIORITY); // TODO priority
+// 
+// 		    break;
+// 		}
+// 
+// 		case DATA: {
+// 		    header_in.message_length = natural_chunk(CHUNK_HOMA_DATA_MSG_LEN);  // Message Length (entire message)
+// 		    header_in.incoming       = natural_chunk(CHUNK_HOMA_DATA_INCOMING); // Expected Incoming Bytes
+// 		    header_in.data_offset    = natural_chunk(CHUNK_HOMA_DATA_OFFSET);   // Offset in message of segment
+// 		    header_in.segment_length = natural_chunk(CHUNK_HOMA_DATA_SEG_LEN);  // Segment Length
+// 
+// 		    // TODO parse acks
+// 
+// 		    data_block.data(14 * 8, 0) = raw_stream.data(511, 512-14*8);
+// 
+// 		    ap_uint<8> pop  = 0;
+// 		    for (int i = 0; i < 64; i++) {
+// #pragma HLS unroll
+// 		      pop += ((raw_stream.keep >> i) & 1);
+// 		    }
+// 
+// 		    data_block.width  = pop - 50;
+// 		    data_block.last   = raw_stream.last;
+// 
+// 		    chunk_in_o.write(data_block);
+// 
+// 		    break;
+// 		}
+// 	    }
+// 
+// 	    header_in_o.write(header_in);
+// 	} else {
+// 	    data_block.data  = raw_stream.data;
+// 
+// 	    ap_uint<8> pop  = 0;
+// 	    for (int i = 0; i < 64; i++) {
+// #pragma HLS unroll
+// 	      pop += ((raw_stream.keep >> i) & 1);
+// 	    }
+// 
+// 	    data_block.width = pop;
+// 	    data_block.last  = raw_stream.last;
+// 
+// 	    chunk_in_o.write(data_block);
+// 	}
+// 
+// 	processed_bytes += 64;
+// 
+// 	if (raw_stream.last) {
+// 	    processed_bytes = 0;
+// 	}
+//     }
+// }
