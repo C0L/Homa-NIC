@@ -25,49 +25,49 @@ void network_order(integral_t & in, integral_t & out) {
 	out(512 - (i*8) - 1, 512 - 8 - (i*8)) = in(7 + (i*8), (i*8));
     }
 }
-
-/**
- * next_pkt_selector() - Chose which of data packets, grant packets, retransmission(TODO)
- * packets, and control packets(TODO) to send next.
- * @data_pkt_i   - Next highest priority data packet to send
- * @grant_pkt_i  - Next highest priority grant packet to send
- * @header_out_o - Output stream to the RPC store to get info about the RPC
- * before the packet can be sent
- */
-void next_pkt_selector(hls::stream<srpt_queue_entry_t> & data_pkt_i,
-		       hls::stream<srpt_grant_send_t> & grant_pkt_i,
-		       hls::stream<header_t> & header_out_o) {
-
-#pragma HLS pipeline II=1
-
-    if (!grant_pkt_i.empty()) {
-	srpt_grant_send_t grant_out = grant_pkt_i.read();
-
-	header_t header_out;
-	header_out.type         = GRANT;
-	header_out.local_id     = grant_out(SRPT_GRANT_SEND_RPC_ID);
-	header_out.grant_offset = grant_out(SRPT_GRANT_SEND_MSG_ADDR);
-	header_out.packet_bytes = GRANT_PKT_HEADER;
-
-	header_out_o.write(header_out);
-    } else if (!data_pkt_i.empty()) {
-	srpt_queue_entry_t ready_data_pkt = data_pkt_i.read();
-
-	// TODO why even handle this here?
-
-	header_t header_out;
-	header_out.type            = DATA;
-	header_out.local_id        = ready_data_pkt(SRPT_QUEUE_ENTRY_RPC_ID);
-	header_out.incoming        = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
-	header_out.grant_offset    = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
-	header_out.data_offset     = ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING);
-	header_out.segment_length  = MIN(ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
-	header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
-	header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
-
-	header_out_o.write(header_out);
-    } 
-}
+// 
+// /**
+//  * next_pkt_selector() - Chose which of data packets, grant packets, retransmission(TODO)
+//  * packets, and control packets(TODO) to send next.
+//  * @data_pkt_i   - Next highest priority data packet to send
+//  * @grant_pkt_i  - Next highest priority grant packet to send
+//  * @header_out_o - Output stream to the RPC store to get info about the RPC
+//  * before the packet can be sent
+//  */
+// void next_pkt_selector(hls::stream<srpt_queue_entry_t> & data_pkt_i,
+// 		       hls::stream<srpt_grant_send_t> & grant_pkt_i,
+// 		       hls::stream<header_t> & header_out_o) {
+// 
+// #pragma HLS pipeline II=1
+// 
+//     if (!grant_pkt_i.empty()) {
+// 	srpt_grant_send_t grant_out = grant_pkt_i.read();
+// 
+// 	header_t header_out;
+// 	header_out.type         = GRANT;
+// 	header_out.local_id     = grant_out(SRPT_GRANT_SEND_RPC_ID);
+// 	header_out.grant_offset = grant_out(SRPT_GRANT_SEND_MSG_ADDR);
+// 	header_out.packet_bytes = GRANT_PKT_HEADER;
+// 
+// 	header_out_o.write(header_out);
+//     } else if (!data_pkt_i.empty()) {
+// 	srpt_queue_entry_t ready_data_pkt = data_pkt_i.read();
+// 
+// 	// TODO why even handle this here?
+// 
+// 	header_t header_out;
+// 	header_out.type            = DATA;
+// 	header_out.local_id        = ready_data_pkt(SRPT_QUEUE_ENTRY_RPC_ID);
+// 	header_out.incoming        = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
+// 	header_out.grant_offset    = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
+// 	header_out.data_offset     = ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING);
+// 	header_out.segment_length  = MIN(ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
+// 	header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
+// 	header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
+// 
+// 	header_out_o.write(header_out);
+//     } 
+// }
 
 /**
  * pkt_builder() - Take in the packet header data and output
@@ -77,24 +77,25 @@ void next_pkt_selector(hls::stream<srpt_queue_entry_t> & data_pkt_i,
  * @chunk_out_o  - 64 byte structured packet chunks output to this stream to
  * be augmented with data from the data buffer
  */
-void pkt_builder(hls::stream<header_t> & header_out_i,
+void pkt_builder(ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
+		 hls::stream<header_block_t> & header_out_i,
 		 hls::stream<h2c_chunk_t> & chunk_out_o) {
 
-    // TODO use a struct with all the elements then fill it in 64
-    // bytes at a time and cast it to a large ap_uint and take the
-    // respective chunk??
+#pragma HLS interface mode=ap_ctrl_none port=return
 
-#pragma HLS pipeline II=1 style=flp
+#pragma HLS pipeline II=1
 
-    static header_t header;
+#pragma HLS interface bram port=cache
+#pragma HLS interface axis port=header_out_i
+#pragma HLS interface axis port=chunk_out_o
+
+    static header_block_t header;
     static ap_uint<32> processed_bytes = 0;
     static ap_uint<32> data_bytes = 0; 
     static bool valid = false;
 
     // TODO revise the use of valid
     if (valid || (!valid && header_out_i.read_nb(header))) {
-
-	// std::cerr << header.data_offset << std::endl;
 
 	valid = true;
 
@@ -106,8 +107,6 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 	switch(header.type) {
 	    case DATA: {
 		if (processed_bytes == 0) {
-		    // std::cerr << "PROCESSED BYTES INIT" << std::endl;
-
 		    // Ethernet header
 		    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
 		    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;            // TODO MAC Src (set by phy?)
@@ -182,59 +181,6 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 		break;
 	    }
 
-	    case GRANT: {
-		if (processed_bytes == 0) {
-		    // TODO this is a little repetetive
-
-		    // Ethernet header
-		    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;        // TODO MAC Dest (set by phy?)
-		    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;        // TODO MAC Src (set by phy?)
-		    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE; // Ethertype
-
-		    // IPv6 header 
-		    ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
-
-		    natural_chunk(CHUNK_IPV6_VERSION)        = IPV6_VERSION;     // Version
-		    natural_chunk(CHUNK_IPV6_TRAFFIC)        = IPV6_TRAFFIC;     // Traffic Class
-		    natural_chunk(CHUNK_IPV6_FLOW)           = IPV6_FLOW;        // Flow Label
-		    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN)    = payload_length;   // Payload Length
-		    natural_chunk(CHUNK_IPV6_NEXT_HEADER)    = IPPROTO_HOMA;     // Next Header
-		    natural_chunk(CHUNK_IPV6_HOP_LIMIT)      = IPV6_HOP_LIMIT;   // Hop Limit
-		    natural_chunk(CHUNK_IPV6_SADDR)          = header.saddr;     // Sender Address
-		    natural_chunk(CHUNK_IPV6_DADDR)          = header.daddr;     // Destination Address
-
-		    // Start of common header
-		    natural_chunk(CHUNK_HOMA_COMMON_SPORT)   = header.sport;     // Sender Port
-		    natural_chunk(CHUNK_HOMA_COMMON_DPORT)   = header.dport;     // Destination Port
-
-		    // Unused
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;                // Unused
-
-		    // Packet block configuration — no data bytes needed
-		    out_chunk.type       = GRANT;
-		    out_chunk.data_bytes = 0;
-		    out_chunk.link_bytes = 64;
-		} else if (processed_bytes == 64) {
-		    // Rest of common header
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                // Unused (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;             // doff (4 byte chunks in data header)
-		    natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = GRANT;            // Type
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                // Unused (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                // Checksum (unused) (2 bytes)
-		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                // Unused  (2 bytes) 
-		    natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header.id;        // Sender ID
-
-		    // Grant header
-		    natural_chunk(CHUNK_HOMA_GRANT_OFFSET)   = header.grant_offset; // Byte offset of grant
-		    natural_chunk(CHUNK_HOMA_GRANT_PRIORITY) = 0;                       // Priority TODO
-
-		    // Packet block configuration — no data bytes needed
-		    out_chunk.type       = GRANT;
-		    out_chunk.data_bytes = 0;
-		    out_chunk.link_bytes = 54;
-		} 
-		break;
-	    }
 	}
 
 	processed_bytes += 64;
@@ -260,6 +206,62 @@ void pkt_builder(hls::stream<header_t> & header_out_i,
 	chunk_out_o.write(out_chunk);
     }
 }
+
+
+//	    case GRANT: {
+//		if (processed_bytes == 0) {
+//		    // TODO this is a little repetetive
+//
+//		    // Ethernet header
+//		    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;        // TODO MAC Dest (set by phy?)
+//		    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;        // TODO MAC Src (set by phy?)
+//		    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE; // Ethertype
+//
+//		    // IPv6 header 
+//		    ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
+//
+//		    natural_chunk(CHUNK_IPV6_VERSION)        = IPV6_VERSION;     // Version
+//		    natural_chunk(CHUNK_IPV6_TRAFFIC)        = IPV6_TRAFFIC;     // Traffic Class
+//		    natural_chunk(CHUNK_IPV6_FLOW)           = IPV6_FLOW;        // Flow Label
+//		    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN)    = payload_length;   // Payload Length
+//		    natural_chunk(CHUNK_IPV6_NEXT_HEADER)    = IPPROTO_HOMA;     // Next Header
+//		    natural_chunk(CHUNK_IPV6_HOP_LIMIT)      = IPV6_HOP_LIMIT;   // Hop Limit
+//		    natural_chunk(CHUNK_IPV6_SADDR)          = header.saddr;     // Sender Address
+//		    natural_chunk(CHUNK_IPV6_DADDR)          = header.daddr;     // Destination Address
+//
+//		    // Start of common header
+//		    natural_chunk(CHUNK_HOMA_COMMON_SPORT)   = header.sport;     // Sender Port
+//		    natural_chunk(CHUNK_HOMA_COMMON_DPORT)   = header.dport;     // Destination Port
+//
+//		    // Unused
+//		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;                // Unused
+//
+//		    // Packet block configuration — no data bytes needed
+//		    out_chunk.type       = GRANT;
+//		    out_chunk.data_bytes = 0;
+//		    out_chunk.link_bytes = 64;
+//		} else if (processed_bytes == 64) {
+//		    // Rest of common header
+//		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                // Unused (2 bytes)
+//		    natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;             // doff (4 byte chunks in data header)
+//		    natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = GRANT;            // Type
+//		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                // Unused (2 bytes)
+//		    natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                // Checksum (unused) (2 bytes)
+//		    natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                // Unused  (2 bytes) 
+//		    natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = header.id;        // Sender ID
+//
+//		    // Grant header
+//		    natural_chunk(CHUNK_HOMA_GRANT_OFFSET)   = header.grant_offset; // Byte offset of grant
+//		    natural_chunk(CHUNK_HOMA_GRANT_PRIORITY) = 0;                       // Priority TODO
+//
+//		    // Packet block configuration — no data bytes needed
+//		    out_chunk.type       = GRANT;
+//		    out_chunk.data_bytes = 0;
+//		    out_chunk.link_bytes = 54;
+//		} 
+//		break;
+//	    }
+
 
 /**
  * pkt_chunk_egress() - Take care of final configuration before packet

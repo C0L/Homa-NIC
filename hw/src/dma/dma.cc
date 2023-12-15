@@ -2,13 +2,14 @@
 
 using namespace std;
 
-
 void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
 	      ap_uint<128> c2h_data_map[NUM_PORTS],
 	      ap_uint<128> h2c_data_map[NUM_PORTS],
+	      hls::stream<msghdr_send_t> & dma_w_sendmsg_i,
+	      hls::stream<dma_w_req_t> & dma_w_data_i,
 	      hls::stream<srpt_queue_entry_t> & dma_r_req_i,
+	      hls::stream<dma_w_req_t> & dma_w_req_o,
 	      hls::stream<dma_r_req_t> & dma_r_req_o) {
-
 
 #pragma HLS interface mode=ap_ctrl_none port=return
 
@@ -18,9 +19,11 @@ void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
 #pragma HLS interface bram port=c2h_data_map
 #pragma HLS interface bram port=h2c_data_map
 
+#pragma HLS interface axis port=dma_w_sendmsg_i
+#pragma HLS interface axis port=dma_w_data_i
 #pragma HLS interface axis port=dma_r_req_i
+#pragma HLS interface axis port=dma_w_req_o
 #pragma HLS interface axis port=dma_r_req_o
-
 
     srpt_queue_entry_t dma_r_req_in;
     if (dma_r_req_i.read_nb(dma_r_req_in)) {
@@ -31,7 +34,16 @@ void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
 	dma_r_req_out(DMA_R_REQ_COOKIE) = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
 	dma_r_req_o.write(dma_r_req_out);
     }
-    
+
+    msghdr_send_t dma_w_sendmsg;
+    if (dma_w_sendmsg_i.read_nb(dma_w_sendmsg)) {
+	dma_w_req_t dma_w_req_out;
+	dma_w_req_out(DMA_W_REQ_HOST_ADDR) = metadata_map[dma_w_sendmsg(MSGHDR_SEND_ID)] + (64 * dma_w_sendmsg(MSGHDR_RETURN));
+	dma_w_req_out(DMA_W_REQ_DATA)   = dma_w_sendmsg;
+	dma_w_req_out(DMA_W_REQ_STROBE) = 64;
+
+	dma_w_req_o.write(dma_w_req_out);
+    }
 }
 
 /* TODO CAREFUL

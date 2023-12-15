@@ -54,6 +54,45 @@ typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
 
 typedef ap_uint<SRPT_QUEUE_ENTRY_SIZE> srpt_queue_entry_t;
 
+/* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
+ * recvmsg requests that form the msghdr
+ */
+#define MSGHDR_SADDR        127,0   // Address of sender (sendmsg) or receiver (recvmsg) (128 bits)
+#define MSGHDR_DADDR        255,127 // Address of receiver (sendmsg) or sender (recvmsg) (128 bits)
+#define MSGHDR_SPORT        271,256 // Port of sender (sendmsg) or receiver (recvmsg)    (16 bits)
+#define MSGHDR_DPORT        287,272 // Address of receiver (sendmsg) or sender (recvmsg) (16 bits)
+#define MSGHDR_BUFF_ADDR    319,288 // Message contents DMA offset                       (32 bits)
+#define MSGHDR_RETURN       331,320 // Offset in metadata space to place result          (12 bits)
+#define MSGHDR_BUFF_SIZE    351,332 // Size of message in DMA space                      (20 bits)
+
+/* Offsets within the sendmsg bitvector for the sendmsg specific information */
+#define MSGHDR_SEND_ID      447,384 // RPC identifier                                    (64 bits)
+#define MSGHDR_SEND_CC      511,448 // Completion Cookie                                 (64 bits)
+#define MSGHDR_SEND_SIZE    512     // Rounded to nearest                                (32 bits)
+
+/* Offsets within the recvmsg bitvector for the recvmsg specific information */
+#define MSGHDR_RECV_FLAGS   383,352 // Interest list                                     (32 bits)
+#define MSGHDR_RECV_ID      447,384 // RPC identifier                                    (64 bits)
+#define MSGHDR_RECV_CC      511,448 // Completion Cookie				 (32 bits)
+#define MSGHDR_RECV_SIZE    512     // Rounded to nearest 32 bits
+
+/**
+ * msghdr_send_t - input bitvector from the user for sendmsg requests
+ * NOTE: The TLAST signal (which is created by ap_axiu) must be
+ * present to integrate with certain cores that expect a TLAST signal
+ * even if there is only a single beat of the stream transaction.
+ */
+typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
+
+/**
+ * msghdr_recv_t - input bitvector from the user for recvmsg requests
+ * NOTE: The TLAST signal (which is created by ap_axiu) must be
+ * present to integrate with certain cores that expect a TLAST signal
+ * even if there is only a single beat of the stream transaction.
+ */
+typedef ap_uint<MSGHDR_RECV_SIZE> msghdr_recv_t;
+
+
 #define LOG_DATA_R_REQ  0x10
 #define LOG_DATA_R_RESP 0x20
 

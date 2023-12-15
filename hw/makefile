@@ -112,13 +112,19 @@ intf_synth:
 		interface \
 		src/intf/interface.cc
 
-
 homa_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(HOMA_SYNTH_FLAGS) \
 		$(C_TB_DIR)/single_message_tester.cc \
 		homa \
 		"RTT_BYTES=1000000"
+
+user_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		user \
+		src/control/homa.cc
+
 
 
 ############ Verilog Synthesis ############ 
