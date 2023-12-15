@@ -82,25 +82,21 @@
  * TODO use a LAST bit to handle when notifications are sent?
  */
 module srpt_data_queue #(parameter MAX_RPCS = 64)
-   (input ap_clk, ap_rst, ap_ce, ap_start, ap_continue,
+   (input ap_clk, ap_rst, 
     
-    input			       sendmsg_in_empty_i,
-    output reg			       sendmsg_in_read_en_o,
-    input [`QUEUE_ENTRY_SIZE-1:0]      sendmsg_in_data_i,
-   
-    input			       dbuff_in_empty_i,
-    output reg			       dbuff_in_read_en_o,
-    input [`QUEUE_ENTRY_SIZE-1:0]      dbuff_in_data_i,
-   
-    input			       grant_in_empty_i,
-    output reg			       grant_in_read_en_o,
-    input [`QUEUE_ENTRY_SIZE-1:0]      grant_in_data_i,
+    input				S_AXIS_TVALID,
+    output reg				S_AXIS_TREADY,
+    input [`QUEUE_ENTRY_SIZE-1:0]	S_AXIS_TDATA,
 
-    input			       data_pkt_full_i,
-    output reg			       data_pkt_write_en_o,
-    output reg [`QUEUE_ENTRY_SIZE-1:0] data_pkt_data_o,
+    output reg				M_AXIS_TVALID,
+    input wire				M_AXIS_TREADY,
+    output reg [C_S_AXI_DATA_WIDTH-1:0]	M_AXIS_TDATA,
 
-    output			       ap_idle, ap_done, ap_ready);
+    // input			       data_pkt_full_i,
+    // output reg			       data_pkt_write_en_o,
+    // output reg [`QUEUE_ENTRY_SIZE-1:0] data_pkt_data_o,
+
+    output				ap_idle, ap_done, ap_ready);
 
    // Data out priority queue
    reg [`QUEUE_ENTRY_SIZE-1:0]	       sendq[MAX_RPCS-1:0];
@@ -155,26 +151,18 @@ module srpt_data_queue #(parameter MAX_RPCS = 64)
    integer entry;
 
    always @* begin
-      sendmsg_in_read_en_o = 0;
-      dbuff_in_read_en_o   = 0;
-      grant_in_read_en_o   = 0;
+      S_AXIS_TREADY_SENDMSG = 0;
       sendq_insert         = 0;
-      data_pkt_write_en_o  = 0;
-      data_pkt_data_o      = 0;
+      M_AXIS_TVALID        = 0;
+      M_AXIS_TDATA         = 0;
 
-      if (sendmsg_in_empty_i) begin
-	 sendq_insert         = sendmsg_in_data_i;
-	 sendmsg_in_read_en_o = 1;
-      end else if (dbuff_in_empty_i) begin
-	 sendq_insert       = dbuff_in_data_i;
-	 dbuff_in_read_en_o = 1;
-      end else if (grant_in_empty_i) begin
-	 sendq_insert       = grant_in_data_i;
-	 grant_in_read_en_o = 1;
-      end else if (data_pkt_full_i && sendq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin // else: !if(sendmsg_in_empty_i)
+      if (S_AXIS_TVALID) begin
+	 sendq_insert  = S_AXIS_TDATA;
+	 S_AXIS_TREADY = 1;
+      end if (M_AXIS_TREADY && sendq_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin // else: !if(S_AXIS_TVALID_SENDMSG)
 	 if (sendq_ripe) begin
-	    data_pkt_data_o     = sendq_head;
-	    data_pkt_write_en_o = 1; 
+	    M_AXIS_TDATA  = sendq_head;
+	    M_AXIS_TVALID = 1; 
 	 end
       end
 
@@ -200,8 +188,8 @@ module srpt_data_queue #(parameter MAX_RPCS = 64)
 	    sendq[rst_entry] <= 0;
 	    sendq[rst_entry][`QUEUE_ENTRY_PRIORITY] <= `SRPT_EMPTY;
 	 end
-      end else if (ap_ce && ap_start) begin // if (ap_rst)
-	 if (sendmsg_in_empty_i || dbuff_in_empty_i || grant_in_empty_i) begin
+      end else begin // if (ap_rst)
+	 if (S_AXIS_TVALID) begin
 	    // Adds either the reactivated message or the update to the queue
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
 	       sendq[entry] <= sendq_swpo[entry];
@@ -263,50 +251,28 @@ module srpt_data_queue_tb();
 
    reg ap_clk=0;
    reg ap_rst;
-   reg ap_ce;
-   reg ap_start;
-   reg ap_continue;
 
    wire	ap_idle;
    wire	ap_done;
    wire	ap_ready;
 
-   reg	sendmsg_in_empty_i;
-   wire	sendmsg_in_read_en_o;
-   reg [`QUEUE_ENTRY_SIZE-1:0] sendmsg_in_data_i;
+   reg	S_AXIS_TVALID;
+   wire	S_AXIS_TREADY;
+   reg [`QUEUE_ENTRY_SIZE-1:0] S_AXIS_TDATA;
 
-   reg			       grant_in_empty_i;
-   wire			       grant_in_read_en_o;
-   reg [`QUEUE_ENTRY_SIZE-1:0] grant_in_data_i;
-
-   reg			       dbuff_in_empty_i;
-   wire			       dbuff_in_read_en_o;
-   reg [`QUEUE_ENTRY_SIZE-1:0] dbuff_in_data_i;
-
-   reg			       data_pkt_full_i;
-   wire			       data_pkt_write_en_o;
-   wire [`QUEUE_ENTRY_SIZE-1:0]	data_pkt_data_o;
+   reg			       M_AXIS_TREADY;
+   wire			       M_AXIS_TVALID;
+   wire [`QUEUE_ENTRY_SIZE-1:0]	M_AXIS_TDATA;
    
    srpt_data_queue srpt_data_queue_tb(.ap_clk(ap_clk), 
-				   .ap_rst(ap_rst), 
-				   .ap_ce(ap_ce), 
-				   .ap_start(ap_start), 
-				   .ap_continue(ap_continue), 
-				   .sendmsg_in_empty_i(sendmsg_in_empty_i),
-				   .sendmsg_in_read_en_o(sendmsg_in_read_en_o),
-				   .sendmsg_in_data_i(sendmsg_in_data_i),
-				   .grant_in_empty_i(grant_in_empty_i),
-			     .grant_in_read_en_o(grant_in_read_en_o),
-			     .grant_in_data_i(grant_in_data_i),
-			     .dbuff_in_empty_i(dbuff_in_empty_i),
-			     .dbuff_in_read_en_o(dbuff_in_read_en_o),
-			     .dbuff_in_data_i(dbuff_in_data_i),
-			     .data_pkt_full_i(data_pkt_full_i),
-			     .data_pkt_write_en_o(data_pkt_write_en_o),
-			     .data_pkt_data_o(data_pkt_data_o),
-			     .ap_idle(ap_idle),
-			     .ap_done(ap_done), 
-			     .ap_ready(ap_ready));
+				      .ap_rst(ap_rst), 
+				      .S_AXIS_TVALID(S_AXIS_TVALID),
+				      .S_AXIS_TREADY(S_AXIS_TREADY),
+				      .S_AXIS_TDATA(S_AXIS_TDATA),
+				      .M_AXIS_TVALID(M_AXIS_TVALID),
+				      .M_AXIS_TREADY(M_AXIS_TREADY),
+				      .M_AXIS_TDATA(M_AXIS_TDATA));
+   
 
    task sendmsg(input [15:0] rpc_id, 
 		input [9:0]  dbuff_id, 
@@ -317,20 +283,20 @@ module srpt_data_queue_tb();
       begin
 	 $display("Adding to queue: RPC ID: %d MSG LEN: %d DBUFF ID: %d", rpc_id, msg_len, dbuff_id);
 	 
-	 sendmsg_in_data_i[`QUEUE_ENTRY_RPC_ID]    = rpc_id;
-	 sendmsg_in_data_i[`QUEUE_ENTRY_DBUFF_ID]  = dbuff_id;
-	 sendmsg_in_data_i[`QUEUE_ENTRY_REMAINING] = msg_len;
-	 sendmsg_in_data_i[`QUEUE_ENTRY_DBUFFERED] = initial_dbuff;
-	 sendmsg_in_data_i[`QUEUE_ENTRY_GRANTED]   = initial_grant;
-	 sendmsg_in_data_i[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+	 S_AXIS_TDATA[`QUEUE_ENTRY_RPC_ID]    = rpc_id;
+	 S_AXIS_TDATA[`QUEUE_ENTRY_DBUFF_ID]  = dbuff_id;
+	 S_AXIS_TDATA[`QUEUE_ENTRY_REMAINING] = msg_len;
+	 S_AXIS_TDATA[`QUEUE_ENTRY_DBUFFERED] = initial_dbuff;
+	 S_AXIS_TDATA[`QUEUE_ENTRY_GRANTED]   = initial_grant;
+	 S_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
 
-	 sendmsg_in_empty_i  = 1;
+	 S_AXIS_TVALID = 1;
 	 // TODO should also make sure the reader is ready
 
 	 #5;
 
-	 sendmsg_in_empty_i  = 0;
-	 wait(sendmsg_in_read_en_o == 1);
+	 S_AXIS_TVALID = 0;
+	 wait(S_AXIS_TREADY == 1);
       end
       
    endtask
@@ -339,16 +305,16 @@ module srpt_data_queue_tb();
       begin
 	 
 	 $display("dbuff notif: RPC ID: %d DBUFFERED: %d", rpc_id, dbuffered);
-	 dbuff_in_data_i[`QUEUE_ENTRY_RPC_ID]    = rpc_id;
-	 dbuff_in_data_i[`QUEUE_ENTRY_DBUFFERED] = dbuffered;
-	 dbuff_in_data_i[`QUEUE_ENTRY_PRIORITY]  = `SRPT_DBUFF_UPDATE;
+	 M_AXIS_TDATA[`QUEUE_ENTRY_RPC_ID]    = rpc_id;
+	 M_AXIS_TDATA[`QUEUE_ENTRY_DBUFFERED] = dbuffered;
+	 M_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]  = `SRPT_DBUFF_UPDATE;
 	 
-	 dbuff_in_empty_i = 1;
+	 M_AXIS_TREADY = 1;
 
 	 #5;
 	 
-	 dbuff_in_empty_i = 0;
-	 wait(dbuff_in_read_en_o == 1);
+	 M_AXIS_TREADY = 0;
+	 wait(M_AXIS_TVALID == 1);
       end
    endtask
 
@@ -356,16 +322,16 @@ module srpt_data_queue_tb();
       begin
 
 	 $display("grant notif: RPC ID: %d GRANTED: %d", rpc_id, granted);
-	 grant_in_data_i[`QUEUE_ENTRY_RPC_ID]   = rpc_id;
-	 grant_in_data_i[`QUEUE_ENTRY_GRANTED]  = granted;
-	 grant_in_data_i[`QUEUE_ENTRY_PRIORITY] = `SRPT_GRANT_UPDATE;
+	 M_AXIS_TDATA[`QUEUE_ENTRY_RPC_ID]   = rpc_id;
+	 M_AXIS_TDATA[`QUEUE_ENTRY_GRANTED]  = granted;
+	 M_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY] = `SRPT_GRANT_UPDATE;
 	 
-	 grant_in_empty_i = 1;
+	 M_AXIS_TREADY = 1;
 	 
 	 #5;
 	    
-	 grant_in_empty_i = 0;
-	 wait(grant_in_read_en_o == 1);
+	 M_AXIS_TREADY = 0;
+	 wait(M_AXIS_TVALID == 1);
       end
    endtask
 
@@ -373,16 +339,16 @@ module srpt_data_queue_tb();
       begin
 	 $display("get_output()");
 	 // TODO should also make sure the writer is ready
-	 data_pkt_full_i = 1;
+	 S_AXIS_TVALID = 1;
 	 
 	 #5;
-	 data_pkt_full_i = 0;
+	 S_AXIS_TVALID = 0;
 	 
-	 $display("queue output: RPC ID: %d, DBUFF ID: %d, REMAINING: %d, DBUFFERED: %d, GRANTED: %d, PRIORITY: %d", data_pkt_data_o[`QUEUE_ENTRY_RPC_ID], data_pkt_data_o[`QUEUE_ENTRY_DBUFF_ID], data_pkt_data_o[`QUEUE_ENTRY_REMAINING], data_pkt_data_o[`QUEUE_ENTRY_DBUFFERED], data_pkt_data_o[`QUEUE_ENTRY_GRANTED], data_pkt_data_o[`QUEUE_ENTRY_PRIORITY]);
-	 wait(data_pkt_write_en_o == 1);
+	 $display("queue output: RPC ID: %d, DBUFF ID: %d, REMAINING: %d, DBUFFERED: %d, GRANTED: %d, PRIORITY: %d", S_AXIS_TDATA[`QUEUE_ENTRY_RPC_ID], S_AXIS_TDATA[`QUEUE_ENTRY_DBUFF_ID], S_AXIS_TDATA[`QUEUE_ENTRY_REMAINING], S_AXIS_TDATA[`QUEUE_ENTRY_DBUFFERED], S_AXIS_TDATA[`QUEUE_ENTRY_GRANTED], S_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]);
+	 wait(S_AXIS_TREADY == 1);
       end
    endtask // get_pkt
-
+/*
    task test_empty_output();
       begin
 	 data_pkt_full_i = 1;
@@ -394,7 +360,7 @@ module srpt_data_queue_tb();
 	 data_pkt_full_i = 0;
       end
    endtask
-
+*/
    /* verilator lint_off INFINITELOOP */
    
    initial begin
@@ -406,24 +372,15 @@ module srpt_data_queue_tb();
    end
    
    initial begin
-      sendmsg_in_data_i = 0;
-      grant_in_data_i   = 0;
-      dbuff_in_data_i   = 0;
-
-      sendmsg_in_empty_i  = 0;
-      grant_in_empty_i    = 0;
-      dbuff_in_empty_i    = 0;
-      data_pkt_full_i     = 0;
+      S_AXIS_TDATA  = 0;
+      M_AXIS_TVALID = 0;
+      S_AXIS_TDATA  = 0;
 
       // Send reset signal
-      ap_ce = 1; 
-      ap_rst = 0;
-      ap_start = 0;
       ap_rst = 1;
 
       #5;
       ap_rst = 0;
-      ap_start = 1;
 
       #5;
       
@@ -437,9 +394,9 @@ module srpt_data_queue_tb();
 
       #100;
       
-      data_pkt_full_i = 1;
+      // data_pkt_full_i = 1;
       #200;
-      data_pkt_full_i = 0;
+      // data_pkt_full_i = 0;
 
       #30;
 

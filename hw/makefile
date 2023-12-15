@@ -1,9 +1,6 @@
 # Verilog linter (2001 version) -- unroll count needed for larege loops
 LINTER = verilator -lint-only +1364-2001ext+v --unroll-count 1024
 
-# XILINX_HLS includes 
-# XILINX_HLS = /home/chdrewes/Vitis_HLS/2023.1/include/
-
 # C synthesis tool (2023.1 currently tested)
 VITIS  = vitis_hls
 
@@ -82,7 +79,33 @@ homa:
 
 ############ Vitis C Synth ############
 
-HOMA_SYNTH_FLAGS = $(PART) $(SYNTH) "$(SRC_C)" "$(SRC_JSON)"
+HOMA_SYNTH_FLAGS = $(PART) $(SYNTH) 
+
+# TODO can generalize this
+c2h_dma_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		c2h_dma \
+		src/dma/dma.cc 
+
+h2c_dma_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		h2c_cache \
+		src/dma/dma.cc
+
+cache_ctrl_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		cache_ctrl \
+		src/cache/databuff.cc 
+
+intf_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		interface \
+		src/intf/interface.cc
+
 
 homa_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
@@ -91,85 +114,6 @@ homa_synth:
 		homa \
 		"RTT_BYTES=1000000"
 
-INF_SYNTH_FLAGS = $(PART) $(SYNTH) "$(CSRC_INF)" "null"
-
-inf_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(INF_SYNTH_FLAGS) \
-		$(C_TB_DIR)/interface.cc \
-		interface
-
-############ Vitis C Simulation ############
-
-CSIM_FLAGS = $(PART) $(CSIM) "$(SRC_C)" "$(SRC_JSON)"
-
-message_tester_rtt_5000_bin:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(CSIM_FLAGS) \
-		tb/message_tester.cc \
-		homa \
-		"RTT_BYTES=1000000"
-	./homa_kernel/solution/csim/build/csim.exe 
-
-	# "RTT_BYTES=5000"
-
-#srpt_fetch_csim_shim:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(CSIM_FLAGS) \
-#		$(C_TB_DIR)/cosim_shim_tester.cc \
-#		fetch_shim \
-#		"RTT_BYTES=5000"
-#	./homa_kernel/solution/csim/build/csim.exe	 
-
-
-
-#hashtable_no_cam_csim:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(CSIM_FLAGS) \
-#		tb/hashtable_no_cam.cc \
-#		rpc_state \
-#		"RTT_BYTES=5000"
-#	./homa_kernel/solution/csim/build/csim.exe
-
-#TODO can just make this csim.exe path to avoid recomp
-#single_message_tester_rtt_5000_bin:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(CSIM_FLAGS) \
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		homa \
-#		"RTT_BYTES=5000" \
-#
-#single_message_csim: single_message_tester_rtt_5000_bin
-#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 2000
-#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 128
-#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 64
-#	./homa_kernel/solution/csim/build/csim.exe -i test/garbage -l 1
-
-
-#srpt_fetch_csim_shim:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(CSIM_FLAGS) \
-#		$(C_TB_DIR)/cosim_shim_tester.cc \
-#		fetch_shim \
-#		"RTT_BYTES=5000"
-#	./homa_kernel/solution/csim/build/csim.exe	 
-
-############# Vitis Cosim ############
-
-COSIM_FLAGS = $(PART) $(COSIM) "$(SRC_C)" 
-
-#single_message_cosim:
-#	$(VITIS) tcl/homa_hls.tcl -tclargs \
-#		$(COSIM_FLAGS) $(SRC_JSON)
-#		$(C_TB_DIR)/single_message_tester.cc \
-#		"RTT_BYTES=5000" \
-
-srpt_fetch_cosim_shim:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(COSIM_FLAGS) $(V_SRC_DIR)/srpt_fetch_queue.json \
-		$(C_TB_DIR)/cosim_shim_tester.cc \
-		fetch_shim \
-		"RTT_BYTES=5000"
 
 ############ Verilog Synthesis ############ 
 
@@ -181,12 +125,12 @@ grant_synth: srpt_grant_queue.synth
 
 ############ Verilog Simulation ############ 
 
-fetch_test: srpt_fetch_queue.xsim
-data_test:  srpt_data_queue.xsim
+fetch_test: srpt_queue_fetch_tb.xsim
+send_test:  srpt_queue_send_tb.xsim
 grant_test: srpt_grant_pkts.xsim
 
 fetch_waves: srpt_fetch_queue.waves
-data_waves:  srpt_data_queue.waves
+data_waves:  srpt_queue.waves
 grant_waves: srpt_grant_pkts.waves
 
 %.waves: %.xsim
@@ -196,9 +140,9 @@ grant_waves: srpt_grant_pkts.waves
 	$(VS) $(basename $(^)).snapshot --tclbatch ./tcl/xsim_cfg.tcl
 
 %.xelab: %.xvlog
-	$(VE) -debug all -top $(basename $(^))_tb --snapshot $(basename $(^)).snapshot
+	$(VE) -debug all -top $(basename $(^)) --snapshot $(basename $(^)).snapshot
 
-%.xvlog: ./src/%.v
+%.xvlog: ./src/pq/%.v
 	$(VC) $(basename $(^)).v 
 
 ############ Verilog Linting ############ 
@@ -206,7 +150,7 @@ grant_waves: srpt_grant_pkts.waves
 grant_lint: srpt_grant_queue.lint
 data_lint:  srpt_data_queue.lint
 
-%.lint: ./src/%.v
+%.lint: ./src/pq/%.v
 	$(LINTER) $^
 
 clean:

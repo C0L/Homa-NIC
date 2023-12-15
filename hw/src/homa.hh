@@ -8,27 +8,6 @@
 #include "hls_task.h"
 #include "hls_stream.h"
 
-#define AM_CMD_SIZE  88
-#define AM_CMD_BTT   22,0
-#define AM_CMD_TYPE  23,23
-#define AM_CMD_DSA   29,24
-#define AM_CMD_EOF   30,30
-#define AM_CMD_DRR   31,31
-#define AM_CMD_SADDR 79,32
-#define AM_CMD_TAG   83,80
-#define AM_CMD_RSVD  87,84
-
-typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
-
-#define AM_STATUS_SIZE   8
-#define AM_STATUS_TAG    3,0
-#define AM_STATUS_INTERR 4,4
-#define AM_STATUS_DECERR 5,5
-#define AM_STATUS_SLVERR 6,6
-#define AM_STATUS_OKAY   7,7
-
-typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
-
 template<typename K, typename V>
 struct entry_t {
     K key;
@@ -190,17 +169,18 @@ typedef ap_uint<SRPT_GRANT_NEW_SIZE> srpt_grant_new_t;
 
 typedef ap_uint<SRPT_QUEUE_ENTRY_SIZE> srpt_queue_entry_t;
 
-#define DMA_R_REQ_SIZE      185
-#define DMA_R_REQ_RPC_ID    15,0  // ID of this transaction
-#define DMA_R_REQ_DBUFF_ID  24,16 // Corresponding on chip cache
-#define DMA_R_REQ_REMAINING 45,26 // Remaining to be sent or cached
-#define DMA_R_REQ_DBUFFERED 65,46 // Number of bytes cached
-#define DMA_R_REQ_GRANTED   85,66 // Number of bytes granted
-#define DMA_R_REQ_PRIORITY  88,86 // Deprioritize inactive messages
-#define DMA_R_REQ_HOST_ADDR 152,89 // 
-#define DMA_R_REQ_MSG_LEN   184,153 // 
-
-typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
+/**
+ * struct dma_w_req_t - DMA write request require the actual data that
+ * needs to be written and a global offset in the DMA space where that
+ * data needs to be written
+ */
+struct dma_w_req_t {
+    local_id_t  rpc_id;
+    ap_uint<16> port;
+    integral_t  data;
+    ap_uint<64> offset;
+    ap_uint<32> strobe;
+};
 
 /**
  * rpc_to_offset_t - Provides a mapping from an RPC ID to an offset
@@ -357,15 +337,15 @@ typedef ap_uint<DBUFF_CHUNK_INDEX> dbuff_coffset_t;
  * in one of these structures to be passed to the data buffer core
  * which will store that DMA data until it is ready to be sent.
  */
-struct h2c_dbuff_t {
-    integral_t  data;
-    dbuff_id_t  dbuff_id;
-    local_id_t  local_id;
-    // host_addr_t  host_addr;
-    msg_addr_t msg_addr;
-    ap_uint<32> msg_len;
-    ap_uint<1>  last;
-};
+//struct h2c_dbuff_t {
+//    integral_t  data;
+//    dbuff_id_t  dbuff_id;
+//    // local_id_t  local_id;
+//    // host_addr_t  host_addr;
+//    msg_addr_t msg_addr;
+//    ap_uint<32> msg_len;
+//    ap_uint<1>  last;
+//};
 
 /**
  * struct h2c_chunk_t - incoming packets arrive one chunk at a time and
@@ -559,19 +539,6 @@ struct header_t {
 };
 
 /**
- * struct dma_w_req_t - DMA write request require the actual data that
- * needs to be written and a global offset in the DMA space where that
- * data needs to be written
- */
-struct dma_w_req_t {
-    local_id_t  rpc_id;
-    ap_uint<16> port;
-    integral_t  data;
-    ap_uint<64> offset;
-    ap_uint<32> strobe;
-};
-
-/**
  * WARNING: C Simulation Only
  * Internal storage for an RPC that needs to be sent onto the link
  */
@@ -631,8 +598,6 @@ struct srpt_grant_t {
 #define SRPT_ACTIVE       5
 
 /* DMA Log Values */
-#define LOG_DATA_R_READ 0x10
-#define LOG_DATA_R_REQ  0x20
 
 #define LOG_DATA_W_REQ  0x20
 
@@ -646,23 +611,5 @@ struct srpt_grant_t {
 
 #define LOG_RECORD 0
 #define LOG_DRAIN  1
-
-void homa(
-    hls::stream<msghdr_send_t> & msghdr_send_i,
-    hls::stream<msghdr_recv_t> & msghdr_recv_i,
-    hls::stream<am_cmd_t> & w_cmd_queue_o,
-    hls::stream<ap_axiu<512,0,0,0>> & w_data_queue_o,
-    hls::stream<am_status_t> & w_status_queue_i,
-    hls::stream<am_cmd_t> & r_cmd_queue_o,
-    hls::stream<ap_axiu<512,0,0,0>> & r_data_queue_i,
-    hls::stream<am_status_t> & r_status_queue_i,
-    hls::stream<raw_stream_t> & link_ingress_i,
-    hls::stream<raw_stream_t> & link_egress_o,
-    hls::stream<port_to_phys_t> & h2c_port_to_msgbuff_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_msgbuff_i,
-    hls::stream<port_to_phys_t> & c2h_port_to_metadata_i,
-    hls::stream<ap_uint<512>> & log_control_i,
-    hls::stream<log_entry_t> & log_out_o
-    );
 
 #endif
