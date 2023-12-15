@@ -3,6 +3,37 @@
 using namespace std;
 
 
+void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
+	      ap_uint<128> c2h_data_map[NUM_PORTS],
+	      ap_uint<128> h2c_data_map[NUM_PORTS],
+	      hls::stream<srpt_queue_entry_t> & dma_r_req_i,
+	      hls::stream<dma_r_req_t> & dma_r_req_o) {
+
+
+#pragma HLS interface mode=ap_ctrl_none port=return
+
+#pragma HLS pipeline II=1
+
+#pragma HLS interface bram port=metadata_map
+#pragma HLS interface bram port=c2h_data_map
+#pragma HLS interface bram port=h2c_data_map
+
+#pragma HLS interface axis port=dma_r_req_i
+#pragma HLS interface axis port=dma_r_req_o
+
+
+    srpt_queue_entry_t dma_r_req_in;
+    if (dma_r_req_i.read_nb(dma_r_req_in)) {
+	dma_r_req_t dma_r_req_out;
+	// TODO misnomer. This is actually the port and address offset
+	dma_r_req_in(DMA_R_REQ_HOST_ADDR) = h2c_data_map[dma_r_req_in(SRPT_QUEUE_ENTRY_RPC_ID)] + dma_r_req_in(SRPT_QUEUE_ENTRY_GRANTED);
+
+	dma_r_req_out(DMA_R_REQ_COOKIE) = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
+	dma_r_req_o.write(dma_r_req_out);
+    }
+    
+}
+
 /* TODO CAREFUL
    In the absence of any S2MM command, AXI DataMover will pull the s_axis_s2mm_tready signal to Low after taking in four beats of streaming data. This will throttle the input data stream. To have a minimum amount of throttling, ensure that a valid command is issued to the S2MM interface much before the actual data arrives. */
 

@@ -227,6 +227,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 		     queue[0]                        <= queue[1];
 		     queue[1][`QUEUE_ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
 		  end else begin
+		     queue[0][`QUEUE_ENTRY_GRANTED]   <= queue[0][`QUEUE_ENTRY_GRANTED] + `CACHE_BLOCK_SIZE;
 		     queue[0][`QUEUE_ENTRY_REMAINING] <= queue[0][`QUEUE_ENTRY_REMAINING] - `CACHE_BLOCK_SIZE;
 		     queue[0][`QUEUE_ENTRY_DBUFFERED] <= queue[0][`QUEUE_ENTRY_DBUFFERED] + `CACHE_BLOCK_SIZE;
 		     // TODO could also swap here?

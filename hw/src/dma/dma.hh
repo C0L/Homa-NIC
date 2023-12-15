@@ -44,9 +44,21 @@ typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 
 typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
 
+#define SRPT_QUEUE_ENTRY_SIZE      104
+#define SRPT_QUEUE_ENTRY_RPC_ID    15,0  // ID of this transaction
+#define SRPT_QUEUE_ENTRY_DBUFF_ID  24,16 // Corresponding on chip cache
+#define SRPT_QUEUE_ENTRY_REMAINING 45,26 // Remaining to be sent or cached
+#define SRPT_QUEUE_ENTRY_DBUFFERED 65,46 // Number of bytes cached
+#define SRPT_QUEUE_ENTRY_GRANTED   85,66 // Number of bytes granted
+#define SRPT_QUEUE_ENTRY_PRIORITY  88,86 // Deprioritize inactive messages
+
+typedef ap_uint<SRPT_QUEUE_ENTRY_SIZE> srpt_queue_entry_t;
+
 #define LOG_DATA_R_REQ  0x10
 #define LOG_DATA_R_RESP 0x20
 
 #define LOG_DATA_W_REQ  0x20
+
+#define NUM_PORTS 16384
 
 #endif

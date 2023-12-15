@@ -100,6 +100,12 @@ cache_ctrl_synth:
 		cache_ctrl \
 		src/cache/databuff.cc 
 
+addr_map_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		addr_map \
+		src/dma/dma.cc 
+
 intf_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(HOMA_SYNTH_FLAGS) \

@@ -126,7 +126,7 @@
  * set, indicating a completiton of packet transmission.
  */
 void cache_ctrl(ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
-		hls::stream<cache_entry_t> & new_entry_i,
+		hls::stream<dma_r_req_t> & new_entry_i,
 		hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
 		hls::stream<ap_uint<8>> & dbuff_notif_log_o) {
 
@@ -140,15 +140,15 @@ void cache_ctrl(ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
 #pragma HLS interface axis port=dbuff_notif_log_o
 
     // Take input chunks and add them to the data buffer
-    cache_entry_t new_entry;
+    dma_r_req_t new_entry;
     if (new_entry_i.read_nb(new_entry)) {
-	ap_uint<32> base = ((new_entry(CACHE_ENTRY_MSG_ADDR) * new_entry(CACHE_ENTRY_DBUFF_ID)) % 16384) / 64;
+	ap_uint<32> base = ((new_entry(DMA_R_REQ_HOST_ADDR) * new_entry(DMA_R_REQ_COOKIE)) % 16384) / 64;
 
-	cache[base] = new_entry(CACHE_ENTRY_DATA);
+	cache[base] = new_entry(DMA_R_REQ_DATA);
 
 	srpt_queue_entry_t dbuff_notif;
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID)  = new_entry(CACHE_ENTRY_DBUFF_ID);
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = new_entry(CACHE_ENTRY_MSG_ADDR);
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID)  = new_entry(DMA_R_REQ_COOKIE);
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = new_entry(DMA_R_REQ_HOST_ADDR);
 
 	dbuff_notif_o.write(dbuff_notif);
 
