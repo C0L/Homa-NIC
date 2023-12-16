@@ -36,6 +36,7 @@ void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
     }
 
     msghdr_send_t dma_w_sendmsg;
+    dma_w_req_t dma_w_data;
     if (dma_w_sendmsg_i.read_nb(dma_w_sendmsg)) {
 	dma_w_req_t dma_w_req_out;
 	dma_w_req_out(DMA_W_REQ_HOST_ADDR) = metadata_map[dma_w_sendmsg(MSGHDR_SEND_ID)] + (64 * dma_w_sendmsg(MSGHDR_RETURN));
@@ -43,6 +44,11 @@ void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
 	dma_w_req_out(DMA_W_REQ_STROBE) = 64;
 
 	dma_w_req_o.write(dma_w_req_out);
+    } else if (dma_w_data_i.read_nb(dma_w_data)) {
+	dma_w_data(DMA_W_REQ_HOST_ADDR) = dma_w_data(DMA_W_REQ_HOST_ADDR) + c2h_data_map[dma_w_data(DMA_W_REQ_COOKIE)];
+	dma_w_data(DMA_W_REQ_STROBE) = 64;
+
+	dma_w_req_o.write(dma_w_data);
     }
 }
 

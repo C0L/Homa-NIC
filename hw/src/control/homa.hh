@@ -170,29 +170,6 @@ typedef ap_uint<SRPT_GRANT_NEW_SIZE> srpt_grant_new_t;
 typedef ap_uint<SRPT_QUEUE_ENTRY_SIZE> srpt_queue_entry_t;
 
 /**
- * struct dma_w_req_t - DMA write request require the actual data that
- * needs to be written and a global offset in the DMA space where that
- * data needs to be written
- */
-struct dma_w_req_t {
-    local_id_t  rpc_id;
-    ap_uint<16> port;
-    integral_t  data;
-    ap_uint<64> offset;
-    ap_uint<32> strobe;
-};
-
-/**
- * rpc_to_offset_t - Provides a mapping from an RPC ID to an offset
- * within the particular user's buffer where data should be read to
- * written from
- */
-struct rpc_to_offset_t {
-    local_id_t rpc_id;
-    ap_uint<32> offset;
-};
-
-/**
  * port_to_phys_t - Provides a mapping from a Homa port of a host
  * application to a physical base address of a buffer for data moving
  * from card 2 host

@@ -82,6 +82,7 @@ homa:
 HOMA_SYNTH_FLAGS = $(PART) $(SYNTH) 
 
 # TODO can generalize this
+# TODO should generate dir to palce IP
 c2h_dma_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(HOMA_SYNTH_FLAGS) \
@@ -125,10 +126,16 @@ user_synth:
 		user \
 		src/control/homa.cc
 
-pkt_builder:
+pkt_ctor_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(HOMA_SYNTH_FLAGS) \
-		pkt_builder \
+		pkt_ctor \
+		src/packet/packet.cc
+
+pkt_dtor_synth:
+	$(VITIS) tcl/homa_hls.tcl -tclargs \
+		$(HOMA_SYNTH_FLAGS) \
+		pkt_dtor \
 		src/packet/packet.cc
 
 
