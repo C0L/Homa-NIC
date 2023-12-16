@@ -108,7 +108,9 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    wire				       sendq_empty;
 
    reg				       ripe;
-   
+
+   reg				       queue_ready;
+   reg				       dequeue_ready;
    
    task prioritize;
       output [`QUEUE_ENTRY_SIZE-1:0] low_o, high_o;
@@ -130,7 +132,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 		     low_o[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
 		  end 
 	       end
-	    end else if (TYPE == "fetch") begin // if ((low_i[`QUEUE_ENTRY_PRIORITY] != high_i[`QUEUE_ENTRY_PRIORITY])...
+	    end else if (TYPE == "fetch") begin 
 	       if (low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_DBUFF_UPDATE 
 		   && low_i[`QUEUE_ENTRY_DBUFF_ID] == high_i[`QUEUE_ENTRY_DBUFF_ID]) begin
 		  low_o[`QUEUE_ENTRY_DBUFFERED] = low_o[`QUEUE_ENTRY_DBUFFERED] - 1386;
@@ -150,30 +152,33 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    
    assign sendq_dbuffered = (queue_head[`QUEUE_ENTRY_DBUFFERED] + `HOMA_PAYLOAD_SIZE <= queue_head[`QUEUE_ENTRY_REMAINING]) 
      | (queue_head[`QUEUE_ENTRY_DBUFFERED] == 0);
-   assign sendq_empty     = queue_head[`QUEUE_ENTRY_REMAINING] == 0;
+   assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
+   
+
+// queue_head[`QUEUE_ENTRY_REMAINING] == 0;
+
+   assign head_active = (queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE);
+   assign fetch_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE;
 
    integer entry;
 
+   // https://zipcpu.com/blog/2021/08/28/axi-rules.html
    always @* begin
-      S_AXIS_TREADY = 0;
-      queue_insert  = 0;
-      M_AXIS_TVALID = 0;
-      M_AXIS_TDATA  = 0;
-
+       
       if (TYPE == "sendmsg") begin
-	 ripe = sendq_granted & sendq_dbuffered & !sendq_empty;
+	 ripe = sendq_granted & sendq_dbuffered & !sendq_empty & head_active;
       end else if (TYPE == "fetch") begin
-	 ripe = 1;
+	 ripe = head_active & !fetch_empty;
       end
-
-      if (S_AXIS_TVALID) begin
-	 queue_insert  = S_AXIS_TDATA;
-	 S_AXIS_TREADY = 1;
-      end else if (ripe && queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin // else: !if(S_AXIS_TVALID_SENDMSG)
-	 M_AXIS_TDATA  = queue_head;
-	 M_AXIS_TVALID = 1; 
-      end
-
+      
+      // The condition in which we accept a new element to include in the queue
+      queue_ready  = S_AXIS_TVALID & S_AXIS_TREADY;
+      
+      // The condition in which we remove an element from the queue
+      dequeue_ready = !queue_ready & ripe;
+      
+      queue_insert = S_AXIS_TDATA;
+      
       prioritize(queue_swap_odd[0], queue_swap_odd[1], queue_insert, queue[0]);
 
       // Compute data_swp_odd
@@ -190,69 +195,88 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    integer rst_entry;
 
    always @(posedge ap_clk) begin
+      S_AXIS_TREADY <= 1;
+   end
+
+   always @(posedge ap_clk) begin
       if (ap_rst) begin
+	 M_AXIS_TVALID <= 0;
 	 queue_swap_polarity <= 0;
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    queue[rst_entry] <= 0;
 	    queue[rst_entry][`QUEUE_ENTRY_PRIORITY] <= `SRPT_EMPTY;
 	 end
       end else begin // if (ap_rst)
-	 if (S_AXIS_TVALID) begin
+	 // Is queue_ready
+	 if (S_AXIS_TVALID && S_AXIS_TREADY) begin 
 	    // Adds either the reactivated message or the update to the queue
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
 	       queue[entry] <= queue_swap_odd[entry];
 	    end 
-	 end else if (queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE) begin
-	    // Did the consumer accept the value? 
-	    if (M_AXIS_TREADY) begin 
+	 end
+
+	 if (!M_AXIS_TVALID || M_AXIS_TREADY) begin
+	    if (dequeue_ready) begin
 	       if (TYPE == "sendmsg") begin
-		  if (ripe) begin
-		     if (queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE) begin
-			queue[0] <= queue[1];
-			queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
-		     end else begin
-			queue[0][`QUEUE_ENTRY_REMAINING] <= queue_head[`QUEUE_ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE;
-		     end
-		  end else if (sendq_empty) begin
-		     queue[0] <= queue[1];
-		     queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
+		  if (queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE) begin
+	       	     queue[0] <= queue[1];
+	       	     queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
 		  end else begin
-		     queue[0] <= queue[1];
-		     queue[1] <= queue[0];
-		     queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_BLOCKED;
+	       	     queue[0][`QUEUE_ENTRY_REMAINING] <= queue_head[`QUEUE_ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE;
 		  end
 	       end else if (TYPE == "fetch") begin // if (TYPE == "sendmsg")
 		  // Did we just request the last block for this message
 		  if (queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE) begin
-		     queue[0]                        <= queue[1];
-		     queue[1][`QUEUE_ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
+		     $display("wipe!! %x", queue[1]);
+	       	     queue[0]                        <= queue[1];
+	       	     queue[1][`QUEUE_ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
 		  end else begin
-		     queue[0][`QUEUE_ENTRY_GRANTED]   <= queue[0][`QUEUE_ENTRY_GRANTED] + `CACHE_BLOCK_SIZE;
-		     queue[0][`QUEUE_ENTRY_REMAINING] <= queue[0][`QUEUE_ENTRY_REMAINING] - `CACHE_BLOCK_SIZE;
-		     queue[0][`QUEUE_ENTRY_DBUFFERED] <= queue[0][`QUEUE_ENTRY_DBUFFERED] + `CACHE_BLOCK_SIZE;
-		     // TODO could also swap here?
-		     if (queue[0][`QUEUE_ENTRY_DBUFFERED] >= `CACHE_SIZE - `CACHE_BLOCK_SIZE) begin
-			queue[0][`QUEUE_ENTRY_PRIORITY] <= `SRPT_BLOCKED;
-		     end
-		  end
-	       end // if (TYPE == "fetch")
-	    end
-	 end else begin
-	    if (queue_swap_polarity == 1'b0) begin
-	       // Assumes that write does not keep data around
-	       for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
-		  queue[entry] <= queue_swap_even[entry];
-	       end
+	       	     queue[0][`QUEUE_ENTRY_GRANTED]   <= queue[0][`QUEUE_ENTRY_GRANTED]   + `CACHE_BLOCK_SIZE;
+	       	     queue[0][`QUEUE_ENTRY_REMAINING] <= queue[0][`QUEUE_ENTRY_REMAINING] - `CACHE_BLOCK_SIZE;
+	       	     queue[0][`QUEUE_ENTRY_DBUFFERED] <= queue[0][`QUEUE_ENTRY_DBUFFERED] + `CACHE_BLOCK_SIZE;
+	       	     // TODO could also swap here?
+	       	     if (queue[0][`QUEUE_ENTRY_DBUFFERED] >= `CACHE_SIZE - `CACHE_BLOCK_SIZE) begin
+	       		queue[0][`QUEUE_ENTRY_PRIORITY] <= `SRPT_BLOCKED;
+	       	     end
+		  end // else: !if(queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE)
+	       end // if (dequeue_ready)
+	    end // if (dequeue_ready)
+	    
+	    M_AXIS_TVALID <= dequeue_ready;
+	    M_AXIS_TDATA  <= queue_head;
+	 end // if (!M_AXIS_TVALID || M_AXIS_TREADY)
 
-	       queue_swap_polarity <= 1'b1;
-	    end else begin
-	       for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
-		  queue[entry] <= queue_swap_odd[entry+1];
-	       end
+	 // TODO
 
-	       queue_swap_polarity <= 1'b0;
-	    end
-	 end
+	 // if (head_active) begin 
+	       // else if (!queue_ready && sendq_empty) begin
+	       // 	  queue[0] <= queue[1];
+	       // 	  queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
+	       // 	  $display("wipe!! %d", head_active);
+	       // end else if (!queue_ready) begin
+	       // 	  queue[0] <= queue[1];
+	       // 	  queue[1] <= queue[0];
+	       // 	  queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_BLOCKED;
+	       // end
+	    // end 
+	 // end 
+	 // else if (!dequeue_ready && !queue_ready) begin
+	 //    $display("swap!!");
+	 //    if (queue_swap_polarity == 1'b0) begin
+	 //       // Assumes that write does not keep data around
+	 //       for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
+	 // 	  queue[entry] <= queue_swap_even[entry];
+	 //       end
+
+	 //       queue_swap_polarity <= 1'b1;
+	 //    end else begin
+	 //       for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
+	 // 	  queue[entry] <= queue_swap_odd[entry+1];
+	 //       end
+
+	 //       queue_swap_polarity <= 1'b0;
+	 //    end
+	 // end
       end 
    end 
 

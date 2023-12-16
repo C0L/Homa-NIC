@@ -81,6 +81,8 @@ homa:
 
 HOMA_SYNTH_FLAGS = $(PART) $(SYNTH) 
 
+synth_kernels: c2h_dma_synth h2c_dma_synth cache_ctrl_synth addr_map_synth intf_synth user_synth pkt_ctor_synth pkt_dtor_synth
+
 # TODO can generalize this
 # TODO should generate dir to palce IP
 c2h_dma_synth:
@@ -92,7 +94,7 @@ c2h_dma_synth:
 h2c_dma_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
 		$(HOMA_SYNTH_FLAGS) \
-		h2c_cache \
+		h2c_dma \
 		src/dma/dma.cc
 
 cache_ctrl_synth:
@@ -113,12 +115,12 @@ intf_synth:
 		interface \
 		src/intf/interface.cc
 
-homa_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		$(C_TB_DIR)/single_message_tester.cc \
-		homa \
-		"RTT_BYTES=1000000"
+# homa_synth:
+# 	$(VITIS) tcl/homa_hls.tcl -tclargs \
+# 		$(HOMA_SYNTH_FLAGS) \
+# 		$(C_TB_DIR)/single_message_tester.cc \
+# 		homa \
+# 		"RTT_BYTES=1000000"
 
 user_synth:
 	$(VITIS) tcl/homa_hls.tcl -tclargs \
@@ -153,8 +155,8 @@ fetch_test: srpt_queue_fetch_tb.xsim
 send_test:  srpt_queue_send_tb.xsim
 grant_test: srpt_grant_pkts.xsim
 
-fetch_waves: srpt_fetch_queue.waves
-data_waves:  srpt_queue.waves
+fetch_waves: srpt_queue_fetch_tb.waves
+data_waves:  srpt_queue_send_tb.waves
 grant_waves: srpt_grant_pkts.waves
 
 %.waves: %.xsim

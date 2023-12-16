@@ -21,6 +21,11 @@ task enqueue(input [15:0] rpc_id,
       S_AXIS_TDATA[`QUEUE_ENTRY_DBUFFERED] = initial_dbuff;
       S_AXIS_TDATA[`QUEUE_ENTRY_GRANTED]   = initial_grant;
       S_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+
+      S_AXIS_TVALID = 1;
+      #5;
+      wait(S_AXIS_TREADY && S_AXIS_TVALID);
+      S_AXIS_TVALID = 0;
       
       $display(
 	       "enqueue:   \n \
@@ -37,20 +42,16 @@ task enqueue(input [15:0] rpc_id,
 	       S_AXIS_TDATA[`QUEUE_ENTRY_GRANTED], 
 	       S_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]
 	       );
-      
-      S_AXIS_TVALID = 1;
-      wait(S_AXIS_TREADY == 1);
-      #5;
-      S_AXIS_TVALID = 0;
    end
    
 endtask // enqueue
 
 task dequeue();
    begin
-      wait(M_AXIS_TVALID == 1);
-      
       M_AXIS_TREADY = 1;
+      wait(M_AXIS_TVALID && M_AXIS_TREADY);
+      #5;
+      M_AXIS_TREADY = 0;
       
       $display(
 	       "dequeue:   \n \
@@ -67,10 +68,6 @@ task dequeue();
 	       M_AXIS_TDATA[`QUEUE_ENTRY_GRANTED], 
 	       M_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]
 	       );
-
-      #5;
-      M_AXIS_TREADY = 0;
-
    end
 endtask // get_pkt
    

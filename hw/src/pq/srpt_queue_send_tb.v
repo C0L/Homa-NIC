@@ -35,12 +35,10 @@ module srpt_queue_send_tb();
    begin
       enqueue(1, 1, 0, 0, 10000);
       for (i = 0; i < 10000 / `HOMA_PAYLOAD_SIZE + 1; i=i+1) begin
-	 dequeue();
+	  dequeue();
       end
-
+      
       test_is_empty();
-      
-      
    end
    endtask // sendmsg_test_single_entry
  

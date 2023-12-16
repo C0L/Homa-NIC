@@ -42,10 +42,9 @@ void user(
 	srpt_data_in(SRPT_QUEUE_ENTRY_RPC_ID)    = msghdr_send(MSGHDR_SEND_ID);
 	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = dbuff_id;
 	srpt_data_in(SRPT_QUEUE_ENTRY_REMAINING) = msghdr_send(MSGHDR_BUFF_SIZE);
-	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = msghdr_send(MSGHDR_BUFF_SIZE);
-	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)   = msghdr_send(MSGHDR_BUFF_SIZE);
-	//msghdr_send(MSGHDR_BUFF_SIZE) - ((((ap_uint<32>) RTT_BYTES) > rpc.buff_size)
-	// 							? rpc.buff_size : ((ap_uint<32>) RTT_BYTES));
+	srpt_data_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0; // Fully dbuffered
+	srpt_data_in(SRPT_QUEUE_ENTRY_GRANTED)   = 0; // Fully granted
+	//msghdr_send(MSGHDR_BUFF_SIZE) - ((((ap_uint<32>) RTT_BYTES) > rpc.buff_size) ? rpc.buff_size : ((ap_uint<32>) RTT_BYTES));
 	srpt_data_in(SRPT_QUEUE_ENTRY_PRIORITY)  = SRPT_ACTIVE;
 
 	// Insert this entry into the SRPT data queue

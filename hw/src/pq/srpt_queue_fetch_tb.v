@@ -37,7 +37,6 @@ module srpt_queue_fetch_tb();
       for (i = 0; i < 10000 / `CACHE_BLOCK_SIZE + 1; i=i+1) begin
 	 dequeue();
       end
-
       test_is_empty();
    end
    endtask // sendmsg_test_single_entry

@@ -2,9 +2,9 @@
 
 using namespace std;
 
-void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
-	      ap_uint<128> c2h_data_map[NUM_PORTS],
-	      ap_uint<128> h2c_data_map[NUM_PORTS],
+void addr_map(ap_uint<64> metadata_map[NUM_PORTS],
+	      ap_uint<64> c2h_data_map[NUM_PORTS],
+	      ap_uint<64> h2c_data_map[NUM_PORTS],
 	      hls::stream<msghdr_send_t> & dma_w_sendmsg_i,
 	      hls::stream<dma_w_req_t> & dma_w_data_i,
 	      hls::stream<srpt_queue_entry_t> & dma_r_req_i,
@@ -39,7 +39,7 @@ void addr_map(ap_uint<128> metadata_map[NUM_PORTS],
     dma_w_req_t dma_w_data;
     if (dma_w_sendmsg_i.read_nb(dma_w_sendmsg)) {
 	dma_w_req_t dma_w_req_out;
-	dma_w_req_out(DMA_W_REQ_HOST_ADDR) = metadata_map[dma_w_sendmsg(MSGHDR_SEND_ID)] + (64 * dma_w_sendmsg(MSGHDR_RETURN));
+	dma_w_req_out(DMA_W_REQ_HOST_ADDR) = metadata_map[dma_w_sendmsg(MSGHDR_SPORT)] + (64 * dma_w_sendmsg(MSGHDR_RETURN));
 	dma_w_req_out(DMA_W_REQ_DATA)   = dma_w_sendmsg;
 	dma_w_req_out(DMA_W_REQ_STROBE) = 64;
 
