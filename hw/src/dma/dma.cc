@@ -29,8 +29,7 @@ void addr_map(ap_uint<64> metadata_map[NUM_PORTS],
     if (dma_r_req_i.read_nb(dma_r_req_in)) {
 	dma_r_req_t dma_r_req_out;
 	// TODO misnomer. This is actually the port and address offset
-	dma_r_req_in(DMA_R_REQ_HOST_ADDR) = h2c_data_map[dma_r_req_in(SRPT_QUEUE_ENTRY_RPC_ID)] + dma_r_req_in(SRPT_QUEUE_ENTRY_GRANTED);
-
+	dma_r_req_out(DMA_R_REQ_HOST_ADDR) = h2c_data_map[dma_r_req_in(SRPT_QUEUE_ENTRY_RPC_ID)] + dma_r_req_in(SRPT_QUEUE_ENTRY_GRANTED);
 	dma_r_req_out(DMA_R_REQ_COOKIE) = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
 	dma_r_req_o.write(dma_r_req_out);
     }
@@ -88,7 +87,7 @@ void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 #pragma HLS interface axis port=status_queue_i
 #pragma HLS interface axis port=dma_r_req_i
 #pragma HLS interface axis port=dma_r_req_o
-#pragma HLS interface axis port=dma_r_req_log_o
+// #pragma HLS interface axis port=dma_r_req_log_o
 
     // The sendmsg buffer ID needs to come from the user sendmsg request
     // The output buffer is assigned on packet ingress. And that mapping must be stored
@@ -130,7 +129,7 @@ void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 	log_out(23,16) = am_status.data;
     }
 
-    if (log_out != 0) dma_r_req_log_o.write(log_out);
+    // if (log_out != 0) dma_r_req_log_o.write(log_out);
 }
 
 /**
@@ -153,7 +152,7 @@ void c2h_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 #pragma HLS interface axis port=data_queue_o
 #pragma HLS interface axis port=status_queue_i
 #pragma HLS interface axis port=dma_w_req_i
-#pragma HLS interface axis port=dma_w_req_log_o
+// #pragma HLS interface axis port=dma_w_req_log_o
 
    ap_uint<32> log_out = 0;
 
@@ -186,5 +185,5 @@ void c2h_dma(hls::stream<am_cmd_t> & cmd_queue_o,
        log_out(15,8) = am_status.data;
    }
 
-   if (log_out != 0) dma_w_req_log_o.write(log_out);
+   // if (log_out != 0) dma_w_req_log_o.write(log_out);
 }

@@ -16,7 +16,7 @@ typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 /**
  * dma_w_req_t - DMA write request
  */
-#define DMA_W_REQ_SIZE      640
+#define DMA_W_REQ_SIZE      648
 #define DMA_W_REQ_HOST_ADDR 63,0    // Where to write to 
 #define DMA_W_REQ_COOKIE    127,64  // Cookie to return to caller
 #define DMA_W_REQ_DATA      639,128 // Data to write to DMA
@@ -46,7 +46,7 @@ typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
 
 #define SRPT_QUEUE_ENTRY_SIZE      104
 #define SRPT_QUEUE_ENTRY_RPC_ID    15,0  // ID of this transaction
-#define SRPT_QUEUE_ENTRY_DBUFF_ID  24,16 // Corresponding on chip cache
+#define SRPT_QUEUE_ENTRY_DBUFF_ID  25,16 // Corresponding on chip cache
 #define SRPT_QUEUE_ENTRY_REMAINING 45,26 // Remaining to be sent or cached
 #define SRPT_QUEUE_ENTRY_DBUFFERED 65,46 // Number of bytes cached
 #define SRPT_QUEUE_ENTRY_GRANTED   85,66 // Number of bytes granted

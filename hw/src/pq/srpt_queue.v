@@ -9,7 +9,7 @@
 
 `define QUEUE_ENTRY_SIZE      104
 `define QUEUE_ENTRY_RPC_ID    15:0  // ID of this transaction
-`define QUEUE_ENTRY_DBUFF_ID  24:16 // Corresponding on chip cache
+`define QUEUE_ENTRY_DBUFF_ID  25:16 // Corresponding on chip cache
 `define QUEUE_ENTRY_REMAINING 45:26 // Remaining to be sent or cached
 `define QUEUE_ENTRY_DBUFFERED 65:46 // Number of bytes cached
 `define QUEUE_ENTRY_GRANTED   85:66 // Number of bytes granted
@@ -85,7 +85,7 @@
  */
 module srpt_queue #(parameter MAX_RPCS = 64,
 		    parameter TYPE = "sendmsg")
-   (input ap_clk, ap_rst, 
+   (input ap_clk, ap_rst_n, 
     
     input			       S_AXIS_TVALID,
     output reg			       S_AXIS_TREADY,
@@ -176,7 +176,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
       
       // The condition in which we remove an element from the queue
       dequeue_ready = !queue_ready & ripe;
-      
+      // TODO this is not always the case?
       queue_insert = S_AXIS_TDATA;
       
       prioritize(queue_swap_odd[0], queue_swap_odd[1], queue_insert, queue[0]);
@@ -199,7 +199,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    end
 
    always @(posedge ap_clk) begin
-      if (ap_rst) begin
+      if (!ap_rst_n) begin
 	 M_AXIS_TVALID <= 0;
 	 queue_swap_polarity <= 0;
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
