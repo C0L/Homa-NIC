@@ -1,9 +1,9 @@
 task reset();
    begin
       // Send reset signal
-      ap_rst = 1;
+      ap_rst_n = 0;
       #5;
-      ap_rst = 0;
+      ap_rst_n = 1;
       #5;
    end
 endtask // reset

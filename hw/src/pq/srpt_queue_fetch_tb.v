@@ -8,7 +8,7 @@ module srpt_queue_fetch_tb();
 `include "util.v"
    
    reg ap_clk=0;
-   reg ap_rst;
+   reg ap_rst_n;
 
    reg S_AXIS_TVALID;
    wire	S_AXIS_TREADY;
@@ -23,7 +23,7 @@ module srpt_queue_fetch_tb();
    srpt_queue #(.MAX_RPCS(64), 
 		.TYPE("fetch")) 
    srpt_queue_dut (.ap_clk(ap_clk), 
-		   .ap_rst(ap_rst), 
+		   .ap_rst_n(ap_rst_n), 
 		   .S_AXIS_TVALID(S_AXIS_TVALID),
 		   .S_AXIS_TREADY(S_AXIS_TREADY),
 		   .S_AXIS_TDATA(S_AXIS_TDATA),

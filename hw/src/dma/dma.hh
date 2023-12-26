@@ -7,10 +7,11 @@
 /**
  * dma_r_req_t - DMA read request
  */
-#define DMA_R_REQ_SIZE      640     // Number of bits to express request
+#define DMA_R_REQ_SIZE      656     // Number of bits to express request
 #define DMA_R_REQ_HOST_ADDR 63,0    // Where to read from
 #define DMA_R_REQ_COOKIE    127,64  // Cookie to return to caller
 #define DMA_R_REQ_DATA      639,128 // Data read from DMA
+#define DMA_R_REQ_BYTES     655,640 // Number bytes
 typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 
 /**
@@ -24,10 +25,10 @@ typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 
 
-#define AM_CMD_SIZE  72
-#define AM_CMD_SADDR 47,0
-#define AM_CMD_BTT   67,48
-#define AM_CMD_TAG   71,68
+// #define AM_CMD_SIZE  72
+// #define AM_CMD_SADDR 47,0
+// #define AM_CMD_BTT   67,48
+// #define AM_CMD_TAG   71,68
 
 //#define AM_CMD_TYPE  23,23
 //#define AM_CMD_DSA   29,24
@@ -51,6 +52,13 @@ typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 // #define AM_CMD_RSVD  87,84
 // #define AM_CMD_CACHE 91,88
 // #define AM_CMD_USER  95,92
+
+
+#define AM_CMD_SIZE       118
+#define AM_CMD_PCIE_ADDR  63,0
+#define AM_CMD_AXI_ADDR   93,64
+#define AM_CMD_LEN        109,94
+#define AM_CMD_TAG        117,110
 
 typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 

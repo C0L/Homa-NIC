@@ -16,7 +16,7 @@
 `define QUEUE_ENTRY_PRIORITY  88:86 // Deprioritize inactive messages
 
 `define HOMA_PAYLOAD_SIZE 20'h56a
-`define CACHE_BLOCK_SIZE 64
+`define CACHE_BLOCK_SIZE 2048
 
 `define CACHE_SIZE 16384
 
@@ -154,8 +154,6 @@ module srpt_queue #(parameter MAX_RPCS = 64,
      | (queue_head[`QUEUE_ENTRY_DBUFFERED] == 0);
    assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
    
-
-// queue_head[`QUEUE_ENTRY_REMAINING] == 0;
 
    assign head_active = (queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE);
    assign fetch_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE;
