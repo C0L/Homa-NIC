@@ -87,7 +87,8 @@ void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 
 	am_cmd_t am_cmd;
 	am_cmd.data(AM_CMD_PCIE_ADDR) = dma_req(DMA_R_REQ_HOST_ADDR);
-	am_cmd.data(AM_CMD_AXI_ADDR)  = 0;
+	am_cmd.data(AM_CMD_SEL)       = 0;
+	am_cmd.data(AM_CMD_RAM_ADDR)  = 0;
 	am_cmd.data(AM_CMD_LEN)       = dma_req(DMA_R_REQ_BYTES);
 	am_cmd.data(AM_CMD_TAG)       = tag++;
 

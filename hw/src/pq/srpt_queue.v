@@ -16,9 +16,9 @@
 `define QUEUE_ENTRY_PRIORITY  88:86 // Deprioritize inactive messages
 
 `define HOMA_PAYLOAD_SIZE 20'h56a
-`define CACHE_BLOCK_SIZE 2048
+`define CACHE_BLOCK_SIZE 256
 
-`define CACHE_SIZE 16384
+`define CACHE_SIZE 131072 
 
 /**
  * srpt_data_pkts() - Determines which data packet should be transmit

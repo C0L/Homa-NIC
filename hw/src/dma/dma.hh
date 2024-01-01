@@ -54,11 +54,12 @@ typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 // #define AM_CMD_USER  95,92
 
 
-#define AM_CMD_SIZE       118
+#define AM_CMD_SIZE       106
 #define AM_CMD_PCIE_ADDR  63,0
-#define AM_CMD_AXI_ADDR   93,64
-#define AM_CMD_LEN        109,94
-#define AM_CMD_TAG        117,110
+#define AM_CMD_SEL        65,64
+#define AM_CMD_RAM_ADDR   81,66
+#define AM_CMD_LEN        97,82
+#define AM_CMD_TAG        105,98
 
 typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 
