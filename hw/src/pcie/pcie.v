@@ -2,41 +2,115 @@
 
 module pcie#
   (
-   parameter AXIS_PCIE_DATA_WIDTH = 512,
-   parameter AXIS_PCIE_KEEP_WIDTH = 16,
-   parameter AXIS_PCIE_RC_USER_WIDTH = 161,
-   parameter AXIS_PCIE_RQ_USER_WIDTH = 137,
-   parameter AXIS_PCIE_CQ_USER_WIDTH = 183,
-   parameter AXIS_PCIE_CC_USER_WIDTH = 81,
+    // Width of PCIe AXI stream interfaces in bits
+    parameter AXIS_PCIE_DATA_WIDTH = 512,
+    // PCIe AXI stream tkeep signal width (words per cycle)
+    parameter AXIS_PCIE_KEEP_WIDTH = (AXIS_PCIE_DATA_WIDTH/32),
+    // PCIe AXI stream RC tuser signal width
+    parameter AXIS_PCIE_RC_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 75 : 161,
+    // PCIe AXI stream RQ tuser signal width
+    parameter AXIS_PCIE_RQ_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 60 : 137,
+    // PCIe AXI stream CQ tuser signal width
+    parameter AXIS_PCIE_CQ_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 85 : 183,
+    // PCIe AXI stream CC tuser signal width
+    parameter AXIS_PCIE_CC_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 33 : 81,
+    // RC interface TLP straddling
+    parameter RC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 256,
+    // RQ interface TLP straddling
+    parameter RQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
+    // CQ interface TLP straddling
+    parameter CQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
+    // CC interface TLP straddling
+    parameter CC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
+    // RQ sequence number width
+    parameter RQ_SEQ_NUM_WIDTH = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 4 : 6,
+    // RQ sequence number tracking enable
+    parameter RQ_SEQ_NUM_ENABLE = 1,
+    // Immediate enable
+    parameter IMM_ENABLE = 0,
+    // Immediate width
+    parameter IMM_WIDTH = 32,
+    // PCIe tag count
+    parameter PCIE_TAG_COUNT = 256,
+    // Operation table size (read)
+    parameter READ_OP_TABLE_SIZE = PCIE_TAG_COUNT,
+    // In-flight transmit limit (read)
+    parameter READ_TX_LIMIT = 2**(RQ_SEQ_NUM_WIDTH-1),
+    // Completion header flow control credit limit (read)
+    parameter READ_CPLH_FC_LIMIT = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 64 : 256,
+    // Completion data flow control credit limit (read)
+    parameter READ_CPLD_FC_LIMIT = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 1024-64 : 2048-256,
+    // Operation table size (write)
+    parameter WRITE_OP_TABLE_SIZE = 2**(RQ_SEQ_NUM_WIDTH-1),
+    // In-flight transmit limit (write)
+    parameter WRITE_TX_LIMIT = 2**(RQ_SEQ_NUM_WIDTH-1),
+    parameter TLP_DATA_WIDTH = AXIS_PCIE_DATA_WIDTH,
+    parameter TLP_STRB_WIDTH = TLP_DATA_WIDTH/32,
+    parameter TLP_HDR_WIDTH = 128,
+    parameter TLP_SEG_COUNT = 1,
+    parameter TX_SEQ_NUM_COUNT = AXIS_PCIE_DATA_WIDTH < 512 ? 1 : 2,
+    parameter TX_SEQ_NUM_WIDTH = RQ_SEQ_NUM_WIDTH-1,
+    parameter TX_SEQ_NUM_ENABLE = RQ_SEQ_NUM_ENABLE,
+    parameter PF_COUNT = 1,
+    parameter VF_COUNT = 0,
+    parameter F_COUNT = PF_COUNT+VF_COUNT,
+
+    parameter TLP_FORCE_64_BIT_ADDR = 0,
+    parameter CHECK_BUS_NUMBER = 0,
+   
+    parameter RAM_SEL_WIDTH = 2,
+    parameter RAM_ADDR_WIDTH = 16,
+    parameter RAM_SEG_COUNT = TLP_SEG_COUNT*2,
+    parameter RAM_SEG_DATA_WIDTH = TLP_DATA_WIDTH*2/RAM_SEG_COUNT,
+    parameter RAM_SEG_BE_WIDTH = RAM_SEG_DATA_WIDTH/8,
+    parameter RAM_SEG_ADDR_WIDTH = RAM_ADDR_WIDTH-$clog2(RAM_SEG_COUNT*RAM_SEG_BE_WIDTH),
+
+    parameter AXI_DATA_WIDTH = TLP_DATA_WIDTH,
+    parameter AXI_STRB_WIDTH = (AXI_DATA_WIDTH/8),
+    parameter AXI_ADDR_WIDTH = 26,
+    parameter AXI_ID_WIDTH = 8,
+   
+    parameter PCIE_ADDR_WIDTH = 64,
+    parameter LEN_WIDTH = 16,
+    parameter TAG_WIDTH = 8
+
+
+   
+   //parameter AXIS_PCIE_DATA_WIDTH = 512,
+   //parameter AXIS_PCIE_KEEP_WIDTH = 16,
+   //parameter AXIS_PCIE_RC_USER_WIDTH = 161,
+   //parameter AXIS_PCIE_RQ_USER_WIDTH = 137,
+   //parameter AXIS_PCIE_CQ_USER_WIDTH = 183,
+   //parameter AXIS_PCIE_CC_USER_WIDTH = 81,
   
-   parameter PCIE_ADDR_WIDTH = 64,
+   //parameter PCIE_ADDR_WIDTH = 64,
 
-   parameter AXI_DATA_WIDTH = 512,
-   parameter AXI_STRB_WIDTH = 64,
-   parameter AXI_ADDR_WIDTH = 64,
-   parameter AXI_ID_WIDTH = 8,
+   //parameter AXI_DATA_WIDTH = 512,
+   //parameter AXI_STRB_WIDTH = 64,
+   //parameter AXI_ADDR_WIDTH = 64,
+   //parameter AXI_ID_WIDTH = 8,
 
-   parameter RAM_SEL_WIDTH = 2,
-   parameter RAM_ADDR_WIDTH = 16,
-   parameter LEN_WIDTH = 16,
-   parameter TAG_WIDTH = 8,
+   //parameter RAM_SEL_WIDTH = 2,
+   //parameter RAM_ADDR_WIDTH = 16,
+   //parameter LEN_WIDTH = 16,
+   //parameter TAG_WIDTH = 8,
   
-   parameter RQ_SEQ_NUM_WIDTH = 6,
-   parameter TLP_DATA_WIDTH = 512,
-   parameter TLP_STRB_WIDTH = 16,
-   parameter TLP_HDR_WIDTH = 128,
-   parameter TLP_SEG_COUNT = 1,
-   parameter TX_SEQ_NUM_COUNT = 2,
-   parameter TX_SEQ_NUM_WIDTH = 5,
-   parameter PF_COUNT = 1,
-   parameter VF_COUNT = 0,
-   parameter F_COUNT = 1,
-   parameter MSI_COUNT = 32,
+   //parameter RQ_SEQ_NUM_WIDTH = 6,
+   //parameter TLP_DATA_WIDTH = 512,
+   //parameter TLP_STRB_WIDTH = 16,
+   //parameter TLP_HDR_WIDTH = 128,
+   //parameter TLP_SEG_COUNT = 1,
+   //parameter TX_SEQ_NUM_COUNT = 2,
+   //parameter TX_SEQ_NUM_WIDTH = 5,
+   //parameter PF_COUNT = 1,
+   //parameter VF_COUNT = 0,
+   //parameter F_COUNT = 1,
+   //parameter MSI_COUNT = 32,
 
-   parameter RAM_SEG_COUNT = 2,
-   parameter RAM_SEG_DATA_WIDTH = 512,
-   parameter RAM_SEG_BE_WIDTH = 64,
-   parameter RAM_SEG_ADDR_WIDTH = 9
+   //parameter RAM_SEG_COUNT = 2,
+   //parameter RAM_SEG_DATA_WIDTH = 512,
+   //parameter RAM_SEG_BE_WIDTH = 64,
+   //parameter RAM_SEG_ADDR_WIDTH = 9
 
    // Width of PCIe AXI stream interfaces in bits
    //parameter AXIS_PCIE_DATA_WIDTH = 256,
@@ -142,9 +216,9 @@ module pcie#
    // // In-flight transmit limit (write)
    // parameter WRITE_TX_LIMIT = 2**TX_SEQ_NUM_WIDTH,
    // // Force 64 bit address
-   // parameter TLP_FORCE_64_BIT_ADDR = 0,
+
    // // Requester ID mash
-   // parameter CHECK_BUS_NUMBER = 1
+
    )
    (
     /*
@@ -463,7 +537,7 @@ module pcie#
    /*
     * MSI request inputs
     */
-   wire [MSI_COUNT-1:0]										msi_irq;
+   // wire [MSI_COUNT-1:0]										msi_irq;
    
 
    // PCIe
@@ -623,16 +697,42 @@ module pcie#
    /* Device shim */
    pcie_us_if #(
 		.AXIS_PCIE_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
-		.TLP_HDR_WIDTH(128),
-		.TLP_SEG_COUNT(1),
+		.AXIS_PCIE_KEEP_WIDTH(AXIS_PCIE_KEEP_WIDTH),
+		.AXIS_PCIE_RC_USER_WIDTH(AXIS_PCIE_RC_USER_WIDTH),
+		.AXIS_PCIE_RQ_USER_WIDTH(AXIS_PCIE_RQ_USER_WIDTH),
+		.AXIS_PCIE_CQ_USER_WIDTH(AXIS_PCIE_CQ_USER_WIDTH),
+		.AXIS_PCIE_CC_USER_WIDTH(AXIS_PCIE_CC_USER_WIDTH),
+		.RC_STRADDLE(RC_STRADDLE),
+		.RQ_STRADDLE(RQ_STRADDLE),
+		.CQ_STRADDLE(CQ_STRADDLE),
+		.CC_STRADDLE(CC_STRADDLE),
+		.RQ_SEQ_NUM_WIDTH(RQ_SEQ_NUM_WIDTH),
+		.TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+		.TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+		.TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+		.TLP_SEG_COUNT(TLP_SEG_COUNT),
+		.TX_SEQ_NUM_COUNT(TX_SEQ_NUM_COUNT),
+		.TX_SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH),
 		.PF_COUNT(1),
 		.VF_COUNT(0),
+		.F_COUNT(PF_COUNT+VF_COUNT),
 		.READ_EXT_TAG_ENABLE(0),
 		.READ_MAX_READ_REQ_SIZE(0),
 		.READ_MAX_PAYLOAD_SIZE(0),
-		.MSIX_ENABLE(0),
-		.MSI_ENABLE(0),
-		.MSI_COUNT(32)
+		.MSIX_ENABLE(1),
+		.MSI_ENABLE(0)
+		
+		//.AXIS_PCIE_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
+		//.TLP_HDR_WIDTH(128),
+		//.TLP_SEG_COUNT(1),
+		//.PF_COUNT(1),
+		//.VF_COUNT(0),
+		//.READ_EXT_TAG_ENABLE(0),
+		//.READ_MAX_READ_REQ_SIZE(0),
+		//.READ_MAX_PAYLOAD_SIZE(0),
+		//.MSIX_ENABLE(0),
+		//.MSI_ENABLE(0),
+		//.MSI_COUNT(32)
 		) pcie_us_if_inst (
 				   .clk(pcie_user_clk),
 				   .rst(pcie_user_reset),
@@ -849,10 +949,38 @@ module pcie#
 				   );
 
    dma_if_pcie #(
-		 .TLP_DATA_WIDTH(512),
-		 .TX_SEQ_NUM_COUNT(2),
-		 .TX_SEQ_NUM_WIDTH(5),
-		 .TLP_FORCE_64_BIT_ADDR(1)
+		 .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+		 .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+		 .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+		 .TLP_SEG_COUNT(TLP_SEG_COUNT),
+		 .TX_SEQ_NUM_COUNT(TX_SEQ_NUM_COUNT),
+		 .TX_SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH),
+		 .TX_SEQ_NUM_ENABLE(TX_SEQ_NUM_ENABLE),
+		 .RAM_SEL_WIDTH(RAM_SEL_WIDTH),
+		 .RAM_ADDR_WIDTH(RAM_ADDR_WIDTH),
+		 .RAM_SEG_COUNT(RAM_SEG_COUNT),
+		 .RAM_SEG_DATA_WIDTH(RAM_SEG_DATA_WIDTH),
+		 .RAM_SEG_BE_WIDTH(RAM_SEG_BE_WIDTH),
+		 .RAM_SEG_ADDR_WIDTH(RAM_SEG_ADDR_WIDTH),
+		 .PCIE_ADDR_WIDTH(PCIE_ADDR_WIDTH),
+		 .PCIE_TAG_COUNT(PCIE_TAG_COUNT),
+		 .IMM_ENABLE(IMM_ENABLE),
+		 .IMM_WIDTH(IMM_WIDTH),
+		 .LEN_WIDTH(LEN_WIDTH),
+		 .TAG_WIDTH(TAG_WIDTH),
+		 .READ_OP_TABLE_SIZE(READ_OP_TABLE_SIZE),
+		 .READ_TX_LIMIT(READ_TX_LIMIT),
+		 .READ_CPLH_FC_LIMIT(READ_CPLH_FC_LIMIT),
+		 .READ_CPLD_FC_LIMIT(READ_CPLD_FC_LIMIT),
+		 .WRITE_OP_TABLE_SIZE(WRITE_OP_TABLE_SIZE),
+		 .WRITE_TX_LIMIT(WRITE_TX_LIMIT),
+		 .TLP_FORCE_64_BIT_ADDR(TLP_FORCE_64_BIT_ADDR),
+		 .CHECK_BUS_NUMBER(CHECK_BUS_NUMBER)
+		 // .TLP_DATA_WIDTH(512),
+		 // .TLP_STRB_WIDTH(16),
+		 // .TX_SEQ_NUM_COUNT(2),
+		 // .TX_SEQ_NUM_WIDTH(5),
+		 // .TLP_FORCE_64_BIT_ADDR(0)
 		 ) dma_if_pcie_inst (
 				     .clk(pcie_user_clk),
 				     .rst(pcie_user_reset),
@@ -1008,13 +1136,25 @@ module pcie#
    
    
    pcie_axi_master #(
-		     .TLP_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
-		     .TLP_HDR_WIDTH(128),
-		     .TLP_SEG_COUNT(1),
+		     .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+		     .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+		     .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+		     .TLP_SEG_COUNT(TLP_SEG_COUNT),
+		     .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
 		     .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-		     .AXI_ID_WIDTH(8),
-		     .AXI_MAX_BURST_LEN(16),
-		     .TLP_FORCE_64_BIT_ADDR(1)
+		     .AXI_STRB_WIDTH(AXI_STRB_WIDTH),
+		     .AXI_ID_WIDTH(AXI_ID_WIDTH),
+		     .AXI_MAX_BURST_LEN(256),
+		     .TLP_FORCE_64_BIT_ADDR(TLP_FORCE_64_BIT_ADDR)
+		     
+		     //.TLP_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
+		     //.TLP_STRB_WIDTH(16),
+		     //.TLP_HDR_WIDTH(128),
+		     //.TLP_SEG_COUNT(1),
+		     //.AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+		     //.AXI_ID_WIDTH(8),
+		     //.AXI_MAX_BURST_LEN(16),
+		     //.TLP_FORCE_64_BIT_ADDR(0)
 		     )  pcie_axi_master_inst   (
 						.clk(pcie_user_clk),
 						.rst(pcie_user_reset),
@@ -1082,7 +1222,7 @@ module pcie#
 						.m_axi_rvalid(m_axi_rvalid),
 						.m_axi_rready(m_axi_rready),
 
-						.completer_id({8'd0, 5'd0, 3'd1}),
+						.completer_id({8'd0, 5'd0, 3'd0}),
 						// .completer_id_enable(1'b0),
 						.max_payload_size(3'd5),
 

@@ -34,7 +34,7 @@ THE SOFTWARE.
 module pcie_axi_master #
 (
     // TLP data width
-    parameter TLP_DATA_WIDTH = 256,
+    parameter TLP_DATA_WIDTH = 512,
     // TLP strobe width
     parameter TLP_STRB_WIDTH = TLP_DATA_WIDTH/32,
     // TLP header width
