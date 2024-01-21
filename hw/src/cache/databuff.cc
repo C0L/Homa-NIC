@@ -125,8 +125,8 @@
  * until the final chunk in a packet is placed on the link with the "last" bit
  * set, indicating a completiton of packet transmission.
  */
-void cache_ctrl(ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
-		hls::stream<dma_r_req_t> & new_entry_i,
+void cache_ctrl(// ap_uint<512> cache[256 * NUM_EGRESS_BUFFS],
+    hls::stream<dma_r_req_t> & new_entry_i, // TODO should be the pcie_dma_read_desc_status
 		hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
 		hls::stream<ap_uint<8>> & dbuff_notif_log_o) {
 

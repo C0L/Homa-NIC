@@ -64,22 +64,22 @@ void addr_map(ap_uint<64> metadata_map[NUM_PORTS],
  * @dma_requests__dbuff - 64B data chunks for storage in data space
  */
 void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
+	     hls::stream<am_status_t> & status_queue_i,
+	     hls::stream<srpt_queue_entry_t> & dbuff_notif_o,
 	     hls::stream<dma_r_req_t> & dma_r_req_i) {
     // hls::stream<ap_uint<32>> & dma_r_req_log_o) {
  
-    // static dma_r_req_t pending_reqs[256];
-    // static ap_uint <7> read_head  = 0;
-    // static ap_uint<7>  write_head = 0;
-
-     static ap_uint<8> tag = 0;
+    static dma_r_req_t pending_reqs[256];
+    static ap_uint<8> tag = 0;
 
 #pragma HLS interface mode=ap_ctrl_none port=return
 
 #pragma HLS pipeline II=1
 
 #pragma HLS interface axis port=cmd_queue_o
-// #pragma HLS interface axis port=status_queue_i
+#pragma HLS interface axis port=status_queue_i
 #pragma HLS interface axis port=dma_r_req_i
+#pragma HLS interface axis port=dbuff_notif_o
 // #pragma HLS interface axis port=dma_r_req_o
 
     dma_r_req_t dma_req;
@@ -88,12 +88,26 @@ void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 	am_cmd_t am_cmd;
 	am_cmd.data(AM_CMD_PCIE_ADDR) = dma_req(DMA_R_REQ_HOST_ADDR);
 	am_cmd.data(AM_CMD_SEL)       = 0;
-	am_cmd.data(AM_CMD_RAM_ADDR)  = 0;
+	am_cmd.data(AM_CMD_RAM_ADDR)  = ((ap_uint<14>) dma_req(DMA_R_REQ_HOST_ADDR)) + (16384 * dma_req(DMA_R_REQ_COOKIE)); // TODO update this
 	am_cmd.data(AM_CMD_LEN)       = dma_req(DMA_R_REQ_BYTES);
-	am_cmd.data(AM_CMD_TAG)       = tag++;
+	am_cmd.data(AM_CMD_TAG)       = tag;
 
 	cmd_queue_o.write(am_cmd);
-	// pending_reqs[write_head++] = dma_req;
+	pending_reqs[tag++] = dma_req;
+    }
+
+    // Take input chunks and add them to the data buffer
+    am_status_t status;
+    if (status_queue_i.read_nb(status)) {
+	dma_r_req_t new_entry = pending_reqs[status.data(AM_STATUS_TAG)];
+
+	srpt_queue_entry_t dbuff_notif;
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID)  = new_entry(DMA_R_REQ_COOKIE);
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = new_entry(DMA_R_REQ_HOST_ADDR);
+
+	dbuff_notif_o.write(dbuff_notif);
+
+	// dbuff_notif_log_o.write(LOG_DBUFF_NOTIF);
     }
 }
 

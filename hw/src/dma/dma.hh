@@ -24,51 +24,18 @@ typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 #define DMA_W_REQ_STROBE    647,640 // How many bytes to write
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 
-
-// #define AM_CMD_SIZE  72
-// #define AM_CMD_SADDR 47,0
-// #define AM_CMD_BTT   67,48
-// #define AM_CMD_TAG   71,68
-
-//#define AM_CMD_TYPE  23,23
-//#define AM_CMD_DSA   29,24
-//#define AM_CMD_EOF   30,30
-//#define AM_CMD_DRR   31,31
-
-//#define AM_CMD_TAG   83,80
-//#define AM_CMD_RSVD  87,84
-//#define AM_CMD_CACHE 91,88
-//#define AM_CMD_USER  95,92
-
-
-// #define AM_CMD_SIZE  96 
-// #define AM_CMD_BTT   22,0
-// #define AM_CMD_TYPE  23,23
-// #define AM_CMD_DSA   29,24
-// #define AM_CMD_EOF   30,30
-// #define AM_CMD_DRR   31,31
-// #define AM_CMD_SADDR 79,32
-// #define AM_CMD_TAG   83,80
-// #define AM_CMD_RSVD  87,84
-// #define AM_CMD_CACHE 91,88
-// #define AM_CMD_USER  95,92
-
-
 #define AM_CMD_SIZE       106
 #define AM_CMD_PCIE_ADDR  63,0
 #define AM_CMD_SEL        65,64
-#define AM_CMD_RAM_ADDR   81,66
-#define AM_CMD_LEN        97,82
-#define AM_CMD_TAG        105,98
+#define AM_CMD_RAM_ADDR   86,66
+#define AM_CMD_LEN        102,87
+#define AM_CMD_TAG        110,103
 
 typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 
-#define AM_STATUS_SIZE   8
-#define AM_STATUS_TAG    3,0
-#define AM_STATUS_INTERR 4,4
-#define AM_STATUS_DECERR 5,5
-#define AM_STATUS_SLVERR 6,6
-#define AM_STATUS_OKAY   7,7
+#define AM_STATUS_SIZE   16
+#define AM_STATUS_TAG    7,0
+#define AM_STATUS_ERROR  11,8
 
 typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
 
