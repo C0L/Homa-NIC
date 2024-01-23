@@ -90,7 +90,6 @@ module dma_client_axis_source #
     input wire [AXIS_ID_WIDTH-1:0]			      s_axis_read_desc_tid,
     input wire [AXIS_DEST_WIDTH-1:0]			      s_axis_read_desc_tdest,
     input wire [AXIS_USER_WIDTH-1:0]			      s_axis_read_desc_tuser,
-
  
 
     output wire [TAG_WIDTH + 4 - 1:0]			      m_axis_read_desc_status_tdata,

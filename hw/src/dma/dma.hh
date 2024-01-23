@@ -7,11 +7,14 @@
 /**
  * dma_r_req_t - DMA read request
  */
-#define DMA_R_REQ_SIZE      656     // Number of bits to express request
-#define DMA_R_REQ_HOST_ADDR 63,0    // Where to read from
-#define DMA_R_REQ_COOKIE    127,64  // Cookie to return to caller
-#define DMA_R_REQ_DATA      639,128 // Data read from DMA
-#define DMA_R_REQ_BYTES     655,640 // Number bytes
+#define DMA_R_REQ_SIZE      108    // Number of bits to express request
+#define DMA_R_REQ_HOST_ADDR 63,0   // Where to read from
+#define DMA_R_REQ_DBUFF_ID  73,64  // 
+#define DMA_R_REQ_BUFF_SIZE 93,74  // 
+#define DMA_R_REQ_BYTES     107,94 //
+#define DMA_R_REQ_MSG_ADDR  127,108   // 
+// #define DMA_R_REQ_DATA      639,128 // Data read from DMA
+// #define DMA_R_REQ_BYTES     145,128 // Number bytes
 typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 
 /**
@@ -24,7 +27,7 @@ typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 #define DMA_W_REQ_STROBE    647,640 // How many bytes to write
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 
-#define AM_CMD_SIZE       106
+#define AM_CMD_SIZE       111
 #define AM_CMD_PCIE_ADDR  63,0
 #define AM_CMD_SEL        65,64
 #define AM_CMD_RAM_ADDR   86,66

@@ -29,12 +29,15 @@ void addr_map(ap_uint<64> metadata_map[NUM_PORTS],
     srpt_queue_entry_t dma_r_req_in;
     if (dma_r_req_i.read_nb(dma_r_req_in)) {
 	dma_r_req_t dma_r_req_out;
-	// TODO misnomer. This is actually the port and address offset
-	dma_r_req_out(DMA_R_REQ_HOST_ADDR) = h2c_data_map[dma_r_req_in(SRPT_QUEUE_ENTRY_RPC_ID)] + dma_r_req_in(SRPT_QUEUE_ENTRY_GRANTED);
-	//dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 2048 ? 2048 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
 
+	// TODO these are very poorly named 
+	
+	// RPC_ID contains the port ID
+	dma_r_req_out(DMA_R_REQ_HOST_ADDR) = h2c_data_map[dma_r_req_in(SRPT_QUEUE_ENTRY_RPC_ID)] + dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFFERED);
 	dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 256 ? 256 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
-	dma_r_req_out(DMA_R_REQ_COOKIE)    = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
+	dma_r_req_out(DMA_R_REQ_DBUFF_ID)  = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
+	dma_r_req_out(DMA_R_REQ_BUFF_SIZE) = dma_r_req_in(SRPT_QUEUE_ENTRY_GRANTED);
+	// dma_r_req_out(DMA_R_REQ_COOKIE)    = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
 	dma_r_req_o.write(dma_r_req_out);
     }
 
@@ -88,7 +91,8 @@ void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 	am_cmd_t am_cmd;
 	am_cmd.data(AM_CMD_PCIE_ADDR) = dma_req(DMA_R_REQ_HOST_ADDR);
 	am_cmd.data(AM_CMD_SEL)       = 0;
-	am_cmd.data(AM_CMD_RAM_ADDR)  = ((ap_uint<14>) dma_req(DMA_R_REQ_HOST_ADDR)) + (16384 * dma_req(DMA_R_REQ_COOKIE)); // TODO update this
+	am_cmd.data(AM_CMD_RAM_ADDR)  = dma_req(DMA_R_REQ_MSG_ADDR);
+	    // ((ap_uint<14>) dma_req(DMA_R_REQ_HOST_ADDR)) + (16384 * dma_req(DMA_R_REQ_COOKIE)); // TODO update this
 	am_cmd.data(AM_CMD_LEN)       = dma_req(DMA_R_REQ_BYTES);
 	am_cmd.data(AM_CMD_TAG)       = tag;
 
@@ -102,8 +106,9 @@ void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 	dma_r_req_t new_entry = pending_reqs[status.data(AM_STATUS_TAG)];
 
 	srpt_queue_entry_t dbuff_notif;
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID)  = new_entry(DMA_R_REQ_COOKIE);
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = new_entry(DMA_R_REQ_HOST_ADDR);
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID)  = new_entry(DMA_R_REQ_DBUFF_ID);
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = new_entry(DMA_R_REQ_BUFF_SIZE) - new_entry(DMA_R_REQ_MSG_ADDR);
+	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY)  = 1; // TODO SRPT_DBUFF_UPDATE
 
 	dbuff_notif_o.write(dbuff_notif);
 

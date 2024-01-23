@@ -69,78 +69,104 @@ module dma_client_axis_sink #
     parameter TAG_WIDTH = 8
 )
 (
-    input  wire                                 clk,
-    input  wire                                 rst,
+    input wire						      clk,
+    input wire						      rst,
 
     /*
      * AXI write descriptor input
      */
-    input  wire [RAM_ADDR_WIDTH-1:0]            s_axis_write_desc_ram_addr,
-    input  wire [LEN_WIDTH-1:0]                 s_axis_write_desc_len,
-    input  wire [TAG_WIDTH-1:0]                 s_axis_write_desc_tag,
-    input  wire                                 s_axis_write_desc_valid,
-    output wire                                 s_axis_write_desc_ready,
+    // input  wire [RAM_ADDR_WIDTH-1:0]            s_axis_write_desc_ram_addr,
+    // input  wire [LEN_WIDTH-1:0]                 s_axis_write_desc_len,
+    // input  wire [TAG_WIDTH-1:0]                 s_axis_write_desc_tag,
+    // input  wire                                 s_axis_write_desc_valid,
+    // output wire                                 s_axis_write_desc_ready,
+
+    input wire [RAM_ADDR_WIDTH + LEN_WIDTH + TAG_WIDTH - 1:0] s_axis_write_desc_tdata,
+    input wire						      s_axis_write_desc_tvalid,
+    output wire						      s_axis_write_desc_tready,
 
     /*
      * AXI write descriptor status output
      */
-    output wire [LEN_WIDTH-1:0]                 m_axis_write_desc_status_len,
-    output wire [TAG_WIDTH-1:0]                 m_axis_write_desc_status_tag,
-    output wire [AXIS_ID_WIDTH-1:0]             m_axis_write_desc_status_id,
-    output wire [AXIS_DEST_WIDTH-1:0]           m_axis_write_desc_status_dest,
-    output wire [AXIS_USER_WIDTH-1:0]           m_axis_write_desc_status_user,
-    output wire [3:0]                           m_axis_write_desc_status_error,
-    output wire                                 m_axis_write_desc_status_valid,
+    // output wire [LEN_WIDTH-1:0]                 m_axis_write_desc_status_len,
+    // output wire [TAG_WIDTH-1:0]                 m_axis_write_desc_status_tag,
+    // output wire [AXIS_ID_WIDTH-1:0]             m_axis_write_desc_status_id,
+    // output wire [AXIS_DEST_WIDTH-1:0]           m_axis_write_desc_status_dest,
+    // output wire [AXIS_USER_WIDTH-1:0]           m_axis_write_desc_status_user,
+    // output wire [3:0]                           m_axis_write_desc_status_error,
+    // output wire                                 m_axis_write_desc_status_valid,
+ 
+    output wire [LEN_WIDTH + TAG_WIDTH + 4 - 1:0]	      m_axis_write_desc_status_tdata,
+    // output wire [3:0]					      m_axis_write_desc_status_error,
+    output wire [AXIS_ID_WIDTH-1:0]			      m_axis_write_desc_status_tid,
+    output wire [AXIS_DEST_WIDTH-1:0]			      m_axis_write_desc_status_tdest,
+    output wire [AXIS_USER_WIDTH-1:0]			      m_axis_write_desc_status_tuser,
+    output wire						      m_axis_write_desc_status_tvalid,
 
     /*
      * AXI stream write data input
      */
-    input  wire [AXIS_DATA_WIDTH-1:0]           s_axis_write_data_tdata,
-    input  wire [AXIS_KEEP_WIDTH-1:0]           s_axis_write_data_tkeep,
-    input  wire                                 s_axis_write_data_tvalid,
-    output wire                                 s_axis_write_data_tready,
-    input  wire                                 s_axis_write_data_tlast,
-    input  wire [AXIS_ID_WIDTH-1:0]             s_axis_write_data_tid,
-    input  wire [AXIS_DEST_WIDTH-1:0]           s_axis_write_data_tdest,
-    input  wire [AXIS_USER_WIDTH-1:0]           s_axis_write_data_tuser,
+    input wire [AXIS_DATA_WIDTH-1:0]			      s_axis_write_data_tdata,
+    input wire [AXIS_KEEP_WIDTH-1:0]			      s_axis_write_data_tkeep,
+    input wire						      s_axis_write_data_tvalid,
+    output wire						      s_axis_write_data_tready,
+    input wire						      s_axis_write_data_tlast,
+    input wire [AXIS_ID_WIDTH-1:0]			      s_axis_write_data_tid,
+    input wire [AXIS_DEST_WIDTH-1:0]			      s_axis_write_data_tdest,
+    input wire [AXIS_USER_WIDTH-1:0]			      s_axis_write_data_tuser,
 
     /*
      * RAM interface
      */
-    output wire [SEG_COUNT*SEG_BE_WIDTH-1:0]    ram_wr_cmd_be,
-    output wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0]  ram_wr_cmd_addr,
-    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]  ram_wr_cmd_data,
-    output wire [SEG_COUNT-1:0]                 ram_wr_cmd_valid,
-    input  wire [SEG_COUNT-1:0]                 ram_wr_cmd_ready,
-    input  wire [SEG_COUNT-1:0]                 ram_wr_done,
+    output wire [SEG_COUNT*SEG_BE_WIDTH-1:0]		      ram_wr_cmd_be,
+    output wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0]		      ram_wr_cmd_addr,
+    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]		      ram_wr_cmd_data,
+    output wire [SEG_COUNT-1:0]				      ram_wr_cmd_valid,
+    input wire [SEG_COUNT-1:0]				      ram_wr_cmd_ready,
+    input wire [SEG_COUNT-1:0]				      ram_wr_done,
 
     /*
      * Configuration
      */
-    input  wire                                 enable,
-    input  wire                                 abort
+    input wire						      enable,
+    input wire						      abort
 );
 
-parameter RAM_WORD_WIDTH = SEG_BE_WIDTH;
-parameter RAM_WORD_SIZE = SEG_DATA_WIDTH/RAM_WORD_WIDTH;
+   
+   wire [RAM_ADDR_WIDTH-1:0]				      s_axis_write_desc_ram_addr;
+   wire [LEN_WIDTH-1:0]					      s_axis_write_desc_len;
+   wire [TAG_WIDTH-1:0]					      s_axis_write_desc_tag;
+   
+   assign {s_axis_write_desc_tag,  s_axis_write_desc_len, s_axis_write_desc_ram_addr} = s_axis_write_desc_tdata;
 
-parameter AXIS_KEEP_WIDTH_INT = AXIS_KEEP_ENABLE ? AXIS_KEEP_WIDTH : 1;
-parameter AXIS_WORD_WIDTH = AXIS_KEEP_WIDTH_INT;
-parameter AXIS_WORD_SIZE = AXIS_DATA_WIDTH/AXIS_WORD_WIDTH;
+   wire [LEN_WIDTH-1:0]				      m_axis_write_desc_status_len;
+   wire [TAG_WIDTH-1:0]				      m_axis_write_desc_status_tag;
+   wire [3:0]					      m_axis_write_desc_status_error;
+   
+   assign {m_axis_write_desc_status_error, m_axis_write_desc_status_tag, m_axis_write_desc_status_len} = m_axis_write_desc_status_tdata;
 
-parameter PART_COUNT = SEG_COUNT*SEG_BE_WIDTH / AXIS_KEEP_WIDTH_INT;
-parameter PART_COUNT_WIDTH = PART_COUNT > 1 ? $clog2(PART_COUNT) : 1;
-parameter PART_OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
-parameter PARTS_PER_SEG = (SEG_BE_WIDTH + AXIS_KEEP_WIDTH_INT - 1) / AXIS_KEEP_WIDTH_INT;
-parameter SEGS_PER_PART = (AXIS_KEEP_WIDTH_INT + SEG_BE_WIDTH - 1) / SEG_BE_WIDTH;
+   
 
-parameter OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
-parameter OFFSET_MASK = AXIS_KEEP_WIDTH_INT > 1 ? {OFFSET_WIDTH{1'b1}} : 0;
-parameter ADDR_MASK = {RAM_ADDR_WIDTH{1'b1}} << $clog2(AXIS_KEEP_WIDTH_INT);
-parameter CYCLE_COUNT_WIDTH = LEN_WIDTH - $clog2(AXIS_KEEP_WIDTH_INT) + 1;
+localparam RAM_WORD_WIDTH = SEG_BE_WIDTH;
+localparam RAM_WORD_SIZE = SEG_DATA_WIDTH/RAM_WORD_WIDTH;
 
-parameter STATUS_FIFO_ADDR_WIDTH = 5;
-parameter OUTPUT_FIFO_ADDR_WIDTH = 5;
+localparam AXIS_KEEP_WIDTH_INT = AXIS_KEEP_ENABLE ? AXIS_KEEP_WIDTH : 1;
+localparam AXIS_WORD_WIDTH = AXIS_KEEP_WIDTH_INT;
+localparam AXIS_WORD_SIZE = AXIS_DATA_WIDTH/AXIS_WORD_WIDTH;
+
+localparam PART_COUNT = SEG_COUNT*SEG_BE_WIDTH / AXIS_KEEP_WIDTH_INT;
+localparam PART_COUNT_WIDTH = PART_COUNT > 1 ? $clog2(PART_COUNT) : 1;
+localparam PART_OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
+localparam PARTS_PER_SEG = (SEG_BE_WIDTH + AXIS_KEEP_WIDTH_INT - 1) / AXIS_KEEP_WIDTH_INT;
+localparam SEGS_PER_PART = (AXIS_KEEP_WIDTH_INT + SEG_BE_WIDTH - 1) / SEG_BE_WIDTH;
+
+localparam OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
+localparam OFFSET_MASK = AXIS_KEEP_WIDTH_INT > 1 ? {OFFSET_WIDTH{1'b1}} : 0;
+localparam ADDR_MASK = {RAM_ADDR_WIDTH{1'b1}} << $clog2(AXIS_KEEP_WIDTH_INT);
+localparam CYCLE_COUNT_WIDTH = LEN_WIDTH - $clog2(AXIS_KEEP_WIDTH_INT) + 1;
+
+localparam STATUS_FIFO_ADDR_WIDTH = 5;
+localparam OUTPUT_FIFO_ADDR_WIDTH = 5;
 
 // bus width assertions
 initial begin
@@ -246,15 +272,15 @@ reg [SEG_COUNT-1:0] ram_wr_cmd_mask;
 wire [SEG_COUNT-1:0] out_done;
 reg [SEG_COUNT-1:0] out_done_ack;
 
-assign s_axis_write_desc_ready = s_axis_write_desc_ready_reg;
+assign s_axis_write_desc_tready = s_axis_write_desc_ready_reg;
 
 assign m_axis_write_desc_status_len = m_axis_write_desc_status_len_reg;
 assign m_axis_write_desc_status_tag = m_axis_write_desc_status_tag_reg;
-assign m_axis_write_desc_status_id = m_axis_write_desc_status_id_reg;
-assign m_axis_write_desc_status_dest = m_axis_write_desc_status_dest_reg;
-assign m_axis_write_desc_status_user = m_axis_write_desc_status_user_reg;
+assign m_axis_write_desc_status_tid = m_axis_write_desc_status_id_reg;
+assign m_axis_write_desc_status_tdest = m_axis_write_desc_status_dest_reg;
+assign m_axis_write_desc_status_tuser = m_axis_write_desc_status_user_reg;
 assign m_axis_write_desc_status_error = 4'd0;
-assign m_axis_write_desc_status_valid = m_axis_write_desc_status_valid_reg;
+assign m_axis_write_desc_status_tvalid = m_axis_write_desc_status_valid_reg;
 
 assign s_axis_write_data_tready = s_axis_write_data_tready_reg;
 
@@ -331,7 +357,7 @@ always @* begin
                 keep_mask_next = {AXIS_KEEP_WIDTH_INT{1'b1}};
             end
 
-            if (s_axis_write_desc_ready && s_axis_write_desc_valid) begin
+            if (s_axis_write_desc_tready && s_axis_write_desc_tvalid) begin
                 s_axis_write_desc_ready_next = 1'b0;
                 s_axis_write_data_tready_next = &ram_wr_cmd_ready_int && !status_fifo_half_full_reg;
 

@@ -145,34 +145,7 @@ module pcie#
     output wire [8 + 4 - 1:0]									pcie_dma_write_desc_status_tdata,
     output wire											pcie_dma_write_desc_status_tvalid,
    
-    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_rq_tdata,
-    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_rq_tkeep,
-    output wire											axis_rq_tlast,
-    output wire											axis_rq_tready,
-    output wire [AXIS_PCIE_RQ_USER_WIDTH-1:0]							axis_rq_tuser,
-    output wire											axis_rq_tvalid,
-
-    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_rc_tdata,
-    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_rc_tkeep,
-    output wire											axis_rc_tlast,
-    output wire											axis_rc_tready,
-    output wire [AXIS_PCIE_RC_USER_WIDTH-1:0]							axis_rc_tuser,
-    output wire											axis_rc_tvalid,
-
-    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_cq_tdata,
-    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_cq_tkeep,
-    output wire											axis_cq_tlast,
-    output wire											axis_cq_tready,
-    output wire [AXIS_PCIE_CQ_USER_WIDTH-1:0]							axis_cq_tuser,
-    output wire											axis_cq_tvalid,
-
-    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_cc_tdata,
-    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_cc_tkeep,
-    output wire											axis_cc_tlast,
-    output wire											axis_cc_tready,
-    output wire [AXIS_PCIE_CC_USER_WIDTH-1:0]							axis_cc_tuser,
-    output wire											axis_cc_tvalid,
-   
+  
     /*
      * RAM interface
      */
@@ -204,6 +177,32 @@ module pcie#
    output wire												rx_cpl_tlp_ready
 
     );
+
+   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_rq_tdata;
+   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_rq_tkeep;
+   wire													axis_rq_tlast;
+   wire													axis_rq_tready;
+   wire [AXIS_PCIE_RQ_USER_WIDTH-1:0]									axis_rq_tuser;
+   wire													axis_rq_tvalid;
+   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_rc_tdata;
+   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_rc_tkeep;
+   wire													axis_rc_tlast;
+   wire													axis_rc_tready;
+   wire [AXIS_PCIE_RC_USER_WIDTH-1:0]									axis_rc_tuser;
+   wire													axis_rc_tvalid;
+   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_cq_tdata;
+   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_cq_tkeep;
+   wire													axis_cq_tlast;
+   wire													axis_cq_tready;
+   wire [AXIS_PCIE_CQ_USER_WIDTH-1:0]									axis_cq_tuser;
+   wire													axis_cq_tvalid;
+   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_cc_tdata;
+   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_cc_tkeep;
+   wire													axis_cc_tlast;
+   wire													axis_cc_tready;
+   wire [AXIS_PCIE_CC_USER_WIDTH-1:0]									axis_cc_tuser;
+   wire													axis_cc_tvalid;
+ 
 
    wire [PCIE_ADDR_WIDTH-1:0]									pcie_dma_read_desc_pcie_addr;
    wire [RAM_SEL_WIDTH-1:0]									pcie_dma_read_desc_ram_sel;
