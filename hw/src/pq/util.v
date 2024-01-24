@@ -12,7 +12,8 @@ task enqueue(input [15:0] rpc_id,
 	     input [9:0]  dbuff_id, 
 	     input [19:0] initial_grant, 
 	     input [19:0] initial_dbuff, 
-	     input [19:0] msg_len);
+	     input [19:0] msg_len,
+	     input [2:0]  priority);
    
    begin
       S_AXIS_TDATA[`QUEUE_ENTRY_RPC_ID]    = rpc_id;
@@ -20,7 +21,7 @@ task enqueue(input [15:0] rpc_id,
       S_AXIS_TDATA[`QUEUE_ENTRY_REMAINING] = msg_len;
       S_AXIS_TDATA[`QUEUE_ENTRY_DBUFFERED] = initial_dbuff;
       S_AXIS_TDATA[`QUEUE_ENTRY_GRANTED]   = initial_grant;
-      S_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+      S_AXIS_TDATA[`QUEUE_ENTRY_PRIORITY]  = priority;
 
       S_AXIS_TVALID = 1;
       #5;

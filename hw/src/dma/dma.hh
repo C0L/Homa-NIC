@@ -7,7 +7,7 @@
 /**
  * dma_r_req_t - DMA read request
  */
-#define DMA_R_REQ_SIZE      108    // Number of bits to express request
+#define DMA_R_REQ_SIZE      128    // Number of bits to express request
 #define DMA_R_REQ_HOST_ADDR 63,0   // Where to read from
 #define DMA_R_REQ_DBUFF_ID  73,64  // 
 #define DMA_R_REQ_BUFF_SIZE 93,74  // 
@@ -41,6 +41,22 @@ typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 #define AM_STATUS_ERROR  11,8
 
 typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
+
+#define RAMW_CMD_SIZE  96
+#define RAMW_CMD_ADDR  20,0
+#define RAMW_CMD_LEN   84,21
+#define RAMW_CMD_TAG   92,85
+
+typedef ap_axiu<RAMW_CMD_SIZE, 0, 0, 0> ram_cmd_t;
+
+#define RAMW_STATUS_SIZE  80
+#define RAMW_STATUS_ERROR 3,0
+#define RAMW_STATUS_TAG   11,4
+#define RAMW_STATUS_LEN   75,12
+
+typedef ap_axiu<RAMW_STATUS_SIZE, 0, 0, 0> ram_status_t;
+
+
 
 #define SRPT_QUEUE_ENTRY_SIZE      104
 #define SRPT_QUEUE_ENTRY_RPC_ID    15,0  // ID of this transaction

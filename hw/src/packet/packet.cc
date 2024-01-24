@@ -148,15 +148,15 @@ void pkt_ctor(ap_uint<MSGHDR_SEND_SIZE> send_cbs[MAX_RPCS],
 	
 	    network_order(natural_chunk, out_chunk.data);
 
-	    ram_read.data(RAM_CMD_ADDR) = offset;
-	    ram_read.data(RAM_CMD_LEN)  = 1;
+	    ram_read.data(RAMR_CMD_ADDR) = offset;
+	    ram_read.data(RAMR_CMD_LEN)  = 1;
 	
 	    processed_bytes += 64;
 
-	    ram_read.data(RAM_CMD_TAG) = tag++;
+	    ram_read.data(RAMR_CMD_TAG) = tag++;
 
-	    pending_ramread[ram_read.data(RAM_CMD_TAG)] = ram_read;
-	    pending_chunks[ram_read.data(RAM_CMD_TAG)]  = natural_chunk;
+	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
+	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
 
 	    ram_cmd_o.write(ram_read);
 	
@@ -197,8 +197,8 @@ void pkt_ctor(ap_uint<MSGHDR_SEND_SIZE> send_cbs[MAX_RPCS],
 	    
 		data_bytes += 14;
 
-		ram_read.data(RAM_CMD_ADDR) = offset;
-		ram_read.data(RAM_CMD_LEN)  = 14;
+		ram_read.data(RAMR_CMD_ADDR) = offset;
+		ram_read.data(RAMR_CMD_LEN)  = 14;
 		
 		// TODO Store this frame pending return of RAM read
 		
@@ -208,15 +208,15 @@ void pkt_ctor(ap_uint<MSGHDR_SEND_SIZE> send_cbs[MAX_RPCS],
 	    
 		data_bytes += 64;
 
-		ram_read.data(RAM_CMD_ADDR) = offset;
-		ram_read.data(RAM_CMD_LEN)  = 64;
+		ram_read.data(RAMR_CMD_ADDR) = offset;
+		ram_read.data(RAMR_CMD_LEN)  = 64;
 	    }
 	
 	    processed_bytes += 64;
 
-	    ram_read.data(RAM_CMD_TAG) = tag++;
-	    pending_ramread[ram_read.data(RAM_CMD_TAG)] = ram_read;
-	    pending_chunks[ram_read.data(RAM_CMD_TAG)]  = natural_chunk;
+	    ram_read.data(RAMR_CMD_TAG) = tag++;
+	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
+	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
 
 	    ram_cmd_o.write(ram_read);
 	
@@ -242,7 +242,7 @@ void pkt_ctor(ap_uint<MSGHDR_SEND_SIZE> send_cbs[MAX_RPCS],
     if (!ram_status_i.empty() && !ram_data_i.empty()) {
 	ram_status_t ram_status = ram_status_i.read();
 	ap_axiu<512,0,0,0> ram_data = ram_data_i.read();
-	ram_cmd_t ramread = pending_ramread[ram_status.data(RAM_STATUS_TAG)];
+	ram_cmd_t ramread = pending_ramread[ram_status.data(RAMR_STATUS_TAG)];
 	// TODO fetch the frame here as well
 
 	out_chunk.data = ram_data.data;

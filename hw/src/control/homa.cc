@@ -51,7 +51,8 @@ void user(
 	new_sendmsg_o.write(srpt_data_in);
 	
 	srpt_queue_entry_t srpt_fetch_in = 0;
-	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = msghdr_send(MSGHDR_SPORT);
+	srpt_fetch_in(SRPT_QUEUE_ENTRY_RPC_ID)    = msghdr_send(MSGHDR_SEND_ID);
+	    // msghdr_send(MSGHDR_SPORT);
 	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFF_ID)  = dbuff_id;
 	srpt_fetch_in(SRPT_QUEUE_ENTRY_REMAINING) = msghdr_send(MSGHDR_BUFF_SIZE);
 	srpt_fetch_in(SRPT_QUEUE_ENTRY_DBUFFERED) = 0;

@@ -8,7 +8,7 @@ module srpt_queue_send_tb();
 `include "util.v"
    
    reg ap_clk=0;
-   reg ap_rst;
+   reg ap_rst_n;
 
    reg S_AXIS_TVALID;
    wire	S_AXIS_TREADY;
@@ -23,7 +23,7 @@ module srpt_queue_send_tb();
    srpt_queue #(.MAX_RPCS(64), 
 		.TYPE("sendmsg")) 
    srpt_queue_dut (.ap_clk(ap_clk), 
-		   .ap_rst(ap_rst), 
+		   .ap_rst_n(ap_rst_n), 
 		   .S_AXIS_TVALID(S_AXIS_TVALID),
 		   .S_AXIS_TREADY(S_AXIS_TREADY),
 		   .S_AXIS_TDATA(S_AXIS_TDATA),
@@ -33,12 +33,30 @@ module srpt_queue_send_tb();
 
    task sendmsg_test_single_entry();
    begin
-      enqueue(1, 1, 0, 0, 10000);
+      enqueue(1, 1, 0, 0, 10000, `SRPT_ACTIVE);
       for (i = 0; i < 10000 / `HOMA_PAYLOAD_SIZE + 1; i=i+1) begin
 	  dequeue();
       end
       
       test_is_empty();
+   end
+   endtask // sendmsg_test_single_entry
+
+   task sendmsg_test_unbuffered();
+   begin
+      enqueue(1, 1, 0, 2000, 2000, `SRPT_ACTIVE);
+      
+      #100;
+      
+      enqueue(0, 1, 0, 0, 0, `SRPT_DBUFF_UPDATE);
+
+      #100;
+      
+      // test_is_empty();
+
+      #100;
+      
+      dequeue();
    end
    endtask // sendmsg_test_single_entry
  
@@ -57,7 +75,9 @@ module srpt_queue_send_tb();
 
       reset();
 
-      sendmsg_test_single_entry();
+      // sendmsg_test_single_entry();
+
+      sendmsg_test_unbuffered();
       
       // RPC ID, DBUFF ID, INIT GRANT, INIT DBUFF, MSG LEN, INITIAL STATE
 

@@ -18,7 +18,10 @@
 `define HOMA_PAYLOAD_SIZE 20'h56a
 `define CACHE_BLOCK_SIZE 256
 
-`define CACHE_SIZE 131072 
+`define CACHE_SIZE 131072
+
+// TODO does not work for small byte remaining entries? (like single byte)
+// TODO re-enable general swap
 
 /**
  * srpt_data_pkts() - Determines which data packet should be transmit
@@ -123,14 +126,14 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	    low_o  = high_i;
 
 	    if (TYPE == "sendmsg") begin
-	       if (low_i[`QUEUE_ENTRY_RPC_ID] == high_i[`QUEUE_ENTRY_RPC_ID]) begin
-		  if (low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_DBUFF_UPDATE) begin
-		     low_o[`QUEUE_ENTRY_DBUFFERED] = low_i[`QUEUE_ENTRY_DBUFFERED];
-		     low_o[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
-		  end else if (low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_GRANT_UPDATE) begin
-		     low_o[`QUEUE_ENTRY_GRANTED]   = low_i[`QUEUE_ENTRY_GRANTED];
-		     low_o[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
-		  end 
+	       if (low_i[`QUEUE_ENTRY_DBUFF_ID] == high_i[`QUEUE_ENTRY_DBUFF_ID] &&
+		   low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_DBUFF_UPDATE) begin
+		  low_o[`QUEUE_ENTRY_DBUFFERED] = low_i[`QUEUE_ENTRY_DBUFFERED];
+		  low_o[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
+	       end else if (low_i[`QUEUE_ENTRY_RPC_ID] == high_i[`QUEUE_ENTRY_RPC_ID] &&
+			    low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_GRANT_UPDATE) begin
+		  low_o[`QUEUE_ENTRY_GRANTED]   = low_i[`QUEUE_ENTRY_GRANTED];
+		  low_o[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
 	       end
 	    end else if (TYPE == "fetch") begin 
 	       if (low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_DBUFF_UPDATE 

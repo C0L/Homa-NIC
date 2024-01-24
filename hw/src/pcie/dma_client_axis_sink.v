@@ -143,7 +143,7 @@ module dma_client_axis_sink #
    wire [TAG_WIDTH-1:0]				      m_axis_write_desc_status_tag;
    wire [3:0]					      m_axis_write_desc_status_error;
    
-   assign {m_axis_write_desc_status_error, m_axis_write_desc_status_tag, m_axis_write_desc_status_len} = m_axis_write_desc_status_tdata;
+   assign {m_axis_write_desc_status_len, m_axis_write_desc_status_tag, m_axis_write_desc_status_error} = m_axis_write_desc_status_tdata;
 
    
 

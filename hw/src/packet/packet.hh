@@ -146,17 +146,17 @@ typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
 #define DMA_W_REQ_STROBE    647,640 // How many bytes to write
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 
-#define RAM_CMD_SIZE  96
-#define RAM_CMD_ADDR  20,0
-#define RAM_CMD_LEN   84,21
-#define RAM_CMD_TAG   92,85
+#define RAMR_CMD_SIZE  96
+#define RAMR_CMD_ADDR  20,0
+#define RAMR_CMD_LEN   84,21
+#define RAMR_CMD_TAG   92,85
 
-typedef ap_axiu<RAM_CMD_SIZE, 0, 0, 0> ram_cmd_t;
+typedef ap_axiu<RAMR_CMD_SIZE, 0, 0, 0> ram_cmd_t;
 
-#define RAM_STATUS_SIZE  16
-#define RAM_STATUS_ERROR 3,0
-#define RAM_STATUS_TAG   11,4
+#define RAMR_STATUS_SIZE  16
+#define RAMR_STATUS_ERROR 3,0
+#define RAMR_STATUS_TAG   11,4
 
-typedef ap_axiu<RAM_STATUS_SIZE, 0, 0, 0> ram_status_t;
+typedef ap_axiu<RAMR_STATUS_SIZE, 0, 0, 0> ram_status_t;
 
 #endif
