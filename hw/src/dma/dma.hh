@@ -27,12 +27,12 @@ typedef ap_uint<DMA_R_REQ_SIZE> dma_r_req_t;
 #define DMA_W_REQ_STROBE    647,640 // How many bytes to write
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 
-#define AM_CMD_SIZE       111
+#define AM_CMD_SIZE       112
 #define AM_CMD_PCIE_ADDR  63,0
 #define AM_CMD_SEL        65,64
-#define AM_CMD_RAM_ADDR   86,66
-#define AM_CMD_LEN        102,87
-#define AM_CMD_TAG        110,103
+#define AM_CMD_RAM_ADDR   83,66
+#define AM_CMD_LEN        99,84
+#define AM_CMD_TAG        107,100
 
 typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 
@@ -43,9 +43,9 @@ typedef ap_axiu<AM_CMD_SIZE, 0, 0, 0> am_cmd_t;
 typedef ap_axiu<AM_STATUS_SIZE, 0, 0, 0> am_status_t;
 
 #define RAMW_CMD_SIZE  96
-#define RAMW_CMD_ADDR  20,0
-#define RAMW_CMD_LEN   84,21
-#define RAMW_CMD_TAG   92,85
+#define RAMW_CMD_ADDR  20-3,0
+#define RAMW_CMD_LEN   84-3,21-3
+#define RAMW_CMD_TAG   92-3,85-3
 
 typedef ap_axiu<RAMW_CMD_SIZE, 0, 0, 0> ram_cmd_t;
 

@@ -30,12 +30,14 @@ void addr_map(ap_uint<64> metadata_map[NUM_PORTS],
     if (dma_r_req_i.read_nb(dma_r_req_in)) {
 	dma_r_req_t dma_r_req_out;
 
-	// RPC_ID contains the port ID
+	// TODO THIS SHOULD BE PORT AND NOT RPC ID!!!!!!!!!
 	dma_r_req_out(DMA_R_REQ_HOST_ADDR) = h2c_data_map[dma_r_req_in(SRPT_QUEUE_ENTRY_RPC_ID)] + dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFFERED);
-	dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 256 ? 256 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
+	// TODO 
+	dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 64 ? 64 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
+	// dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 256 ? 256 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
 	dma_r_req_out(DMA_R_REQ_DBUFF_ID)  = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
 	dma_r_req_out(DMA_R_REQ_BUFF_SIZE) = dma_r_req_in(SRPT_QUEUE_ENTRY_GRANTED);
-	dma_r_req_out(DMA_R_REQ_MSG_ADDR)  = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
+	dma_r_req_out(DMA_R_REQ_MSG_ADDR)  = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFFERED); 
 	dma_r_req_o.write(dma_r_req_out);
     }
 
@@ -99,12 +101,18 @@ void h2c_dma(hls::stream<am_cmd_t> & cmd_queue_o,
 
 	srpt_queue_entry_t dbuff_notif;
 	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFF_ID)  = new_entry(DMA_R_REQ_DBUFF_ID);
-	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = new_entry(DMA_R_REQ_BUFF_SIZE) - new_entry(DMA_R_REQ_MSG_ADDR);
+	dbuff_notif(SRPT_QUEUE_ENTRY_DBUFFERED) = new_entry(DMA_R_REQ_BUFF_SIZE) - new_entry(DMA_R_REQ_MSG_ADDR) - 256;
 	dbuff_notif(SRPT_QUEUE_ENTRY_PRIORITY)  = 1; // TODO SRPT_DBUFF_UPDATE
 
 	dbuff_notif_o.write(dbuff_notif);
     }
 }
+
+
+// TODO
+// DO NOT TRIGGER OFF OF THE STATUS OUTPUT WITHOUT ANY BACKPRESSURE (NO TREADY!??!?)
+
+
 
 /**
  * dma_write()  - TODO 

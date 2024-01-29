@@ -159,15 +159,16 @@ typedef ap_uint<SRPT_GRANT_SEND_SIZE> srpt_grant_send_t;
 
 typedef ap_uint<SRPT_GRANT_NEW_SIZE> srpt_grant_new_t;
 
-#define SRPT_QUEUE_ENTRY_SIZE      99
+#define SRPT_QUEUE_ENTRY_SIZE      104
 #define SRPT_QUEUE_ENTRY_RPC_ID    15,0  // ID of this transaction
-#define SRPT_QUEUE_ENTRY_DBUFF_ID  24,16 // Corresponding on chip cache
+#define SRPT_QUEUE_ENTRY_DBUFF_ID  25,16 // Corresponding on chip cache
 #define SRPT_QUEUE_ENTRY_REMAINING 45,26 // Remaining to be sent or cached
 #define SRPT_QUEUE_ENTRY_DBUFFERED 65,46 // Number of bytes cached
 #define SRPT_QUEUE_ENTRY_GRANTED   85,66 // Number of bytes granted
 #define SRPT_QUEUE_ENTRY_PRIORITY  88,86 // Deprioritize inactive messages
 
 typedef ap_uint<SRPT_QUEUE_ENTRY_SIZE> srpt_queue_entry_t;
+
 
 /**
  * port_to_phys_t - Provides a mapping from a Homa port of a host
@@ -354,6 +355,17 @@ struct h2c_chunk_t {
     ap_uint<1> last_msg_chunk; // Is this the last chunk in the message 
     ap_uint<1> last_pkt_chunk; // Is this the last chunk in the packet 
 };
+
+#define HDR_BLOCK_SIZE     512
+#define HDR_BLOCK_SADDR    127,0
+#define HDR_BLOCK_DADDR    255,127
+#define HDR_BLOCK_SPORT    271,256
+#define HDR_BLOCK_DPORT    287,272
+#define HDR_BLOCK_RPC_ID   351,336
+#define HDR_BLOCK_CC       415,352
+#define HDR_BLOCK_LOCAL_ID 429,416
+#define HDR_BLOCK_MSG_ADDR 461,430
+#define HDR_BLOCK_LENGTH   512,462
 
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
  * recvmsg requests that form the msghdr

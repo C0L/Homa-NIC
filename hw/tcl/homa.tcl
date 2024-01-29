@@ -148,13 +148,13 @@ xilinx.com:hls:h2c_dma:1.0\
 xilinx.com:ip:axi_clock_converter:2.1\
 xilinx.com:ip:axis_clock_converter:1.1\
 xilinx.com:ip:util_vector_logic:2.0\
-xilinx.com:ip:ila:6.2\
 xilinx.com:ip:xlconstant:1.1\
 xilinx.com:hls:interface:1.0\
 xilinx.com:hls:user:1.0\
 xilinx.com:hls:pkt_ctor:1.0\
 xilinx.com:hls:pkt_dtor:1.0\
 xilinx.com:ip:fifo_generator:13.2\
+xilinx.com:ip:ila:6.2\
 xilinx.com:ip:cmac_usplus:3.1\
 xilinx.com:ip:xlslice:1.0\
 xilinx.com:ip:axi_gpio:2.0\
@@ -897,10 +897,6 @@ proc create_hier_cell_pqs { parentCell nameHier } {
    CONFIG.FREQ_HZ {200000000} \
  ] [get_bd_intf_pins /pqs/sendmsg_queue/M_AXIS]
 
-  set_property -dict [ list \
-   CONFIG.FREQ_HZ {200000000} \
- ] [get_bd_intf_pins /pqs/sendmsg_queue/S_AXIS]
-
   # Create instance: datafetch_queue, and set properties
   set block_name srpt_queue
   set block_cell_name datafetch_queue
@@ -917,10 +913,6 @@ proc create_hier_cell_pqs { parentCell nameHier } {
   set_property -dict [ list \
    CONFIG.FREQ_HZ {200000000} \
  ] [get_bd_intf_pins /pqs/datafetch_queue/M_AXIS]
-
-  set_property -dict [ list \
-   CONFIG.FREQ_HZ {200000000} \
- ] [get_bd_intf_pins /pqs/datafetch_queue/S_AXIS]
 
   # Create interface connections
   connect_bd_intf_net -intf_net Conn1 [get_bd_intf_pins axis_interconnect_0/S00_AXIS] [get_bd_intf_pins S00_AXIS]
@@ -1179,7 +1171,7 @@ proc create_hier_cell_dma { parentCell nameHier } {
      return 1
    }
     set_property -dict [list \
-    CONFIG.SEG_ADDR_WIDTH {14} \
+    CONFIG.SEG_ADDR_WIDTH {11} \
     CONFIG.SEG_BE_WIDTH {64} \
     CONFIG.SEG_COUNT {2} \
     CONFIG.SEG_DATA_WIDTH {512} \
@@ -1198,9 +1190,21 @@ proc create_hier_cell_dma { parentCell nameHier } {
      return 1
    }
     set_property -dict [list \
+    CONFIG.AXIS_PCIE_DATA_WIDTH {512} \
+    CONFIG.AXIS_PCIE_KEEP_WIDTH {16} \
     CONFIG.AXI_ADDR_WIDTH {26} \
-    CONFIG.RAM_ADDR_WIDTH {21} \
-    CONFIG.RAM_SEG_ADDR_WIDTH {14} \
+    CONFIG.CC_STRADDLE {true} \
+    CONFIG.CHECK_BUS_NUMBER {0} \
+    CONFIG.CQ_STRADDLE {true} \
+    CONFIG.RAM_ADDR_WIDTH {18} \
+    CONFIG.RAM_SEG_ADDR_WIDTH {11} \
+    CONFIG.RAM_SEG_BE_WIDTH {64} \
+    CONFIG.RAM_SEG_DATA_WIDTH {512} \
+    CONFIG.RC_STRADDLE {true} \
+    CONFIG.RQ_STRADDLE {true} \
+    CONFIG.TLP_DATA_WIDTH {512} \
+    CONFIG.TLP_FORCE_64_BIT_ADDR {1} \
+    CONFIG.TLP_SEG_COUNT {1} \
   ] $pcie_0
 
 
@@ -1210,15 +1214,7 @@ proc create_hier_cell_dma { parentCell nameHier } {
 
   set_property -dict [ list \
    CONFIG.FREQ_HZ {250000000} \
- ] [get_bd_intf_pins /dma/pcie_0/pcie_dma_read_desc]
-
-  set_property -dict [ list \
-   CONFIG.FREQ_HZ {250000000} \
  ] [get_bd_intf_pins /dma/pcie_0/pcie_dma_read_desc_status]
-
-  set_property -dict [ list \
-   CONFIG.FREQ_HZ {250000000} \
- ] [get_bd_intf_pins /dma/pcie_0/pcie_dma_write_desc]
 
   set_property -dict [ list \
    CONFIG.FREQ_HZ {250000000} \
@@ -1231,20 +1227,6 @@ proc create_hier_cell_dma { parentCell nameHier } {
   set_property -dict [ list \
    CONFIG.POLARITY {ACTIVE_HIGH} \
  ] [get_bd_pins /dma/pcie_0/pcie_user_reset]
-
-  # Create instance: ila_0, and set properties
-  set ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:ila:6.2 ila_0 ]
-  set_property -dict [list \
-    CONFIG.C_MONITOR_TYPE {Native} \
-    CONFIG.C_NUM_OF_PROBES {6} \
-    CONFIG.C_PROBE0_WIDTH {64} \
-    CONFIG.C_PROBE1_WIDTH {18} \
-    CONFIG.C_PROBE2_WIDTH {512} \
-    CONFIG.C_PROBE3_WIDTH {2} \
-    CONFIG.C_PROBE4_WIDTH {2} \
-    CONFIG.C_PROBE5_WIDTH {2} \
-  ] $ila_0
-
 
   # Create instance: dma_client_axis_sour_0, and set properties
   set block_name dma_client_axis_source
@@ -1261,8 +1243,8 @@ proc create_hier_cell_dma { parentCell nameHier } {
     CONFIG.AXIS_KEEP_ENABLE {true} \
     CONFIG.AXIS_KEEP_WIDTH {64} \
     CONFIG.LEN_WIDTH {64} \
-    CONFIG.RAM_ADDR_WIDTH {21} \
-    CONFIG.SEG_ADDR_WIDTH {14} \
+    CONFIG.RAM_ADDR_WIDTH {18} \
+    CONFIG.SEG_ADDR_WIDTH {11} \
     CONFIG.SEG_BE_WIDTH {64} \
     CONFIG.SEG_DATA_WIDTH {512} \
   ] $dma_client_axis_sour_0
@@ -1278,11 +1260,11 @@ proc create_hier_cell_dma { parentCell nameHier } {
 
   set_property -dict [ list \
    CONFIG.FREQ_HZ {250000000} \
- ] [get_bd_intf_pins /dma/dma_client_axis_sour_0/s_axis_read_desc]
+ ] [get_bd_pins /dma/dma_client_axis_sour_0/clk]
 
   set_property -dict [ list \
-   CONFIG.FREQ_HZ {250000000} \
- ] [get_bd_pins /dma/dma_client_axis_sour_0/clk]
+   CONFIG.POLARITY {ACTIVE_HIGH} \
+ ] [get_bd_pins /dma/dma_client_axis_sour_0/rst]
 
   # Create instance: xlconstant_1, and set properties
   set xlconstant_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_1 ]
@@ -1297,6 +1279,8 @@ proc create_hier_cell_dma { parentCell nameHier } {
 
   # Create instance: axis_clock_converter_2, and set properties
   set axis_clock_converter_2 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axis_clock_converter:1.1 axis_clock_converter_2 ]
+  set_property CONFIG.TDATA_NUM_BYTES {2} $axis_clock_converter_2
+
 
   # Create instance: dbuff_notif_o, and set properties
   set dbuff_notif_o [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 dbuff_notif_o ]
@@ -1341,12 +1325,12 @@ proc create_hier_cell_dma { parentCell nameHier } {
   ] $client_read_data
 
 
-  # Create instance: system_ila_0, and set properties
-  set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
+  # Create instance: client_read, and set properties
+  set client_read [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 client_read ]
   set_property -dict [list \
     CONFIG.C_MON_TYPE {NATIVE} \
-    CONFIG.C_NUM_OF_PROBES {5} \
-  ] $system_ila_0
+    CONFIG.C_NUM_OF_PROBES {6} \
+  ] $client_read
 
 
   # Create instance: dma_client_axis_sink_0, and set properties
@@ -1363,8 +1347,8 @@ proc create_hier_cell_dma { parentCell nameHier } {
     CONFIG.AXIS_DATA_WIDTH {512} \
     CONFIG.AXIS_KEEP_WIDTH {64} \
     CONFIG.LEN_WIDTH {64} \
-    CONFIG.RAM_ADDR_WIDTH {21} \
-    CONFIG.SEG_ADDR_WIDTH {14} \
+    CONFIG.RAM_ADDR_WIDTH {18} \
+    CONFIG.SEG_ADDR_WIDTH {11} \
     CONFIG.SEG_BE_WIDTH {64} \
     CONFIG.SEG_DATA_WIDTH {512} \
   ] $dma_client_axis_sink_0
@@ -1381,7 +1365,7 @@ proc create_hier_cell_dma { parentCell nameHier } {
      return 1
    }
     set_property -dict [list \
-    CONFIG.SEG_ADDR_WIDTH {14} \
+    CONFIG.SEG_ADDR_WIDTH {11} \
     CONFIG.SEG_BE_WIDTH {64} \
     CONFIG.SEG_COUNT {2} \
     CONFIG.SEG_DATA_WIDTH {512} \
@@ -1447,6 +1431,22 @@ proc create_hier_cell_dma { parentCell nameHier } {
   ] $ram_wr
 
 
+  # Create instance: pcie_wr, and set properties
+  set pcie_wr [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 pcie_wr ]
+  set_property -dict [list \
+    CONFIG.C_MON_TYPE {NATIVE} \
+    CONFIG.C_NUM_OF_PROBES {6} \
+  ] $pcie_wr
+
+
+  # Create instance: internal, and set properties
+  set internal [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 internal ]
+  set_property -dict [list \
+    CONFIG.C_MON_TYPE {NATIVE} \
+    CONFIG.C_NUM_OF_PROBES {50} \
+  ] $internal
+
+
   # Create interface connections
   connect_bd_intf_net -intf_net Conn1 [get_bd_intf_pins h2c_dma/dbuff_notif_o] [get_bd_intf_pins dbuff_notif_o]
   connect_bd_intf_net -intf_net [get_bd_intf_nets Conn1] [get_bd_intf_pins h2c_dma/dbuff_notif_o] [get_bd_intf_pins dbuff_notif_o/SLOT_0_AXIS]
@@ -1505,44 +1505,81 @@ proc create_hier_cell_dma { parentCell nameHier } {
   connect_bd_intf_net -intf_net pcie_upgraded_ipi_m_axi_c2h [get_bd_intf_pins axi_clock_converter_1/S_AXI] [get_bd_intf_pins c2h/SLOT_0_AXI]
 
   # Create port connections
-  connect_bd_net -net ap_clk_1 [get_bd_pins ap_clk] [get_bd_pins metadata_maps_ctrl/s_axi_aclk] [get_bd_pins axi_interconnect_4/ACLK] [get_bd_pins axi_interconnect_4/S00_ACLK] [get_bd_pins axi_interconnect_4/M00_ACLK] [get_bd_pins axi_interconnect_4/M01_ACLK] [get_bd_pins axi_interconnect_4/M02_ACLK] [get_bd_pins dma_r_req/clk] [get_bd_pins c2h_data_maps_ctrl/s_axi_aclk] [get_bd_pins h2c_data_maps_ctrl/s_axi_aclk] [get_bd_pins cmd_queue_read/clk] [get_bd_pins axi_clock_converter_0/m_axi_aclk] [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins axi_clock_converter_1/m_axi_aclk] [get_bd_pins axis_clock_converter_1/s_axis_aclk] [get_bd_pins h2c/clk] [get_bd_pins read_status/clk] [get_bd_pins axis_clock_converter_2/m_axis_aclk] [get_bd_pins dbuff_notif_o/clk] [get_bd_pins axis_clock_converter_5/m_axis_aclk] [get_bd_pins axis_clock_converter_3/s_axis_aclk] [get_bd_pins axis_clock_converter_4/m_axis_aclk] [get_bd_pins client_read_data/clk] [get_bd_pins client_read_status/clk] [get_bd_pins client_read_desc/clk] [get_bd_pins addr_map/ap_clk] [get_bd_pins h2c_dma/ap_clk] [get_bd_pins axis_clock_converter_7/s_axis_aclk] [get_bd_pins axis_clock_converter_6/s_axis_aclk] [get_bd_pins c2h_dma/ap_clk] [get_bd_pins ram_cmd_o/clk] [get_bd_pins ram_data_o/clk] [get_bd_pins ram_status_i/clk] [get_bd_pins axis_clock_converter_9/m_axis_aclk] [get_bd_pins write_status/clk] [get_bd_pins dma_w_req/clk] [get_bd_pins axis_clock_converter_10/s_axis_aclk] [get_bd_pins axis_clock_converter_8/m_axis_aclk]
-  connect_bd_net -net ap_rst_n_1 [get_bd_pins ap_rst_n] [get_bd_pins metadata_maps_ctrl/s_axi_aresetn] [get_bd_pins axi_interconnect_4/ARESETN] [get_bd_pins axi_interconnect_4/S00_ARESETN] [get_bd_pins axi_interconnect_4/M00_ARESETN] [get_bd_pins axi_interconnect_4/M01_ARESETN] [get_bd_pins axi_interconnect_4/M02_ARESETN] [get_bd_pins dma_r_req/resetn] [get_bd_pins c2h_data_maps_ctrl/s_axi_aresetn] [get_bd_pins h2c_data_maps_ctrl/s_axi_aresetn] [get_bd_pins cmd_queue_read/resetn] [get_bd_pins axi_clock_converter_0/m_axi_aresetn] [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn] [get_bd_pins axi_clock_converter_1/m_axi_aresetn] [get_bd_pins axis_clock_converter_1/s_axis_aresetn] [get_bd_pins h2c/resetn] [get_bd_pins read_status/resetn] [get_bd_pins axis_clock_converter_2/m_axis_aresetn] [get_bd_pins dbuff_notif_o/resetn] [get_bd_pins axis_clock_converter_5/m_axis_aresetn] [get_bd_pins axis_clock_converter_4/m_axis_aresetn] [get_bd_pins client_read_data/resetn] [get_bd_pins client_read_status/resetn] [get_bd_pins axis_clock_converter_3/s_axis_aresetn] [get_bd_pins client_read_desc/resetn] [get_bd_pins addr_map/ap_rst_n] [get_bd_pins h2c_dma/ap_rst_n] [get_bd_pins axis_clock_converter_7/s_axis_aresetn] [get_bd_pins axis_clock_converter_6/s_axis_aresetn] [get_bd_pins axis_clock_converter_8/m_axis_aresetn] [get_bd_pins c2h_dma/ap_rst_n] [get_bd_pins ram_cmd_o/resetn] [get_bd_pins ram_data_o/resetn] [get_bd_pins ram_status_i/resetn] [get_bd_pins axis_clock_converter_9/m_axis_aresetn] [get_bd_pins write_status/resetn] [get_bd_pins dma_w_req/resetn] [get_bd_pins axis_clock_converter_10/s_axis_aresetn]
+  connect_bd_net -net ap_clk_1 [get_bd_pins ap_clk] [get_bd_pins metadata_maps_ctrl/s_axi_aclk] [get_bd_pins axi_interconnect_4/ACLK] [get_bd_pins axi_interconnect_4/S00_ACLK] [get_bd_pins axi_interconnect_4/M00_ACLK] [get_bd_pins axi_interconnect_4/M01_ACLK] [get_bd_pins axi_interconnect_4/M02_ACLK] [get_bd_pins dma_r_req/clk] [get_bd_pins c2h_data_maps_ctrl/s_axi_aclk] [get_bd_pins h2c_data_maps_ctrl/s_axi_aclk] [get_bd_pins cmd_queue_read/clk] [get_bd_pins axi_clock_converter_0/m_axi_aclk] [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins axi_clock_converter_1/m_axi_aclk] [get_bd_pins axis_clock_converter_1/s_axis_aclk] [get_bd_pins h2c/clk] [get_bd_pins read_status/clk] [get_bd_pins axis_clock_converter_2/m_axis_aclk] [get_bd_pins dbuff_notif_o/clk] [get_bd_pins axis_clock_converter_5/m_axis_aclk] [get_bd_pins axis_clock_converter_3/s_axis_aclk] [get_bd_pins axis_clock_converter_4/m_axis_aclk] [get_bd_pins client_read_data/clk] [get_bd_pins client_read_status/clk] [get_bd_pins client_read_desc/clk] [get_bd_pins axis_clock_converter_7/s_axis_aclk] [get_bd_pins axis_clock_converter_6/s_axis_aclk] [get_bd_pins ram_cmd_o/clk] [get_bd_pins ram_data_o/clk] [get_bd_pins ram_status_i/clk] [get_bd_pins axis_clock_converter_9/m_axis_aclk] [get_bd_pins write_status/clk] [get_bd_pins dma_w_req/clk] [get_bd_pins axis_clock_converter_10/s_axis_aclk] [get_bd_pins axis_clock_converter_8/m_axis_aclk] [get_bd_pins c2h_dma/ap_clk] [get_bd_pins h2c_dma/ap_clk] [get_bd_pins addr_map/ap_clk]
+  connect_bd_net -net ap_rst_n_1 [get_bd_pins ap_rst_n] [get_bd_pins metadata_maps_ctrl/s_axi_aresetn] [get_bd_pins axi_interconnect_4/ARESETN] [get_bd_pins axi_interconnect_4/S00_ARESETN] [get_bd_pins axi_interconnect_4/M00_ARESETN] [get_bd_pins axi_interconnect_4/M01_ARESETN] [get_bd_pins axi_interconnect_4/M02_ARESETN] [get_bd_pins dma_r_req/resetn] [get_bd_pins c2h_data_maps_ctrl/s_axi_aresetn] [get_bd_pins h2c_data_maps_ctrl/s_axi_aresetn] [get_bd_pins cmd_queue_read/resetn] [get_bd_pins axi_clock_converter_0/m_axi_aresetn] [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn] [get_bd_pins axi_clock_converter_1/m_axi_aresetn] [get_bd_pins axis_clock_converter_1/s_axis_aresetn] [get_bd_pins h2c/resetn] [get_bd_pins read_status/resetn] [get_bd_pins axis_clock_converter_2/m_axis_aresetn] [get_bd_pins dbuff_notif_o/resetn] [get_bd_pins axis_clock_converter_5/m_axis_aresetn] [get_bd_pins axis_clock_converter_4/m_axis_aresetn] [get_bd_pins client_read_data/resetn] [get_bd_pins client_read_status/resetn] [get_bd_pins axis_clock_converter_3/s_axis_aresetn] [get_bd_pins client_read_desc/resetn] [get_bd_pins axis_clock_converter_7/s_axis_aresetn] [get_bd_pins axis_clock_converter_6/s_axis_aresetn] [get_bd_pins axis_clock_converter_8/m_axis_aresetn] [get_bd_pins ram_cmd_o/resetn] [get_bd_pins ram_data_o/resetn] [get_bd_pins ram_status_i/resetn] [get_bd_pins axis_clock_converter_9/m_axis_aresetn] [get_bd_pins write_status/resetn] [get_bd_pins dma_w_req/resetn] [get_bd_pins axis_clock_converter_10/s_axis_aresetn] [get_bd_pins c2h_dma/ap_rst_n] [get_bd_pins h2c_dma/ap_rst_n] [get_bd_pins addr_map/ap_rst_n]
   connect_bd_net -net c2h_buffer_rd_cmd_ready [get_bd_pins c2h_buffer/rd_cmd_ready] [get_bd_pins pcie_0/ram_rd_cmd_ready]
   connect_bd_net -net c2h_buffer_rd_resp_data [get_bd_pins c2h_buffer/rd_resp_data] [get_bd_pins pcie_0/ram_rd_resp_data]
   connect_bd_net -net c2h_buffer_rd_resp_valid [get_bd_pins c2h_buffer/rd_resp_valid] [get_bd_pins pcie_0/ram_rd_resp_valid]
-  connect_bd_net -net c2h_buffer_wr_cmd_ready [get_bd_pins c2h_buffer/wr_cmd_ready] [get_bd_pins dma_client_axis_sink_0/ram_wr_cmd_ready] [get_bd_pins ram_wr/probe4]
-  connect_bd_net -net c2h_buffer_wr_done [get_bd_pins c2h_buffer/wr_done] [get_bd_pins dma_client_axis_sink_0/ram_wr_done] [get_bd_pins ram_wr/probe5]
+  connect_bd_net -net c2h_buffer_wr_cmd_ready [get_bd_pins c2h_buffer/wr_cmd_ready] [get_bd_pins ram_wr/probe4] [get_bd_pins dma_client_axis_sink_0/ram_wr_cmd_ready]
+  connect_bd_net -net c2h_buffer_wr_done [get_bd_pins c2h_buffer/wr_done] [get_bd_pins ram_wr/probe5] [get_bd_pins dma_client_axis_sink_0/ram_wr_done]
   connect_bd_net -net dma_client_axis_sink_0_ram_wr_cmd_addr [get_bd_pins dma_client_axis_sink_0/ram_wr_cmd_addr] [get_bd_pins c2h_buffer/wr_cmd_addr] [get_bd_pins ram_wr/probe1]
   connect_bd_net -net dma_client_axis_sink_0_ram_wr_cmd_be [get_bd_pins dma_client_axis_sink_0/ram_wr_cmd_be] [get_bd_pins c2h_buffer/wr_cmd_be] [get_bd_pins ram_wr/probe0]
   connect_bd_net -net dma_client_axis_sink_0_ram_wr_cmd_data [get_bd_pins dma_client_axis_sink_0/ram_wr_cmd_data] [get_bd_pins c2h_buffer/wr_cmd_data] [get_bd_pins ram_wr/probe2]
   connect_bd_net -net dma_client_axis_sink_0_ram_wr_cmd_valid [get_bd_pins dma_client_axis_sink_0/ram_wr_cmd_valid] [get_bd_pins c2h_buffer/wr_cmd_valid] [get_bd_pins ram_wr/probe3]
-  connect_bd_net -net dma_client_axis_sour_0_ram_rd_cmd_addr [get_bd_pins dma_client_axis_sour_0/ram_rd_cmd_addr] [get_bd_pins h2c_buffer/rd_cmd_addr] [get_bd_pins system_ila_0/probe0]
-  connect_bd_net -net dma_client_axis_sour_0_ram_rd_cmd_valid [get_bd_pins dma_client_axis_sour_0/ram_rd_cmd_valid] [get_bd_pins h2c_buffer/rd_cmd_valid] [get_bd_pins system_ila_0/probe4]
-  connect_bd_net -net dma_client_axis_sour_0_ram_rd_resp_ready [get_bd_pins dma_client_axis_sour_0/ram_rd_resp_ready] [get_bd_pins h2c_buffer/rd_resp_ready] [get_bd_pins system_ila_0/probe3]
+  connect_bd_net -net dma_client_axis_sour_0_ram_rd_cmd_addr [get_bd_pins dma_client_axis_sour_0/ram_rd_cmd_addr] [get_bd_pins h2c_buffer/rd_cmd_addr] [get_bd_pins client_read/probe0]
+  connect_bd_net -net dma_client_axis_sour_0_ram_rd_cmd_valid [get_bd_pins dma_client_axis_sour_0/ram_rd_cmd_valid] [get_bd_pins h2c_buffer/rd_cmd_valid] [get_bd_pins client_read/probe4]
+  connect_bd_net -net dma_client_axis_sour_0_ram_rd_resp_ready [get_bd_pins dma_client_axis_sour_0/ram_rd_resp_ready] [get_bd_pins h2c_buffer/rd_resp_ready] [get_bd_pins client_read/probe3]
   connect_bd_net -net dma_psdpram_0_rd_cmd_ready [get_bd_pins h2c_buffer/rd_cmd_ready] [get_bd_pins dma_client_axis_sour_0/ram_rd_cmd_ready]
-  connect_bd_net -net dma_psdpram_0_rd_resp_data [get_bd_pins h2c_buffer/rd_resp_data] [get_bd_pins dma_client_axis_sour_0/ram_rd_resp_data] [get_bd_pins system_ila_0/probe1]
-  connect_bd_net -net dma_psdpram_0_rd_resp_valid [get_bd_pins h2c_buffer/rd_resp_valid] [get_bd_pins dma_client_axis_sour_0/ram_rd_resp_valid] [get_bd_pins system_ila_0/probe2]
-  connect_bd_net -net dma_psdpram_0_wr_cmd_ready [get_bd_pins h2c_buffer/wr_cmd_ready] [get_bd_pins ila_0/probe4] [get_bd_pins pcie_0/ram_wr_cmd_ready]
-  connect_bd_net -net dma_psdpram_0_wr_done [get_bd_pins h2c_buffer/wr_done] [get_bd_pins ila_0/probe5] [get_bd_pins pcie_0/ram_wr_done]
+  connect_bd_net -net dma_psdpram_0_rd_resp_data [get_bd_pins h2c_buffer/rd_resp_data] [get_bd_pins client_read/probe1] [get_bd_pins dma_client_axis_sour_0/ram_rd_resp_data]
+  connect_bd_net -net dma_psdpram_0_rd_resp_valid [get_bd_pins h2c_buffer/rd_resp_valid] [get_bd_pins client_read/probe2] [get_bd_pins dma_client_axis_sour_0/ram_rd_resp_valid]
+  connect_bd_net -net dma_psdpram_0_wr_cmd_ready [get_bd_pins h2c_buffer/wr_cmd_ready] [get_bd_pins pcie_wr/probe3] [get_bd_pins pcie_0/ram_wr_cmd_ready]
+  connect_bd_net -net dma_psdpram_0_wr_done [get_bd_pins h2c_buffer/wr_done] [get_bd_pins pcie_wr/probe4] [get_bd_pins client_read/probe5] [get_bd_pins pcie_0/ram_wr_done]
   connect_bd_net -net pcie_0_pcie_tx_n [get_bd_pins pcie_0/pcie_tx_n] [get_bd_pins pcie_tx_n]
   connect_bd_net -net pcie_0_pcie_tx_p [get_bd_pins pcie_0/pcie_tx_p] [get_bd_pins pcie_tx_p]
-  connect_bd_net -net pcie_0_pcie_user_reset [get_bd_pins pcie_0/pcie_user_reset] [get_bd_pins util_vector_logic_0/Op1] [get_bd_pins h2c_buffer/rst] [get_bd_pins dma_client_axis_sour_0/rst] [get_bd_pins c2h_buffer/rst] [get_bd_pins dma_client_axis_sink_0/rst]
+  connect_bd_net -net pcie_0_pcie_user_reset [get_bd_pins pcie_0/pcie_user_reset] [get_bd_pins util_vector_logic_0/Op1] [get_bd_pins h2c_buffer/rst] [get_bd_pins c2h_buffer/rst] [get_bd_pins dma_client_axis_sink_0/rst] [get_bd_pins dma_client_axis_sour_0/rst]
   connect_bd_net -net pcie_0_ram_rd_cmd_addr [get_bd_pins pcie_0/ram_rd_cmd_addr] [get_bd_pins c2h_buffer/rd_cmd_addr]
   connect_bd_net -net pcie_0_ram_rd_cmd_valid [get_bd_pins pcie_0/ram_rd_cmd_valid] [get_bd_pins c2h_buffer/rd_cmd_valid]
   connect_bd_net -net pcie_0_ram_rd_resp_ready [get_bd_pins pcie_0/ram_rd_resp_ready] [get_bd_pins c2h_buffer/rd_resp_ready]
-  connect_bd_net -net pcie_ram_wr_cmd_addr [get_bd_pins pcie_0/ram_wr_cmd_addr] [get_bd_pins ila_0/probe1] [get_bd_pins h2c_buffer/wr_cmd_addr]
-  connect_bd_net -net pcie_ram_wr_cmd_be [get_bd_pins pcie_0/ram_wr_cmd_be] [get_bd_pins ila_0/probe0] [get_bd_pins h2c_buffer/wr_cmd_be]
-  connect_bd_net -net pcie_ram_wr_cmd_data [get_bd_pins pcie_0/ram_wr_cmd_data] [get_bd_pins ila_0/probe2] [get_bd_pins h2c_buffer/wr_cmd_data]
-  connect_bd_net -net pcie_ram_wr_cmd_valid [get_bd_pins pcie_0/ram_wr_cmd_valid] [get_bd_pins ila_0/probe3] [get_bd_pins h2c_buffer/wr_cmd_valid]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_data [get_bd_pins pcie_0/rx_cpl_tlp_data] [get_bd_pins internal/probe0]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_eop [get_bd_pins pcie_0/rx_cpl_tlp_eop] [get_bd_pins internal/probe6]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_error [get_bd_pins pcie_0/rx_cpl_tlp_error] [get_bd_pins internal/probe3]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_hdr [get_bd_pins pcie_0/rx_cpl_tlp_hdr] [get_bd_pins internal/probe2]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_ready [get_bd_pins pcie_0/rx_cpl_tlp_ready] [get_bd_pins internal/probe7]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_sop [get_bd_pins pcie_0/rx_cpl_tlp_sop] [get_bd_pins internal/probe5]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_strb [get_bd_pins pcie_0/rx_cpl_tlp_strb] [get_bd_pins internal/probe1]
+  connect_bd_net -net pcie_0_rx_cpl_tlp_valid [get_bd_pins pcie_0/rx_cpl_tlp_valid] [get_bd_pins internal/probe4]
+  connect_bd_net -net pcie_0_rx_req_tlp_bar_id [get_bd_pins pcie_0/rx_req_tlp_bar_id] [get_bd_pins internal/probe11]
+  connect_bd_net -net pcie_0_rx_req_tlp_data [get_bd_pins pcie_0/rx_req_tlp_data] [get_bd_pins internal/probe8]
+  connect_bd_net -net pcie_0_rx_req_tlp_eop [get_bd_pins pcie_0/rx_req_tlp_eop] [get_bd_pins internal/probe15]
+  connect_bd_net -net pcie_0_rx_req_tlp_func_num [get_bd_pins pcie_0/rx_req_tlp_func_num] [get_bd_pins internal/probe12]
+  connect_bd_net -net pcie_0_rx_req_tlp_hdr [get_bd_pins pcie_0/rx_req_tlp_hdr] [get_bd_pins internal/probe10]
+  connect_bd_net -net pcie_0_rx_req_tlp_sop [get_bd_pins pcie_0/rx_req_tlp_sop] [get_bd_pins internal/probe14]
+  connect_bd_net -net pcie_0_rx_req_tlp_strb [get_bd_pins pcie_0/rx_req_tlp_strb] [get_bd_pins internal/probe9]
+  connect_bd_net -net pcie_0_rx_req_tlp_valid [get_bd_pins pcie_0/rx_req_tlp_valid] [get_bd_pins internal/probe13]
+  connect_bd_net -net pcie_0_tx_cpl_tlp_data [get_bd_pins pcie_0/tx_cpl_tlp_data] [get_bd_pins internal/probe30]
+  connect_bd_net -net pcie_0_tx_cpl_tlp_eop [get_bd_pins pcie_0/tx_cpl_tlp_eop] [get_bd_pins internal/probe35]
+  connect_bd_net -net pcie_0_tx_cpl_tlp_hdr [get_bd_pins pcie_0/tx_cpl_tlp_hdr] [get_bd_pins internal/probe32]
+  connect_bd_net -net pcie_0_tx_cpl_tlp_ready [get_bd_pins pcie_0/tx_cpl_tlp_ready] [get_bd_pins internal/probe36]
+  connect_bd_net -net pcie_0_tx_cpl_tlp_sop [get_bd_pins pcie_0/tx_cpl_tlp_sop] [get_bd_pins internal/probe34]
+  connect_bd_net -net pcie_0_tx_cpl_tlp_strb [get_bd_pins pcie_0/tx_cpl_tlp_strb] [get_bd_pins internal/probe31]
+  connect_bd_net -net pcie_0_tx_cpl_tlp_valid [get_bd_pins pcie_0/tx_cpl_tlp_valid] [get_bd_pins internal/probe33]
+  connect_bd_net -net pcie_0_tx_rd_req_tlp_eop [get_bd_pins pcie_0/tx_rd_req_tlp_eop] [get_bd_pins internal/probe20]
+  connect_bd_net -net pcie_0_tx_rd_req_tlp_hdr [get_bd_pins pcie_0/tx_rd_req_tlp_hdr] [get_bd_pins internal/probe16]
+  connect_bd_net -net pcie_0_tx_rd_req_tlp_ready [get_bd_pins pcie_0/tx_rd_req_tlp_ready] [get_bd_pins internal/probe21]
+  connect_bd_net -net pcie_0_tx_rd_req_tlp_seq [get_bd_pins pcie_0/tx_rd_req_tlp_seq] [get_bd_pins internal/probe17]
+  connect_bd_net -net pcie_0_tx_rd_req_tlp_sop [get_bd_pins pcie_0/tx_rd_req_tlp_sop] [get_bd_pins internal/probe19]
+  connect_bd_net -net pcie_0_tx_rd_req_tlp_valid [get_bd_pins pcie_0/tx_rd_req_tlp_valid] [get_bd_pins internal/probe18]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_data [get_bd_pins pcie_0/tx_wr_req_tlp_data] [get_bd_pins internal/probe22]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_eop [get_bd_pins pcie_0/tx_wr_req_tlp_eop] [get_bd_pins internal/probe28]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_hdr [get_bd_pins pcie_0/tx_wr_req_tlp_hdr] [get_bd_pins internal/probe24]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_ready [get_bd_pins pcie_0/tx_wr_req_tlp_ready] [get_bd_pins internal/probe29]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_seq [get_bd_pins pcie_0/tx_wr_req_tlp_seq] [get_bd_pins internal/probe25]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_sop [get_bd_pins pcie_0/tx_wr_req_tlp_sop] [get_bd_pins internal/probe27]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_strb [get_bd_pins pcie_0/tx_wr_req_tlp_strb] [get_bd_pins internal/probe23]
+  connect_bd_net -net pcie_0_tx_wr_req_tlp_valid [get_bd_pins pcie_0/tx_wr_req_tlp_valid] [get_bd_pins internal/probe26]
+  connect_bd_net -net pcie_ram_wr_cmd_addr [get_bd_pins pcie_0/ram_wr_cmd_addr] [get_bd_pins h2c_buffer/wr_cmd_addr] [get_bd_pins pcie_wr/probe1]
+  connect_bd_net -net pcie_ram_wr_cmd_be [get_bd_pins pcie_0/ram_wr_cmd_be] [get_bd_pins h2c_buffer/wr_cmd_be] [get_bd_pins pcie_wr/probe0]
+  connect_bd_net -net pcie_ram_wr_cmd_data [get_bd_pins pcie_0/ram_wr_cmd_data] [get_bd_pins h2c_buffer/wr_cmd_data] [get_bd_pins pcie_wr/probe2]
+  connect_bd_net -net pcie_ram_wr_cmd_valid [get_bd_pins pcie_0/ram_wr_cmd_valid] [get_bd_pins h2c_buffer/wr_cmd_valid] [get_bd_pins pcie_wr/probe5]
   connect_bd_net -net pcie_refclk_n_0_1 [get_bd_pins pcie_refclk_n] [get_bd_pins pcie_0/pcie_refclk_n]
   connect_bd_net -net pcie_refclk_p_0_1 [get_bd_pins pcie_refclk_p] [get_bd_pins pcie_0/pcie_refclk_p]
   connect_bd_net -net pcie_reset_n_0_1 [get_bd_pins pcie_reset_n] [get_bd_pins pcie_0/pcie_reset_n]
   connect_bd_net -net pcie_rx_n_0_1 [get_bd_pins pcie_rx_n] [get_bd_pins pcie_0/pcie_rx_n]
   connect_bd_net -net pcie_rx_p_0_1 [get_bd_pins pcie_rx_p] [get_bd_pins pcie_0/pcie_rx_p]
-  connect_bd_net -net pcie_sys_clk_clk_out1 [get_bd_pins pcie_0/pcie_user_clk] [get_bd_pins axi_aclk] [get_bd_pins axi_interconnect_1/ACLK] [get_bd_pins axi_interconnect_1/S00_ACLK] [get_bd_pins axi_interconnect_1/M00_ACLK] [get_bd_pins axi_interconnect_1/M01_ACLK] [get_bd_pins cmd_queue_write/clk] [get_bd_pins axi_clock_converter_0/s_axi_aclk] [get_bd_pins axi_clock_converter_1/s_axi_aclk] [get_bd_pins axis_clock_converter_1/m_axis_aclk] [get_bd_pins c2h/clk] [get_bd_pins ila_0/clk] [get_bd_pins axis_clock_converter_2/s_axis_aclk] [get_bd_pins h2c_buffer/clk] [get_bd_pins axis_clock_converter_5/s_axis_aclk] [get_bd_pins axis_clock_converter_3/m_axis_aclk] [get_bd_pins axis_clock_converter_4/s_axis_aclk] [get_bd_pins dma_client_axis_sour_0/clk] [get_bd_pins system_ila_0/clk] [get_bd_pins c2h_buffer/clk] [get_bd_pins axis_clock_converter_7/m_axis_aclk] [get_bd_pins axis_clock_converter_6/m_axis_aclk] [get_bd_pins axis_clock_converter_8/s_axis_aclk] [get_bd_pins dma_client_axis_sink_0/clk] [get_bd_pins axis_clock_converter_9/s_axis_aclk] [get_bd_pins axis_clock_converter_10/m_axis_aclk] [get_bd_pins ram_wr/clk]
+  connect_bd_net -net pcie_sys_clk_clk_out1 [get_bd_pins pcie_0/pcie_user_clk] [get_bd_pins axi_aclk] [get_bd_pins axi_interconnect_1/ACLK] [get_bd_pins axi_interconnect_1/S00_ACLK] [get_bd_pins axi_interconnect_1/M00_ACLK] [get_bd_pins axi_interconnect_1/M01_ACLK] [get_bd_pins cmd_queue_write/clk] [get_bd_pins axi_clock_converter_0/s_axi_aclk] [get_bd_pins axi_clock_converter_1/s_axi_aclk] [get_bd_pins axis_clock_converter_1/m_axis_aclk] [get_bd_pins c2h/clk] [get_bd_pins axis_clock_converter_2/s_axis_aclk] [get_bd_pins h2c_buffer/clk] [get_bd_pins axis_clock_converter_5/s_axis_aclk] [get_bd_pins axis_clock_converter_3/m_axis_aclk] [get_bd_pins axis_clock_converter_4/s_axis_aclk] [get_bd_pins client_read/clk] [get_bd_pins c2h_buffer/clk] [get_bd_pins axis_clock_converter_7/m_axis_aclk] [get_bd_pins axis_clock_converter_6/m_axis_aclk] [get_bd_pins axis_clock_converter_8/s_axis_aclk] [get_bd_pins axis_clock_converter_9/s_axis_aclk] [get_bd_pins axis_clock_converter_10/m_axis_aclk] [get_bd_pins ram_wr/clk] [get_bd_pins pcie_wr/clk] [get_bd_pins dma_client_axis_sink_0/clk] [get_bd_pins dma_client_axis_sour_0/clk] [get_bd_pins internal/clk]
   connect_bd_net -net xdma_0_axi_aresetn [get_bd_pins util_vector_logic_0/Res] [get_bd_pins axi_aresetn] [get_bd_pins axi_interconnect_1/ARESETN] [get_bd_pins axi_interconnect_1/S00_ARESETN] [get_bd_pins axi_interconnect_1/M00_ARESETN] [get_bd_pins axi_interconnect_1/M01_ARESETN] [get_bd_pins cmd_queue_write/resetn] [get_bd_pins axi_clock_converter_0/s_axi_aresetn] [get_bd_pins axi_clock_converter_1/s_axi_aresetn] [get_bd_pins axis_clock_converter_1/m_axis_aresetn] [get_bd_pins c2h/resetn] [get_bd_pins axis_clock_converter_2/s_axis_aresetn] [get_bd_pins axis_clock_converter_5/s_axis_aresetn] [get_bd_pins axis_clock_converter_3/m_axis_aresetn] [get_bd_pins axis_clock_converter_4/s_axis_aresetn] [get_bd_pins axis_clock_converter_7/m_axis_aresetn] [get_bd_pins axis_clock_converter_6/m_axis_aresetn] [get_bd_pins axis_clock_converter_8/s_axis_aresetn] [get_bd_pins axis_clock_converter_9/s_axis_aresetn] [get_bd_pins axis_clock_converter_10/m_axis_aresetn]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins xlconstant_0/dout] [get_bd_pins axis_clock_converter_9/m_axis_tready]
-  connect_bd_net -net xlconstant_1_dout [get_bd_pins xlconstant_1/dout] [get_bd_pins dma_client_axis_sour_0/enable] [get_bd_pins dma_client_axis_sink_0/enable]
+  connect_bd_net -net xlconstant_1_dout [get_bd_pins xlconstant_1/dout] [get_bd_pins dma_client_axis_sink_0/enable] [get_bd_pins dma_client_axis_sour_0/enable]
 
   # Restore current instance
   current_bd_instance $oldCurInst

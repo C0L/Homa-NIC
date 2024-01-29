@@ -164,45 +164,75 @@ module pcie#
     input wire [RAM_SEG_COUNT-1:0]								ram_wr_cmd_ready,
     input wire [RAM_SEG_COUNT-1:0]								ram_wr_done,
 
-   /*
-    * TLP output (completion to DMA)
-    */
-   output wire [TLP_DATA_WIDTH-1:0]									rx_cpl_tlp_data,
-   output wire [TLP_STRB_WIDTH-1:0]									rx_cpl_tlp_strb,
-   output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							rx_cpl_tlp_hdr,
-   output wire [TLP_SEG_COUNT*4-1:0]									rx_cpl_tlp_error,
-   output wire [TLP_SEG_COUNT-1:0]									rx_cpl_tlp_valid,
-   output wire [TLP_SEG_COUNT-1:0]									rx_cpl_tlp_sop,
-   output wire [TLP_SEG_COUNT-1:0]									rx_cpl_tlp_eop,
-   output wire												rx_cpl_tlp_ready
+    
+    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_rq_tdata,
+    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_rq_tkeep,
+    output wire											axis_rq_tlast,
+    output wire											axis_rq_tready,
+    output wire [AXIS_PCIE_RQ_USER_WIDTH-1:0]							axis_rq_tuser,
+    output wire											axis_rq_tvalid,
+    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_rc_tdata,
+    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_rc_tkeep,
+    output wire											axis_rc_tlast,
+    output wire											axis_rc_tready,
+    output wire [AXIS_PCIE_RC_USER_WIDTH-1:0]							axis_rc_tuser,
+    output wire											axis_rc_tvalid,
+    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_cq_tdata,
+    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_cq_tkeep,
+    output wire											axis_cq_tlast,
+    output wire											axis_cq_tready,
+    output wire [AXIS_PCIE_CQ_USER_WIDTH-1:0]							axis_cq_tuser,
+    output wire											axis_cq_tvalid,
+    output wire [AXIS_PCIE_DATA_WIDTH-1:0]							axis_cc_tdata,
+    output wire [AXIS_PCIE_KEEP_WIDTH-1:0]							axis_cc_tkeep,
+    output wire											axis_cc_tlast,
+    output wire											axis_cc_tready,
+    output wire [AXIS_PCIE_CC_USER_WIDTH-1:0]							axis_cc_tuser,
+    output wire											axis_cc_tvalid,
 
+    output wire [TLP_DATA_WIDTH-1:0]								rx_cpl_tlp_data,
+    output wire [TLP_STRB_WIDTH-1:0]								rx_cpl_tlp_strb,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]						rx_cpl_tlp_hdr,
+    output wire [TLP_SEG_COUNT*4-1:0]								rx_cpl_tlp_error,
+    output wire [TLP_SEG_COUNT-1:0]								rx_cpl_tlp_valid,
+    output wire [TLP_SEG_COUNT-1:0]								rx_cpl_tlp_sop,
+    output wire [TLP_SEG_COUNT-1:0]								rx_cpl_tlp_eop,
+    output wire											rx_cpl_tlp_ready,
+
+    output wire [TLP_DATA_WIDTH-1:0]								rx_req_tlp_data,
+    output wire [TLP_STRB_WIDTH-1:0]								rx_req_tlp_strb,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]						rx_req_tlp_hdr,
+    output wire [TLP_SEG_COUNT*3-1:0]								rx_req_tlp_bar_id,
+    output wire [TLP_SEG_COUNT*8-1:0]								rx_req_tlp_func_num,
+    output wire [TLP_SEG_COUNT-1:0]								rx_req_tlp_valid,
+    output wire [TLP_SEG_COUNT-1:0]								rx_req_tlp_sop,
+    output wire [TLP_SEG_COUNT-1:0]								rx_req_tlp_eop,
+    
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]						tx_rd_req_tlp_hdr,
+    output wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]						tx_rd_req_tlp_seq,
+    output wire [TLP_SEG_COUNT-1:0]								tx_rd_req_tlp_valid,
+    output wire [TLP_SEG_COUNT-1:0]								tx_rd_req_tlp_sop,
+    output wire [TLP_SEG_COUNT-1:0]								tx_rd_req_tlp_eop,
+    output wire											tx_rd_req_tlp_ready,
+
+    output wire [TLP_DATA_WIDTH-1:0]								tx_wr_req_tlp_data,
+    output wire [TLP_STRB_WIDTH-1:0]								tx_wr_req_tlp_strb,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]						tx_wr_req_tlp_hdr,
+    output wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]						tx_wr_req_tlp_seq,
+    output wire [TLP_SEG_COUNT-1:0]								tx_wr_req_tlp_valid,
+    output wire [TLP_SEG_COUNT-1:0]								tx_wr_req_tlp_sop,
+    output wire [TLP_SEG_COUNT-1:0]								tx_wr_req_tlp_eop,
+    output wire											tx_wr_req_tlp_ready,
+
+    output wire [TLP_DATA_WIDTH-1:0]								tx_cpl_tlp_data,
+    output wire [TLP_STRB_WIDTH-1:0]								tx_cpl_tlp_strb,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]						tx_cpl_tlp_hdr,
+    output wire [TLP_SEG_COUNT-1:0]								tx_cpl_tlp_valid,
+    output wire [TLP_SEG_COUNT-1:0]								tx_cpl_tlp_sop,
+    output wire [TLP_SEG_COUNT-1:0]								tx_cpl_tlp_eop,
+    output wire											tx_cpl_tlp_ready
     );
 
-   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_rq_tdata;
-   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_rq_tkeep;
-   wire													axis_rq_tlast;
-   wire													axis_rq_tready;
-   wire [AXIS_PCIE_RQ_USER_WIDTH-1:0]									axis_rq_tuser;
-   wire													axis_rq_tvalid;
-   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_rc_tdata;
-   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_rc_tkeep;
-   wire													axis_rc_tlast;
-   wire													axis_rc_tready;
-   wire [AXIS_PCIE_RC_USER_WIDTH-1:0]									axis_rc_tuser;
-   wire													axis_rc_tvalid;
-   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_cq_tdata;
-   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_cq_tkeep;
-   wire													axis_cq_tlast;
-   wire													axis_cq_tready;
-   wire [AXIS_PCIE_CQ_USER_WIDTH-1:0]									axis_cq_tuser;
-   wire													axis_cq_tvalid;
-   wire [AXIS_PCIE_DATA_WIDTH-1:0]									axis_cc_tdata;
-   wire [AXIS_PCIE_KEEP_WIDTH-1:0]									axis_cc_tkeep;
-   wire													axis_cc_tlast;
-   wire													axis_cc_tready;
-   wire [AXIS_PCIE_CC_USER_WIDTH-1:0]									axis_cc_tuser;
-   wire													axis_cc_tvalid;
- 
 
    wire [PCIE_ADDR_WIDTH-1:0]									pcie_dma_read_desc_pcie_addr;
    wire [RAM_SEL_WIDTH-1:0]									pcie_dma_read_desc_ram_sel;
@@ -252,7 +282,7 @@ module pcie#
     */
    wire [2:0]											cfg_max_payload;
    wire [2:0]											cfg_max_read_req;
-   
+   wire [3:0]											cfg_rcb_status;
 
    /*
     * Configuration flow control interface
@@ -299,26 +329,38 @@ module pcie#
    wire [7:0]											cfg_interrupt_msi_function_number;
 
    /*
+    * TLP output (completion to DMA)
+    */
+   //wire [TLP_DATA_WIDTH-1:0]									rx_cpl_tlp_data;
+   //wire [TLP_STRB_WIDTH-1:0]									rx_cpl_tlp_strb;
+   //wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							rx_cpl_tlp_hdr;
+   //wire [TLP_SEG_COUNT*4-1:0]									rx_cpl_tlp_error;
+   //wire [TLP_SEG_COUNT-1:0]									rx_cpl_tlp_valid;
+   //wire [TLP_SEG_COUNT-1:0]									rx_cpl_tlp_sop;
+   //wire [TLP_SEG_COUNT-1:0]									rx_cpl_tlp_eop;
+   //wire												rx_cpl_tlp_ready;
+
+   /*
     * TLP output (request to BAR)
     */
-   wire [TLP_DATA_WIDTH-1:0]									rx_req_tlp_data;
-   wire [TLP_STRB_WIDTH-1:0]									rx_req_tlp_strb;
-   wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							rx_req_tlp_hdr;
-   wire [TLP_SEG_COUNT*3-1:0]									rx_req_tlp_bar_id;
-   wire [TLP_SEG_COUNT*8-1:0]									rx_req_tlp_func_num;
-   wire [TLP_SEG_COUNT-1:0]									rx_req_tlp_valid;
-   wire [TLP_SEG_COUNT-1:0]									rx_req_tlp_sop;
-   wire [TLP_SEG_COUNT-1:0]									rx_req_tlp_eop;
-   wire												rx_req_tlp_ready;
+   //wire [TLP_DATA_WIDTH-1:0]									rx_req_tlp_data;
+   //wire [TLP_STRB_WIDTH-1:0]									rx_req_tlp_strb;
+   //wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							rx_req_tlp_hdr;
+   //wire [TLP_SEG_COUNT*3-1:0]									rx_req_tlp_bar_id;
+   //wire [TLP_SEG_COUNT*8-1:0]									rx_req_tlp_func_num;
+   //wire [TLP_SEG_COUNT-1:0]									rx_req_tlp_valid;
+   //wire [TLP_SEG_COUNT-1:0]									rx_req_tlp_sop;
+   //wire [TLP_SEG_COUNT-1:0]									rx_req_tlp_eop;
+   //wire												rx_req_tlp_ready;
    /*
     * TLP input (read request from DMA)
     */
-   wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							tx_rd_req_tlp_hdr;
-   wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]							tx_rd_req_tlp_seq;
-   wire [TLP_SEG_COUNT-1:0]									tx_rd_req_tlp_valid;
-   wire [TLP_SEG_COUNT-1:0]									tx_rd_req_tlp_sop;
-   wire [TLP_SEG_COUNT-1:0]									tx_rd_req_tlp_eop;
-   wire												tx_rd_req_tlp_ready;
+   //wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							tx_rd_req_tlp_hdr;
+   //wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]							tx_rd_req_tlp_seq;
+   //wire [TLP_SEG_COUNT-1:0]									tx_rd_req_tlp_valid;
+   //wire [TLP_SEG_COUNT-1:0]									tx_rd_req_tlp_sop;
+   //wire [TLP_SEG_COUNT-1:0]									tx_rd_req_tlp_eop;
+   //wire												tx_rd_req_tlp_ready;
 
    /*
     * Transmit sequence number output (DMA read request)
@@ -329,14 +371,14 @@ module pcie#
    /*
     * TLP input (write request from DMA)
     */
-   wire [TLP_DATA_WIDTH-1:0]									tx_wr_req_tlp_data;
-   wire [TLP_STRB_WIDTH-1:0]									tx_wr_req_tlp_strb;
-   wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							tx_wr_req_tlp_hdr;
-   wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]							tx_wr_req_tlp_seq;
-   wire [TLP_SEG_COUNT-1:0]									tx_wr_req_tlp_valid;
-   wire [TLP_SEG_COUNT-1:0]									tx_wr_req_tlp_sop;
-   wire [TLP_SEG_COUNT-1:0]									tx_wr_req_tlp_eop;
-   wire												tx_wr_req_tlp_ready;
+   //wire [TLP_DATA_WIDTH-1:0]									tx_wr_req_tlp_data;
+   //wire [TLP_STRB_WIDTH-1:0]									tx_wr_req_tlp_strb;
+   //wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							tx_wr_req_tlp_hdr;
+   //wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]							tx_wr_req_tlp_seq;
+   //wire [TLP_SEG_COUNT-1:0]									tx_wr_req_tlp_valid;
+   //wire [TLP_SEG_COUNT-1:0]									tx_wr_req_tlp_sop;
+   //wire [TLP_SEG_COUNT-1:0]									tx_wr_req_tlp_eop;
+   //wire												tx_wr_req_tlp_ready;
    
 
    /*
@@ -349,13 +391,13 @@ module pcie#
    /*
     * TLP input (completion from BAR)
     */
-   wire [TLP_DATA_WIDTH-1:0]									tx_cpl_tlp_data;
-   wire [TLP_STRB_WIDTH-1:0]									tx_cpl_tlp_strb;
-   wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							tx_cpl_tlp_hdr;
-   wire [TLP_SEG_COUNT-1:0]									tx_cpl_tlp_valid;
-   wire [TLP_SEG_COUNT-1:0]									tx_cpl_tlp_sop;
-   wire [TLP_SEG_COUNT-1:0]									tx_cpl_tlp_eop;
-   wire												tx_cpl_tlp_ready;
+   //wire [TLP_DATA_WIDTH-1:0]									tx_cpl_tlp_data;
+   //wire [TLP_STRB_WIDTH-1:0]									tx_cpl_tlp_strb;
+   //wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]							tx_cpl_tlp_hdr;
+   //wire [TLP_SEG_COUNT-1:0]									tx_cpl_tlp_valid;
+   //wire [TLP_SEG_COUNT-1:0]									tx_cpl_tlp_sop;
+   //wire [TLP_SEG_COUNT-1:0]									tx_cpl_tlp_eop;
+   //wire												tx_cpl_tlp_ready;
    
 
    /*
@@ -370,21 +412,8 @@ module pcie#
    wire												tx_msix_wr_req_tlp_ready;
 
    /*
-    * Flow control
-    */
-   wire [7:0]											tx_fc_ph_av;
-   wire [11:0]											tx_fc_pd_av;
-   wire [7:0]											tx_fc_nph_av;
-   wire [11:0]											tx_fc_npd_av;
-   wire [7:0]											tx_fc_cplh_av;
-   wire [11:0]											tx_fc_cpld_av;
-
-   /*
     * Configuration outputs
     */
-   wire [F_COUNT-1:0]										ext_tag_enable;
-   wire [F_COUNT*3-1:0]										max_read_request_size;
-   wire [F_COUNT*3-1:0]										max_payload_size;
    wire [F_COUNT-1:0]										msix_enable;
    wire [F_COUNT-1:0]										msix_mask;
 
@@ -468,8 +497,8 @@ module pcie#
 			     .cfg_phy_link_status(),
 			     .cfg_negotiated_width(),
 			     .cfg_current_speed(),
-			     .cfg_max_payload(1024),
-			     .cfg_max_read_req(512),
+			     .cfg_max_payload(),
+			     .cfg_max_read_req(),
 			     .cfg_function_status(),
 			     .cfg_function_power_state(),
 			     .cfg_vf_status(),
@@ -484,7 +513,7 @@ module pcie#
 			     .cfg_ltssm_state(),
 			     .cfg_rx_pm_state(),
 			     .cfg_tx_pm_state(),
-			     .cfg_rcb_status(),
+			     .cfg_rcb_status(cfg_rcb_status),
 			     .cfg_obff_enable(),
 			     .cfg_pl_status_change(),
 			     .cfg_tph_requester_enable(),
@@ -569,24 +598,12 @@ module pcie#
 		.TX_SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH),
 		.PF_COUNT(1),
 		.VF_COUNT(0),
-		.F_COUNT(PF_COUNT+VF_COUNT),
+		.F_COUNT(F_COUNT),
 		.READ_EXT_TAG_ENABLE(0),
 		.READ_MAX_READ_REQ_SIZE(0),
 		.READ_MAX_PAYLOAD_SIZE(0),
 		.MSIX_ENABLE(1),
 		.MSI_ENABLE(0)
-		
-		//.AXIS_PCIE_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
-		//.TLP_HDR_WIDTH(128),
-		//.TLP_SEG_COUNT(1),
-		//.PF_COUNT(1),
-		//.VF_COUNT(0),
-		//.READ_EXT_TAG_ENABLE(0),
-		//.READ_MAX_READ_REQ_SIZE(0),
-		//.READ_MAX_PAYLOAD_SIZE(0),
-		//.MSIX_ENABLE(0),
-		//.MSI_ENABLE(0),
-		//.MSI_COUNT(32)
 		) pcie_us_if_inst (
 				   .clk(pcie_user_clk),
 				   .rst(pcie_user_reset),
@@ -650,8 +667,8 @@ module pcie#
 				   /*
 				    * Configuration status interface
 				    */
-				   .cfg_max_payload(cfg_max_payload),
-				   .cfg_max_read_req(cfg_max_read_req),
+				   .cfg_max_payload(3'd0),
+				   .cfg_max_read_req(3'd0),
 
 				   /*
 				    * Configuration flow control interface
@@ -780,19 +797,19 @@ module pcie#
 				   /*
 				    * Flow control
 				    */
-				   .tx_fc_ph_av(tx_fc_ph_av),
-				   .tx_fc_pd_av(tx_fc_pd_av),
-				   .tx_fc_nph_av(tx_fc_nph_av),
-				   .tx_fc_npd_av(tx_fc_npd_av),
-				   .tx_fc_cplh_av(tx_fc_cplh_av),
-				   .tx_fc_cpld_av(tx_fc_cpld_av),
+				   .tx_fc_ph_av(),
+				   .tx_fc_pd_av(),
+				   .tx_fc_nph_av(),
+				   .tx_fc_npd_av(),
+				   .tx_fc_cplh_av(),
+				   .tx_fc_cpld_av(),
 
 				   /*
 				    * Configuration outputs
 				    */
-				   .ext_tag_enable(ext_tag_enable),
-				   .max_read_request_size(max_read_request_size),
-				   .max_payload_size(max_payload_size),
+				   .ext_tag_enable(),
+				   .max_read_request_size(),
+				   .max_payload_size(),
 				   .msix_enable(msix_enable),
 				   .msix_mask(msix_mask),
 
@@ -830,11 +847,6 @@ module pcie#
 		 .WRITE_TX_LIMIT(WRITE_TX_LIMIT),
 		 .TLP_FORCE_64_BIT_ADDR(TLP_FORCE_64_BIT_ADDR),
 		 .CHECK_BUS_NUMBER(CHECK_BUS_NUMBER)
-		 // .TLP_DATA_WIDTH(512),
-		 // .TLP_STRB_WIDTH(16),
-		 // .TX_SEQ_NUM_COUNT(2),
-		 // .TX_SEQ_NUM_WIDTH(5),
-		 // .TLP_FORCE_64_BIT_ADDR(0)
 		 ) dma_if_pcie_inst (
 				     .clk(pcie_user_clk),
 				     .rst(pcie_user_reset),
@@ -941,10 +953,10 @@ module pcie#
 				     .read_enable(1'b1),
 				     .write_enable(1'b1),
 				     .ext_tag_enable(1'b1),
-				     .rcb_128b(),
+				     .rcb_128b(1'b0),
 				     .requester_id({8'd0, 5'd0, 3'd0}),
-				     .max_read_request_size(3'd4),
-				     .max_payload_size(3'd5),
+				     .max_read_request_size(3'd0),
+				     .max_payload_size(3'd0),
 
 				     /*
 				      * Status
@@ -1000,16 +1012,7 @@ module pcie#
 		     .AXI_ID_WIDTH(AXI_ID_WIDTH),
 		     .AXI_MAX_BURST_LEN(256),
 		     .TLP_FORCE_64_BIT_ADDR(TLP_FORCE_64_BIT_ADDR)
-		     
-		     //.TLP_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
-		     //.TLP_STRB_WIDTH(16),
-		     //.TLP_HDR_WIDTH(128),
-		     //.TLP_SEG_COUNT(1),
-		     //.AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-		     //.AXI_ID_WIDTH(8),
-		     //.AXI_MAX_BURST_LEN(16),
-		     //.TLP_FORCE_64_BIT_ADDR(0)
-		     )  pcie_axi_master_inst   (
+		     ) pcie_axi_master_inst (
 						.clk(pcie_user_clk),
 						.rst(pcie_user_reset),
 
@@ -1078,7 +1081,7 @@ module pcie#
 
 						.completer_id({8'd0, 5'd0, 3'd0}),
 						// .completer_id_enable(1'b0),
-						.max_payload_size(3'd5),
+						.max_payload_size(3'd0),
 
 						.status_error_cor(),
 						.status_error_uncor()

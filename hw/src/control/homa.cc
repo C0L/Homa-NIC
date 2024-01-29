@@ -34,7 +34,21 @@ void user(
 
 	msghdr_send(MSGHDR_SEND_ID) = msghdr_send(MSGHDR_SEND_ID) == 0 ? client_ids.pop() : msghdr_send(MSGHDR_SEND_ID);
 
-	cbs[msghdr_send(MSGHDR_SEND_ID)] = msghdr_send;
+	// TODO this only works for requests
+
+	ap_uint<HDR_BLOCK_SIZE> cb;
+
+	cb(HDR_BLOCK_SADDR)    = msghdr_send(MSGHDR_SADDR);
+	cb(HDR_BLOCK_DADDR)    = msghdr_send(MSGHDR_DADDR);
+	cb(HDR_BLOCK_SPORT)    = msghdr_send(MSGHDR_SPORT);
+	cb(HDR_BLOCK_DPORT)    = msghdr_send(MSGHDR_DPORT);
+	cb(HDR_BLOCK_RPC_ID)   = msghdr_send(MSGHDR_SEND_ID);
+	cb(HDR_BLOCK_CC)       = msghdr_send(MSGHDR_SEND_CC);
+	cb(HDR_BLOCK_LOCAL_ID) = msghdr_send(MSGHDR_SEND_ID);
+	// cb(HDR_BLOCK_MSG_ADDR) = msghdr_send(MSGHDR_BUFF_SIZE);
+	cb(HDR_BLOCK_LENGTH)   = msghdr_send(MSGHDR_BUFF_SIZE);
+
+	cbs[msghdr_send(MSGHDR_SEND_ID)] = cb;
 
 	ap_uint<32> dbuff_id = msg_cache_ids.pop();
 

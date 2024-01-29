@@ -22,50 +22,375 @@ void network_order(ap_uint<512> & in, ap_uint<512> & out) {
 	out(512 - (i*8) - 1, 512 - 8 - (i*8)) = in(7 + (i*8), (i*8));
     }
 }
+
+/*
+ * Construct an outgoing header
+ */
+/*
+void hdr_gen(hls::stream<srpt_queue_entry_t> & header_i,
+	     hls::stream<ap_uint<1024>> & header_o,
+	     ap_uint<MSGHDR_SEND_SIZE> send_cbs[MAX_RPCS]) {
+
+    // Get RPC state associated with this packet 
+    static ap_uint<MSGHDR_SEND_SIZE> cb = send_cbs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)];
+
+    ap_uint<1024> header;
+	
+    // Ethernet header
+    header(HDR_IPV6_MAC_DEST)  = MAC_DST;                         // TODO MAC Dest (set by phy?)
+    header(HDR_IPV6_MAC_SRC)   = MAC_SRC;                         // TODO MAC Src (set by phy?)
+    header(HDR_IPV6_ETHERTYPE) = IPV6_ETHERTYPE;                  // Ethertype
+	
+    // IPv6 header
+    header(HDR_IPV6_VERSION)     = IPV6_VERSION;                  // Version
+    header(HDR_IPV6_TRAFFIC)     = IPV6_TRAFFIC;                  // Traffic Class
+    header(HDR_IPV6_FLOW)        = IPV6_FLOW;                     // Flow Label
+    header(HDR_IPV6_PAYLOAD_LEN) = 0xffffffff;                    // TODO Payload Length 
+    header(HDR_IPV6_NEXT_HEADER) = IPPROTO_HOMA;                  // Next Header
+    header(HDR_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;                // Hop Limit
+    header(HDR_IPV6_SADDR)       = cb(HDR_BLOCK_SADDR);           // Sender Address
+    header(HDR_IPV6_DADDR)       = cb(HDR_BLOCK_DADDR);           // Destination Address
+	
+    // Common header
+    header(HDR_HOMA_COMMON_SPORT) = cb(HDR_BLOCK_SPORT);          // Sender Port
+    header(HDR_HOMA_COMMON_DPORT) = cb(HDR_BLOCK_DPORT);          // Destination Port
+	
+    // Unused
+    header(HDR_HOMA_COMMON_UNUSED0) = 0;                          // Unused
+	
+    // Rest of common header
+    header(HDR_HOMA_COMMON_UNUSED1)   = 0;                        // Unused (2 bytes)
+    header(HDR_HOMA_COMMON_DOFF)      = DOFF;                     // doff (4 byte chunks in data header)
+    header(HDR_HOMA_COMMON_TYPE)      = DATA;                     // Type
+    header(HDR_HOMA_COMMON_UNUSED3)   = 0;                        // Unused (2 bytes)
+    header(HDR_HOMA_COMMON_CHECKSUM)  = 0;                        // Checksum (unused) (2 bytes)
+    header(HDR_HOMA_COMMON_UNUSED4)   = 0;                        // Unused  (2 bytes) 
+    header(HDR_HOMA_COMMON_SENDER_ID) = cb(HDR_BLOCK_RPC_ID);     // Sender ID
+	    
+    // Data header
+    header(HDR_HOMA_DATA_MSG_LEN)  = cb(HDR_BLOCK_LENGTH);        // Message Length (entire message)
+    header(HDR_HOMA_DATA_INCOMING) = 0xffffffff;                  // Incoming TODO
+    header(HDR_HOMA_DATA_CUTOFF)   = 0;                           // Cutoff Version (unimplemented) (2 bytes) TODO
+    header(HDR_HOMA_DATA_REXMIT)   = 0;                           // Retransmit (unimplemented) (1 byte) TODO
+    header(HDR_HOMA_DATA_PAD)      = 0;                           // Pad (1 byte)
+	    
+    // Data Segment
+    header(HDR_HOMA_DATA_OFFSET)   = 0;                           // TODO Offset
+    header(HDR_HOMA_DATA_SEG_LEN)  = 1386;                        // TODO 
+	    
+    // Ack header
+    header(HDR_HOMA_ACK_ID)       = 0;                            // Client ID (8 bytes) TODO
+    header(HDR_HOMA_ACK_SPORT)    = 0;                            // Client Port (2 bytes) TODO
+    header(HDR_HOMA_ACK_DPORT)    = 0;                            // Server Port (2 bytes) TODO
+
+    header(OUT_OF_BAND)           =  sendmsg;
+
+    header_o.write(header);
+}
  
-// /**
-//  * next_pkt_selector() - Chose which of data packets, grant packets, retransmission(TODO)
-//  * packets, and control packets(TODO) to send next.
-//  * @data_pkt_i   - Next highest priority data packet to send
-//  * @grant_pkt_i  - Next highest priority grant packet to send
-//  * @header_out_o - Output stream to the RPC store to get info about the RPC
-//  * before the packet can be sent
-//  */
-// void next_pkt_selector(hls::stream<srpt_queue_entry_t> & data_pkt_i,
-// 		       hls::stream<srpt_grant_send_t> & grant_pkt_i,
-// 		       hls::stream<header_t> & header_out_o) {
-// 
-// #pragma HLS pipeline II=1
-// 
-//     if (!grant_pkt_i.empty()) {
-// 	srpt_grant_send_t grant_out = grant_pkt_i.read();
-// 
-// 	header_t header_out;
-// 	header_out.type         = GRANT;
-// 	header_out.local_id     = grant_out(SRPT_GRANT_SEND_RPC_ID);
-// 	header_out.grant_offset = grant_out(SRPT_GRANT_SEND_MSG_ADDR);
-// 	header_out.packet_bytes = GRANT_PKT_HEADER;
-// 
-// 	header_out_o.write(header_out);
-//     } else if (!data_pkt_i.empty()) {
-// 	srpt_queue_entry_t ready_data_pkt = data_pkt_i.read();
-// 
-// 	// TODO why even handle this here?
-// 
-// 	header_t header_out;
-// 	header_out.type            = DATA;
-// 	header_out.local_id        = ready_data_pkt(SRPT_QUEUE_ENTRY_RPC_ID);
-// 	header_out.incoming        = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
-// 	header_out.grant_offset    = ready_data_pkt(SRPT_QUEUE_ENTRY_GRANTED);
-// 	header_out.data_offset     = ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING);
-// 	header_out.segment_length  = MIN(ready_data_pkt(SRPT_QUEUE_ENTRY_REMAINING), (ap_uint<32>) HOMA_PAYLOAD_SIZE);
-// 	header_out.payload_length  = header_out.segment_length + HOMA_DATA_HEADER;
-// 	header_out.packet_bytes    = DATA_PKT_HEADER + header_out.segment_length;
-// 
-// 	header_out_o.write(header_out);
-//     } 
+void pkt_gen(
+    hls::stream<ap_uint<1024>> & header_i,
+    hls::stream<ram_cmd_t> & ram_cmd_o,
+    hls::stream<ap_axiu<512,0,0,0>> & ram_data_i,
+    hls::stream<ram_status_t> & ram_status_i,
+    hls::stream<ap_axiu<512, 0, 0, 0>> & link_egress_o) {
+
+#pragma HLS interface mode=ap_ctrl_none port=return
+#pragma HLS pipeline II=1
+ 
+    static ap_uint<512> pending_chunks[256];
+    static ram_cmd_t    pending_ramread[256];
+    static ap_uint<8>   tag;
+    static bool         valid;
+
+#pragma HLS interface axis port=header_i
+#pragma HLS interface axis port=ram_cmd_o
+#pragma HLS interface axis port=ram_data_i
+#pragma HLS interface axis port=link_egress_o
+
+    static ap_uint<1024> header;
+    static ap_uint<32> processed_bytes;
+
+    if (valid || header_i.read_nb(header)) {
+	cb(HDR_BLOCK_LENGTH) - sendmsg(SRPT_QUEUE_ENTRY_REMAINING) + processed_bytes;
+
+	valid = true;
+	ram_read_t ram_read;
+	switch (processed_bytes) {
+	    case 0: {
+		ram_read.data(RAMR_CMD_ADDR) = ;
+		ram_read.data(RAMR_CMD_LEN)  = 1;
+
+		ram_read.data(RAMR_CMD_TAG) = tag++;
+
+		pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
+		pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
+
+		ram_cmd_o.write(ram_read);
+ 
+		pending_chunks[tag++] = header(511,0);
+
+	    }
+	    case 64: {
+		pending_chunks[tag++] = header(1023,511);
+	    }
+	    default:
+	}
+
+	processed_bytes += 64;
+	ram_cmd_o.write(ram_read);
+    }
+
+    if (!ram_status_i.empty() && !ram_data_i.empty()) {
+    	ram_status_t ram_status = ram_status_i.read();
+    	ap_axiu<512,0,0,0> ram_data = ram_data_i.read();
+    	ram_cmd_t ramread = pending_ramread[ram_status.data(RAMR_STATUS_TAG)];
+    	// TODO fetch the frame here as well
+
+    	out_chunk.data = ram_data.data;
+    	link_egress_o.write(out_chunk);
+    }
+}
+*/
+    // static ap_uint<MSGHDR_SEND_SIZE> cb;
+    // static srpt_queue_entry_t sendmsg;
+    // static ap_uint<32> processed_bytes = 0;
+    // static ap_uint<32> data_bytes = 0; 
+    // static bool valid = false;
+    
+    // ap_uint<32> msg_addr = cb(HDR_BLOCK_MSG_ADDR) - sendmsg(SRPT_QUEUE_ENTRY_REMAINING);
+    // ap_uint<32> offset = (sendmsg(SRPT_QUEUE_ENTRY_DBUFF_ID) * 16384);
+    // ap_uint<32> offset = (cb(HDR_BLOCK_MSG_ADDR) + data_bytes + (sendmsg(SRPT_QUEUE_ENTRY_DBUFF_ID) * 16384));
+    // offset(5,0) = 0;
+    // ap_uint<32> offset = 0;
+    // ap_uint<32> offset = cb(HDR_BLOCK_MSG_ADDR) + data_bytes;
+    // ap_uint<32> chunk_offset = (offset % 16384) / 64;
+    // ap_uint<32> byte_offset  = offset % 64;
+    
+    // ap_uint<512> natural_chunk;
+    // ap_axiu<512, 0, 0, 0> out_chunk;
+
+    // ram_cmd_t ram_read;
+
+
+    // if (valid) {
+    // 	if (processed_bytes == 0) {
+    // 	    cb = send_cbs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)];
+    // 	
+    // 	    // Ethernet header
+    // 	    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
+    // 	    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;            // TODO MAC Src (set by phy?)
+    // 	    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE;     // Ethertype
+    // 	
+    // 	    // IPv6 header
+    // 	    // ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
+    // 	
+    // 	    natural_chunk(CHUNK_IPV6_VERSION)     = IPV6_VERSION;     // Version
+    // 	    natural_chunk(CHUNK_IPV6_TRAFFIC)     = IPV6_TRAFFIC;     // Traffic Class
+    // 	    natural_chunk(CHUNK_IPV6_FLOW)        = IPV6_FLOW;        // Flow Label
+    // 	    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN) = 0xffffffff;       // Payload Length TODO
+    // 	    natural_chunk(CHUNK_IPV6_NEXT_HEADER) = IPPROTO_HOMA;     // Next Header
+    // 	    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;   // Hop Limit
+    // 	    natural_chunk(CHUNK_IPV6_SADDR)       = cb(HDR_BLOCK_SADDR);     // Sender Address
+    // 	    natural_chunk(CHUNK_IPV6_DADDR)       = cb(HDR_BLOCK_DADDR);     // Destination Address
+    // 	
+    // 	    // Start of common header
+    // 	    natural_chunk(CHUNK_HOMA_COMMON_SPORT) = cb(HDR_BLOCK_SPORT);    // Sender Port
+    // 	    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = cb(HDR_BLOCK_DPORT);    // Destination Port
+    // 	
+    // 	    // Unused
+    // 	    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;             // Unused
+    // 	
+    // 	    processed_bytes += 64;
+    // 	
+    // 	    network_order(natural_chunk, out_chunk.data);
+
+    // 	    ram_read.data(RAMR_CMD_ADDR) = offset;
+    // 	    ram_read.data(RAMR_CMD_LEN)  = 1;
+    // 	
+    // 	    processed_bytes += 64;
+
+    // 	    ram_read.data(RAMR_CMD_TAG) = tag++;
+
+    // 	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
+    // 	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
+
+    // 	    ram_cmd_o.write(ram_read);
+    // 	
+    // 	    // out_chunk.keep = 0xFFFFFFFFFFFFFFFF;
+    // 	
+    // 	    // link_egress_o.write(out_chunk);
+    // 	
+    // 	} else {
+    // 	    if (processed_bytes == 64) {
+    // 		// Rest of common header
+    // 		natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                        // Unused (2 bytes)
+    // 		natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;                     // doff (4 byte chunks in data header)
+    // 		natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = DATA;                     // Type
+    // 		natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                        // Unused (2 bytes)
+    // 		natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                        // Checksum (unused) (2 bytes)
+    // 		natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                        // Unused  (2 bytes) 
+    // 		natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = cb(HDR_BLOCK_RPC_ID); // Sender ID
+    // 	    
+    // 		// Data header
+    // 		natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = 0xffffffff;      // Message Length (entire message) TODO
+    // 		natural_chunk(CHUNK_HOMA_DATA_INCOMING) = 0xffffffff;      // Incoming TODO
+    // 		natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;               // Cutoff Version (unimplemented) (2 bytes) TODO
+    // 		natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;               // Retransmit (unimplemented) (1 byte) TODO
+    // 		natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;               // Pad (1 byte)
+    // 	    
+    // 		// Data Segment
+    // 		natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = msg_addr;     // Offset
+    // 		natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = 1386;
+    // 		// TODO // sendmsg(HDR_BLOCK_LENGTH);  // Segment Length
+    // 	    
+    // 		// Ack header
+    // 		natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;                         // Client ID (8 bytes) TODO
+    // 		natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;                         // Client Port (2 bytes) TODO
+    // 		natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;                         // Server Port (2 bytes) TODO
+    // 	    
+    // 		// TODO may need byte swap
+    // 		// natural_chunk(111, 0) = double_buff(((byte_offset + 14) * 8) - 1, byte_offset * 8);
+    // 	    
+    // 		data_bytes += 14;
+
+    // 		ram_read.data(RAMR_CMD_ADDR) = offset;
+    // 		ram_read.data(RAMR_CMD_LEN)  = 14;
+    // 		
+    // 		// TODO Store this frame pending return of RAM read
+    // 		
+    // 	    } else {
+    // 		// TODO may need byte swap
+    // 		// natural_chunk = double_buff(((byte_offset + 64) * 8) - 1, byte_offset * 8);
+    // 	    
+    // 		data_bytes += 64;
+
+    // 		ram_read.data(RAMR_CMD_ADDR) = offset;
+    // 		ram_read.data(RAMR_CMD_LEN)  = 64;
+    // 	    }
+    // 	
+    // 	    processed_bytes += 64;
+
+    // 	    ram_read.data(RAMR_CMD_TAG) = tag++;
+    // 	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
+    // 	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
+
+    // 	    ram_cmd_o.write(ram_read);
+    // 	
+    // 	    if (processed_bytes >= 1386) {
+    // 		valid = false;
+    // 	    
+    // 		processed_bytes = 0;
+    // 	    
+    // 		data_bytes = 0;
+    // 		// out_chunk.last = 1;
+    // 	    }
+    // 	}
+    // 	
+    // 	// network_order(natural_chunk, out_chunk.data);
+    // 	
+    // 	// out_chunk.keep = 0xFFFFFFFFFFFFFFFF;
+    // 	
+    // 	// Dispatch read request
+    // 	// Write partial frame 
+    // 	// link_egress_o.write(out_chunk);
+    // }
+
+    // if (!ram_status_i.empty() && !ram_data_i.empty()) {
+    // 	ram_status_t ram_status = ram_status_i.read();
+    // 	ap_axiu<512,0,0,0> ram_data = ram_data_i.read();
+    // 	ram_cmd_t ramread = pending_ramread[ram_status.data(RAMR_STATUS_TAG)];
+    // 	// TODO fetch the frame here as well
+
+    // 	out_chunk.data = ram_data.data;
+    // 	link_egress_o.write(out_chunk);
+    // }
+
+    // if (!valid && header_out_i.read_nb(sendmsg)) {
+    // 	valid = true;
+    // }
 // }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void pkt_ctor(ap_uint<HDR_BLOCK_SIZE> send_cbs[MAX_RPCS],
+	      hls::stream<ram_cmd_t> & ram_cmd_o,
+	      hls::stream<ram_status_t> & ram_status_i,
+	      hls::stream<ap_axiu<512,0,0,0>> & ram_data_i,
+	      hls::stream<srpt_queue_entry_t> & header_out_i,
+	      hls::stream<ap_axiu<512, 0, 0, 0>> & link_egress_o) {
+
+#pragma HLS interface mode=ap_ctrl_none port=return
+// #pragma HLS pipeline II=1
+ 
+//    static ap_uint<512> pending_chunks[256];
+//    static ram_cmd_t    pending_ramread[256];
+    static ap_uint<8>   tag;
+    static ap_uint<32> offset;
+
+#pragma HLS interface bram port=send_cbs
+#pragma HLS interface axis port=ram_cmd_o
+#pragma HLS interface axis port=ram_status_i
+#pragma HLS interface axis port=ram_data_i
+#pragma HLS interface axis port=header_out_i
+#pragma HLS interface axis port=link_egress_o
+    static bool pending = false;
+
+    ap_axiu<512, 0, 0, 0> out_chunk;
+
+    static srpt_queue_entry_t sendmsg;
+    if (!pending && header_out_i.read_nb(sendmsg)) {
+	ram_cmd_t ram_read;
+
+	// for (int i = 0; i < 16; ++i) {
+	    ram_read.data(RAMR_CMD_LEN)  = 128;
+	    ram_read.data(RAMR_CMD_ADDR) = offset*128;
+	    ram_read.data(RAMR_CMD_TAG)  = tag++;
+
+	    offset += 1;
+	    pending = true;
+	    ram_cmd_o.write(ram_read);
+
+	    out_chunk.data = sendmsg;
+	    link_egress_o.write(out_chunk);
+    } else if (!ram_data_i.empty()) {
+
+	ap_axiu<512,0,0,0> ram_data = ram_data_i.read();
+
+	out_chunk.data = ram_data.data;
+	link_egress_o.write(out_chunk);
+    } else if (!ram_status_i.empty()) {
+	ram_status_t ram_status = ram_status_i.read();
+	pending = false;
+
+	out_chunk.data = ram_status.data;
+	link_egress_o.write(out_chunk);
+    }
 
 /**
  * pkt_builder() - Take in the packet header data and output
@@ -75,183 +400,190 @@ void network_order(ap_uint<512> & in, ap_uint<512> & out) {
  * @chunk_out_o  - 64 byte structured packet chunks output to this stream to
  * be augmented with data from the data buffer
  */
-void pkt_ctor(ap_uint<MSGHDR_SEND_SIZE> send_cbs[MAX_RPCS],
-	      hls::stream<ram_cmd_t> & ram_cmd_o,
-	      hls::stream<ram_status_t> & ram_status_i,
-	      hls::stream<ap_axiu<512,0,0,0>> & ram_data_i,
-	      hls::stream<srpt_queue_entry_t> & header_out_i,
-	      hls::stream<ap_axiu<512, 0, 0, 0>> & link_egress_o) {
-
-#pragma HLS interface mode=ap_ctrl_none port=return
-#pragma HLS pipeline II=1
- 
-    static ap_uint<512> pending_chunks[256];
-    static ram_cmd_t    pending_ramread[256];
-    static ap_uint<8>   tag;
-
-#pragma HLS interface bram port=send_cbs
-#pragma HLS interface axis port=ram_cmd_o
-#pragma HLS interface axis port=ram_status_i
-#pragma HLS interface axis port=ram_data_i
-#pragma HLS interface axis port=header_out_i
-#pragma HLS interface axis port=link_egress_o
-
-    static ap_uint<MSGHDR_SEND_SIZE> cb;
-    static srpt_queue_entry_t sendmsg;
-    static ap_uint<32> processed_bytes = 0;
-    static ap_uint<32> data_bytes = 0; 
-    static bool valid = false;
-    
-    ap_uint<32> msg_addr = cb(HDR_BLOCK_MSG_ADDR) - sendmsg(SRPT_QUEUE_ENTRY_REMAINING);
-    // ap_uint<32> offset = (sendmsg(SRPT_QUEUE_ENTRY_DBUFF_ID) * 16384);
-    ap_uint<32> offset = (cb(HDR_BLOCK_MSG_ADDR) + data_bytes + (sendmsg(SRPT_QUEUE_ENTRY_DBUFF_ID) * 16384));
-    offset(5,0) = 0;
-    // ap_uint<32> offset = cb(HDR_BLOCK_MSG_ADDR) + data_bytes;
-    // ap_uint<32> chunk_offset = (offset % 16384) / 64;
-    // ap_uint<32> byte_offset  = offset % 64;
-    
-    ap_uint<512> natural_chunk;
-    ap_axiu<512, 0, 0, 0> out_chunk;
-
-    ram_cmd_t ram_read;
-
-
-    if (valid) {
-	if (processed_bytes == 0) {
-	    cb = send_cbs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)];
-	
-	    // Ethernet header
-	    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
-	    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;            // TODO MAC Src (set by phy?)
-	    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE;     // Ethertype
-	
-	    // IPv6 header
-	    // ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
-	
-	    natural_chunk(CHUNK_IPV6_VERSION)     = IPV6_VERSION;     // Version
-	    natural_chunk(CHUNK_IPV6_TRAFFIC)     = IPV6_TRAFFIC;     // Traffic Class
-	    natural_chunk(CHUNK_IPV6_FLOW)        = IPV6_FLOW;        // Flow Label
-	    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN) = 0xffffffff;       // Payload Length TODO
-	    natural_chunk(CHUNK_IPV6_NEXT_HEADER) = IPPROTO_HOMA;     // Next Header
-	    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;   // Hop Limit
-	    natural_chunk(CHUNK_IPV6_SADDR)       = cb(HDR_BLOCK_SADDR);     // Sender Address
-	    natural_chunk(CHUNK_IPV6_DADDR)       = cb(HDR_BLOCK_DADDR);     // Destination Address
-	
-	    // Start of common header
-	    natural_chunk(CHUNK_HOMA_COMMON_SPORT) = cb(HDR_BLOCK_SPORT);    // Sender Port
-	    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = cb(HDR_BLOCK_DPORT);    // Destination Port
-	
-	    // Unused
-	    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;             // Unused
-	
-	    processed_bytes += 64;
-	
-	    network_order(natural_chunk, out_chunk.data);
-
-	    ram_read.data(RAMR_CMD_ADDR) = offset;
-	    ram_read.data(RAMR_CMD_LEN)  = 1;
-	
-	    processed_bytes += 64;
-
-	    ram_read.data(RAMR_CMD_TAG) = tag++;
-
-	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
-	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
-
-	    ram_cmd_o.write(ram_read);
-	
-	    // out_chunk.keep = 0xFFFFFFFFFFFFFFFF;
-	
-	    // link_egress_o.write(out_chunk);
-	
-	} else {
-	    if (processed_bytes == 64) {
-		// Rest of common header
-		natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                        // Unused (2 bytes)
-		natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;                     // doff (4 byte chunks in data header)
-		natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = DATA;                     // Type
-		natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                        // Unused (2 bytes)
-		natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                        // Checksum (unused) (2 bytes)
-		natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                        // Unused  (2 bytes) 
-		natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = cb(HDR_BLOCK_RPC_ID); // Sender ID
-	    
-		// Data header
-		natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = 0xffffffff;      // Message Length (entire message) TODO
-		natural_chunk(CHUNK_HOMA_DATA_INCOMING) = 0xffffffff;      // Incoming TODO
-		natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;               // Cutoff Version (unimplemented) (2 bytes) TODO
-		natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;               // Retransmit (unimplemented) (1 byte) TODO
-		natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;               // Pad (1 byte)
-	    
-		// Data Segment
-		natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = msg_addr;     // Offset
-		natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = 1386;
-		// TODO // sendmsg(HDR_BLOCK_LENGTH);  // Segment Length
-	    
-		// Ack header
-		natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;                         // Client ID (8 bytes) TODO
-		natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;                         // Client Port (2 bytes) TODO
-		natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;                         // Server Port (2 bytes) TODO
-	    
-		// TODO may need byte swap
-		// natural_chunk(111, 0) = double_buff(((byte_offset + 14) * 8) - 1, byte_offset * 8);
-	    
-		data_bytes += 14;
-
-		ram_read.data(RAMR_CMD_ADDR) = offset;
-		ram_read.data(RAMR_CMD_LEN)  = 14;
-		
-		// TODO Store this frame pending return of RAM read
-		
-	    } else {
-		// TODO may need byte swap
-		// natural_chunk = double_buff(((byte_offset + 64) * 8) - 1, byte_offset * 8);
-	    
-		data_bytes += 64;
-
-		ram_read.data(RAMR_CMD_ADDR) = offset;
-		ram_read.data(RAMR_CMD_LEN)  = 64;
-	    }
-	
-	    processed_bytes += 64;
-
-	    ram_read.data(RAMR_CMD_TAG) = tag++;
-	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
-	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
-
-	    ram_cmd_o.write(ram_read);
-	
-	    if (processed_bytes >= 1386) {
-		valid = false;
-	    
-		processed_bytes = 0;
-	    
-		data_bytes = 0;
-		// out_chunk.last = 1;
-	    }
-	}
-	
-	// network_order(natural_chunk, out_chunk.data);
-	
-	// out_chunk.keep = 0xFFFFFFFFFFFFFFFF;
-	
-	// Dispatch read request
-	// Write partial frame 
-	// link_egress_o.write(out_chunk);
-    }
-
-    if (!ram_status_i.empty() && !ram_data_i.empty()) {
-	ram_status_t ram_status = ram_status_i.read();
-	ap_axiu<512,0,0,0> ram_data = ram_data_i.read();
-	ram_cmd_t ramread = pending_ramread[ram_status.data(RAMR_STATUS_TAG)];
-	// TODO fetch the frame here as well
-
-	out_chunk.data = ram_data.data;
-	link_egress_o.write(out_chunk);
-    }
-
-    if (!valid && header_out_i.read_nb(sendmsg)) {
-	valid = true;
-    }
+//void pkt_ctor(ap_uint<HDR_BLOCK_SIZE> send_cbs[MAX_RPCS],
+//	      hls::stream<ram_cmd_t> & ram_cmd_o,
+//	      hls::stream<ram_status_t> & ram_status_i,
+//	      hls::stream<ap_axiu<512,0,0,0>> & ram_data_i,
+//	      hls::stream<srpt_queue_entry_t> & header_out_i,
+//	      hls::stream<ap_axiu<512, 0, 0, 0>> & link_egress_o) {
+//
+//#pragma HLS interface mode=ap_ctrl_none port=return
+//#pragma HLS pipeline II=1
+// 
+//    static ap_uint<512> pending_chunks[256];
+//    static ram_cmd_t    pending_ramread[256];
+//    static ap_uint<8>   tag;
+//
+//#pragma HLS interface bram port=send_cbs
+//#pragma HLS interface axis port=ram_cmd_o
+//#pragma HLS interface axis port=ram_status_i
+//#pragma HLS interface axis port=ram_data_i
+//#pragma HLS interface axis port=header_out_i
+//#pragma HLS interface axis port=link_egress_o
+//
+//    static ap_uint<HDR_BLOCK_SIZE> cb;
+//    static srpt_queue_entry_t sendmsg;
+//    static ap_uint<32> processed_bytes = 0;
+//    static ap_uint<32> data_bytes = 0; 
+//    static bool valid = false;
+//    
+//    // ap_uint<32> msg_addr = cb(HDR_BLOCK_MSG_ADDR) - sendmsg(SRPT_QUEUE_ENTRY_REMAINING);
+//    // ap_uint<32> offset = (sendmsg(SRPT_QUEUE_ENTRY_DBUFF_ID) * 16384);
+//    // ap_uint<32> offset = (cb(HDR_BLOCK_MSG_ADDR) + data_bytes + (sendmsg(SRPT_QUEUE_ENTRY_DBUFF_ID) * 16384));
+//    // offset(5,0) = 0;
+//    // ap_uint<32> offset = msg_addr + processed_bytes;
+//    // ap_uint<32> offset = cb(HDR_BLOCK_MSG_ADDR) + data_bytes;
+//    // ap_uint<32> chunk_offset = (offset % 16384) / 64;
+//    // ap_uint<32> byte_offset  = offset % 64;
+//    
+//    ap_uint<512> natural_chunk;
+//    ap_axiu<512, 0, 0, 0> out_chunk;
+//
+//    static ap_uint<32> data_offset = 0;
+//
+//    ram_cmd_t ram_read;
+//
+//    if (valid) {
+//	if (processed_bytes == 0) {
+//	    cb = send_cbs[sendmsg(SRPT_QUEUE_ENTRY_RPC_ID)];
+//	
+//	    // Ethernet header
+//	    natural_chunk(CHUNK_IPV6_MAC_DEST)  = MAC_DST;            // TODO MAC Dest (set by phy?)
+//	    natural_chunk(CHUNK_IPV6_MAC_SRC)   = MAC_SRC;            // TODO MAC Src (set by phy?)
+//	    natural_chunk(CHUNK_IPV6_ETHERTYPE) = IPV6_ETHERTYPE;     // Ethertype
+//	
+//	    // IPv6 header
+//	    // ap_uint<16> payload_length = (header.packet_bytes - PREFACE_HEADER);
+//	
+//	    natural_chunk(CHUNK_IPV6_VERSION)     = IPV6_VERSION;     // Version
+//	    natural_chunk(CHUNK_IPV6_TRAFFIC)     = IPV6_TRAFFIC;     // Traffic Class
+//	    natural_chunk(CHUNK_IPV6_FLOW)        = IPV6_FLOW;        // Flow Label
+//	    natural_chunk(CHUNK_IPV6_PAYLOAD_LEN) = 0xffffffff;       // Payload Length TODO
+//	    natural_chunk(CHUNK_IPV6_NEXT_HEADER) = IPPROTO_HOMA;     // Next Header
+//	    natural_chunk(CHUNK_IPV6_HOP_LIMIT)   = IPV6_HOP_LIMIT;   // Hop Limit
+//	    natural_chunk(CHUNK_IPV6_SADDR)       = cb(HDR_BLOCK_SADDR);     // Sender Address
+//	    natural_chunk(CHUNK_IPV6_DADDR)       = cb(HDR_BLOCK_DADDR);     // Destination Address
+//	
+//	    // Start of common header
+//	    natural_chunk(CHUNK_HOMA_COMMON_SPORT) = cb(HDR_BLOCK_SPORT);    // Sender Port
+//	    natural_chunk(CHUNK_HOMA_COMMON_DPORT) = cb(HDR_BLOCK_DPORT);    // Destination Port
+//	
+//	    // Unused
+//	    natural_chunk(CHUNK_HOMA_COMMON_UNUSED0) = 0;             // Unused
+//	
+//	    processed_bytes += 64;
+//	
+//	    network_order(natural_chunk, out_chunk.data);
+//
+//	    ram_read.data(RAMR_CMD_ADDR) = data_offset;// cb(HDR_BLOCK_LENGTH) - sendmsg(SRPT_QUEUE_ENTRY_REMAINING) + processed_bytes;
+//	    ram_read.data(RAMR_CMD_LEN)  = 1;
+//	
+//	    processed_bytes += 64;
+//
+//	    ram_read.data(RAMR_CMD_TAG) = tag++;
+//
+//	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
+//	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
+//
+//	    ram_cmd_o.write(ram_read);
+//	
+//	    // out_chunk.keep = 0xFFFFFFFFFFFFFFFF;
+//
+//
+//	    // link_egress_o.write(out_chunk);
+//	
+//	} else {
+//	    if (processed_bytes == 64) {
+//		// Rest of common header
+//		natural_chunk(CHUNK_HOMA_COMMON_UNUSED1)   = 0;                        // Unused (2 bytes)
+//		natural_chunk(CHUNK_HOMA_COMMON_DOFF)      = DOFF;                     // doff (4 byte chunks in data header)
+//		natural_chunk(CHUNK_HOMA_COMMON_TYPE)      = DATA;                     // Type
+//		natural_chunk(CHUNK_HOMA_COMMON_UNUSED3)   = 0;                        // Unused (2 bytes)
+//		natural_chunk(CHUNK_HOMA_COMMON_CHECKSUM)  = 0;                        // Checksum (unused) (2 bytes)
+//		natural_chunk(CHUNK_HOMA_COMMON_UNUSED4)   = 0;                        // Unused  (2 bytes) 
+//		natural_chunk(CHUNK_HOMA_COMMON_SENDER_ID) = cb(HDR_BLOCK_RPC_ID); // Sender ID
+//	    
+//		// Data header
+//		natural_chunk(CHUNK_HOMA_DATA_MSG_LEN)  = 0xffffffff;      // Message Length (entire message) TODO
+//		natural_chunk(CHUNK_HOMA_DATA_INCOMING) = 0xffffffff;      // Incoming TODO
+//		natural_chunk(CHUNK_HOMA_DATA_CUTOFF)   = 0;               // Cutoff Version (unimplemented) (2 bytes) TODO
+//		natural_chunk(CHUNK_HOMA_DATA_REXMIT)   = 0;               // Retransmit (unimplemented) (1 byte) TODO
+//		natural_chunk(CHUNK_HOMA_DATA_PAD)      = 0;               // Pad (1 byte)
+//	    
+//		// Data Segment
+//		natural_chunk(CHUNK_HOMA_DATA_OFFSET)  = 0;     // Offset
+//		natural_chunk(CHUNK_HOMA_DATA_SEG_LEN) = 1386;
+//		// TODO // sendmsg(HDR_BLOCK_LENGTH);  // Segment Length
+//	    
+//		// Ack header
+//		natural_chunk(CHUNK_HOMA_ACK_ID)    = 0;                         // Client ID (8 bytes) TODO
+//		natural_chunk(CHUNK_HOMA_ACK_SPORT) = 0;                         // Client Port (2 bytes) TODO
+//		natural_chunk(CHUNK_HOMA_ACK_DPORT) = 0;                         // Server Port (2 bytes) TODO
+//	    
+//		// TODO may need byte swap
+//		// natural_chunk(111, 0) = double_buff(((byte_offset + 14) * 8) - 1, byte_offset * 8);
+//	    
+//		data_bytes += 14;
+//
+//		// 	ram_read.data(RAMR_CMD_ADDR) = offset;
+//
+//		ram_read.data(RAMR_CMD_ADDR) = data_offset; // cb(HDR_BLOCK_LENGTH) - sendmsg(SRPT_QUEUE_ENTRY_REMAINING) + processed_bytes;
+//		ram_read.data(RAMR_CMD_LEN)  = 14;
+//		
+//		// TODO Store this frame pending return of RAM read
+//		
+//	    } else {
+//		// TODO may need byte swap
+//		// natural_chunk = double_buff(((byte_offset + 64) * 8) - 1, byte_offset * 8);
+//	    
+//		data_bytes += 64;
+//
+//		// ram_read.data(RAMR_CMD_ADDR) = offset;
+//		ram_read.data(RAMR_CMD_ADDR) = data_offset; // cb(HDR_BLOCK_LENGTH) - sendmsg(SRPT_QUEUE_ENTRY_REMAINING) + processed_bytes;
+//		ram_read.data(RAMR_CMD_LEN)  = 64;
+//	    }
+//
+//	    data_offset += 64;
+//	    processed_bytes += 64;
+//
+//	    ram_read.data(RAMR_CMD_TAG) = tag++;
+//	    pending_ramread[ram_read.data(RAMR_CMD_TAG)] = ram_read;
+//	    pending_chunks[ram_read.data(RAMR_CMD_TAG)]  = natural_chunk;
+//
+//	    ram_cmd_o.write(ram_read);
+//	
+//	    if (processed_bytes >= 1386) {
+//		valid = false;
+//	    
+//		processed_bytes = 0;
+//	    
+//		data_bytes = 0;
+//		// out_chunk.last = 1;
+//	    }
+//	}
+//	
+//	// network_order(natural_chunk, out_chunk.data);
+//	
+//	// out_chunk.keep = 0xFFFFFFFFFFFFFFFF;
+//	
+//	// Dispatch read request
+//	// Write partial frame 
+//	// link_egress_o.write(out_chunk);
+//    }
+//
+//    if (!ram_status_i.empty() && !ram_data_i.empty()) {
+//	ram_status_t ram_status = ram_status_i.read();
+//	ap_axiu<512,0,0,0> ram_data = ram_data_i.read();
+//	ram_cmd_t ramread = pending_ramread[ram_status.data(RAMR_STATUS_TAG)];
+//	// TODO fetch the frame here as well
+//
+//	out_chunk.data = ram_data.data;
+//	link_egress_o.write(out_chunk);
+//    }
+//
+//    if (!valid && header_out_i.read_nb(sendmsg)) {
+//	valid = true;
+//    }
 
 //    static dma_r_req_t pending_reqs[256];
 //

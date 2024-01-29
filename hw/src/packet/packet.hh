@@ -20,7 +20,43 @@
 #define HDR_BLOCK_CC       415,352
 #define HDR_BLOCK_LOCAL_ID 429,416
 #define HDR_BLOCK_MSG_ADDR 461,430
-#define HDR_BLOCK_LENGTH   473,462
+#define HDR_BLOCK_LENGTH   512,462
+
+// TODO clean this up
+#define HDR_IPV6_MAC_DEST         511+512,464+512 
+#define HDR_IPV6_MAC_SRC          463+512,416+512
+#define HDR_IPV6_ETHERTYPE        415+512,400+512
+#define HDR_IPV6_VERSION          399+512,396+512
+#define HDR_IPV6_TRAFFIC          395+512,388+512
+#define HDR_IPV6_FLOW             387+512,368+512
+#define HDR_IPV6_PAYLOAD_LEN      367+512,352+512
+#define HDR_IPV6_NEXT_HEADER      351+512,344+512
+#define HDR_IPV6_HOP_LIMIT        343+512,336+512
+#define HDR_IPV6_SADDR            335+512,208+512
+#define HDR_IPV6_DADDR            207+512,80+512
+#define HDR_HOMA_COMMON_SPORT     79+512,64+512 
+#define HDR_HOMA_COMMON_DPORT     63+512,48+512
+#define HDR_HOMA_COMMON_UNUSED0   47+512,0+512
+#define HDR_HOMA_COMMON_UNUSED1   511,496
+#define HDR_HOMA_COMMON_DOFF      495,488
+#define HDR_HOMA_COMMON_TYPE      487,480
+#define HDR_HOMA_COMMON_UNUSED3   479,464
+#define HDR_HOMA_COMMON_CHECKSUM  463,448
+#define HDR_HOMA_COMMON_UNUSED4   447,432
+#define HDR_HOMA_COMMON_SENDER_ID 431,368
+#define HDR_HOMA_DATA_MSG_LEN     367,336
+#define HDR_HOMA_DATA_INCOMING    335,304
+#define HDR_HOMA_DATA_CUTOFF      303,288
+#define HDR_HOMA_DATA_REXMIT      287,280
+#define HDR_HOMA_DATA_PAD         279,272
+#define HDR_HOMA_DATA_OFFSET      271,240
+#define HDR_HOMA_DATA_SEG_LEN     239,208
+#define HDR_HOMA_ACK_ID           207,144
+#define HDR_HOMA_ACK_SPORT        143,128
+#define HDR_HOMA_ACK_DPORT        127,112
+
+#define OUT_OF_BAND               111,0
+
 
 /* Offsets within the first 64B chunk of all packets that contain the general header.
  * These offsets are relative to the second 64B
@@ -147,15 +183,15 @@ typedef ap_uint<MSGHDR_SEND_SIZE> msghdr_send_t;
 typedef ap_uint<DMA_W_REQ_SIZE> dma_w_req_t;
 
 #define RAMR_CMD_SIZE  96
-#define RAMR_CMD_ADDR  20,0
-#define RAMR_CMD_LEN   84,21
-#define RAMR_CMD_TAG   92,85
+#define RAMR_CMD_ADDR  20-3,0
+#define RAMR_CMD_LEN   84-3,21-3
+#define RAMR_CMD_TAG   92-3,85-3
 
 typedef ap_axiu<RAMR_CMD_SIZE, 0, 0, 0> ram_cmd_t;
 
 #define RAMR_STATUS_SIZE  16
-#define RAMR_STATUS_ERROR 3,0
-#define RAMR_STATUS_TAG   11,4
+#define RAMR_STATUS_TAG   7,0
+#define RAMR_STATUS_ERROR 11,8
 
 typedef ap_axiu<RAMR_STATUS_SIZE, 0, 0, 0> ram_status_t;
 
