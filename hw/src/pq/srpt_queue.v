@@ -16,7 +16,7 @@
 `define QUEUE_ENTRY_PRIORITY  88:86 // Deprioritize inactive messages
 
 `define HOMA_PAYLOAD_SIZE 20'h56a
-`define CACHE_BLOCK_SIZE 64
+`define CACHE_BLOCK_SIZE 256 
 
 `define CACHE_SIZE 131072
 

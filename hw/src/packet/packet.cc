@@ -368,8 +368,8 @@ void pkt_ctor(ap_uint<HDR_BLOCK_SIZE> send_cbs[MAX_RPCS],
 	ram_cmd_t ram_read;
 
 	// for (int i = 0; i < 16; ++i) {
-	    ram_read.data(RAMR_CMD_LEN)  = 128;
-	    ram_read.data(RAMR_CMD_ADDR) = offset*128;
+	    ram_read.data(RAMR_CMD_LEN)  = 256;
+	    ram_read.data(RAMR_CMD_ADDR) = 8192 - offset*256;
 	    ram_read.data(RAMR_CMD_TAG)  = tag++;
 
 	    offset += 1;

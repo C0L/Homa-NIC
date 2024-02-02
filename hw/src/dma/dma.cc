@@ -33,11 +33,11 @@ void addr_map(ap_uint<64> metadata_map[NUM_PORTS],
 	// TODO THIS SHOULD BE PORT AND NOT RPC ID!!!!!!!!!
 	dma_r_req_out(DMA_R_REQ_HOST_ADDR) = h2c_data_map[dma_r_req_in(SRPT_QUEUE_ENTRY_RPC_ID)] + dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFFERED);
 	// TODO 
-	dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 64 ? 64 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
+	dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 256 ? 256 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
 	// dma_r_req_out(DMA_R_REQ_BYTES)     = dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING) > 256 ? 256 : dma_r_req_in(SRPT_QUEUE_ENTRY_REMAINING);
 	dma_r_req_out(DMA_R_REQ_DBUFF_ID)  = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFF_ID);
 	dma_r_req_out(DMA_R_REQ_BUFF_SIZE) = dma_r_req_in(SRPT_QUEUE_ENTRY_GRANTED);
-	dma_r_req_out(DMA_R_REQ_MSG_ADDR)  = dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFFERED); 
+	dma_r_req_out(DMA_R_REQ_MSG_ADDR)  = 8192 - dma_r_req_in(SRPT_QUEUE_ENTRY_DBUFFERED); 
 	dma_r_req_o.write(dma_r_req_out);
     }
 
