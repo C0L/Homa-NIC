@@ -4,47 +4,26 @@
 
 module pcie#
   (
-   // Width of PCIe AXI stream `default_nettype noneinterfaces in bits
    parameter AXIS_PCIE_DATA_WIDTH = 512,
-   // PCIe AXI stream tkeep signal width (words per cycle)
    parameter AXIS_PCIE_KEEP_WIDTH = (AXIS_PCIE_DATA_WIDTH/32),
-   // PCIe AXI stream RC tuser signal width
    parameter AXIS_PCIE_RC_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 75 : 161,
-   // PCIe AXI stream RQ tuser signal width
    parameter AXIS_PCIE_RQ_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 60 : 137,
-   // PCIe AXI stream CQ tuser signal width
    parameter AXIS_PCIE_CQ_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 85 : 183,
-   // PCIe AXI stream CC tuser signal width
    parameter AXIS_PCIE_CC_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 33 : 81,
-   // RC interface TLP straddling
    parameter RC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 256,
-   // RQ interface TLP straddling
    parameter RQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
-   // CQ interface TLP straddling
    parameter CQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
-   // CC interface TLP straddling
    parameter CC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
-   // RQ sequence number width
    parameter RQ_SEQ_NUM_WIDTH = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 4 : 6,
-   // RQ sequence number tracking enable
    parameter RQ_SEQ_NUM_ENABLE = 1,
-   // Immediate enable
    parameter IMM_ENABLE = 0,
-   // Immediate width
    parameter IMM_WIDTH = 32,
-   // PCIe tag count
    parameter PCIE_TAG_COUNT = 256,
-   // Operation table size (read)
    parameter READ_OP_TABLE_SIZE = PCIE_TAG_COUNT,
-   // In-flight transmit limit (read)
    parameter READ_TX_LIMIT = 2**(RQ_SEQ_NUM_WIDTH-1),
-   // Completion header flow control credit limit (read)
    parameter READ_CPLH_FC_LIMIT = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 64 : 256,
-   // Completion data flow control credit limit (read)
    parameter READ_CPLD_FC_LIMIT = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 1024-64 : 2048-256,
-   // Operation table size (write)
    parameter WRITE_OP_TABLE_SIZE = 2**(RQ_SEQ_NUM_WIDTH-1),
-   // In-flight transmit limit (write)
    parameter WRITE_TX_LIMIT = 2**(RQ_SEQ_NUM_WIDTH-1),
    parameter TLP_DATA_WIDTH = AXIS_PCIE_DATA_WIDTH,
    parameter TLP_STRB_WIDTH = TLP_DATA_WIDTH/32,

@@ -733,8 +733,8 @@ always @* begin
 
     pcie_tag_table_start_ptr_next = req_pcie_tag_reg;
     pcie_tag_table_start_ram_sel_next = req_ram_sel_reg;
-    pcie_tag_table_start_ram_addr_next = req_ram_addr_reg + 256; // TODO test + 256?
-    // pcie_tag_table_start_ram_addr_next = req_ram_addr_reg + req_tlp_count; // TODO test + 256?
+    // pcie_tag_table_start_ram_addr_next = req_ram_addr_reg + 256; // TODO test + 256?
+    pcie_tag_table_start_ram_addr_next = req_ram_addr_reg + req_tlp_count; // TODO test + 256?
     pcie_tag_table_start_op_tag_next = req_op_tag_reg;
     pcie_tag_table_start_cplh_fc_next = req_cplh_fc_count;
     pcie_tag_table_start_cpld_fc_next = req_cpld_fc_count;
@@ -949,8 +949,8 @@ always @* begin
         ram_wr_cmd_addr_pipe_next[i*RAM_SEG_ADDR_WIDTH +: RAM_SEG_ADDR_WIDTH] = addr_delay_reg[RAM_ADDR_WIDTH-1:RAM_ADDR_WIDTH-RAM_SEG_ADDR_WIDTH];
 
        // if (ram_mask_1_reg[i]) begin
-       //     ram_wr_cmd_addr_pipe_next[i*RAM_SEG_ADDR_WIDTH +: RAM_SEG_ADDR_WIDTH] = addr_delay_reg[RAM_ADDR_WIDTH-1:RAM_ADDR_WIDTH-RAM_SEG_ADDR_WIDTH]+1;
-       //  end
+       // 	  ram_wr_cmd_addr_pipe_next[i*RAM_SEG_ADDR_WIDTH +: RAM_SEG_ADDR_WIDTH] = addr_delay_reg[RAM_ADDR_WIDTH-1:RAM_ADDR_WIDTH-RAM_SEG_ADDR_WIDTH]+1;
+       // end
     end
     ram_wr_cmd_data_pipe_next = {3{tlp_data_int_reg}} >> (TLP_DATA_WIDTH - offset_reg*8);
     ram_wr_cmd_valid_pipe_next = {RAM_SEG_COUNT{1'b0}};
@@ -1004,7 +1004,7 @@ always @* begin
                 pcie_tag_next = rx_cpl_tlp_hdr_tag;
 
                 ram_sel_next = pcie_tag_table_ram_sel[pcie_tag_next];
-               addr_next = pcie_tag_table_ram_addr[pcie_tag_next] - 256; // rx_cpl_tlp_hdr_byte_count;
+                addr_next = pcie_tag_table_ram_addr[pcie_tag_next] - rx_cpl_tlp_hdr_byte_count;
                 zero_len_next = pcie_tag_table_zero_len[pcie_tag_next];
 
                 offset_next = pcie_tag_table_ram_addr[pcie_tag_next] - (rx_cpl_tlp_hdr_byte_count + rx_cpl_tlp_hdr_lower_addr[1:0]);
@@ -1015,8 +1015,6 @@ always @* begin
                     final_cpl_next = 1'b0;
 
                     if (op_dword_count_next > TLP_DATA_WIDTH_DWORDS) begin
-		       // TODO this is the issue here????
-		       
                         // more than one cycle
                         cycle_byte_count_next = TLP_DATA_WIDTH_BYTES-rx_cpl_tlp_hdr_lower_addr[1:0];
                         last_cycle = 1'b0;
