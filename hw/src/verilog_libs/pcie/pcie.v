@@ -2,7 +2,7 @@
 
 `default_nettype none
 
-module pcie#
+module pcie_core#
   (
    parameter AXIS_PCIE_DATA_WIDTH = 512,
    parameter AXIS_PCIE_KEEP_WIDTH = (AXIS_PCIE_DATA_WIDTH/32),
@@ -52,68 +52,77 @@ module pcie#
    parameter TAG_WIDTH = 8
    )
    (
-    input wire [15:0]										pcie_rx_p,
-    input wire [15:0]										pcie_rx_n,
-    output wire [15:0]										pcie_tx_p,
-    output wire [15:0]										pcie_tx_n,
-    input wire											pcie_refclk_p,
-    input wire											pcie_refclk_n,
-    input wire											pcie_reset_n,
+    input wire [15:0]		      pcie_rx_p,
+    input wire [15:0]		      pcie_rx_n,
+    output wire [15:0]		      pcie_tx_p,
+    output wire [15:0]		      pcie_tx_n,
+    
+    input wire			      pcie_refclk_p,
+    input wire			      pcie_refclk_n,
+    input wire			      pcie_reset_n,
    
-    output wire											pcie_user_clk,
-    output wire											pcie_user_reset,
-   
-    output wire [AXI_ID_WIDTH-1:0]								m_axi_awid,
-    output wire [AXI_ADDR_WIDTH-1:0]								m_axi_awaddr,
-    output wire [7:0]										m_axi_awlen,
-    output wire [2:0]										m_axi_awsize,
-    output wire [1:0]										m_axi_awburst,
-    output wire											m_axi_awlock,
-    output wire [3:0]										m_axi_awcache,
-    output wire [2:0]										m_axi_awprot,
-    output wire											m_axi_awvalid,
-    input wire											m_axi_awready,
-    output wire [AXI_DATA_WIDTH-1:0]								m_axi_wdata,
-    output wire [AXI_STRB_WIDTH-1:0]								m_axi_wstrb,
-    output wire											m_axi_wlast,
-    output wire											m_axi_wvalid,
-    input wire											m_axi_wready,
-    input wire [AXI_ID_WIDTH-1:0]								m_axi_bid,
-    input wire [1:0]										m_axi_bresp,
-    input wire											m_axi_bvalid,
-    output wire											m_axi_bready,
-    output wire [AXI_ID_WIDTH-1:0]								m_axi_arid,
-    output wire [AXI_ADDR_WIDTH-1:0]								m_axi_araddr,
-    output wire [7:0]										m_axi_arlen,
-    output wire [2:0]										m_axi_arsize,
-    output wire [1:0]										m_axi_arburst,
-    output wire											m_axi_arlock,
-    output wire [3:0]										m_axi_arcache,
-    output wire [2:0]										m_axi_arprot,
-    output wire											m_axi_arvalid,
-    input wire											m_axi_arready,
-    input wire [AXI_ID_WIDTH-1:0]								m_axi_rid,
-    input wire [AXI_DATA_WIDTH-1:0]								m_axi_rdata,
-    input wire [1:0]										m_axi_rresp,
-    input wire											m_axi_rlast,
-    input wire											m_axi_rvalid,
-    output wire											m_axi_rready,
-   
-    input wire [PCIE_ADDR_WIDTH + RAM_SEL_WIDTH + RAM_ADDR_WIDTH + LEN_WIDTH + TAG_WIDTH - 1:0]	pcie_dma_read_desc_tdata,
-    input wire											pcie_dma_read_desc_tvalid,
-    output wire											pcie_dma_read_desc_tready,
+    output wire			      pcie_user_clk,
+    output wire			      pcie_user_reset,
 
-    output wire [8 + 4 - 1:0]									pcie_dma_read_desc_status_tdata,
-    output wire											pcie_dma_read_desc_status_tvalid,
+    output wire [AXI_ID_WIDTH-1:0]    m_axi_awid,
+    output wire [AXI_ADDR_WIDTH-1:0]  m_axi_awaddr,
+    output wire [7:0]		      m_axi_awlen,
+    output wire [2:0]		      m_axi_awsize,
+    output wire [1:0]		      m_axi_awburst,
+    output wire			      m_axi_awlock,
+    output wire [3:0]		      m_axi_awcache,
+    output wire [2:0]		      m_axi_awprot,
+    output wire			      m_axi_awvalid,
+    input wire			      m_axi_awready,
+    output wire [AXI_DATA_WIDTH-1:0]  m_axi_wdata,
+    output wire [AXI_STRB_WIDTH-1:0]  m_axi_wstrb,
+    output wire			      m_axi_wlast,
+    output wire			      m_axi_wvalid,
+    input wire			      m_axi_wready,
+    input wire [AXI_ID_WIDTH-1:0]     m_axi_bid,
+    input wire [1:0]		      m_axi_bresp,
+    input wire			      m_axi_bvalid,
+    output wire			      m_axi_bready,
+    output wire [AXI_ID_WIDTH-1:0]    m_axi_arid,
+    output wire [AXI_ADDR_WIDTH-1:0]  m_axi_araddr,
+    output wire [7:0]		      m_axi_arlen,
+    output wire [2:0]		      m_axi_arsize,
+    output wire [1:0]		      m_axi_arburst,
+    output wire			      m_axi_arlock,
+    output wire [3:0]		      m_axi_arcache,
+    output wire [2:0]		      m_axi_arprot,
+    output wire			      m_axi_arvalid,
+    input wire			      m_axi_arready,
+    input wire [AXI_ID_WIDTH-1:0]     m_axi_rid,
+    input wire [AXI_DATA_WIDTH-1:0]   m_axi_rdata,
+    input wire [1:0]		      m_axi_rresp,
+    input wire			      m_axi_rlast,
+    input wire			      m_axi_rvalid,
+    output wire			      m_axi_rready,
+    
+    input wire [PCIE_ADDR_WIDTH-1:0]  pcie_dma_read_desc_pcie_addr;
+    input wire [RAM_SEL_WIDTH-1:0]    pcie_dma_read_desc_ram_sel;
+    input wire [RAM_ADDR_WIDTH-1:0]   pcie_dma_read_desc_ram_addr;
+    input wire [LEN_WIDTH-1:0]	      pcie_dma_read_desc_len;
+    input wire [TAG_WIDTH-1:0]	      pcie_dma_read_desc_tag;
+    input wire			      pcie_dma_read_desc_valid,
+    output wire			      pcie_dma_read_desc_ready,
 
-    input wire [PCIE_ADDR_WIDTH + RAM_SEL_WIDTH + RAM_ADDR_WIDTH + LEN_WIDTH + TAG_WIDTH - 1:0]	pcie_dma_write_desc_tdata, 
-    input wire											pcie_dma_write_desc_tvalid,
-    output wire											pcie_dma_write_desc_tready,
+    output wire [8-1:0]		      pcie_dma_read_desc_status_tag;
+    output wire [3:0]		      pcie_dma_read_desc_status_error;
+    output wire			      pcie_dma_read_desc_status_valid,
 
-    output wire [8 + 4 - 1:0]									pcie_dma_write_desc_status_tdata,
-    output wire											pcie_dma_write_desc_status_tvalid,
-
-   
+    output wire [PCIE_ADDR_WIDTH-1:0] pcie_dma_write_desc_pcie_addr;
+    output wire [RAM_SEL_WIDTH-1:0]   pcie_dma_write_desc_ram_sel;
+    output wire [RAM_ADDR_WIDTH-1:0]  pcie_dma_write_desc_ram_addr;
+    output wire [16-1:0]	      pcie_dma_write_desc_len;
+    output wire [8-1:0]		      pcie_dma_write_desc_tag;
+    input wire			      pcie_dma_write_desc_valid,
+    output wire			      pcie_dma_write_desc_ready,
+    
+    output wire [8-1:0]		      pcie_dma_write_desc_status_tag;
+    output wire [3:0]		      pcie_dma_write_desc_status_error;
+    output wire			      pcie_dma_write_desc_status_valid,
     );
    
    wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]							ram_rd_cmd_sel;
@@ -131,38 +140,12 @@ module pcie#
    wire [RAM_SEG_COUNT-1:0]									ram_wr_cmd_ready;
    wire [RAM_SEG_COUNT-1:0]									ram_wr_done;
 
-   wire [PCIE_ADDR_WIDTH-1:0]									pcie_dma_read_desc_pcie_addr;
-   wire [RAM_SEL_WIDTH-1:0]									pcie_dma_read_desc_ram_sel;
-   wire [RAM_ADDR_WIDTH-1:0]									pcie_dma_read_desc_ram_addr;
-   wire [16-1:0]										pcie_dma_read_desc_len;
-   wire [8-1:0]											pcie_dma_read_desc_tag;
-
    wire [2:0]											cfg_max_payload;
    wire [2:0]											cfg_max_read_req;
    wire [3:0]											cfg_rcb_status;
    wire [F_COUNT-1:0]										ext_tag_enable;
    wire [F_COUNT*3-1:0]										max_read_request_size;
    wire [F_COUNT*3-1:0]										max_payload_size;
-   
-   assign {pcie_dma_read_desc_tag,  pcie_dma_read_desc_len, pcie_dma_read_desc_ram_addr, pcie_dma_read_desc_ram_sel, pcie_dma_read_desc_pcie_addr} = pcie_dma_read_desc_tdata;
-   
-   wire [8-1:0]											pcie_dma_read_desc_status_tag;
-   wire [3:0]											pcie_dma_read_desc_status_error;
-   assign pcie_dma_read_desc_status_tdata = {pcie_dma_read_desc_status_error, pcie_dma_read_desc_status_tag};
-
-   
-   wire [PCIE_ADDR_WIDTH-1:0]									pcie_dma_write_desc_pcie_addr;
-   wire [RAM_SEL_WIDTH-1:0]									pcie_dma_write_desc_ram_sel;
-   wire [RAM_ADDR_WIDTH-1:0]									pcie_dma_write_desc_ram_addr;
-   wire [16-1:0]										pcie_dma_write_desc_len;
-   wire [8-1:0]											pcie_dma_write_desc_tag;
-   
-   assign {pcie_dma_write_desc_tag,  pcie_dma_write_desc_len, pcie_dma_write_desc_ram_addr, pcie_dma_write_desc_ram_sel, pcie_dma_write_desc_pcie_addr} = pcie_dma_write_desc_tdata;
-   
-   wire [8-1:0]											pcie_dma_write_desc_status_tag;
-   wire [3:0]											pcie_dma_write_desc_status_error;
-   assign pcie_dma_write_desc_status_tdata = {pcie_dma_write_desc_status_error, pcie_dma_write_desc_status_tag};
-
    
    wire [RQ_SEQ_NUM_WIDTH-1:0]									s_axis_rq_seq_num_0;
    wire												s_axis_rq_seq_num_valid_0;
@@ -222,18 +205,21 @@ module pcie#
    wire												axis_rq_tready;
    wire [AXIS_PCIE_RQ_USER_WIDTH-1:0]								axis_rq_tuser;
    wire												axis_rq_tvalid;
+   
    wire [AXIS_PCIE_DATA_WIDTH-1:0]								axis_rc_tdata;
    wire [AXIS_PCIE_KEEP_WIDTH-1:0]								axis_rc_tkeep;
    wire												axis_rc_tlast;
    wire												axis_rc_tready;
    wire [AXIS_PCIE_RC_USER_WIDTH-1:0]								axis_rc_tuser;
    wire												axis_rc_tvalid;
+   
    wire [AXIS_PCIE_DATA_WIDTH-1:0]								axis_cq_tdata;
    wire [AXIS_PCIE_KEEP_WIDTH-1:0]								axis_cq_tkeep;
    wire												axis_cq_tlast;
    wire												axis_cq_tready;
    wire [AXIS_PCIE_CQ_USER_WIDTH-1:0]								axis_cq_tuser;
    wire												axis_cq_tvalid;
+   
    wire [AXIS_PCIE_DATA_WIDTH-1:0]								axis_cc_tdata;
    wire [AXIS_PCIE_KEEP_WIDTH-1:0]								axis_cc_tkeep;
    wire												axis_cc_tlast;
@@ -290,20 +276,6 @@ module pcie#
    wire [TX_SEQ_NUM_COUNT*TX_SEQ_NUM_WIDTH-1:0]							axis_wr_req_tx_seq_num;
    wire [TX_SEQ_NUM_COUNT-1:0]									axis_wr_req_tx_seq_num_valid;
    
-   wire [31:0]											tx_msix_wr_req_tlp_data;
-   wire												tx_msix_wr_req_tlp_strb;
-   wire [TLP_HDR_WIDTH-1:0]									tx_msix_wr_req_tlp_hdr;
-   wire												tx_msix_wr_req_tlp_valid;
-   wire												tx_msix_wr_req_tlp_sop;
-   wire												tx_msix_wr_req_tlp_eop;
-   wire												tx_msix_wr_req_tlp_ready;
-
-   wire [F_COUNT-1:0]										msix_enable;
-   wire [F_COUNT-1:0]										msix_mask;
-
-   wire												status_error_cor;
-   wire												status_error_uncor;
-
    wire												pcie_sys_clk;
    wire												pcie_sys_clk_gt;
 
@@ -437,8 +409,8 @@ module pcie#
 	       .cfg_power_state_change_ack(1'b1),
 	       .cfg_power_state_change_interrupt(),
 
-	       .cfg_err_cor_in(status_error_cor),
-	       .cfg_err_uncor_in(status_error_uncor),
+	       .cfg_err_cor_in(),
+	       .cfg_err_uncor_in(),
 	       .cfg_flr_in_process(),
 	       .cfg_flr_done(4'd0),
 	       .cfg_vf_flr_in_process(),
@@ -651,13 +623,13 @@ module pcie#
 		    .tx_cpl_tlp_eop(tx_cpl_tlp_eop),
 		    .tx_cpl_tlp_ready(tx_cpl_tlp_ready),
 
-		    .tx_msix_wr_req_tlp_data(tx_msix_wr_req_tlp_data),
-		    .tx_msix_wr_req_tlp_strb(tx_msix_wr_req_tlp_strb),
-		    .tx_msix_wr_req_tlp_hdr(tx_msix_wr_req_tlp_hdr),
-		    .tx_msix_wr_req_tlp_valid(tx_msix_wr_req_tlp_valid),
-		    .tx_msix_wr_req_tlp_sop(tx_msix_wr_req_tlp_sop),
-		    .tx_msix_wr_req_tlp_eop(tx_msix_wr_req_tlp_eop),
-		    .tx_msix_wr_req_tlp_ready(tx_msix_wr_req_tlp_ready),
+		    .tx_msix_wr_req_tlp_data(),
+		    .tx_msix_wr_req_tlp_strb(),
+		    .tx_msix_wr_req_tlp_hdr(),
+		    .tx_msix_wr_req_tlp_valid(),
+		    .tx_msix_wr_req_tlp_sop(),
+		    .tx_msix_wr_req_tlp_eop(),
+		    .tx_msix_wr_req_tlp_ready(),
 
 		    .tx_fc_ph_av(),
 		    .tx_fc_pd_av(),
@@ -669,8 +641,8 @@ module pcie#
 		    .ext_tag_enable(ext_tag_enable),
 		    .max_read_request_size(max_read_request_size),
 		    .max_payload_size(max_payload_size),
-		    .msix_enable(msix_enable),
-		    .msix_mask(msix_mask),
+		    .msix_enable(),
+		    .msix_mask(),
 
 		    .msi_irq()
 		    );
@@ -743,12 +715,12 @@ module pcie#
 		     .s_axis_read_desc_ram_addr(pcie_dma_read_desc_ram_addr),
 		     .s_axis_read_desc_len(pcie_dma_read_desc_len),
 		     .s_axis_read_desc_tag(pcie_dma_read_desc_tag),
-		     .s_axis_read_desc_valid(pcie_dma_read_desc_tvalid),
-		     .s_axis_read_desc_ready(pcie_dma_read_desc_tready),
+		     .s_axis_read_desc_valid(pcie_dma_read_desc_valid),
+		     .s_axis_read_desc_ready(pcie_dma_read_desc_ready),
       
 		     .m_axis_read_desc_status_tag(pcie_dma_read_desc_status_tag),
 		     .m_axis_read_desc_status_error(pcie_dma_read_desc_status_error),
-		     .m_axis_read_desc_status_valid(pcie_dma_read_desc_status_tvalid),
+		     .m_axis_read_desc_status_valid(pcie_dma_read_desc_status_valid),
       
 		     .s_axis_write_desc_pcie_addr(pcie_dma_write_desc_pcie_addr),
 		     .s_axis_write_desc_ram_sel(pcie_dma_write_desc_ram_sel),
@@ -757,12 +729,12 @@ module pcie#
 		     .s_axis_write_desc_imm_en(0),
 		     .s_axis_write_desc_len(pcie_dma_write_desc_len),
 		     .s_axis_write_desc_tag(pcie_dma_write_desc_tag),
-		     .s_axis_write_desc_valid(pcie_dma_write_desc_tvalid),
-		     .s_axis_write_desc_ready(pcie_dma_write_desc_tready),
+		     .s_axis_write_desc_valid(pcie_dma_write_desc_valid),
+		     .s_axis_write_desc_ready(pcie_dma_write_desc_ready),
       
 		     .m_axis_write_desc_status_tag(pcie_dma_write_desc_status_tag),
 		     .m_axis_write_desc_status_error(pcie_dma_write_desc_status_error),
-		     .m_axis_write_desc_status_valid(pcie_dma_write_desc_status_tvalid),
+		     .m_axis_write_desc_status_valid(pcie_dma_write_desc_status_valid),
       
 		     .ram_wr_cmd_sel(ram_wr_cmd_sel),
 		     .ram_wr_cmd_be(ram_wr_cmd_be),
