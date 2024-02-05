@@ -141,7 +141,6 @@ class addr_map extends Module {
   io.dma_r_req_o.bits := 0.U.asTypeOf(new dma_read_t)
 
   // TODO can we turn this into a enqueue function and completition function handler. Like async?
-
   val dma_w_meta_i_reg_0_bits  = RegNext(io.dma_w_meta_i.bits)
   val dma_w_meta_i_reg_1_bits  = RegNext(dma_w_meta_i_reg_0_bits)
   val dma_w_meta_i_reg_0_valid = RegNext(io.dma_w_meta_i.valid)
@@ -164,9 +163,7 @@ class addr_map extends Module {
   val new_dma_map_i_reg_1_valid = RegNext(new_dma_map_i_reg_0_valid)
 
   val meta_maps_read           = metadata_maps.read(dma_w_meta_i_reg_0_bits.port)
-
   val c2h_data_maps_read       = c2h_data_maps.read(dma_w_data_i_reg_0_bits.port)
-
   val h2c_data_maps_read       = h2c_data_maps.read(dma_r_req_i_reg_0_bits.port)
 
   when (dma_w_meta_i_reg_1_valid) {
@@ -196,10 +193,33 @@ class addr_map extends Module {
       }
       is (dma_map_type.meta_map) {
         metadata_maps.write(new_dma_map_i_reg_0_bits.port, new_dma_map_i_reg_0_bits)
-        // printf(cf"set meta_map = $new_dma_map_i_reg_0_bits.port\n")
       }
     }
   }
+}
+
+class dma_ctrl extends Module {
+  // TODO this just connects addr_map to c2h_dma and h2c_dma
+  val io = IO(new Bundle {
+    val new_dma_map_i   = Flipped(Decoupled(new dma_map_t))
+    val dma_w_meta_i    = Flipped(Decoupled(new dma_write_t))
+    val dma_w_data_i    = Flipped(Decoupled(new dma_write_t))
+    val dma_r_req_i     = Flipped(Decoupled(new dma_read_t))
+    val dma_w_req_o     = Decoupled(new dma_write_t)
+    val dma_r_req_o     = Decoupled(new dma_read_t)
+
+    // Also need the ports for interacting with DMA
+  })
+
+  val addr_map = Module(new addr_map())
+  addr_map.dma_w_meta_i.
+
+  // TODO connect these two together
+
+  val h2c_dma = Module(new h2c_dma())
+
+  // Tie the outputs of this to dma_r_req_o
+
 }
 
 object Main extends App {
@@ -211,29 +231,4 @@ object Main extends App {
   ChiselStage.emitSystemVerilogFile(new addr_map,
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
   )
-}
-
-
-
-class pp_stages extends Module {
-
-  // TODO cobble together all the stages here
-  // header constructor
-
-  // data fetch
-
-  // transmit
-}
-
-
-class pp_hdr extends Module {
-
-}
-
-class pp_payload extends Module {
-
-}
-
-class pp_xmit extends Module {
-
 }
