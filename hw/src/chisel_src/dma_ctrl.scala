@@ -2,55 +2,13 @@ package packetproc
 
 import chisel3._
 import circt.stage.ChiselStage
-// import chisel3.util.Decoupled
 import chisel3.util._
-
-/*
- * pcie_read_cmd_t - read request to pcie core with a destination in psdram for the result. This must match the instantiation of the pcie core. 
- */
-class pcie_read_cmd_t extends Bundle {
-  val pcie_read_addr = UInt(64.W)
-  val dest_ram_sel   = UInt(2.W)
-  val dest_ram_addr  = UInt(18.W)
-  val read_len       = UInt(16.W)
-  val tag            = UInt(8.W)
-}
-
-class pcie_read_status_t extends Bundle {
-  val tag   = UInt(8.W)
-  val error = UInt(4.W)
-}
-
-class dma_read_t extends Bundle {
-  val pcie_read_addr = UInt(64.W) // TODO make this the same across all
-  val cache_id       = UInt(10.W)
-  val message_size   = UInt(20.W)
-  val read_len       = UInt(12.W)
-  val dest_ram_addr  = UInt(20.W)
-  val port           = UInt(16.W)
-}
-
-class dma_write_t extends Bundle {
-  val pcie_write_addr = UInt(64.W) // TODO make this the same across all
-  val data            = UInt(512.W)
-  val length          = UInt(8.W)
-  val port            = UInt(16.W)
-}
-
-class dbuff_notif_t extends Bundle {
-  val rpc_id          = UInt(16.W) // TODO make this the same across all
-  val cache_id        = UInt(10.W)
-  val remaining_bytes = UInt(20.W)
-  val dbuffered_bytes = UInt(20.W)
-  val granted_bytes   = UInt(20.W)
-  val priority        = UInt(3.W)
-}
 
 class h2c_dma extends Module {
   val io = IO(new Bundle {
     val dma_read_req_i     = Flipped(Decoupled(new dma_read_t))
-    val pcie_read_cmd_o    = Decoupled(new pcie_read_cmd_t)
-    val pcie_read_status_i = Flipped(Decoupled(new pcie_read_status_t))
+    val pcie_read_cmd_o    = Decoupled(new dma_read_desc_t)
+    val pcie_read_status_i = Flipped(Decoupled(new dma_read_desc_status_t))
     val dbuff_notif_o      = Decoupled(new dbuff_notif_t)
   })
 
@@ -60,10 +18,10 @@ class h2c_dma extends Module {
   val tag_mem = Mem(256, new dma_read_t)
 
   // We are ready to accept dma reqs if there is room in the pcie core
-  io.dma_read_req_i.ready <> io.pcie_read_cmd_o.ready
+  io.dma_read_req_i.ready := io.pcie_read_cmd_o.ready
 
   // We are ready to handle status outputs if dbuff queue is ready to handle notifs
-  io.pcie_read_status_i.ready <> io.dbuff_notif_o.ready
+  io.pcie_read_status_i.ready := io.dbuff_notif_o.ready
 
   // Expect not to send data downstream
   io.pcie_read_cmd_o.valid := false.B
@@ -71,13 +29,13 @@ class h2c_dma extends Module {
 
   // TODO should zero init?
 
-  io.pcie_read_cmd_o.bits.pcie_read_addr := io.dma_read_req_i.bits.pcie_read_addr
-  io.pcie_read_cmd_o.bits.dest_ram_sel   := 0.U(2.W)
-  io.pcie_read_cmd_o.bits.dest_ram_addr  := io.dma_read_req_i.bits.dest_ram_addr
-  io.pcie_read_cmd_o.bits.read_len       := io.dma_read_req_i.bits.read_len
-  io.pcie_read_cmd_o.bits.tag            := tag
+  io.pcie_read_cmd_o.bits.dma_read_desc_pcie_addr := io.dma_read_req_i.bits.pcie_read_addr
+  io.pcie_read_cmd_o.bits.dma_read_desc_ram_sel        := 0.U(2.W)
+  io.pcie_read_cmd_o.bits.dma_read_desc_ram_addr       := io.dma_read_req_i.bits.dest_ram_addr
+  io.pcie_read_cmd_o.bits.dma_read_desc_len            := io.dma_read_req_i.bits.read_len
+  io.pcie_read_cmd_o.bits.dma_read_desc_tag            := tag
 
-  val pending_read = tag_mem.read(io.pcie_read_status_i.bits.tag)
+  val pending_read = tag_mem.read(io.pcie_read_status_i.bits.dma_read_desc_status_tag)
 
   io.dbuff_notif_o.bits.rpc_id           := 0.U
   io.dbuff_notif_o.bits.cache_id         := pending_read.cache_id
@@ -99,17 +57,6 @@ class h2c_dma extends Module {
   when (io.pcie_read_status_i.valid) {
     io.dbuff_notif_o.valid := true.B
   }
-}
-
-
-object dma_map_type extends ChiselEnum {
-  val h2c_map, c2h_map, meta_map = Value
-}
-
-class dma_map_t extends Bundle {
-  val pcie_addr = UInt(64.W)
-  val port      = UInt(16.W)
-  val map_type  = dma_map_type()
 }
 
 class addr_map extends Module {
@@ -198,31 +145,42 @@ class addr_map extends Module {
   }
 }
 
-class dma_ctrl extends Module {
-  // TODO this just connects addr_map to c2h_dma and h2c_dma
-  val io = IO(new Bundle {
-    val new_dma_map_i   = Flipped(Decoupled(new dma_map_t))
-    val dma_w_meta_i    = Flipped(Decoupled(new dma_write_t))
-    val dma_w_data_i    = Flipped(Decoupled(new dma_write_t))
-    val dma_r_req_i     = Flipped(Decoupled(new dma_read_t))
-    val dma_w_req_o     = Decoupled(new dma_write_t)
-    val dma_r_req_o     = Decoupled(new dma_read_t)
+// class dma_ctrl extends Module {
+//   // TODO this just connects addr_map to c2h_dma and h2c_dma
+//   val io = IO(new Bundle {
+//     val new_dma_map_i   = Flipped(Decoupled(new dma_map_t))
+//     val dma_w_meta_i    = Flipped(Decoupled(new dma_write_t))
+//     val dma_w_data_i    = Flipped(Decoupled(new dma_write_t))
+//     val dma_r_req_i     = Flipped(Decoupled(new dma_read_t))
+//     val dma_w_req_o     = Decoupled(new dma_write_t)
+//     val dma_r_req_o     = Decoupled(new dma_read_t)
+// 
+//     // val dma_read_req_i     = Flipped(Decoupled(new dma_read_t))
+//     val pcie_read_cmd_o    = Decoupled(new pcie_read_cmd_t)
+//     val pcie_read_status_i = Flipped(Decoupled(new pcie_read_status_t))
+//     val dbuff_notif_o      = Decoupled(new dbuff_notif_t)
+// 
+//     // Also need the ports for interacting with DMA
+//   })
+// 
+//   val addr_map = Module(new addr_map())
+//   addr_map.dma_w_meta_i.
+// 
+//   // TODO connect these two together
+// 
+//   val h2c_dma = Module(new h2c_dma())
+// 
+//   // Tie the outputs of this to dma_r_req_o
+// 
+// }
 
-    // Also need the ports for interacting with DMA
-  })
 
-  val addr_map = Module(new addr_map())
-  addr_map.dma_w_meta_i.
-
-  // TODO connect these two together
-
-  val h2c_dma = Module(new h2c_dma())
-
-  // Tie the outputs of this to dma_r_req_o
-
-}
 
 object Main extends App {
+  ChiselStage.emitSystemVerilogFile(new pcie,
+    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
+  )
+
   // These lines generate the Verilog output
   ChiselStage.emitSystemVerilogFile(new h2c_dma,
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
