@@ -133,6 +133,9 @@ pkt_dtor_synth:
 		pkt_dtor \
 		src/packet/packet.cc
 
+chisel_src:
+	sbt run ./src/chisel_src
+
 
 ############ Verilog Synthesis ############ 
 

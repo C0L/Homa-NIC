@@ -8,11 +8,10 @@ val chiselVersion = "6.0.0"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "dma",
+    name := "packetproc",
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel" % chiselVersion,
       "org.scalatest" %% "scalatest" % "3.2.16",
-      // "org.scalatest" %% "scalatest" % "3.2.16" % "test",
     ),
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
