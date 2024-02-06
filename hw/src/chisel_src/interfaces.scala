@@ -47,7 +47,6 @@ class ram_read_desc_status_t extends Bundle {
  val error = UInt(4.W)
 }
 
-
 class ram_write_desc_t extends Bundle {
   val ram_addr = UInt(18.W)
   val len      = UInt(64.W)
@@ -111,6 +110,26 @@ class dma_map_t extends Bundle {
   val pcie_addr = UInt(64.W)
   val port      = UInt(16.W)
   val map_type  = dma_map_type()
+}
+
+// TODO these should be parmeterizable
+class ram_wr_t extends Bundle {
+  val cmd_be     = Output(UInt(128.W))
+  val cmd_addr   = Output(UInt(22.W))
+  val cmd_data   = Output(UInt(1024.W))
+  val cmd_valid  = Output(UInt(2.W))
+  val cmd_ready  = Input(UInt(2.W))
+  val wr_done    = Input(UInt(2.W))
+}
+
+class ram_rd_t extends Bundle {
+  val cmd_sel    = Output(UInt(2.W))
+  val cmd_addr   = Output(UInt(22.W))
+  val cmd_valid  = Output(UInt(2.W))
+  val cmd_ready  = Input(UInt(2.W))
+  val resp_data  = Input(UInt(1024.W))
+  val resp_valid = Input(UInt(2.W))
+  val resp_ready = Output(UInt(2.W))
 }
 
 //class pcie_raw extends Bundle {

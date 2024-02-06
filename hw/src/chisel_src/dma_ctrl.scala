@@ -176,17 +176,17 @@ class addr_map extends Module {
 
 
 
-object Main extends App {
-  ChiselStage.emitSystemVerilogFile(new pcie,
-    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
-  )
-
-  // These lines generate the Verilog output
-  ChiselStage.emitSystemVerilogFile(new h2c_dma,
-    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
-  )
-
-  ChiselStage.emitSystemVerilogFile(new addr_map,
-    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
-  )
-}
+//object Main extends App {
+//  ChiselStage.emitSystemVerilogFile(new pcie,
+//    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
+//  )
+//
+//  // These lines generate the Verilog output
+//  ChiselStage.emitSystemVerilogFile(new h2c_dma,
+//    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
+//  )
+//
+//  ChiselStage.emitSystemVerilogFile(new addr_map,
+//    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
+//  )
+//}

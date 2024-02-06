@@ -52,94 +52,95 @@ module pcie_core#
    parameter TAG_WIDTH = 8
    )
    (
-    input wire [15:0]		      pcie_rx_p,
-    input wire [15:0]		      pcie_rx_n,
-    output wire [15:0]		      pcie_tx_p,
-    output wire [15:0]		      pcie_tx_n,
+    input wire [15:0]				       pcie_rx_p,
+    input wire [15:0]				       pcie_rx_n,
+    output wire [15:0]				       pcie_tx_p,
+    output wire [15:0]				       pcie_tx_n,
     
-    input wire			      pcie_refclk_p,
-    input wire			      pcie_refclk_n,
-    input wire			      pcie_reset_n,
+    input wire					       pcie_refclk_p,
+    input wire					       pcie_refclk_n,
+    input wire					       pcie_reset_n,
    
-    output wire			      pcie_user_clk,
-    output wire			      pcie_user_reset,
+    output wire					       pcie_user_clk,
+    output wire					       pcie_user_reset,
 
-    output wire [AXI_ID_WIDTH-1:0]    m_axi_awid,
-    output wire [AXI_ADDR_WIDTH-1:0]  m_axi_awaddr,
-    output wire [7:0]		      m_axi_awlen,
-    output wire [2:0]		      m_axi_awsize,
-    output wire [1:0]		      m_axi_awburst,
-    output wire			      m_axi_awlock,
-    output wire [3:0]		      m_axi_awcache,
-    output wire [2:0]		      m_axi_awprot,
-    output wire			      m_axi_awvalid,
-    input wire			      m_axi_awready,
-    output wire [AXI_DATA_WIDTH-1:0]  m_axi_wdata,
-    output wire [AXI_STRB_WIDTH-1:0]  m_axi_wstrb,
-    output wire			      m_axi_wlast,
-    output wire			      m_axi_wvalid,
-    input wire			      m_axi_wready,
-    input wire [AXI_ID_WIDTH-1:0]     m_axi_bid,
-    input wire [1:0]		      m_axi_bresp,
-    input wire			      m_axi_bvalid,
-    output wire			      m_axi_bready,
-    output wire [AXI_ID_WIDTH-1:0]    m_axi_arid,
-    output wire [AXI_ADDR_WIDTH-1:0]  m_axi_araddr,
-    output wire [7:0]		      m_axi_arlen,
-    output wire [2:0]		      m_axi_arsize,
-    output wire [1:0]		      m_axi_arburst,
-    output wire			      m_axi_arlock,
-    output wire [3:0]		      m_axi_arcache,
-    output wire [2:0]		      m_axi_arprot,
-    output wire			      m_axi_arvalid,
-    input wire			      m_axi_arready,
-    input wire [AXI_ID_WIDTH-1:0]     m_axi_rid,
-    input wire [AXI_DATA_WIDTH-1:0]   m_axi_rdata,
-    input wire [1:0]		      m_axi_rresp,
-    input wire			      m_axi_rlast,
-    input wire			      m_axi_rvalid,
-    output wire			      m_axi_rready,
+    output wire [AXI_ID_WIDTH-1:0]		       m_axi_awid,
+    output wire [AXI_ADDR_WIDTH-1:0]		       m_axi_awaddr,
+    output wire [7:0]				       m_axi_awlen,
+    output wire [2:0]				       m_axi_awsize,
+    output wire [1:0]				       m_axi_awburst,
+    output wire					       m_axi_awlock,
+    output wire [3:0]				       m_axi_awcache,
+    output wire [2:0]				       m_axi_awprot,
+    output wire					       m_axi_awvalid,
+    input wire					       m_axi_awready,
+    output wire [AXI_DATA_WIDTH-1:0]		       m_axi_wdata,
+    output wire [AXI_STRB_WIDTH-1:0]		       m_axi_wstrb,
+    output wire					       m_axi_wlast,
+    output wire					       m_axi_wvalid,
+    input wire					       m_axi_wready,
+    input wire [AXI_ID_WIDTH-1:0]		       m_axi_bid,
+    input wire [1:0]				       m_axi_bresp,
+    input wire					       m_axi_bvalid,
+    output wire					       m_axi_bready,
+    output wire [AXI_ID_WIDTH-1:0]		       m_axi_arid,
+    output wire [AXI_ADDR_WIDTH-1:0]		       m_axi_araddr,
+    output wire [7:0]				       m_axi_arlen,
+    output wire [2:0]				       m_axi_arsize,
+    output wire [1:0]				       m_axi_arburst,
+    output wire					       m_axi_arlock,
+    output wire [3:0]				       m_axi_arcache,
+    output wire [2:0]				       m_axi_arprot,
+    output wire					       m_axi_arvalid,
+    input wire					       m_axi_arready,
+    input wire [AXI_ID_WIDTH-1:0]		       m_axi_rid,
+    input wire [AXI_DATA_WIDTH-1:0]		       m_axi_rdata,
+    input wire [1:0]				       m_axi_rresp,
+    input wire					       m_axi_rlast,
+    input wire					       m_axi_rvalid,
+    output wire					       m_axi_rready,
     
-    input wire [PCIE_ADDR_WIDTH-1:0]  pcie_dma_read_desc_bits_pcie_addr;
-    input wire [RAM_SEL_WIDTH-1:0]    pcie_dma_read_desc_bits_ram_sel;
-    input wire [RAM_ADDR_WIDTH-1:0]   pcie_dma_read_desc_bits_ram_addr;
-    input wire [LEN_WIDTH-1:0]	      pcie_dma_read_desc_bits_len;
-    input wire [TAG_WIDTH-1:0]	      pcie_dma_read_desc_bits_tag;
-    input wire			      pcie_dma_read_desc_valid,
-    output wire			      pcie_dma_read_desc_ready,
+    input wire [PCIE_ADDR_WIDTH-1:0]		       pcie_dma_read_desc_bits_pcie_addr;
+    input wire [RAM_SEL_WIDTH-1:0]		       pcie_dma_read_desc_bits_ram_sel;
+    input wire [RAM_ADDR_WIDTH-1:0]		       pcie_dma_read_desc_bits_ram_addr;
+    input wire [LEN_WIDTH-1:0]			       pcie_dma_read_desc_bits_len;
+    input wire [TAG_WIDTH-1:0]			       pcie_dma_read_desc_bits_tag;
+    input wire					       pcie_dma_read_desc_valid,
+    output wire					       pcie_dma_read_desc_ready,
 
-    output wire [8-1:0]		      pcie_dma_read_desc_status_bits_tag;
-    output wire [3:0]		      pcie_dma_read_desc_status_bits_error;
-    output wire			      pcie_dma_read_desc_status_valid,
+    output wire [8-1:0]				       pcie_dma_read_desc_status_bits_tag;
+    output wire [3:0]				       pcie_dma_read_desc_status_bits_error;
+    output wire					       pcie_dma_read_desc_status_valid,
 
-    output wire [PCIE_ADDR_WIDTH-1:0] pcie_dma_write_desc_bits_pcie_addr;
-    output wire [RAM_SEL_WIDTH-1:0]   pcie_dma_write_desc_bits_ram_sel;
-    output wire [RAM_ADDR_WIDTH-1:0]  pcie_dma_write_desc_bits_ram_addr;
-    output wire [16-1:0]	      pcie_dma_write_desc_bits_len;
-    output wire [8-1:0]		      pcie_dma_write_desc_bits_tag;
-    input wire			      pcie_dma_write_desc_valid,
-    output wire			      pcie_dma_write_desc_ready,
+    output wire [PCIE_ADDR_WIDTH-1:0]		       pcie_dma_write_desc_bits_pcie_addr;
+    output wire [RAM_SEL_WIDTH-1:0]		       pcie_dma_write_desc_bits_ram_sel;
+    output wire [RAM_ADDR_WIDTH-1:0]		       pcie_dma_write_desc_bits_ram_addr;
+    output wire [16-1:0]			       pcie_dma_write_desc_bits_len;
+    output wire [8-1:0]				       pcie_dma_write_desc_bits_tag;
+    input wire					       pcie_dma_write_desc_valid,
+    output wire					       pcie_dma_write_desc_ready,
     
-    output wire [8-1:0]		      pcie_dma_write_desc_status_bits_tag;
-    output wire [3:0]		      pcie_dma_write_desc_status_bits_error;
-    output wire			      pcie_dma_write_desc_status_valid,
+    output wire [8-1:0]				       pcie_dma_write_desc_status_bits_tag;
+    output wire [3:0]				       pcie_dma_write_desc_status_bits_error;
+    output wire					       pcie_dma_write_desc_status_valid,
+
+    output wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]      ram_rd_cmd_sel,
+    output wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0] ram_rd_cmd_addr,
+    output wire [RAM_SEG_COUNT-1:0]		       ram_rd_cmd_valid,
+    input wire [RAM_SEG_COUNT-1:0]		       ram_rd_cmd_ready,
+    input wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]  ram_rd_resp_data,
+    input wire [RAM_SEG_COUNT-1:0]		       ram_rd_resp_valid,
+    output wire [RAM_SEG_COUNT-1:0]		       ram_rd_resp_ready,
+    
+    output wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]      ram_wr_cmd_sel,
+    output wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]   ram_wr_cmd_be,
+    output wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0] ram_wr_cmd_addr,
+    output wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0] ram_wr_cmd_data,
+    output wire [RAM_SEG_COUNT-1:0]		       ram_wr_cmd_valid,
+    input wire [RAM_SEG_COUNT-1:0]		       ram_wr_cmd_ready,
+    input wire [RAM_SEG_COUNT-1:0]		       ram_wr_done
     );
    
-   wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]							ram_rd_cmd_sel;
-   wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]							ram_rd_cmd_addr;
-   wire [RAM_SEG_COUNT-1:0]									ram_rd_cmd_valid;
-   wire [RAM_SEG_COUNT-1:0]									ram_rd_cmd_ready;
-   wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]							ram_rd_resp_data;
-   wire [RAM_SEG_COUNT-1:0]									ram_rd_resp_valid;
-   wire [RAM_SEG_COUNT-1:0]									ram_rd_resp_ready;
-   wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]							ram_wr_cmd_sel;
-   wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]							ram_wr_cmd_be;
-   wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]							ram_wr_cmd_addr;
-   wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]							ram_wr_cmd_data;
-   wire [RAM_SEG_COUNT-1:0]									ram_wr_cmd_valid;
-   wire [RAM_SEG_COUNT-1:0]									ram_wr_cmd_ready;
-   wire [RAM_SEG_COUNT-1:0]									ram_wr_done;
-
    wire [2:0]											cfg_max_payload;
    wire [2:0]											cfg_max_read_req;
    wire [3:0]											cfg_rcb_status;
@@ -454,11 +455,6 @@ module pcie_core#
 
 	       .phy_rdy_out()
 	       );
-
-
-
-
-   
 
    /* Device shim */
    pcie_us_if #(
