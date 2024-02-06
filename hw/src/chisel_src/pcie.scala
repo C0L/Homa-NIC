@@ -1,4 +1,4 @@
-package packetproc
+package gpnic
 
 import chisel3._
 import circt.stage.ChiselStage
@@ -53,7 +53,14 @@ class pcie_core extends BlackBox(
       "TAG_WIDTH" -> "8" )) {
 
   val io = IO(new Bundle {
-    val pcie_raw              = new pcie_raw
+    val pcie_rx_p     = Input(UInt(1.W))
+    val pcie_rx_n     = Input(UInt(1.W))
+    val pcie_tx_p     = Output(UInt(1.W))
+    val pcie_tx_n     = Output(UInt(1.W))
+    val pcie_refclk_p = Input(Clock())
+    val pcie_refclk_n = Input(Clock())
+    val pcie_reset_n  = Input(UInt(1.W))
+
     val m_axi                 = new axi4(512, 8, 26)
     val dma_read_desc         = Flipped(Decoupled(new dma_read_desc_t))
     val dma_read_desc_status  = Decoupled(new dma_read_desc_status_t)
@@ -64,7 +71,14 @@ class pcie_core extends BlackBox(
 
 class pcie extends Module {
   val io = IO(new Bundle {
-    val pcie_raw              = new pcie_raw
+    val pcie_rx_p     = Input(UInt(1.W))
+    val pcie_rx_n     = Input(UInt(1.W))
+    val pcie_tx_p     = Output(UInt(1.W))
+    val pcie_tx_n     = Output(UInt(1.W))
+    val pcie_refclk_p = Input(Clock())
+    val pcie_refclk_n = Input(Clock())
+    val pcie_reset_n  = Input(UInt(1.W))
+
     val m_axi                 = new axi4(512, 8, 26)
     val dma_read_desc         = Flipped(Decoupled(new dma_read_desc_t))
     val dma_read_desc_status  = Decoupled(new dma_read_desc_status_t)

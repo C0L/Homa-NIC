@@ -1,4 +1,4 @@
-package packetproc
+package gpnic 
 
 import chisel3._
 import circt.stage.ChiselStage
@@ -29,13 +29,13 @@ class h2c_dma extends Module {
 
   // TODO should zero init?
 
-  io.pcie_read_cmd_o.bits.dma_read_desc_pcie_addr := io.dma_read_req_i.bits.pcie_read_addr
-  io.pcie_read_cmd_o.bits.dma_read_desc_ram_sel        := 0.U(2.W)
-  io.pcie_read_cmd_o.bits.dma_read_desc_ram_addr       := io.dma_read_req_i.bits.dest_ram_addr
-  io.pcie_read_cmd_o.bits.dma_read_desc_len            := io.dma_read_req_i.bits.read_len
-  io.pcie_read_cmd_o.bits.dma_read_desc_tag            := tag
+  io.pcie_read_cmd_o.bits.pcie_addr := io.dma_read_req_i.bits.pcie_read_addr
+  io.pcie_read_cmd_o.bits.ram_sel        := 0.U(2.W)
+  io.pcie_read_cmd_o.bits.ram_addr       := io.dma_read_req_i.bits.dest_ram_addr
+  io.pcie_read_cmd_o.bits.len            := io.dma_read_req_i.bits.read_len
+  io.pcie_read_cmd_o.bits.tag            := tag
 
-  val pending_read = tag_mem.read(io.pcie_read_status_i.bits.dma_read_desc_status_tag)
+  val pending_read = tag_mem.read(io.pcie_read_status_i.bits.tag)
 
   io.dbuff_notif_o.bits.rpc_id           := 0.U
   io.dbuff_notif_o.bits.cache_id         := pending_read.cache_id

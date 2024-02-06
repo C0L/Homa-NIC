@@ -1,4 +1,4 @@
-package packetproc 
+package gpnic 
 
 import chisel3._
 import chisel3.experimental.BundleLiterals._
@@ -32,11 +32,11 @@ class h2c_dma_test extends AnyFreeSpec {
 
         dut.io.dma_read_req_i.ready.expect(true.B)
         dut.io.pcie_read_cmd_o.valid.expect(true.B)
-        dut.io.pcie_read_cmd_o.bits.dma_read_desc_pcie_addr.expect(transaction.U)
-        dut.io.pcie_read_cmd_o.bits.dma_read_desc_ram_sel.expect(0.U)
-        dut.io.pcie_read_cmd_o.bits.dma_read_desc_ram_addr.expect(0.U)
-        dut.io.pcie_read_cmd_o.bits.dma_read_desc_len.expect((transaction + 256).U)
-        dut.io.pcie_read_cmd_o.bits.dma_read_desc_tag.expect((transaction % 256).U)
+        dut.io.pcie_read_cmd_o.bits.pcie_addr.expect(transaction.U)
+        dut.io.pcie_read_cmd_o.bits.ram_sel.expect(0.U)
+        dut.io.pcie_read_cmd_o.bits.ram_addr.expect(0.U)
+        dut.io.pcie_read_cmd_o.bits.len.expect((transaction + 256).U)
+        dut.io.pcie_read_cmd_o.bits.tag.expect((transaction % 256).U)
 
         dut.clock.step()
 
@@ -46,8 +46,8 @@ class h2c_dma_test extends AnyFreeSpec {
         dut.io.pcie_read_status_i.valid.poke(true.B)
         dut.io.dbuff_notif_o.ready.poke(true.B)
 
-        dut.io.pcie_read_status_i.bits.dma_read_desc_status_tag.poke((transaction % 256).U)
-        dut.io.pcie_read_status_i.bits.dma_read_desc_status_error.poke(2.U)
+        dut.io.pcie_read_status_i.bits.tag.poke((transaction % 256).U)
+        dut.io.pcie_read_status_i.bits.error.poke(2.U)
 
         dut.io.pcie_read_status_i.ready.expect(true.B)
         dut.io.dbuff_notif_o.valid.expect(true.B)

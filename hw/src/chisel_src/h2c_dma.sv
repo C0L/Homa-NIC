@@ -32,10 +32,10 @@ module h2c_dma(
   input  [15:0] io_dma_read_req_i_bits_port,
   input         io_pcie_read_cmd_o_ready,
   output        io_pcie_read_cmd_o_valid,
-  output [63:0] io_pcie_read_cmd_o_bits_pcie_read_addr,
-  output [1:0]  io_pcie_read_cmd_o_bits_dest_ram_sel,
-  output [17:0] io_pcie_read_cmd_o_bits_dest_ram_addr,
-  output [15:0] io_pcie_read_cmd_o_bits_read_len,
+  output [63:0] io_pcie_read_cmd_o_bits_pcie_addr,
+  output [1:0]  io_pcie_read_cmd_o_bits_ram_sel,
+  output [17:0] io_pcie_read_cmd_o_bits_ram_addr,
+  output [15:0] io_pcie_read_cmd_o_bits_len,
   output [7:0]  io_pcie_read_cmd_o_bits_tag,
   output        io_pcie_read_status_i_ready,
   input         io_pcie_read_status_i_valid,
@@ -74,11 +74,10 @@ module h2c_dma(
   );
   assign io_dma_read_req_i_ready = io_pcie_read_cmd_o_ready;
   assign io_pcie_read_cmd_o_valid = io_dma_read_req_i_valid;
-  assign io_pcie_read_cmd_o_bits_pcie_read_addr = io_dma_read_req_i_bits_pcie_read_addr;
-  assign io_pcie_read_cmd_o_bits_dest_ram_sel = 2'h0;
-  assign io_pcie_read_cmd_o_bits_dest_ram_addr =
-    io_dma_read_req_i_bits_dest_ram_addr[17:0];
-  assign io_pcie_read_cmd_o_bits_read_len = {4'h0, io_dma_read_req_i_bits_read_len};
+  assign io_pcie_read_cmd_o_bits_pcie_addr = io_dma_read_req_i_bits_pcie_read_addr;
+  assign io_pcie_read_cmd_o_bits_ram_sel = 2'h0;
+  assign io_pcie_read_cmd_o_bits_ram_addr = io_dma_read_req_i_bits_dest_ram_addr[17:0];
+  assign io_pcie_read_cmd_o_bits_len = {4'h0, io_dma_read_req_i_bits_read_len};
   assign io_pcie_read_cmd_o_bits_tag = tag;
   assign io_pcie_read_status_i_ready = io_dbuff_notif_o_ready;
   assign io_dbuff_notif_o_valid = io_pcie_read_status_i_valid;

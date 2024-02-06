@@ -69,103 +69,78 @@ module dma_client_axis_sink #
     parameter TAG_WIDTH = 8
 )
 (
-    input wire						      clk,
-    input wire						      rst,
+    input  wire                                 clk,
+    input  wire                                 rst,
 
     /*
      * AXI write descriptor input
      */
-    // input  wire [RAM_ADDR_WIDTH-1:0]            s_axis_write_desc_ram_addr,
-    // input  wire [LEN_WIDTH-1:0]                 s_axis_write_desc_len,
-    // input  wire [TAG_WIDTH-1:0]                 s_axis_write_desc_tag,
-    // input  wire                                 s_axis_write_desc_valid,
-    // output wire                                 s_axis_write_desc_ready,
-
-    input wire [RAM_ADDR_WIDTH + LEN_WIDTH + TAG_WIDTH - 1:0] s_axis_write_desc_tdata,
-    input wire						      s_axis_write_desc_tvalid,
-    output wire						      s_axis_write_desc_tready,
+    input  wire [RAM_ADDR_WIDTH-1:0]            ram_write_desc_ram_addr,
+    input  wire [LEN_WIDTH-1:0]                 ram_write_desc_len,
+    input  wire [TAG_WIDTH-1:0]                 ram_write_desc_tag,
+    input  wire                                 ram_write_desc_valid,
+    output wire                                 ram_write_desc_ready,
 
     /*
      * AXI write descriptor status output
      */
-    // output wire [LEN_WIDTH-1:0]                 m_axis_write_desc_status_len,
-    // output wire [TAG_WIDTH-1:0]                 m_axis_write_desc_status_tag,
-    // output wire [AXIS_ID_WIDTH-1:0]             m_axis_write_desc_status_id,
-    // output wire [AXIS_DEST_WIDTH-1:0]           m_axis_write_desc_status_dest,
-    // output wire [AXIS_USER_WIDTH-1:0]           m_axis_write_desc_status_user,
-    // output wire [3:0]                           m_axis_write_desc_status_error,
-    // output wire                                 m_axis_write_desc_status_valid,
- 
-    output wire [LEN_WIDTH + TAG_WIDTH + 4 - 1:0]	      m_axis_write_desc_status_tdata,
-    // output wire [3:0]					      m_axis_write_desc_status_error,
-    output wire [AXIS_ID_WIDTH-1:0]			      m_axis_write_desc_status_tid,
-    output wire [AXIS_DEST_WIDTH-1:0]			      m_axis_write_desc_status_tdest,
-    output wire [AXIS_USER_WIDTH-1:0]			      m_axis_write_desc_status_tuser,
-    output wire						      m_axis_write_desc_status_tvalid,
+    output wire [LEN_WIDTH-1:0]                 ram_write_desc_status_len,
+    output wire [TAG_WIDTH-1:0]                 ram_write_desc_status_tag,
+    output wire [AXIS_ID_WIDTH-1:0]             ram_write_desc_status_id,
+    output wire [AXIS_DEST_WIDTH-1:0]           ram_write_desc_status_dest,
+    output wire [AXIS_USER_WIDTH-1:0]           ram_write_desc_status_user,
+    output wire [3:0]                           ram_write_desc_status_error,
+    output wire                                 ram_write_desc_status_valid,
 
     /*
      * AXI stream write data input
      */
-    input wire [AXIS_DATA_WIDTH-1:0]			      s_axis_write_data_tdata,
-    input wire [AXIS_KEEP_WIDTH-1:0]			      s_axis_write_data_tkeep,
-    input wire						      s_axis_write_data_tvalid,
-    output wire						      s_axis_write_data_tready,
-    input wire						      s_axis_write_data_tlast,
-    input wire [AXIS_ID_WIDTH-1:0]			      s_axis_write_data_tid,
-    input wire [AXIS_DEST_WIDTH-1:0]			      s_axis_write_data_tdest,
-    input wire [AXIS_USER_WIDTH-1:0]			      s_axis_write_data_tuser,
+    input  wire [AXIS_DATA_WIDTH-1:0]           ram_write_data_data,
+    input  wire [AXIS_KEEP_WIDTH-1:0]           ram_write_data_keep,
+    input  wire                                 ram_write_data_valid,
+    output wire                                 ram_write_data_ready,
+    input  wire                                 ram_write_data_last,
+    input  wire [AXIS_ID_WIDTH-1:0]             ram_write_data_id,
+    input  wire [AXIS_DEST_WIDTH-1:0]           ram_write_data_dest,
+    input  wire [AXIS_USER_WIDTH-1:0]           ram_write_data_user,
 
     /*
      * RAM interface
      */
-    output wire [SEG_COUNT*SEG_BE_WIDTH-1:0]		      ram_wr_cmd_be,
-    output wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0]		      ram_wr_cmd_addr,
-    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]		      ram_wr_cmd_data,
-    output wire [SEG_COUNT-1:0]				      ram_wr_cmd_valid,
-    input wire [SEG_COUNT-1:0]				      ram_wr_cmd_ready,
-    input wire [SEG_COUNT-1:0]				      ram_wr_done,
+    output wire [SEG_COUNT*SEG_BE_WIDTH-1:0]    ram_wr_cmd_be,
+    output wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0]  ram_wr_cmd_addr,
+    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]  ram_wr_cmd_data,
+    output wire [SEG_COUNT-1:0]                 ram_wr_cmd_valid,
+    input  wire [SEG_COUNT-1:0]                 ram_wr_cmd_ready,
+    input  wire [SEG_COUNT-1:0]                 ram_wr_done,
 
     /*
      * Configuration
      */
-    input wire						      enable,
-    input wire						      abort
+    input  wire                                 enable,
+    input  wire                                 abort
 );
 
-   
-   wire [RAM_ADDR_WIDTH-1:0]				      s_axis_write_desc_ram_addr;
-   wire [LEN_WIDTH-1:0]					      s_axis_write_desc_len;
-   wire [TAG_WIDTH-1:0]					      s_axis_write_desc_tag;
-   
-   assign {s_axis_write_desc_tag,  s_axis_write_desc_len, s_axis_write_desc_ram_addr} = s_axis_write_desc_tdata;
+parameter RAM_WORD_WIDTH = SEG_BE_WIDTH;
+parameter RAM_WORD_SIZE = SEG_DATA_WIDTH/RAM_WORD_WIDTH;
 
-   wire [LEN_WIDTH-1:0]				      m_axis_write_desc_status_len;
-   wire [TAG_WIDTH-1:0]				      m_axis_write_desc_status_tag;
-   wire [3:0]					      m_axis_write_desc_status_error;
-   
-   assign m_axis_write_desc_status_tdata = {m_axis_write_desc_status_len, m_axis_write_desc_status_tag, m_axis_write_desc_status_error};
-   
+parameter AXIS_KEEP_WIDTH_INT = AXIS_KEEP_ENABLE ? AXIS_KEEP_WIDTH : 1;
+parameter AXIS_WORD_WIDTH = AXIS_KEEP_WIDTH_INT;
+parameter AXIS_WORD_SIZE = AXIS_DATA_WIDTH/AXIS_WORD_WIDTH;
 
-localparam RAM_WORD_WIDTH = SEG_BE_WIDTH;
-localparam RAM_WORD_SIZE = SEG_DATA_WIDTH/RAM_WORD_WIDTH;
+parameter PART_COUNT = SEG_COUNT*SEG_BE_WIDTH / AXIS_KEEP_WIDTH_INT;
+parameter PART_COUNT_WIDTH = PART_COUNT > 1 ? $clog2(PART_COUNT) : 1;
+parameter PART_OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
+parameter PARTS_PER_SEG = (SEG_BE_WIDTH + AXIS_KEEP_WIDTH_INT - 1) / AXIS_KEEP_WIDTH_INT;
+parameter SEGS_PER_PART = (AXIS_KEEP_WIDTH_INT + SEG_BE_WIDTH - 1) / SEG_BE_WIDTH;
 
-localparam AXIS_KEEP_WIDTH_INT = AXIS_KEEP_ENABLE ? AXIS_KEEP_WIDTH : 1;
-localparam AXIS_WORD_WIDTH = AXIS_KEEP_WIDTH_INT;
-localparam AXIS_WORD_SIZE = AXIS_DATA_WIDTH/AXIS_WORD_WIDTH;
+parameter OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
+parameter OFFSET_MASK = AXIS_KEEP_WIDTH_INT > 1 ? {OFFSET_WIDTH{1'b1}} : 0;
+parameter ADDR_MASK = {RAM_ADDR_WIDTH{1'b1}} << $clog2(AXIS_KEEP_WIDTH_INT);
+parameter CYCLE_COUNT_WIDTH = LEN_WIDTH - $clog2(AXIS_KEEP_WIDTH_INT) + 1;
 
-localparam PART_COUNT = SEG_COUNT*SEG_BE_WIDTH / AXIS_KEEP_WIDTH_INT;
-localparam PART_COUNT_WIDTH = PART_COUNT > 1 ? $clog2(PART_COUNT) : 1;
-localparam PART_OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
-localparam PARTS_PER_SEG = (SEG_BE_WIDTH + AXIS_KEEP_WIDTH_INT - 1) / AXIS_KEEP_WIDTH_INT;
-localparam SEGS_PER_PART = (AXIS_KEEP_WIDTH_INT + SEG_BE_WIDTH - 1) / SEG_BE_WIDTH;
-
-localparam OFFSET_WIDTH = AXIS_KEEP_WIDTH_INT > 1 ? $clog2(AXIS_KEEP_WIDTH_INT) : 1;
-localparam OFFSET_MASK = AXIS_KEEP_WIDTH_INT > 1 ? {OFFSET_WIDTH{1'b1}} : 0;
-localparam ADDR_MASK = {RAM_ADDR_WIDTH{1'b1}} << $clog2(AXIS_KEEP_WIDTH_INT);
-localparam CYCLE_COUNT_WIDTH = LEN_WIDTH - $clog2(AXIS_KEEP_WIDTH_INT) + 1;
-
-localparam STATUS_FIFO_ADDR_WIDTH = 5;
-localparam OUTPUT_FIFO_ADDR_WIDTH = 5;
+parameter STATUS_FIFO_ADDR_WIDTH = 5;
+parameter OUTPUT_FIFO_ADDR_WIDTH = 5;
 
 // bus width assertions
 initial begin
@@ -271,17 +246,17 @@ reg [SEG_COUNT-1:0] ram_wr_cmd_mask;
 wire [SEG_COUNT-1:0] out_done;
 reg [SEG_COUNT-1:0] out_done_ack;
 
-assign s_axis_write_desc_tready = s_axis_write_desc_ready_reg;
+assign ram_write_desc_ready = s_axis_write_desc_ready_reg;
 
-assign m_axis_write_desc_status_len = m_axis_write_desc_status_len_reg;
-assign m_axis_write_desc_status_tag = m_axis_write_desc_status_tag_reg;
-assign m_axis_write_desc_status_tid = m_axis_write_desc_status_id_reg;
-assign m_axis_write_desc_status_tdest = m_axis_write_desc_status_dest_reg;
-assign m_axis_write_desc_status_tuser = m_axis_write_desc_status_user_reg;
-assign m_axis_write_desc_status_error = 4'd0;
-assign m_axis_write_desc_status_tvalid = m_axis_write_desc_status_valid_reg;
+assign ram_write_desc_status_len = m_axis_write_desc_status_len_reg;
+assign ram_write_desc_status_tag = m_axis_write_desc_status_tag_reg;
+assign ram_write_desc_status_id = m_axis_write_desc_status_id_reg;
+assign ram_write_desc_status_dest = m_axis_write_desc_status_dest_reg;
+assign ram_write_desc_status_user = m_axis_write_desc_status_user_reg;
+assign ram_write_desc_status_error = 4'd0;
+assign ram_write_desc_status_valid = m_axis_write_desc_status_valid_reg;
 
-assign s_axis_write_data_tready = s_axis_write_data_tready_reg;
+assign ram_write_data_ready = s_axis_write_data_tready_reg;
 
 always @* begin
     state_next = STATE_IDLE;
@@ -298,12 +273,12 @@ always @* begin
     s_axis_write_data_tready_next = 1'b0;
 
     if (PART_COUNT > 1) begin
-        ram_wr_cmd_be_int = (s_axis_write_data_tkeep & keep_mask_reg) << (addr_reg & ({PART_COUNT_WIDTH{1'b1}} << PART_OFFSET_WIDTH));
+        ram_wr_cmd_be_int = (ram_write_data_keep & keep_mask_reg) << (addr_reg & ({PART_COUNT_WIDTH{1'b1}} << PART_OFFSET_WIDTH));
     end else begin
-        ram_wr_cmd_be_int = s_axis_write_data_tkeep & keep_mask_reg;
+        ram_wr_cmd_be_int = ram_write_data_keep & keep_mask_reg;
     end
     ram_wr_cmd_addr_int = {PART_COUNT{addr_reg[RAM_ADDR_WIDTH-1:RAM_ADDR_WIDTH-SEG_ADDR_WIDTH]}};
-    ram_wr_cmd_data_int = {PART_COUNT{s_axis_write_data_tdata}};
+    ram_wr_cmd_data_int = {PART_COUNT{ram_write_data_tdata}};
     ram_wr_cmd_valid_int = {SEG_COUNT{1'b0}};
     for (i = 0; i < SEG_COUNT; i = i + 1) begin
         ram_wr_cmd_mask[i] = ram_wr_cmd_be_int[i*SEG_BE_WIDTH +: SEG_BE_WIDTH] != 0;
@@ -324,9 +299,9 @@ always @* begin
 
     status_fifo_wr_len = 0;
     status_fifo_wr_tag = tag_reg;
-    status_fifo_wr_id = s_axis_write_data_tid;
-    status_fifo_wr_dest = s_axis_write_data_tdest;
-    status_fifo_wr_user = s_axis_write_data_tuser;
+    status_fifo_wr_id = ram_write_data_id;
+    status_fifo_wr_dest = ram_write_data_dest;
+    status_fifo_wr_user = ram_write_data_user;
     status_fifo_wr_mask = ram_wr_cmd_mask;
     status_fifo_wr_last = 1'b0;
     status_fifo_we = 1'b0;
@@ -341,14 +316,14 @@ always @* begin
             // idle state - load new descriptor to start operation
             s_axis_write_desc_ready_next = enable && active_count_av_reg;
 
-            addr_next = s_axis_write_desc_ram_addr & ADDR_MASK;
-            last_cycle_offset_next = s_axis_write_desc_len & OFFSET_MASK;
+            addr_next = ram_write_desc_ram_addr & ADDR_MASK;
+            last_cycle_offset_next = ram_write_desc_len & OFFSET_MASK;
 
-            tag_next = s_axis_write_desc_tag;
+            tag_next = ram_write_desc_tag;
 
             length_next = 0;
 
-            cycle_count_next = (s_axis_write_desc_len - 1) >> $clog2(AXIS_KEEP_WIDTH_INT);
+            cycle_count_next = (ram_write_desc_len - 1) >> $clog2(AXIS_KEEP_WIDTH_INT);
             last_cycle_next = cycle_count_next == 0;
             if (cycle_count_next == 0 && last_cycle_offset_next != 0) begin
                 keep_mask_next = {AXIS_KEEP_WIDTH_INT{1'b1}} >> (AXIS_KEEP_WIDTH_INT - last_cycle_offset_next);
@@ -356,7 +331,7 @@ always @* begin
                 keep_mask_next = {AXIS_KEEP_WIDTH_INT{1'b1}};
             end
 
-            if (s_axis_write_desc_tready && s_axis_write_desc_tvalid) begin
+            if (ram_write_desc_ready && ram_write_desc_valid) begin
                 s_axis_write_desc_ready_next = 1'b0;
                 s_axis_write_data_tready_next = &ram_wr_cmd_ready_int && !status_fifo_half_full_reg;
 
@@ -371,7 +346,7 @@ always @* begin
             // write state - generate write operations
             s_axis_write_data_tready_next = &ram_wr_cmd_ready_int && !status_fifo_half_full_reg;
 
-            if (s_axis_write_data_tready && s_axis_write_data_tvalid) begin
+            if (ram_write_data_ready && ram_write_data_valid) begin
 
                 // update counters
                 addr_next = addr_reg + AXIS_KEEP_WIDTH_INT;
@@ -385,29 +360,29 @@ always @* begin
                 end
 
                 if (PART_COUNT > 1) begin
-                    ram_wr_cmd_be_int = (s_axis_write_data_tkeep & keep_mask_reg) << (addr_reg & ({PART_COUNT_WIDTH{1'b1}} << PART_OFFSET_WIDTH));
+                    ram_wr_cmd_be_int = (ram_write_data_keep & keep_mask_reg) << (addr_reg & ({PART_COUNT_WIDTH{1'b1}} << PART_OFFSET_WIDTH));
                 end else begin
-                    ram_wr_cmd_be_int = s_axis_write_data_tkeep & keep_mask_reg;
+                    ram_wr_cmd_be_int = ram_write_data_keep & keep_mask_reg;
                 end
                 ram_wr_cmd_addr_int = {SEG_COUNT{addr_reg[RAM_ADDR_WIDTH-1:RAM_ADDR_WIDTH-SEG_ADDR_WIDTH]}};
-                ram_wr_cmd_data_int = {PART_COUNT{s_axis_write_data_tdata}};
+                ram_wr_cmd_data_int = {PART_COUNT{ram_write_data_data}};
                 ram_wr_cmd_valid_int = ram_wr_cmd_mask;
 
                 // enqueue status FIFO entry for write completion
                 status_fifo_wr_len = length_next;
                 status_fifo_wr_tag = tag_reg;
-                status_fifo_wr_id = s_axis_write_data_tid;
-                status_fifo_wr_dest = s_axis_write_data_tdest;
-                status_fifo_wr_user = s_axis_write_data_tuser;
+                status_fifo_wr_id = ram_write_data_id;
+                status_fifo_wr_dest = ram_write_data_dest;
+                status_fifo_wr_user = ram_write_data_user;
                 status_fifo_wr_mask = ram_wr_cmd_mask;
                 status_fifo_wr_last = 1'b0;
                 status_fifo_we = 1'b1;
 
-                if (AXIS_LAST_ENABLE && s_axis_write_data_tlast) begin
+                if (AXIS_LAST_ENABLE && ram_write_data_last) begin
                     if (AXIS_KEEP_ENABLE) begin
                         cycle_size = AXIS_KEEP_WIDTH_INT;
                         for (i = AXIS_KEEP_WIDTH_INT-1; i >= 0; i = i - 1) begin
-                            if (~(s_axis_write_data_tkeep & keep_mask_reg) & (1 << i)) begin
+                            if (~(ram_write_data_keep & keep_mask_reg) & (1 << i)) begin
                                 cycle_size = i;
                             end
                         end
@@ -417,7 +392,7 @@ always @* begin
 
                     // no more data to transfer, finish operation
                     if (last_cycle_reg && last_cycle_offset_reg > 0) begin
-                        if (AXIS_KEEP_ENABLE && !(s_axis_write_data_tkeep & keep_mask_reg & ~({AXIS_KEEP_WIDTH_INT{1'b1}} >> (AXIS_KEEP_WIDTH_INT - last_cycle_offset_reg)))) begin
+                        if (AXIS_KEEP_ENABLE && !(ram_write_data_keep & keep_mask_reg & ~({AXIS_KEEP_WIDTH_INT{1'b1}} >> (AXIS_KEEP_WIDTH_INT - last_cycle_offset_reg)))) begin
                             length_next = length_reg + cycle_size;
                         end else begin
                             length_next = length_reg + last_cycle_offset_reg;
@@ -431,9 +406,9 @@ always @* begin
                     // enqueue status FIFO entry for write completion
                     status_fifo_wr_len = length_next;
                     status_fifo_wr_tag = tag_reg;
-                    status_fifo_wr_id = s_axis_write_data_tid;
-                    status_fifo_wr_dest = s_axis_write_data_tdest;
-                    status_fifo_wr_user = s_axis_write_data_tuser;
+                    status_fifo_wr_id = ram_write_data_id;
+                    status_fifo_wr_dest = ram_write_data_dest;
+                    status_fifo_wr_user = ram_write_data_user;
                     status_fifo_wr_mask = ram_wr_cmd_mask;
                     status_fifo_wr_last = 1'b1;
                     status_fifo_we = 1'b1;
@@ -449,9 +424,9 @@ always @* begin
                     // enqueue status FIFO entry for write completion
                     status_fifo_wr_len = length_next;
                     status_fifo_wr_tag = tag_reg;
-                    status_fifo_wr_id = s_axis_write_data_tid;
-                    status_fifo_wr_dest = s_axis_write_data_tdest;
-                    status_fifo_wr_user = s_axis_write_data_tuser;
+                    status_fifo_wr_id = ram_write_data_id;
+                    status_fifo_wr_dest = ram_write_data_dest;
+                    status_fifo_wr_user = ram_write_data_user;
                     status_fifo_wr_mask = ram_wr_cmd_mask;
                     status_fifo_wr_last = 1'b1;
                     status_fifo_we = 1'b1;
@@ -475,8 +450,8 @@ always @* begin
             // drop excess AXI stream data
             s_axis_write_data_tready_next = 1'b1;
 
-            if (s_axis_write_data_tready && s_axis_write_data_tvalid) begin
-                if (s_axis_write_data_tlast) begin
+            if (ram_write_data_ready && ram_write_data_valid) begin
+                if (ram_write_data_last) begin
                     s_axis_write_data_tready_next = 1'b0;
                     s_axis_write_desc_ready_next = enable && active_count_av_reg;
                     state_next = STATE_IDLE;
