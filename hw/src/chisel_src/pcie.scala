@@ -97,4 +97,12 @@ object Main extends App {
   ChiselStage.emitSystemVerilogFile(new pcie,
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
   )
+
+ ChiselStage.emitSystemVerilogFile(new addr_map,
+    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
+  )
+
+ ChiselStage.emitSystemVerilogFile(new h2c_dma,
+    firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
+  )
 }

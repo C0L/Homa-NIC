@@ -43,152 +43,152 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
 		  parameter integer C_S_AXI_DATA_WIDTH = 512,
 		  parameter integer C_S_AXI_ADDR_WIDTH = 32)
    
-   (input wire				      S_AXIS_TVALID,
-    output reg				      S_AXIS_TREADY,
-    input wire [C_S_AXI_DATA_WIDTH-1:0]	      S_AXIS_TDATA,
-    input wire				      S_AXIS_TLAST,
+   (input wire				      s_axis_tvalid,
+    output reg				      s_axis_ready,
+    input wire [C_S_AXI_DATA_WIDTH-1:0]	      s_axis_data,
+    input wire				      s_axis_last,
 
-    output reg				      M_AXIS_TVALID,
-    input wire				      M_AXIS_TREADY,
-    output reg [C_S_AXI_DATA_WIDTH-1:0]	      M_AXIS_TDATA,
-    output reg [31:0]			      M_AXIS_TUSER,
-    output reg				      M_AXIS_TLAST,
+    output reg				      m_axis_valid,
+    input wire				      m_axis_tready,
+    output reg [C_S_AXI_DATA_WIDTH-1:0]	      m_axis_data,
+    output reg [31:0]			      m_axis_user,
+    output reg				      m_axis_last,
 
     // AXI signals
     // Global Clock Signal
-    input wire				      S_AXI_ACLK,
+    input wire				      s_axi_aclk,
     // Global Reset Signal. This Signal is Active LOW
-    input wire				      S_AXI_ARESETN,
+    input wire				      s_axi_aresetn,
 
     // Write address channel
     // Write Address ID
-    input wire [C_S_AXI_ID_WIDTH-1 : 0]	      S_AXI_AWID,
+    input wire [C_S_AXI_ID_WIDTH-1 : 0]	      s_axi_awid,
     // Write address
-    input wire [C_S_AXI_ADDR_WIDTH-1 : 0]     S_AXI_AWADDR,
+    input wire [C_S_AXI_ADDR_WIDTH-1 : 0]     s_axi_awaddr,
     // Burst length. The burst length gives the exact number of
     // transfers in a burst
-    input wire [7 : 0]			      S_AXI_AWLEN,
+    input wire [7 : 0]			      s_axi_awlen,
     // Burst size. This signal indicates the size of each transfer
     // in the burst
-    input wire [2 : 0]			      S_AXI_AWSIZE,
+    input wire [2 : 0]			      s_axi_awsize,
     // Burst type. The burst type and the size information,
     // determine how the address for each transfer within the burst
     // is calculated.
-    input wire [1 : 0]			      S_AXI_AWBURST,
+    input wire [1 : 0]			      s_axi_awburst,
     // Lock type. Provides additional information about the
     // atomic characteristics of the transfer.
-    input wire				      S_AXI_AWLOCK,
+    input wire				      s_axi_awlock,
     // Memory type. This signal indicates how transactions
     // are required to progress through a system.
-    input wire [3 : 0]			      S_AXI_AWCACHE,
+    input wire [3 : 0]			      s_axi_awcache,
     // Protection type. This signal indicates the privilege
     // and security level of the transaction, and whether
     // the transaction is a data access or an instruction access.
-    input wire [2 : 0]			      S_AXI_AWPROT,
+    input wire [2 : 0]			      s_axi_awprot,
     // Quality of Service, QoS identifier sent for each
     // write transaction.
-    input wire [3 : 0]			      S_AXI_AWQOS,
+    input wire [3 : 0]			      s_axi_awqos,
     // Region identifier. Permits a single physical interface
     // on a slave to be used for multiple logical interfaces.
     // Write address valid. This signal indicates that
     // the channel is signaling valid write address and
     // control information.
-    input wire				      S_AXI_AWVALID,
+    input wire				      s_axi_awvalid,
     // Write address ready. This signal indicates that
     // the slave is ready to accept an address and associated
     // control signals.
-    output wire				      S_AXI_AWREADY,
+    output wire				      s_axi_awready,
     // Write data channel
     // Write Data
-    input wire [C_S_AXI_DATA_WIDTH-1 : 0]     S_AXI_WDATA,
+    input wire [C_S_AXI_DATA_WIDTH-1 : 0]     s_axi_wdata,
     // Write strobes. This signal indicates which byte
     // lanes hold valid data. There is one write strobe
     // bit for each eight bits of the write data bus.
-    input wire [(C_S_AXI_DATA_WIDTH/8)-1 : 0] S_AXI_WSTRB,
+    input wire [(C_S_AXI_DATA_WIDTH/8)-1 : 0] s_axi_wstrb,
     // Write last. This signal indicates the last transfer
     // in a write burst.
-    input wire				      S_AXI_WLAST,
+    input wire				      s_axi_wlast,
     // Optional User-defined signal in the write data channel.
     // Write valid. This signal indicates that valid write
     // data and strobes are available.
-    input wire				      S_AXI_WVALID,
+    input wire				      s_axi_wvalid,
     // Write ready. This signal indicates that the slave
     // can accept the write data.
-    output wire				      S_AXI_WREADY,
+    output wire				      s_axi_wready,
     // Write response channel
     // Response ID tag. This signal is the ID tag of the
     // write response.
-    output wire [C_S_AXI_ID_WIDTH-1 : 0]      S_AXI_BID,
+    output wire [C_S_AXI_ID_WIDTH-1 : 0]      s_axi_bid,
     // Write response. This signal indicates the status
     // of the write transaction.
-    output wire [1 : 0]			      S_AXI_BRESP,
+    output wire [1 : 0]			      s_axi_bresp,
     // Optional User-defined signal in the write response channel.
     // Write response valid. This signal indicates that the
     // channel is signaling a valid write response.
-    output wire				      S_AXI_BVALID,
+    output wire				      s_axi_bvalid,
     // Response ready. This signal indicates that the master
     // can accept a write response.
-    input wire				      S_AXI_BREADY,
+    input wire				      s_axi_bready,
     // Read address channel
     // Read address ID. This signal is the identification
     // tag for the read address group of signals.
-    input wire [C_S_AXI_ID_WIDTH-1 : 0]	      S_AXI_ARID,
+    input wire [C_S_AXI_ID_WIDTH-1 : 0]	      s_axi_arid,
     // Read address. This signal indicates the initial
     // address of a read burst transaction.
-    input wire [C_S_AXI_ADDR_WIDTH-1 : 0]     S_AXI_ARADDR,
+    input wire [C_S_AXI_ADDR_WIDTH-1 : 0]     s_axi_araddr,
     // Burst length. The burst length gives the exact number of
     // transfers in a burst
-    input wire [7 : 0]			      S_AXI_ARLEN,
+    input wire [7 : 0]			      s_axi_arlen,
     // Burst size. This signal indicates the size of each transfer
     // in the burst
-    input wire [2 : 0]			      S_AXI_ARSIZE,
+    input wire [2 : 0]			      s_axi_arsize,
     // Burst type. The burst type and the size information,
     // determine how the address for each transfer within the
     // burst is calculated.
-    input wire [1 : 0]			      S_AXI_ARBURST,
+    input wire [1 : 0]			      s_axi_arburst,
     // Lock type. Provides additional information about the
     // atomic characteristics of the transfer.
-    input wire				      S_AXI_ARLOCK,
+    input wire				      s_axi_arlock,
     // Memory type. This signal indicates how transactions
     // are required to progress through a system.
-    input wire [3 : 0]			      S_AXI_ARCACHE,
+    input wire [3 : 0]			      s_axi_arcache,
     // Protection type. This signal indicates the privilege
     // and security level of the transaction, and whether
     // the transaction is a data access or an instruction access.
-    input wire [2 : 0]			      S_AXI_ARPROT,
+    input wire [2 : 0]			      s_axi_arprot,
     // Quality of Service, QoS identifier sent for each
     // read transaction.
-    input wire [3 : 0]			      S_AXI_ARQOS,
+    input wire [3 : 0]			      s_axi_arqos,
     // Region identifier. Permits a single physical interface
     // on a slave to be used for multiple logical interfaces.
     // Optional User-defined signal in the read address channel.
     // Write address valid. This signal indicates that
     // the channel is signaling valid read address and
     // control information.
-    input wire				      S_AXI_ARVALID,
+    input wire				      s_axi_arvalid,
     // Read address ready. This signal indicates that
     // the slave is ready to accept an address and associated
     // control signals.
-    output wire				      S_AXI_ARREADY,
+    output wire				      s_axi_arready,
     // Read data (return) channel
     // Read ID tag. This signal is the identification tag
     // for the read data group of signals generated by the slave.
-    output wire [C_S_AXI_ID_WIDTH-1 : 0]      S_AXI_RID,
+    output wire [C_S_AXI_ID_WIDTH-1 : 0]      s_axi_rid,
     // Read Data
-    output wire [C_S_AXI_DATA_WIDTH-1 : 0]    S_AXI_RDATA,
+    output wire [C_S_AXI_DATA_WIDTH-1 : 0]    s_axi_rdata,
     // Read response. This signal indicates the status of
     // the read transfer.
-    output wire [1 : 0]			      S_AXI_RRESP,
+    output wire [1 : 0]			      s_axi_rresp,
     // Read last. This signal indicates the last transfer
     // in a read burst.
-    output wire				      S_AXI_RLAST,
+    output wire				      s_axi_rlast,
     // Optional User-defined signal in the read address channel.
     // Read valid. This signal indicates that the channel
     // is signaling the required read data.
-    output wire				      S_AXI_RVALID,
+    output wire				      s_axi_rvalid,
     // Read ready. This signal indicates that the master can
     // accept the read data and response information.
-    input wire				      S_AXI_RREADY
+    input wire				      s_axi_rready
     );
 
    // Local declarations
@@ -314,12 +314,12 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
    // {{{
    always @(posedge S_AXI_ACLK)
      begin
-	M_AXIS_TVALID <= (S_AXI_WVALID && S_AXI_WREADY && M_AXIS_TREADY);
-	M_AXIS_TDATA  <= S_AXI_WDATA;
-	M_AXIS_TUSER  <= waddr;
+	m_axis_valid <= (S_AXI_WVALID && S_AXI_WREADY && m_axis_tready);
+	m_axis_data  <= S_AXI_WDATA;
+	m_axis_user  <= waddr;
 	
 	if (!S_AXI_ARESETN)
-	  M_AXIS_TVALID <= 0;
+	  m_axis_valid <= 0;
      end
 
    // Write return path
@@ -398,8 +398,8 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      if (!S_AXI_ARESETN)
        axi_arready <= 1;
      else if (S_AXI_ARVALID && S_AXI_ARREADY)
-       axi_arready <= (S_AXI_ARLEN==0)&&(S_AXIS_TREADY);
-     else if (S_AXIS_TREADY)
+       axi_arready <= (S_AXI_ARLEN==0)&&(s_axis_ready);
+     else if (s_axis_ready)
        axi_arready <= (axi_rlen <= 1);
 
    // axi_rlen
@@ -408,13 +408,13 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      if (!S_AXI_ARESETN)
        axi_rlen <= 0;
      else if (S_AXI_ARVALID && S_AXI_ARREADY)
-       axi_rlen <= S_AXI_ARLEN + (S_AXIS_TREADY ? 0:1);
-     else if (S_AXIS_TREADY)
+       axi_rlen <= S_AXI_ARLEN + (s_axis_ready ? 0:1);
+     else if (s_axis_ready)
        axi_rlen <= axi_rlen - 1;
 
    // Next read address calculation
    always @(posedge S_AXI_ACLK)
-     if (S_AXIS_TREADY)
+     if (s_axis_ready)
        raddr <= next_rd_addr;
      else if (S_AXI_ARREADY)
        begin
@@ -453,11 +453,11 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
    // o_rd, o_raddr
    always @(*)
      begin
-	S_AXIS_TREADY = (S_AXI_ARVALID || !S_AXI_ARREADY);
+	s_axis_ready = (S_AXI_ARVALID || !S_AXI_ARREADY);
 	if (S_AXI_RVALID && !S_AXI_RREADY)
-	  S_AXIS_TREADY = 0;
+	  s_axis_ready = 0;
 	if (rskd_valid && !rskd_ready)
-	  S_AXIS_TREADY = 0;
+	  s_axis_ready = 0;
 	// o_raddr = (S_AXI_ARREADY ? S_AXI_ARADDR : raddr);
      end
 
@@ -466,7 +466,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
    always @(posedge S_AXI_ACLK)
      if (!S_AXI_ARESETN)
        rskd_valid <= 0;
-     else if (S_AXIS_TREADY)
+     else if (s_axis_ready)
        rskd_valid <= 1;
      else if (rskd_ready)
        rskd_valid <= 0;
@@ -487,7 +487,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      if (!rskd_valid || rskd_ready)
        begin
 	  rskd_last <= 0;
-	  if (S_AXIS_TREADY && axi_rlen == 1)
+	  if (s_axis_ready && axi_rlen == 1)
 	    rskd_last <= 1;
 	  if (S_AXI_ARVALID && S_AXI_ARREADY && S_AXI_ARLEN == 0)
 	    rskd_last <= 1;
@@ -500,7 +500,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      else if (!rskd_valid || rskd_ready)
        begin
 	  rskd_lock <= 0;
-	  if (S_AXIS_TREADY)
+	  if (s_axis_ready)
 	    begin
 	       if (S_AXI_ARVALID && S_AXI_ARREADY)
 		 rskd_lock <= S_AXI_ARLOCK;
@@ -515,7 +515,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
 		.DW(C_S_AXI_ID_WIDTH+2+C_S_AXI_DATA_WIDTH)
 		) rskid (.i_clk(S_AXI_ACLK), .i_reset(!S_AXI_ARESETN),
 			 .i_valid(rskd_valid), .o_ready(rskd_ready),
-			 .i_data({rskd_id, rskd_lock, rskd_last, S_AXIS_TDATA}),
+			 .i_data({rskd_id, rskd_lock, rskd_last, s_axis_data}),
 			 // .i_data({ rskd_id, rskd_lock, rskd_last, i_rdata }),
 			 .o_valid(S_AXI_RVALID), .i_ready(S_AXI_RREADY),
 			 .o_data({ S_AXI_RID, S_AXI_RRESP[0], S_AXI_RLAST, S_AXI_RDATA })

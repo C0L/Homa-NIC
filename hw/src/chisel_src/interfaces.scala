@@ -142,6 +142,7 @@ class ram_rd_t extends Bundle {
 //  val pcie_reset_n  = Input(UInt(1.W))
 //}
 
+// Default axi_m
 class axi4(AXI_DATA_WIDTH: Int, AXI_ID_WIDTH: Int, AXI_ADDR_WIDTH: Int) extends Bundle {
   val awid    = Output(UInt(AXI_ID_WIDTH.W))
   val awaddr  = Output(UInt(AXI_ADDR_WIDTH.W))
@@ -178,6 +179,41 @@ class axi4(AXI_DATA_WIDTH: Int, AXI_ID_WIDTH: Int, AXI_ADDR_WIDTH: Int) extends 
   val rlast   = Input(UInt(1.W))
   val rvalid  = Input(UInt(1.W))
   val rready  = Output(UInt(1.W))
+}
+
+
+// Default axis_m
+// TODO make parameterizable
+class axis(AXI_DATA_WIDTH: Int) extends Bundle {
+  val valid = Output(UInt(1.W))
+  val ready = Input((UInt(1.W))
+  val data  = Output(UInt(512.W))
+  val user  = Output(UInt(32.W)))
+  val last  = Output((UInt(1.W)))
+}
+
+
+/* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
+ * recvmsg requests that form the msghdr
+ */
+class msghdr_send_t extends Bundle {
+  val saddr     = UInt(128.W)
+  val daddr     = UInt(128.W)
+  val sport     = UInt(16.W)
+  val dport     = UInt(16.W)
+  val buff_addr = UInt(32.W)
+  val buff_addr = UInt(12.W)
+  val buff_size = UInt(20.W)
+}
+
+// TODO this can be specilized now
+class srpt_queue_entry_t extends Bundle {
+  val rpc_id    = UInt(16.W)
+  val dbuff_id  = UInt(16.W)
+  val remaining = UInt(20.W)
+  val dbuffered = UInt(20.W)
+  val granted   = UInt(20.W)
+  val priority  = UInt(3.W)
 }
 
 object dma_map_type extends ChiselEnum {

@@ -22,6 +22,11 @@
 
 # Better examples of needing to updating entries
 
+# Multiple messages bound for the same receiver
+# Message is desirable, becomes undesirable, flow control state changes (unrealistic)
+# Great triggering the reorderring of many outgoing messages
+# Systems that are not all or nothing (message has some percentage of the reeivers bandwidth)
+
 # Why not use the dumb 1 queue of things
 
 Seperate implementation from the high level function of the queue(insertion and mutability)
