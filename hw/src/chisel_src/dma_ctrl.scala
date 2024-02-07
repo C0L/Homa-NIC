@@ -9,7 +9,7 @@ class h2c_dma extends Module {
     val dma_read_req_i     = Flipped(Decoupled(new dma_read_t))
     val pcie_read_cmd_o    = Decoupled(new dma_read_desc_t)
     val pcie_read_status_i = Flipped(Decoupled(new dma_read_desc_status_t))
-    val dbuff_notif_o      = Decoupled(new dbuff_notif_t)
+    val dbuff_notif_o      = Decoupled(new queue_entry_t)
   })
 
   // Memory of 256 tags
@@ -37,12 +37,12 @@ class h2c_dma extends Module {
 
   val pending_read = tag_mem.read(io.pcie_read_status_i.bits.tag)
 
-  io.dbuff_notif_o.bits.rpc_id           := 0.U
-  io.dbuff_notif_o.bits.cache_id         := pending_read.cache_id
-  io.dbuff_notif_o.bits.remaining_bytes  := pending_read.read_len - pending_read.dest_ram_addr - 256.U(20.W)
-  io.dbuff_notif_o.bits.dbuffered_bytes  := 0.U
-  io.dbuff_notif_o.bits.granted_bytes    := 0.U
-  io.dbuff_notif_o.bits.priority         := 1.U  // TODO update
+  io.dbuff_notif_o.bits.rpc_id     := 0.U
+  io.dbuff_notif_o.bits.dbuff_id   := pending_read.cache_id
+  io.dbuff_notif_o.bits.remaining  := pending_read.read_len - pending_read.dest_ram_addr - 256.U(20.W)
+  io.dbuff_notif_o.bits.dbuffered  := 0.U
+  io.dbuff_notif_o.bits.granted    := 0.U
+  io.dbuff_notif_o.bits.priority   := 1.U  // TODO update
 
   // Did a dma request just arrive
   when(io.dma_read_req_i.valid) {

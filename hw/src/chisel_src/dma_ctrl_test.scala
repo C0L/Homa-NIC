@@ -53,10 +53,10 @@ class h2c_dma_test extends AnyFreeSpec {
         dut.io.dbuff_notif_o.valid.expect(true.B)
 
         dut.io.dbuff_notif_o.bits.rpc_id.expect(0.U)
-        dut.io.dbuff_notif_o.bits.cache_id.expect(transaction.U)
-        dut.io.dbuff_notif_o.bits.remaining_bytes.expect(transaction.U)
-        dut.io.dbuff_notif_o.bits.dbuffered_bytes.expect(0.U) 
-        dut.io.dbuff_notif_o.bits.granted_bytes.expect(0.U)
+        dut.io.dbuff_notif_o.bits.dbuff_id.expect(transaction.U)
+        dut.io.dbuff_notif_o.bits.remaining.expect(transaction.U)
+        dut.io.dbuff_notif_o.bits.dbuffered.expect(0.U) 
+        dut.io.dbuff_notif_o.bits.granted.expect(0.U)
         dut.io.dbuff_notif_o.bits.priority.expect(1.U)
 
         dut.clock.step()
@@ -124,32 +124,32 @@ class addr_map_test extends AnyFreeSpec {
       // Fill every slot
       for (transaction <- 0 to 16383) {
 
-        dut.io.new_dma_map_i.valid.poke(true.B)
+        dut.io.dma_map_i.valid.poke(true.B)
 
-        dut.io.new_dma_map_i.bits.pcie_addr.poke(transaction.U)
-        dut.io.new_dma_map_i.bits.port.poke(transaction.U)
-        dut.io.new_dma_map_i.bits.map_type.poke(dma_map_type.h2c_map)
-
-        dut.clock.step()
-
-        dut.io.new_dma_map_i.valid.poke(true.B)
-
-        dut.io.new_dma_map_i.bits.pcie_addr.poke((transaction + 16384).U)
-        dut.io.new_dma_map_i.bits.port.poke(transaction.U)
-        dut.io.new_dma_map_i.bits.map_type.poke(dma_map_type.c2h_map)
+        dut.io.dma_map_i.bits.pcie_addr.poke(transaction.U)
+        dut.io.dma_map_i.bits.port.poke(transaction.U)
+        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.h2c_map)
 
         dut.clock.step()
 
-        dut.io.new_dma_map_i.valid.poke(true.B)
+        dut.io.dma_map_i.valid.poke(true.B)
 
-        dut.io.new_dma_map_i.bits.pcie_addr.poke((transaction + 32768).U)
-        dut.io.new_dma_map_i.bits.port.poke(transaction.U)
-        dut.io.new_dma_map_i.bits.map_type.poke(dma_map_type.meta_map)
+        dut.io.dma_map_i.bits.pcie_addr.poke((transaction + 16384).U)
+        dut.io.dma_map_i.bits.port.poke(transaction.U)
+        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.c2h_map)
+
+        dut.clock.step()
+
+        dut.io.dma_map_i.valid.poke(true.B)
+
+        dut.io.dma_map_i.bits.pcie_addr.poke((transaction + 32768).U)
+        dut.io.dma_map_i.bits.port.poke(transaction.U)
+        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.meta_map)
 
         dut.clock.step()
       }
 
-      dut.io.new_dma_map_i.valid.poke(false.B)
+      dut.io.dma_map_i.valid.poke(false.B)
 
       for (transaction <- 0 to 16383) {
         // TODO these should all be vars

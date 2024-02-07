@@ -97,15 +97,6 @@ class dma_write_t extends Bundle {
   val port            = UInt(16.W)
 }
 
-class dbuff_notif_t extends Bundle {
-  val rpc_id          = UInt(16.W) // TODO make this the same across all
-  val cache_id        = UInt(10.W)
-  val remaining_bytes = UInt(20.W)
-  val dbuffered_bytes = UInt(20.W)
-  val granted_bytes   = UInt(20.W)
-  val priority        = UInt(3.W)
-}
-
 class dma_map_t extends Bundle {
   val pcie_addr = UInt(64.W)
   val port      = UInt(16.W)
@@ -223,6 +214,17 @@ class queue_entry_t extends Bundle {
   val granted   = UInt(20.W)
   val priority  = UInt(3.W)
 }
+
+
+//class dbuff_notif_t extends Bundle {
+//  val rpc_id          = UInt(16.W) // TODO make this the same across all
+//  val cache_id        = UInt(10.W)
+//  val remaining_bytes = UInt(20.W)
+//  val dbuffered_bytes = UInt(20.W)
+//  val granted_bytes   = UInt(20.W)
+//  val priority        = UInt(3.W)
+//}
+
 
 object dma_map_type extends ChiselEnum {
   val h2c_map, c2h_map, meta_map = Value

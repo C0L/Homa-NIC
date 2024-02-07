@@ -29,6 +29,8 @@ class top extends Module {
   val fetch_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
   fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
   fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
+  fetch_arbiter.io.out   <> fetch_queue.io.enqueue
+  // h2c_dma.io.dbuff_notif_o := DontCare
 
     // consumer.io.in <> arb.io.out
 
@@ -58,7 +60,7 @@ class top extends Module {
 
   delegate.io.dma_map_o   <> addr_map.io.dma_map_i    // TODO eventually shared
   delegate.io.sendmsg_o   <> sendmsg_queue.io.enqueue // TODO eventually shared
-  delegate.io.fetchdata_o <> fetch_arbiter.io.out 
+  // delegate.io.fetchdata_o <> fetch_arbiter.io.out 
 
   // TODO placeholder
   delegate.io.dma_w_req_o       := DontCare
@@ -84,10 +86,17 @@ class top extends Module {
 
   h2c_dma.io.pcie_read_cmd_o    <> pcie.dma_read_desc
   h2c_dma.io.pcie_read_status_i <> pcie.dma_read_desc_status
+
+  val ila = Module(new system_ila(new queue_entry_t))
+
+  // ila.io(0) := DontCare
+  ila.io.clk         := clock
+  ila.io.resetn      := !reset.asBool
+  ila.io.SLOT_0_AXIS := DontCare
 }
 
 object Main extends App {
- ChiselStage.emitSystemVerilogFile(new top,
+  ChiselStage.emitSystemVerilogFile(new top,
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
   )
 }

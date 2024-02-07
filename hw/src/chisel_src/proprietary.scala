@@ -5,6 +5,8 @@ package gpnic
 import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
+import chisel3.experimental.prefix
+import chisel3.experimental.noPrefix
 
 // TODO maybe specify the type to the clock conveter through a module on top that handles bit conversion
 
@@ -58,7 +60,6 @@ class axis_cc[T <: Data](gen: T) extends RawModule {
 
 // TODO axi4 needs to be more parmeterizable. Or compute most of the values manually
 
-
 // Pass the desired type (preconfigured into the class)
 // TODO can this be handle polymorphically?
 
@@ -79,4 +80,11 @@ class axi_clock_converter(
   })
 }
 
-// TODO some ILA core here for streaming data
+class system_ila[T <: Bundle](gen: T) extends BlackBox {
+  val io = IO(new Bundle {
+    val SLOT_0_AXIS = Flipped(new axis(gen.getWidth, false, 0, false, 0, false))
+    val clk         = Input(Clock())
+    val resetn      = Input(Reset())
+  })
+  // Input(MixedVec(gen.getElements)).suggestName("blah")
+}
