@@ -44,15 +44,15 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
 		  parameter integer C_S_AXI_ADDR_WIDTH = 32)
    
    (input wire				      s_axis_tvalid,
-    output reg				      s_axis_ready,
-    input wire [C_S_AXI_DATA_WIDTH-1:0]	      s_axis_data,
-    input wire				      s_axis_last,
+    output reg				      s_axis_tready,
+    input wire [C_S_AXI_DATA_WIDTH-1:0]	      s_axis_tdata,
+    input wire				      s_axis_tlast,
 
-    output reg				      m_axis_valid,
+    output reg				      m_axis_tvalid,
     input wire				      m_axis_tready,
-    output reg [C_S_AXI_DATA_WIDTH-1:0]	      m_axis_data,
-    output reg [31:0]			      m_axis_user,
-    output reg				      m_axis_last,
+    output reg [C_S_AXI_DATA_WIDTH-1:0]	      m_axis_tdata,
+    output reg [31:0]			      m_axis_tuser,
+    output reg				      m_axis_tlast,
 
     // AXI signals
     // Global Clock Signal
@@ -314,12 +314,12 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
    // {{{
    always @(posedge S_AXI_ACLK)
      begin
-	m_axis_valid <= (S_AXI_WVALID && S_AXI_WREADY && m_axis_tready);
-	m_axis_data  <= S_AXI_WDATA;
-	m_axis_user  <= waddr;
+	m_axis_tvalid <= (S_AXI_WVALID && S_AXI_WREADY && m_axis_tready);
+	m_axis_tdata  <= S_AXI_WDATA;
+	m_axis_tuser  <= waddr;
 	
 	if (!S_AXI_ARESETN)
-	  m_axis_valid <= 0;
+	  m_axis_tvalid <= 0;
      end
 
    // Write return path
@@ -398,8 +398,8 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      if (!S_AXI_ARESETN)
        axi_arready <= 1;
      else if (S_AXI_ARVALID && S_AXI_ARREADY)
-       axi_arready <= (S_AXI_ARLEN==0)&&(s_axis_ready);
-     else if (s_axis_ready)
+       axi_arready <= (S_AXI_ARLEN==0)&&(s_axis_tready);
+     else if (s_axis_tready)
        axi_arready <= (axi_rlen <= 1);
 
    // axi_rlen
@@ -408,13 +408,13 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      if (!S_AXI_ARESETN)
        axi_rlen <= 0;
      else if (S_AXI_ARVALID && S_AXI_ARREADY)
-       axi_rlen <= S_AXI_ARLEN + (s_axis_ready ? 0:1);
-     else if (s_axis_ready)
+       axi_rlen <= S_AXI_ARLEN + (s_axis_tready ? 0:1);
+     else if (s_axis_tready)
        axi_rlen <= axi_rlen - 1;
 
    // Next read address calculation
    always @(posedge S_AXI_ACLK)
-     if (s_axis_ready)
+     if (s_axis_tready)
        raddr <= next_rd_addr;
      else if (S_AXI_ARREADY)
        begin
@@ -453,11 +453,11 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
    // o_rd, o_raddr
    always @(*)
      begin
-	s_axis_ready = (S_AXI_ARVALID || !S_AXI_ARREADY);
+	s_axis_tready = (S_AXI_ARVALID || !S_AXI_ARREADY);
 	if (S_AXI_RVALID && !S_AXI_RREADY)
-	  s_axis_ready = 0;
+	  s_axis_tready = 0;
 	if (rskd_valid && !rskd_ready)
-	  s_axis_ready = 0;
+	  s_axis_tready = 0;
 	// o_raddr = (S_AXI_ARREADY ? S_AXI_ARADDR : raddr);
      end
 
@@ -466,7 +466,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
    always @(posedge S_AXI_ACLK)
      if (!S_AXI_ARESETN)
        rskd_valid <= 0;
-     else if (s_axis_ready)
+     else if (s_axis_tready)
        rskd_valid <= 1;
      else if (rskd_ready)
        rskd_valid <= 0;
@@ -487,7 +487,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      if (!rskd_valid || rskd_ready)
        begin
 	  rskd_last <= 0;
-	  if (s_axis_ready && axi_rlen == 1)
+	  if (s_axis_tready && axi_rlen == 1)
 	    rskd_last <= 1;
 	  if (S_AXI_ARVALID && S_AXI_ARREADY && S_AXI_ARLEN == 0)
 	    rskd_last <= 1;
@@ -500,7 +500,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
      else if (!rskd_valid || rskd_ready)
        begin
 	  rskd_lock <= 0;
-	  if (s_axis_ready)
+	  if (s_axis_tready)
 	    begin
 	       if (S_AXI_ARVALID && S_AXI_ARREADY)
 		 rskd_lock <= S_AXI_ARLOCK;
@@ -515,7 +515,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
 		.DW(C_S_AXI_ID_WIDTH+2+C_S_AXI_DATA_WIDTH)
 		) rskid (.i_clk(S_AXI_ACLK), .i_reset(!S_AXI_ARESETN),
 			 .i_valid(rskd_valid), .o_ready(rskd_ready),
-			 .i_data({rskd_id, rskd_lock, rskd_last, s_axis_data}),
+			 .i_data({rskd_id, rskd_lock, rskd_last, s_axis_tdata}),
 			 // .i_data({ rskd_id, rskd_lock, rskd_last, i_rdata }),
 			 .o_valid(S_AXI_RVALID), .i_ready(S_AXI_RREADY),
 			 .o_data({ S_AXI_RID, S_AXI_RRESP[0], S_AXI_RLAST, S_AXI_RDATA })

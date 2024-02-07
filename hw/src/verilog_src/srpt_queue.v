@@ -7,7 +7,7 @@
 `define SRPT_BLOCKED      3'b100
 `define SRPT_ACTIVE       3'b101
 
-`define QUEUE_ENTRY_SIZE      104
+`define QUEUE_ENTRY_SIZE      88 
 `define QUEUE_ENTRY_RPC_ID    15:0  // ID of this transaction
 `define QUEUE_ENTRY_DBUFF_ID  25:16 // Corresponding on chip cache
 `define QUEUE_ENTRY_REMAINING 45:26 // Remaining to be sent or cached
@@ -90,13 +90,13 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 		    parameter TYPE = "sendmsg")
    (input ap_clk, ap_rst_n, 
     
-    input			       S_AXIS_TVALID,
-    output reg			       S_AXIS_TREADY,
-    input [`QUEUE_ENTRY_SIZE-1:0]      S_AXIS_TDATA,
+    input			       s_axis_tvalid,
+    output reg			       s_axis_tready,
+    input [`QUEUE_ENTRY_SIZE-1:0]      s_axis_tdata,
 
-    output reg			       M_AXIS_TVALID,
-    input wire			       M_AXIS_TREADY,
-    output reg [`QUEUE_ENTRY_SIZE-1:0] M_AXIS_TDATA);
+    output reg			       m_axis_tvalid,
+    input wire			       m_axis_tready,
+    output reg [`QUEUE_ENTRY_SIZE-1:0] m_axis_tdata);
 
    // Data out priority queue
    reg [`QUEUE_ENTRY_SIZE-1:0]	       queue[MAX_RPCS-1:0];
@@ -173,12 +173,12 @@ module srpt_queue #(parameter MAX_RPCS = 64,
       end
       
       // The condition in which we accept a new element to include in the queue
-      queue_ready  = S_AXIS_TVALID & S_AXIS_TREADY;
+      queue_ready  = s_axis_tvalid & s_axis_tready;
       
       // The condition in which we remove an element from the queue
       dequeue_ready = !queue_ready & ripe;
       // TODO this is not always the case?
-      queue_insert = S_AXIS_TDATA;
+      queue_insert = s_axis_tdata;
       
       prioritize(queue_swap_odd[0], queue_swap_odd[1], queue_insert, queue[0]);
 
@@ -196,12 +196,12 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    integer rst_entry;
 
    always @(posedge ap_clk) begin
-      S_AXIS_TREADY <= 1;
+      s_axis_tready <= 1;
    end
 
    always @(posedge ap_clk) begin
       if (!ap_rst_n) begin
-	 M_AXIS_TVALID <= 0;
+	 m_axis_tvalid <= 0;
 	 queue_swap_polarity <= 0;
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin
 	    queue[rst_entry] <= 0;
@@ -209,14 +209,14 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	 end
       end else begin // if (ap_rst)
 	 // Is queue_ready
-	 if (S_AXIS_TVALID && S_AXIS_TREADY) begin 
+	 if (s_axis_tvalid && s_axis_tready) begin 
 	    // Adds either the reactivated message or the update to the queue
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
 	       queue[entry] <= queue_swap_odd[entry];
 	    end 
 	 end
 
-	 if (!M_AXIS_TVALID || M_AXIS_TREADY) begin
+	 if (!m_axis_tvalid || m_axis_tready) begin
 	    if (dequeue_ready) begin
 	       if (TYPE == "sendmsg") begin
 		  if (queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE) begin
@@ -243,9 +243,9 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	       end // if (dequeue_ready)
 	    end // if (dequeue_ready)
 	    
-	    M_AXIS_TVALID <= dequeue_ready;
-	    M_AXIS_TDATA  <= queue_head;
-	 end // if (!M_AXIS_TVALID || M_AXIS_TREADY)
+	    m_axis_tvalid <= dequeue_ready;
+	    m_axis_tdata  <= queue_head;
+	 end // if (!m_axis_tvalid || m_axis_tready)
 
 	 // TODO
 

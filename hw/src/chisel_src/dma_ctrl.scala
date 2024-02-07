@@ -61,7 +61,7 @@ class h2c_dma extends Module {
 
 class addr_map extends Module {
   val io = IO(new Bundle {
-    val new_dma_map_i   = Flipped(Decoupled(new dma_map_t))
+    val dma_map_i   = Flipped(Decoupled(new dma_map_t))
     val dma_w_meta_i    = Flipped(Decoupled(new dma_write_t))
     val dma_w_data_i    = Flipped(Decoupled(new dma_write_t))
     val dma_r_req_i     = Flipped(Decoupled(new dma_read_t))
@@ -75,7 +75,7 @@ class addr_map extends Module {
   val metadata_maps = SyncReadMem(16384, new dma_map_t)
 
   // TODO this should not always be true because we cannot accept w meta and w data simultanously
-  io.new_dma_map_i.ready := true.B
+  io.dma_map_i.ready := true.B
   io.dma_w_meta_i.ready  := true.B
   io.dma_w_data_i.ready  := true.B
   io.dma_r_req_i.ready   := true.B
@@ -103,11 +103,11 @@ class addr_map extends Module {
   val dma_r_req_i_reg_0_valid = RegNext(io.dma_r_req_i.valid)
   val dma_r_req_i_reg_1_valid = RegNext(dma_r_req_i_reg_0_valid)
 
-  val new_dma_map_i_reg_0_bits  = RegNext(io.new_dma_map_i.bits)
-  val new_dma_map_i_reg_1_bits  = RegNext(new_dma_map_i_reg_0_bits)
+  val dma_map_i_reg_0_bits  = RegNext(io.dma_map_i.bits)
+  val dma_map_i_reg_1_bits  = RegNext(dma_map_i_reg_0_bits)
 
-  val new_dma_map_i_reg_0_valid = RegNext(io.new_dma_map_i.valid)
-  val new_dma_map_i_reg_1_valid = RegNext(new_dma_map_i_reg_0_valid)
+  val dma_map_i_reg_0_valid = RegNext(io.dma_map_i.valid)
+  val dma_map_i_reg_1_valid = RegNext(dma_map_i_reg_0_valid)
 
   val meta_maps_read           = metadata_maps.read(dma_w_meta_i_reg_0_bits.port)
   val c2h_data_maps_read       = c2h_data_maps.read(dma_w_data_i_reg_0_bits.port)
@@ -130,16 +130,16 @@ class addr_map extends Module {
   }
 
   // TODO this needlessly stores the map_type
-  when(new_dma_map_i_reg_0_valid) {
-    switch (new_dma_map_i_reg_0_bits.map_type) {
+  when(dma_map_i_reg_0_valid) {
+    switch (dma_map_i_reg_0_bits.map_type) {
       is (dma_map_type.h2c_map) {
-        h2c_data_maps.write(new_dma_map_i_reg_0_bits.port, new_dma_map_i_reg_0_bits)
+        h2c_data_maps.write(dma_map_i_reg_0_bits.port, dma_map_i_reg_0_bits)
       }
       is (dma_map_type.c2h_map) {
-        c2h_data_maps.write(new_dma_map_i_reg_0_bits.port, new_dma_map_i_reg_0_bits)
+        c2h_data_maps.write(dma_map_i_reg_0_bits.port, dma_map_i_reg_0_bits)
       }
       is (dma_map_type.meta_map) {
-        metadata_maps.write(new_dma_map_i_reg_0_bits.port, new_dma_map_i_reg_0_bits)
+        metadata_maps.write(dma_map_i_reg_0_bits.port, dma_map_i_reg_0_bits)
       }
     }
   }

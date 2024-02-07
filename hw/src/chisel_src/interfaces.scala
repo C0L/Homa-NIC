@@ -143,7 +143,7 @@ class ram_rd_t extends Bundle {
 //}
 
 // Default axi_m
-class axi4(AXI_DATA_WIDTH: Int, AXI_ID_WIDTH: Int, AXI_ADDR_WIDTH: Int) extends Bundle {
+class axi(AXI_DATA_WIDTH: Int, AXI_ID_WIDTH: Int, AXI_ADDR_WIDTH: Int) extends Bundle {
   val awid    = Output(UInt(AXI_ID_WIDTH.W))
   val awaddr  = Output(UInt(AXI_ADDR_WIDTH.W))
   val awlen   = Output(UInt(8.W))
@@ -184,14 +184,20 @@ class axi4(AXI_DATA_WIDTH: Int, AXI_ID_WIDTH: Int, AXI_ADDR_WIDTH: Int) extends 
 
 // Default axis_m
 // TODO make parameterizable
-class axis(AXI_DATA_WIDTH: Int) extends Bundle {
-  val valid = Output(UInt(1.W))
-  val ready = Input((UInt(1.W))
-  val data  = Output(UInt(512.W))
-  val user  = Output(UInt(32.W)))
-  val last  = Output((UInt(1.W)))
+class axis(
+  DATA_WIDTH: Int,
+  ENABLE_ID: Boolean,
+  ID_WIDTH: Int,
+  ENABLE_USER: Boolean,
+  USER_WIDTH: Int,
+  ENABLE_LAST: Boolean) extends Bundle {
+  val tvalid = Output(Bool())
+  val tready = Input(Bool())
+  val tdata  = Output(UInt(DATA_WIDTH.W))
+  val tid    = if (ENABLE_ID) Some(Output(UInt(ID_WIDTH.W))) else None     // Optional 
+  val tuser  = if (ENABLE_USER) Some(Output(UInt(USER_WIDTH.W))) else None // Optional
+  val tlast  = if (ENABLE_LAST) Some(Output(Bool())) else None             // Optional
 }
-
 
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
  * recvmsg requests that form the msghdr
@@ -202,12 +208,14 @@ class msghdr_send_t extends Bundle {
   val sport     = UInt(16.W)
   val dport     = UInt(16.W)
   val buff_addr = UInt(32.W)
-  val buff_addr = UInt(12.W)
+  val ret       = UInt(12.W)
   val buff_size = UInt(20.W)
+  val send_id   = UInt(64.W)
+  val send_cc   = UInt(64.W)
 }
 
 // TODO this can be specilized now
-class srpt_queue_entry_t extends Bundle {
+class queue_entry_t extends Bundle {
   val rpc_id    = UInt(16.W)
   val dbuff_id  = UInt(16.W)
   val remaining = UInt(20.W)

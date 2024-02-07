@@ -64,7 +64,7 @@ class pcie_core extends BlackBox (
     val pcie_user_clk         = Output(Clock())
     val pcie_user_reset       = Output(UInt(1.W))
 			  
-    val m_axi                 = new axi4(512, 8, 26)
+    val m_axi                 = new axi(512, 8, 26)
     val dma_read_desc         = Flipped(Decoupled(new dma_read_desc_t))
     val dma_read_desc_status  = Decoupled(new dma_read_desc_status_t)
     val dma_write_desc        = Flipped(Decoupled(new dma_write_desc_t))
