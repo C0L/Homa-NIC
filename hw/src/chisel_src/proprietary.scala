@@ -10,7 +10,7 @@ import chisel3.experimental.noPrefix
 
 // TODO maybe specify the type to the clock conveter through a module on top that handles bit conversion
 
-class axis_clock_converter(
+class AXISClockConverterRaw(
   DATA_WIDTH: Int,
   ENABLE_ID: Boolean,
   ID_WIDTH: Int,
@@ -25,11 +25,14 @@ class axis_clock_converter(
     val m_axis_aresetn = Input(Reset())
     val m_axis_aclk    = Input(Clock())
   })
+
+  // TODO why is this needed
+  override def desiredName = s"AXISClockConverter_$DATA_WIDTH"
 }
 
 // Polymorphic clock converter
 // RawModule means no clock and reset
-class axis_cc[T <: Data](gen: T) extends RawModule {
+class AXISClockConverter[T <: Data](gen: T) extends RawModule {
   val io = IO(new Bundle {
     val s_axis         = Flipped(Decoupled(gen))
     val s_axis_aresetn = Input(Reset())
@@ -42,7 +45,7 @@ class axis_cc[T <: Data](gen: T) extends RawModule {
   val DATA_WIDTH = gen.getWidth
 
   // TODO all other signals disabled for now
-  val axis_cc_raw = Module(new axis_clock_converter(DATA_WIDTH, false, 0, false, 0, false))
+  val axis_cc_raw = Module(new AXISClockConverterRaw(DATA_WIDTH, false, 0, false, 0, false))
 
   axis_cc_raw.io.s_axis_aresetn := io.s_axis_aresetn
   axis_cc_raw.io.s_axis_aclk    := io.s_axis_aclk
@@ -63,7 +66,7 @@ class axis_cc[T <: Data](gen: T) extends RawModule {
 // Pass the desired type (preconfigured into the class)
 // TODO can this be handle polymorphically?
 
-class axi_clock_converter(
+class AXIClockConverter(
   DATA_WIDTH: Int,
   ENABLE_ID: Boolean,
   ID_WIDTH: Int,
@@ -80,11 +83,34 @@ class axi_clock_converter(
   })
 }
 
-class system_ila[T <: Bundle](gen: T) extends BlackBox {
+class SystemILA[T <: Bundle](gen: T) extends BlackBox {
   val io = IO(new Bundle {
     val SLOT_0_AXIS = Flipped(new axis(gen.getWidth, false, 0, false, 0, false))
     val clk         = Input(Clock())
     val resetn      = Input(Reset())
   })
   // Input(MixedVec(gen.getElements)).suggestName("blah")
+}
+
+class ClockWizard extends BlackBox {
+  val io = IO(new Bundle {
+    val clk_in1_n = Input(Clock())
+    val clk_in1_p = Input(Clock())
+    val reset     = Input(Reset())
+
+    val clk_out1  = Output(Clock())
+    val locked    = Output(UInt(1.W))
+  })
+}
+
+class ProcessorSystemReset extends BlackBox {
+  val io = IO(new Bundle {
+    val slowest_sync_clk   = Input(Clock())
+    val ext_reset_in       = Input(Bool())
+    val aux_reset_in       = Input(Bool())
+    val dcm_locked         = Input(UInt(1.W))
+    val peripheral_reset   = Output(Bool())
+    // val peripheral_areset  = Output(Reset())
+    // val peripheral_aresetn = Output(Reset())
+  })
 }

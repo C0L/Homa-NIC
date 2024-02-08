@@ -61,12 +61,12 @@ class h2c_dma extends Module {
 
 class addr_map extends Module {
   val io = IO(new Bundle {
-    val dma_map_i   = Flipped(Decoupled(new dma_map_t))
-    val dma_w_meta_i    = Flipped(Decoupled(new dma_write_t))
-    val dma_w_data_i    = Flipped(Decoupled(new dma_write_t))
-    val dma_r_req_i     = Flipped(Decoupled(new dma_read_t))
-    val dma_w_req_o     = Decoupled(new dma_write_t)
-    val dma_r_req_o     = Decoupled(new dma_read_t)
+    val dma_map_i    = Flipped(Decoupled(new dma_map_t))
+    val dma_w_meta_i = Flipped(Decoupled(new dma_write_t))
+    val dma_w_data_i = Flipped(Decoupled(new dma_write_t))
+    val dma_r_req_i  = Flipped(Decoupled(new dma_read_t))
+    val dma_w_req_o  = Decoupled(new dma_write_t)
+    val dma_r_req_o  = Decoupled(new dma_read_t)
   })
 
   // Map port -> pcie address of DMA buffer

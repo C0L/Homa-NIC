@@ -17,9 +17,9 @@
 
 # System clocks
 # 300 MHz (DDR 0)
-#set_property -dict {LOC AY37 IOSTANDARD LVDS} [get_ports clk_300mhz_0_p]
-#set_property -dict {LOC AY38 IOSTANDARD LVDS} [get_ports clk_300mhz_0_n]
-#create_clock -period 3.333 -name clk_300mhz_0 [get_ports clk_300mhz_0_p]
+set_property -dict {LOC AY37 IOSTANDARD LVDS} [get_ports clk_300mhz_0_p]
+set_property -dict {LOC AY38 IOSTANDARD LVDS} [get_ports clk_300mhz_0_n]
+create_clock -period 3.333 -name clk_300mhz_0 [get_ports clk_300mhz_0_p]
 
 # 300 MHz (DDR 1)
 #set_property -dict {LOC AW20 IOSTANDARD LVDS} [get_ports clk_300mhz_1_p]
@@ -50,10 +50,10 @@
 # set_output_delay 0 [get_ports {led[*]}]
 
 # Reset button
-#set_property -dict {LOC AL20 IOSTANDARD LVCMOS12} [get_ports reset]
+set_property -dict {LOC AL20 IOSTANDARD LVCMOS12} [get_ports reset]
 
-#set_false_path -from [get_ports {reset}]
-#set_input_delay 0 [get_ports {reset}]
+set_false_path -from [get_ports {reset}]
+set_input_delay 0 [get_ports {reset}]
 
 # DIP switches
 # set_property -dict {LOC AN22 IOSTANDARD LVCMOS12} [get_ports {sw[0]}]

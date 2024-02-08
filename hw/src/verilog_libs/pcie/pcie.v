@@ -100,28 +100,28 @@ module pcie_core#
     input wire					       m_axi_rvalid,
     output wire					       m_axi_rready,
     
-    input wire [PCIE_ADDR_WIDTH-1:0]		       pcie_dma_read_desc_bits_pcie_addr;
-    input wire [RAM_SEL_WIDTH-1:0]		       pcie_dma_read_desc_bits_ram_sel;
-    input wire [RAM_ADDR_WIDTH-1:0]		       pcie_dma_read_desc_bits_ram_addr;
-    input wire [LEN_WIDTH-1:0]			       pcie_dma_read_desc_bits_len;
-    input wire [TAG_WIDTH-1:0]			       pcie_dma_read_desc_bits_tag;
+    input wire [PCIE_ADDR_WIDTH-1:0]		       pcie_dma_read_desc_bits_pcie_addr,
+    input wire [RAM_SEL_WIDTH-1:0]		       pcie_dma_read_desc_bits_ram_sel,
+    input wire [RAM_ADDR_WIDTH-1:0]		       pcie_dma_read_desc_bits_ram_addr,
+    input wire [LEN_WIDTH-1:0]			       pcie_dma_read_desc_bits_len,
+    input wire [TAG_WIDTH-1:0]			       pcie_dma_read_desc_bits_tag,
     input wire					       pcie_dma_read_desc_valid,
     output wire					       pcie_dma_read_desc_ready,
 
-    output wire [8-1:0]				       pcie_dma_read_desc_status_bits_tag;
-    output wire [3:0]				       pcie_dma_read_desc_status_bits_error;
+    output wire [8-1:0]				       pcie_dma_read_desc_status_bits_tag,
+    output wire [3:0]				       pcie_dma_read_desc_status_bits_error,
     output wire					       pcie_dma_read_desc_status_valid,
 
-    output wire [PCIE_ADDR_WIDTH-1:0]		       pcie_dma_write_desc_bits_pcie_addr;
-    output wire [RAM_SEL_WIDTH-1:0]		       pcie_dma_write_desc_bits_ram_sel;
-    output wire [RAM_ADDR_WIDTH-1:0]		       pcie_dma_write_desc_bits_ram_addr;
-    output wire [16-1:0]			       pcie_dma_write_desc_bits_len;
-    output wire [8-1:0]				       pcie_dma_write_desc_bits_tag;
+    output wire [PCIE_ADDR_WIDTH-1:0]		       pcie_dma_write_desc_bits_pcie_addr,
+    output wire [RAM_SEL_WIDTH-1:0]		       pcie_dma_write_desc_bits_ram_sel,
+    output wire [RAM_ADDR_WIDTH-1:0]		       pcie_dma_write_desc_bits_ram_addr,
+    output wire [16-1:0]			       pcie_dma_write_desc_bits_len,
+    output wire [8-1:0]				       pcie_dma_write_desc_bits_tag,
     input wire					       pcie_dma_write_desc_valid,
     output wire					       pcie_dma_write_desc_ready,
     
-    output wire [8-1:0]				       pcie_dma_write_desc_status_bits_tag;
-    output wire [3:0]				       pcie_dma_write_desc_status_bits_error;
+    output wire [8-1:0]				       pcie_dma_write_desc_status_bits_tag,
+    output wire [3:0]				       pcie_dma_write_desc_status_bits_error,
     output wire					       pcie_dma_write_desc_status_valid,
 
     output wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]      ram_rd_cmd_sel,

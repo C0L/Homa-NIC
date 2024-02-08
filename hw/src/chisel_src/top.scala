@@ -4,35 +4,43 @@ import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
 
-class top extends Module {
-  val pcie_rx_p             = IO(Input(UInt(16.W)))
-  val pcie_rx_n             = IO(Input(UInt(16.W)))
-  val pcie_tx_p             = IO(Output(UInt(16.W)))
-  val pcie_tx_n             = IO(Output(UInt(16.W)))
-  val pcie_refclk_p         = IO(Input(Clock()))
-  val pcie_refclk_n         = IO(Input(Clock()))
-  val pcie_reset_n          = IO(Input(Reset()))
+class top extends RawModule {
+  val pcie_rx_p     = IO(Input(UInt(16.W)))
+  val pcie_rx_n     = IO(Input(UInt(16.W)))
+  val pcie_tx_p     = IO(Output(UInt(16.W)))
+  val pcie_tx_n     = IO(Output(UInt(16.W)))
+  val pcie_refclk_p = IO(Input(Clock()))
+  val pcie_refclk_n = IO(Input(Clock()))
+  val pcie_reset_n  = IO(Input(Bool()))
 
-  /* Use default clock domain */
-  val axi2axis   = Module(new axi2axis) // Convert incoming AXI requests to AXIS
-  val delegate   = Module(new delegate) // Decide where those requests should be placed
-  val fetch_cc   = Module(new axis_cc(new dma_read_t)) // TODO replace with asyncqueue
-  val fetch_queue   = Module(new fetch_queue)    // Fetch the next best chunk of data
-  val sendmsg_queue = Module(new sendmsg_queue)  // Send the next best message 
+  val clk_in1_n = IO(Input(Clock()))
+  val clk_in1_p = IO(Input(Clock()))
+  val reset     = IO(Input(Bool()))
 
-  /* Uses internal clock domain */
-  val addr_map = Module(new addr_map) // Map read and write requests to DMA address
-  val h2c_dma  = Module(new h2c_dma)  // Manage dma reads and writes TODO maybe redundant now
-  val pcie     = Module(new pcie)     // pcie infrastructure
+  val mainClk  = Module(new ClockWizard)
 
-  // TODO Maybe RR is not the best strategy
-  val fetch_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
-  fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
-  fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
-  fetch_arbiter.io.out   <> fetch_queue.io.enqueue
-  // h2c_dma.io.dbuff_notif_o := DontCare
+  mainClk.io.clk_in1_n := clk_in1_n
+  mainClk.io.clk_in1_p := clk_in1_p
+  mainClk.io.reset     := reset
 
-    // consumer.io.in <> arb.io.out
+  val ps_reset = Module(new ProcessorSystemReset)
+
+  ps_reset.io.ext_reset_in     := reset
+  ps_reset.io.aux_reset_in     := false.B
+  ps_reset.io.slowest_sync_clk := mainClk.io.clk_out1
+  ps_reset.io.dcm_locked       := mainClk.io.locked
+  // ps_reset.io.peripheral_reset := DontCare
+
+  /* core logic operates at 200MHz output from clock generator */
+  val core = withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) { Module(new core) }
+
+  val pcie_user_clk   = Wire(Clock())
+  val pcie_user_reset = Wire(Bool())
+  /* pcie logic operates at 250MHz output from internal pcie core */
+  val pcie = withClockAndReset(pcie_user_clk, pcie_user_reset) { Module(new pcie) }
+
+  pcie_user_clk   := pcie.pcie_user_clk
+  pcie_user_reset := pcie.pcie_user_reset
 
   pcie.pcie_rx_p     := pcie_rx_p
   pcie.pcie_rx_n     := pcie_rx_p
@@ -55,44 +63,45 @@ class top extends Module {
   pcie.dma_write_desc        := DontCare
   pcie.dma_write_desc_status := DontCare
 
-  axi2axis.io.s_axi  <> pcie.m_axi
-  axi2axis.io.m_axis <> delegate.io.function_i
+  /* Clock Convert core (200MHz) -> pcie (250MHz) */
+  val fetch_cc  = Module(new AXISClockConverter(new dma_read_t))
 
-  delegate.io.dma_map_o   <> addr_map.io.dma_map_i    // TODO eventually shared
-  delegate.io.sendmsg_o   <> sendmsg_queue.io.enqueue // TODO eventually shared
-  // delegate.io.fetchdata_o <> fetch_arbiter.io.out 
-
-  // TODO placeholder
-  delegate.io.dma_w_req_o       := DontCare
-
-  // TODO eventually goes to packet constructor
-  sendmsg_queue.io.dequeue      := DontCare
-
-  addr_map.io.dma_w_meta_i      := DontCare
-  addr_map.io.dma_w_data_i      := DontCare
-  addr_map.io.dma_w_req_o       := DontCare
-
-  // TODO will not be able to infer this
-  fetch_queue.io.dequeue     <> fetch_cc.io.s_axis
-  fetch_cc.io.s_axis_aresetn := !reset.asBool
-  fetch_cc.io.s_axis_aclk    := clock
+  core.io.fetch_dequeue      <> fetch_cc.io.s_axis
+  fetch_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
+  fetch_cc.io.s_axis_aclk    := mainClk.io.clk_out1
   fetch_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
   fetch_cc.io.m_axis_aclk    := pcie.pcie_user_clk
+  fetch_cc.io.m_axis         <> pcie.dma_r_req_i
 
-  // TODO will not be able to infer this 
-  addr_map.io.dma_r_req_i <> fetch_cc.io.m_axis
+  /* Clock Convert pcie (200MHz) -> core (250MHz) */
+  val dbnotif_cc = Module(new AXISClockConverter(new queue_entry_t))
 
-  addr_map.io.dma_r_req_o <> h2c_dma.io.dma_read_req_i //TODO inconsistent names
+  pcie.dbuff_notif_o        <> dbnotif_cc.io.s_axis
+  dbnotif_cc.io.s_axis_aresetn := !pcie.pcie_user_reset
+  dbnotif_cc.io.s_axis_aclk    := pcie.pcie_user_clk
+  dbnotif_cc.io.m_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
+  dbnotif_cc.io.m_axis_aclk    := mainClk.io.clk_out1
+  dbnotif_cc.io.m_axis         <> core.io.dbuff_notif_i
 
-  h2c_dma.io.pcie_read_cmd_o    <> pcie.dma_read_desc
-  h2c_dma.io.pcie_read_status_i <> pcie.dma_read_desc_status
+  /* Clock Convert pcie (250MHz) -> pcie (200MHz) */
+  val dmamap_cc = Module(new AXISClockConverter(new dma_map_t))
 
-  val ila = Module(new system_ila(new queue_entry_t))
+  core.io.dma_map_o           <> dmamap_cc.io.s_axis
+  dmamap_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
+  dmamap_cc.io.s_axis_aclk    := mainClk.io.clk_out1
+  dmamap_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
+  dmamap_cc.io.m_axis_aclk    := pcie.pcie_user_clk
+  dmamap_cc.io.m_axis         <> pcie.dma_map_i
 
-  // ila.io(0) := DontCare
-  ila.io.clk         := clock
-  ila.io.resetn      := !reset.asBool
-  ila.io.SLOT_0_AXIS := DontCare
+  /* Clock Convert pcie (250MHz) -> core (200MHz) */
+  val axi_cc    = Module(new AXIClockConverter(512, false, 0, false, 0, false))
+
+  pcie.m_axi              <> axi_cc.io.s_axi
+  axi_cc.io.s_axi_aresetn := !pcie.pcie_user_reset
+  axi_cc.io.s_axi_aclk    := pcie.pcie_user_clk
+  axi_cc.io.m_axi_aresetn := !ps_reset.io.peripheral_reset.asBool
+  axi_cc.io.m_axi_aclk    := mainClk.io.clk_out1
+  axi_cc.io.m_axi         <> core.io.s_axi
 }
 
 object Main extends App {

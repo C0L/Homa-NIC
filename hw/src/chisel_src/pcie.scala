@@ -21,8 +21,6 @@ class pcie extends Module {
   val ram_write_data        = IO(Flipped(Decoupled(new ram_write_data_t)))
   val ram_write_desc_status = IO(Decoupled(new ram_write_desc_status_t))
 
-  val dma_read_desc         = IO(Flipped(Decoupled(new dma_read_desc_t)))
-  val dma_read_desc_status  = IO(Decoupled(new dma_read_desc_status_t))
   val dma_write_desc        = IO(Flipped(Decoupled(new dma_write_desc_t)))
   val dma_write_desc_status = IO(Decoupled(new dma_write_desc_status_t))
 
@@ -31,11 +29,30 @@ class pcie extends Module {
   val pcie_user_clk         = IO(Output(Clock()))
   val pcie_user_reset       = IO(Output(Bool()))
 
+  val dma_r_req_i           = IO(Flipped(Decoupled(new dma_read_t)))
+  val dbuff_notif_o         = IO(Decoupled(new queue_entry_t))
+  val dma_map_i             = IO(Flipped(Decoupled(new dma_map_t)))
+
   val pcie_core             = Module(new pcie_core)
   val dma_client_read       = Module(new dma_client_axis_source)
   val dma_client_write      = Module(new dma_client_axis_sink)
   val h2c_psdpram           = Module(new dma_psdpram)
   val c2h_psdpram           = Module(new dma_psdpram)
+  val addr_map              = Module(new addr_map) // Map read and write requests to DMA address
+  val h2c_dma               = Module(new h2c_dma)  // Manage dma reads and writes TODO maybe redundant now
+
+  addr_map.io.dma_map_i         <> dma_map_i
+  h2c_dma.io.pcie_read_cmd_o    <> pcie_core.io.dma_read_desc
+  h2c_dma.io.pcie_read_status_i <> pcie_core.io.dma_read_desc_status
+  m_axi <> pcie_core.io.m_axi
+  h2c_dma.io.dbuff_notif_o <> dbuff_notif_o 
+
+  addr_map.io.dma_w_meta_i  := DontCare
+  addr_map.io.dma_w_data_i  := DontCare
+  addr_map.io.dma_w_req_o   := DontCare
+
+  addr_map.io.dma_r_req_i <> dma_r_req_i
+  addr_map.io.dma_r_req_o <> h2c_dma.io.dma_read_req_i //TODO inconsistent names
 
   pcie_user_clk   := pcie_core.io.pcie_user_clk
   pcie_user_reset := pcie_core.io.pcie_user_reset
@@ -61,21 +78,9 @@ class pcie extends Module {
   pcie_core.io.pcie_refclk_n <> pcie_refclk_n
   pcie_core.io.pcie_reset_n  <> pcie_reset_n
 
-  val axi_cc = Module(new axi_clock_converter(512, false, 0, false, 0, false))
-
-  axi_cc.io.s_axi_aresetn := !pcie_core.io.pcie_user_reset
-  axi_cc.io.s_axi_aclk    := pcie_core.io.pcie_user_clk
-  axi_cc.io.m_axi_aresetn := !reset.asBool
-  axi_cc.io.m_axi_aclk    := clock
-
-  // AXI4 interface onto chip
-  pcie_core.io.m_axi      <> axi_cc.io.s_axi// TODO introduce clock domain crossing here
-
-  m_axi <> axi_cc.io.m_axi
-
   // Pcie DMA descriptor interface
-  pcie_core.io.dma_read_desc         <> dma_read_desc
-  pcie_core.io.dma_read_desc_status  <> dma_read_desc_status
+  // pcie_core.io.dma_read_desc         <> dma_read_desc
+  // pcie_core.io.dma_read_desc_status  <> dma_read_desc_status
   pcie_core.io.dma_write_desc        <> dma_write_desc
   pcie_core.io.dma_write_desc_status <> dma_write_desc_status
 
