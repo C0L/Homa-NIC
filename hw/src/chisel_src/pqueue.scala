@@ -7,7 +7,7 @@ import chisel3.util._
 // TODO make module ontop to send native chisel types
 
 class srpt_queue (qtype: String) extends BlackBox (
-    Map("MAX_RPCS" -> "64",
+    Map("MAX_RPCS" -> 64,
       "TYPE" -> qtype,
   )) {
 

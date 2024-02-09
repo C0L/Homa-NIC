@@ -40,10 +40,6 @@ class core extends Module {
   // TODO eventually goes to packet constructor
   sendmsg_queue.io.dequeue      := DontCare
 
-  val ila = Module(new SystemILA(new queue_entry_t))
-
-  // ila.io(0) := DontCare
-  ila.io.clk         := clock
-  ila.io.resetn      := !reset.asBool
-  ila.io.SLOT_0_AXIS := DontCare
+  val ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  ila.io.ila_data := io.dbuff_notif_i
 }

@@ -53,22 +53,22 @@ module dma_psdpram #
     /*
      * Write port
      */
-    input  wire [SEG_COUNT*SEG_BE_WIDTH-1:0]   wr_cmd_be,
-    input  wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0] wr_cmd_addr,
-    input  wire [SEG_COUNT*SEG_DATA_WIDTH-1:0] wr_cmd_data,
-    input  wire [SEG_COUNT-1:0]                wr_cmd_valid,
-    output wire [SEG_COUNT-1:0]                wr_cmd_ready,
-    output wire [SEG_COUNT-1:0]                wr_done,
+    input  wire [SEG_COUNT*SEG_BE_WIDTH-1:0]   ram_wr_cmd_be,
+    input  wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0] ram_wr_cmd_addr,
+    input  wire [SEG_COUNT*SEG_DATA_WIDTH-1:0] ram_wr_cmd_data,
+    input  wire [SEG_COUNT-1:0]                ram_wr_cmd_valid,
+    output wire [SEG_COUNT-1:0]                ram_wr_cmd_ready,
+    output wire [SEG_COUNT-1:0]                ram_wr_done,
 
     /*
      * Read port
      */
-    input  wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0] rd_cmd_addr,
-    input  wire [SEG_COUNT-1:0]                rd_cmd_valid,
-    output wire [SEG_COUNT-1:0]                rd_cmd_ready,
-    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0] rd_resp_data,
-    output wire [SEG_COUNT-1:0]                rd_resp_valid,
-    input  wire [SEG_COUNT-1:0]                rd_resp_ready
+    input  wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0] ram_rd_cmd_addr,
+    input  wire [SEG_COUNT-1:0]                ram_rd_cmd_valid,
+    output wire [SEG_COUNT-1:0]                ram_rd_cmd_ready,
+    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0] ram_rd_resp_data,
+    output wire [SEG_COUNT-1:0]                ram_rd_resp_valid,
+    input  wire [SEG_COUNT-1:0]                ram_rd_resp_ready
 );
 
 localparam INT_ADDR_WIDTH = $clog2(SIZE/(SEG_COUNT*SEG_BE_WIDTH));
@@ -115,10 +115,10 @@ generate
             wr_done_reg <= 1'b0;
 
             for (i = 0; i < SEG_BE_WIDTH; i = i + 1) begin
-                if (wr_cmd_valid[n] && wr_cmd_be[n*SEG_BE_WIDTH+i]) begin
-                    mem_reg[wr_cmd_addr[SEG_ADDR_WIDTH*n +: INT_ADDR_WIDTH]][i*8 +: 8] <= wr_cmd_data[SEG_DATA_WIDTH*n+i*8 +: 8];
+                if (ram_wr_cmd_valid[n] && ram_wr_cmd_be[n*SEG_BE_WIDTH+i]) begin
+                    mem_reg[ram_wr_cmd_addr[SEG_ADDR_WIDTH*n +: INT_ADDR_WIDTH]][i*8 +: 8] <= ram_wr_cmd_data[SEG_DATA_WIDTH*n+i*8 +: 8];
                 end
-                wr_done_reg <= wr_cmd_valid[n];
+                wr_done_reg <= ram_wr_cmd_valid[n];
             end
 
             if (rst) begin
@@ -126,25 +126,25 @@ generate
             end
         end
 
-        assign wr_cmd_ready[n] = 1'b1;
-        assign wr_done[n] = wr_done_reg;
+        assign ram_wr_cmd_ready[n] = 1'b1;
+        assign ram_wr_done[n] = wr_done_reg;
 
         always @(posedge clk) begin
-            if (rd_resp_ready[n]) begin
+            if (ram_rd_resp_ready[n]) begin
                 rd_resp_valid_pipe_reg[PIPELINE-1] <= 1'b0;
             end
 
             for (j = PIPELINE-1; j > 0; j = j - 1) begin
-                if (rd_resp_ready[n] || ((~rd_resp_valid_pipe_reg) >> j)) begin
+                if (ram_rd_resp_ready[n] || ((~rd_resp_valid_pipe_reg) >> j)) begin
                     rd_resp_valid_pipe_reg[j] <= rd_resp_valid_pipe_reg[j-1];
                     rd_resp_data_pipe_reg[j] <= rd_resp_data_pipe_reg[j-1];
                     rd_resp_valid_pipe_reg[j-1] <= 1'b0;
                 end
             end
 
-            if (rd_cmd_valid[n] && rd_cmd_ready[n]) begin
+            if (ram_rd_cmd_valid[n] && ram_rd_cmd_ready[n]) begin
                 rd_resp_valid_pipe_reg[0] <= 1'b1;
-                rd_resp_data_pipe_reg[0] <= mem_reg[rd_cmd_addr[SEG_ADDR_WIDTH*n +: INT_ADDR_WIDTH]];
+                rd_resp_data_pipe_reg[0] <= mem_reg[ram_rd_cmd_addr[SEG_ADDR_WIDTH*n +: INT_ADDR_WIDTH]];
             end
 
             if (rst) begin
@@ -152,10 +152,10 @@ generate
             end
         end
 
-        assign rd_cmd_ready[n] = rd_resp_ready[n] || ~rd_resp_valid_pipe_reg;
+        assign ram_rd_cmd_ready[n] = ram_rd_resp_ready[n] || ~rd_resp_valid_pipe_reg;
 
-        assign rd_resp_valid[n] = rd_resp_valid_pipe_reg[PIPELINE-1];
-        assign rd_resp_data[SEG_DATA_WIDTH*n +: SEG_DATA_WIDTH] = rd_resp_data_pipe_reg[PIPELINE-1];
+        assign ram_rd_resp_valid[n] = rd_resp_valid_pipe_reg[PIPELINE-1];
+        assign ram_rd_resp_data[SEG_DATA_WIDTH*n +: SEG_DATA_WIDTH] = rd_resp_data_pipe_reg[PIPELINE-1];
     end
 
 endgenerate

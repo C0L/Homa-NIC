@@ -6,9 +6,9 @@ import chisel3.util._
 // TODO create wrapper here
 
 class axi2axis extends BlackBox (
-  Map("C_S_AXI_ID_WIDTH" -> "4",
-      "C_S_AXI_DATA_WIDTH" -> "512",
-      "C_S_AXI_ADDR_WIDTH" -> "32"
+  Map("C_S_AXI_ID_WIDTH" -> 4,
+      "C_S_AXI_DATA_WIDTH" -> 512,
+      "C_S_AXI_ADDR_WIDTH" -> 32
   )) {
 
   val io = IO(new Bundle {

@@ -7,7 +7,7 @@
 `define SRPT_BLOCKED      3'b100
 `define SRPT_ACTIVE       3'b101
 
-`define QUEUE_ENTRY_SIZE      88 
+`define QUEUE_ENTRY_SIZE      89
 `define QUEUE_ENTRY_RPC_ID    15:0  // ID of this transaction
 `define QUEUE_ENTRY_DBUFF_ID  25:16 // Corresponding on chip cache
 `define QUEUE_ENTRY_REMAINING 45:26 // Remaining to be sent or cached

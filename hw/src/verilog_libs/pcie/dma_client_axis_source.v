@@ -69,54 +69,55 @@ module dma_client_axis_source #
     parameter TAG_WIDTH = 8
 )
 (
-    input  wire                                 clk,
-    input  wire                                 rst,
+    input wire				       clk,
+    input wire				       rst,
 
     /*
      * AXI read descriptor input
      */
-    input  wire [RAM_ADDR_WIDTH-1:0]            ram_read_desc_ram_addr,
-    input  wire [LEN_WIDTH-1:0]                 ram_read_desc_len,
-    input  wire [TAG_WIDTH-1:0]                 ram_read_desc_tag,
-    input  wire [AXIS_ID_WIDTH-1:0]             ram_read_desc_id,
-    input  wire [AXIS_DEST_WIDTH-1:0]           ram_read_desc_dest,
-    input  wire [AXIS_USER_WIDTH-1:0]           ram_read_desc_user,
-    input  wire                                 ram_read_desc_valid,
-    output wire                                 ram_read_desc_ready,
+    input wire [RAM_ADDR_WIDTH-1:0]	       ram_read_desc_bits_ram_addr,
+    input wire [LEN_WIDTH-1:0]		       ram_read_desc_bits_len,
+    input wire [TAG_WIDTH-1:0]		       ram_read_desc_bits_tag,
+    input wire [AXIS_ID_WIDTH-1:0]	       ram_read_desc_bits_id,
+    input wire [AXIS_DEST_WIDTH-1:0]	       ram_read_desc_bits_dest,
+    input wire [AXIS_USER_WIDTH-1:0]	       ram_read_desc_bits_user,
+    input wire				       ram_read_desc_valid,
+    output wire				       ram_read_desc_ready,
 
     /*
      * AXI read descriptor status output
      */
-    output wire [TAG_WIDTH-1:0]                 ram_read_desc_status_tag,
-    output wire [3:0]                           ram_read_desc_status_error,
-    output wire                                 ram_read_desc_status_valid,
+    output wire [TAG_WIDTH-1:0]		       ram_read_desc_status_bits_tag,
+    output wire [3:0]			       ram_read_desc_status_bits_error,
+    output wire				       ram_read_desc_status_valid,
+    input  wire                                ram_read_desc_status_ready,
 
     /*
      * AXI stream read data output
      */
-    output wire [AXIS_DATA_WIDTH-1:0]           ram_read_data_data,
-    output wire [AXIS_KEEP_WIDTH-1:0]           ram_read_data_keep,
-    output wire                                 ram_read_data_valid,
-    input  wire                                 ram_read_data_ready,
-    output wire                                 ram_read_data_last,
-    output wire [AXIS_ID_WIDTH-1:0]             ram_read_data_id,
-    output wire [AXIS_DEST_WIDTH-1:0]           ram_read_data_dest,
-    output wire [AXIS_USER_WIDTH-1:0]           ram_read_data_user,
+    output wire [AXIS_DATA_WIDTH-1:0]	       ram_read_data_bits_data,
+    output wire [AXIS_KEEP_WIDTH-1:0]	       ram_read_data_bits_keep,
+    output wire				       ram_read_data_valid,
+    input wire				       ram_read_data_ready,
+    output wire				       ram_read_data_bits_last,
+    output wire [AXIS_ID_WIDTH-1:0]	       ram_read_data_bits_id,
+    output wire [AXIS_DEST_WIDTH-1:0]	       ram_read_data_bits_dest,
+    output wire [AXIS_USER_WIDTH-1:0]	       ram_read_data_bits_user,
 
     /*
      * RAM interface
      */
-    output wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0]  ram_rd_cmd_addr,
-    output wire [SEG_COUNT-1:0]                 ram_rd_cmd_valid,
-    input  wire [SEG_COUNT-1:0]                 ram_rd_cmd_ready,
-    input  wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]  ram_rd_resp_data,
-    input  wire [SEG_COUNT-1:0]                 ram_rd_resp_valid,
-    output wire [SEG_COUNT-1:0]                 ram_rd_resp_ready,
+    output wire [SEG_COUNT*SEG_ADDR_WIDTH-1:0] ram_rd_cmd_addr,
+    output wire [SEG_COUNT-1:0]		       ram_rd_cmd_valid,
+    input wire [SEG_COUNT-1:0]		       ram_rd_cmd_ready,
+    input wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]  ram_rd_resp_data,
+    input wire [SEG_COUNT-1:0]		       ram_rd_resp_valid,
+    output wire [SEG_COUNT-1:0]		       ram_rd_resp_ready,
 
     /*
      * Configuration
      */
-    input  wire                                 enable
+    input wire				       enable
 );
 
 parameter RAM_WORD_WIDTH = SEG_BE_WIDTH;
@@ -217,7 +218,7 @@ reg [AXIS_ID_WIDTH-1:0] axis_id_reg = {AXIS_ID_WIDTH{1'b0}}, axis_id_next;
 reg [AXIS_DEST_WIDTH-1:0] axis_dest_reg = {AXIS_DEST_WIDTH{1'b0}}, axis_dest_next;
 reg [AXIS_USER_WIDTH-1:0] axis_user_reg = {AXIS_USER_WIDTH{1'b0}}, axis_user_next;
 
-reg s_axis_read_desc_ready_reg = 1'b0, ram_read_desc_ready_next;
+reg			  s_axis_read_desc_ready_reg = 1'b0, s_axis_read_desc_ready_next;
 
 reg [TAG_WIDTH-1:0] m_axis_read_desc_status_tag_reg = {TAG_WIDTH{1'b0}}, m_axis_read_desc_status_tag_next;
 reg m_axis_read_desc_status_valid_reg = 1'b0, m_axis_read_desc_status_valid_next;
@@ -238,8 +239,8 @@ reg  [AXIS_USER_WIDTH-1:0] m_axis_read_data_tuser_int;
 
 assign ram_read_desc_ready = s_axis_read_desc_ready_reg;
 
-assign ram_read_desc_status_tag = m_axis_read_desc_status_tag_reg;
-assign ram_read_desc_status_error = 4'd0;
+assign ram_read_desc_status_bits_tag = m_axis_read_desc_status_tag_reg;
+assign ram_read_desc_status_bits_error = 4'd0;
 assign ram_read_desc_status_valid = m_axis_read_desc_status_valid_reg;
 
 assign ram_rd_cmd_addr = ram_rd_cmd_addr_reg;
@@ -274,7 +275,7 @@ always @* begin
 
             if (ram_read_desc_ready && ram_read_desc_valid) begin
 
-                read_addr_next = ram_read_desc_ram_addr & ADDR_MASK;
+                read_addr_next = ram_read_desc_bits_ram_addr & ADDR_MASK;
 
                 if (PART_COUNT > 1) begin
                     read_ram_mask_next = {SEGS_PER_PART{1'b1}} << ((((read_addr_next >> PART_OFFSET_WIDTH) & ({PART_COUNT_WIDTH{1'b1}})) / PARTS_PER_SEG) * SEGS_PER_PART);
@@ -282,17 +283,17 @@ always @* begin
                     read_ram_mask_next = {SEG_COUNT{1'b1}};
                 end
 
-                axis_cmd_addr_next = ram_read_desc_ram_addr & ADDR_MASK;
-                axis_cmd_last_cycle_offset_next = ram_read_desc_len & OFFSET_MASK;
+                axis_cmd_addr_next = ram_read_desc_bits_ram_addr & ADDR_MASK;
+                axis_cmd_last_cycle_offset_next = ram_read_desc_bits_len & OFFSET_MASK;
 
-                axis_cmd_tag_next = ram_read_desc_tag;
+                axis_cmd_tag_next = ram_read_desc_bits_tag;
 
-                axis_cmd_axis_id_next = ram_read_desc_id;
-                axis_cmd_axis_dest_next = ram_read_desc_dest;
-                axis_cmd_axis_user_next = ram_read_desc_user;
+                axis_cmd_axis_id_next = ram_read_desc_bits_id;
+                axis_cmd_axis_dest_next = ram_read_desc_bits_dest;
+                axis_cmd_axis_user_next = ram_read_desc_bits_user;
 
-                axis_cmd_cycle_count_next = (ram_read_desc_len - 1) >> $clog2(AXIS_KEEP_WIDTH_INT);
-                read_cycle_count_next = (ram_read_desc_len - 1) >> $clog2(AXIS_KEEP_WIDTH_INT);
+                axis_cmd_cycle_count_next = (ram_read_desc_bits_len - 1) >> $clog2(AXIS_KEEP_WIDTH_INT);
+                read_cycle_count_next = (ram_read_desc_bits_len - 1) >> $clog2(AXIS_KEEP_WIDTH_INT);
 
                 axis_cmd_valid_next = 1'b1;
 
@@ -522,16 +523,16 @@ reg [AXIS_USER_WIDTH-1:0] out_fifo_tuser[2**OUTPUT_FIFO_ADDR_WIDTH-1:0];
 
 assign m_axis_read_data_tready_int = !out_fifo_half_full_reg;
 
-assign ram_read_data_data  = m_axis_read_data_tdata_reg;
-assign ram_read_data_keep  = AXIS_KEEP_ENABLE ? m_axis_read_data_tkeep_reg : {AXIS_KEEP_WIDTH{1'b1}};
+assign ram_read_data_bits_data  = m_axis_read_data_tdata_reg;
+assign ram_read_data_bits_keep  = AXIS_KEEP_ENABLE ? m_axis_read_data_tkeep_reg : {AXIS_KEEP_WIDTH{1'b1}};
 assign ram_read_data_valid = m_axis_read_data_tvalid_reg;
-assign ram_read_data_last  = AXIS_LAST_ENABLE ? m_axis_read_data_tlast_reg : 1'b1;
-assign ram_read_data_id    = AXIS_ID_ENABLE   ? m_axis_read_data_tid_reg   : {AXIS_ID_WIDTH{1'b0}};
-assign ram_read_data_dest  = AXIS_DEST_ENABLE ? m_axis_read_data_tdest_reg : {AXIS_DEST_WIDTH{1'b0}};
-assign ram_read_data_user  = AXIS_USER_ENABLE ? m_axis_read_data_tuser_reg : {AXIS_USER_WIDTH{1'b0}};
+assign ram_read_data_bits_last  = AXIS_LAST_ENABLE ? m_axis_read_data_tlast_reg : 1'b1;
+assign ram_read_data_bits_id    = AXIS_ID_ENABLE   ? m_axis_read_data_tid_reg   : {AXIS_ID_WIDTH{1'b0}};
+assign ram_read_data_bits_dest  = AXIS_DEST_ENABLE ? m_axis_read_data_tdest_reg : {AXIS_DEST_WIDTH{1'b0}};
+assign ram_read_data_bits_user  = AXIS_USER_ENABLE ? m_axis_read_data_tuser_reg : {AXIS_USER_WIDTH{1'b0}};
 
 always @(posedge clk) begin
-    m_axis_read_data_tvalid_reg <= m_axis_read_data_tvalid_reg && !m_axis_read_data_tready;
+    m_axis_read_data_tvalid_reg <= m_axis_read_data_tvalid_reg && !ram_read_data_ready;
 
     out_fifo_half_full_reg <= $unsigned(out_fifo_wr_ptr_reg - out_fifo_rd_ptr_reg) >= 2**(OUTPUT_FIFO_ADDR_WIDTH-1);
 
@@ -545,7 +546,7 @@ always @(posedge clk) begin
         out_fifo_wr_ptr_reg <= out_fifo_wr_ptr_reg + 1;
     end
 
-    if (!out_fifo_empty && (!m_axis_read_data_tvalid_reg || m_axis_read_data_tready)) begin
+    if (!out_fifo_empty && (!m_axis_read_data_tvalid_reg || ram_read_data_ready)) begin
         m_axis_read_data_tdata_reg <= out_fifo_tdata[out_fifo_rd_ptr_reg[OUTPUT_FIFO_ADDR_WIDTH-1:0]];
         m_axis_read_data_tkeep_reg <= out_fifo_tkeep[out_fifo_rd_ptr_reg[OUTPUT_FIFO_ADDR_WIDTH-1:0]];
         m_axis_read_data_tvalid_reg <= 1'b1;

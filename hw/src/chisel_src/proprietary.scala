@@ -5,8 +5,19 @@ package gpnic
 import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
-import chisel3.experimental.prefix
-import chisel3.experimental.noPrefix
+// import chisel3.experimental.prefix
+// import chisel3.experimental.noPrefix
+// import chisel3.util.experimental.{forceName, InlineInstance}
+// import chisel3.internal.plugin.autoNameRecursively
+// import chisel3.internal.plugin.prefix
+import scala.collection.immutable.ListMap
+import scala.collection.immutable.SeqMap
+import scala.collection.mutable.Map
+
+import java.nio.file.{Paths, Files}
+import java.nio.charset.StandardCharsets
+
+
 
 // TODO maybe specify the type to the clock conveter through a module on top that handles bit conversion
 
@@ -83,14 +94,41 @@ class AXIClockConverter(
   })
 }
 
-class SystemILA[T <: Bundle](gen: T) extends BlackBox {
-  val io = IO(new Bundle {
-    val SLOT_0_AXIS = Flipped(new axis(gen.getWidth, false, 0, false, 0, false))
-    val clk         = Input(Clock())
-    val resetn      = Input(Reset())
+class ILARaw[T <: Bundle](gen: T) extends BlackBox {
+  val io = IO(new Record {
+    val elements = {
+      val list = gen.elements.zip(0 until gen.elements.size).map(elem => {
+        val idx = elem._2
+        (s"probe$idx", Input(elem._1._2))
+      })
+      
+      println(list)
+      (list.toMap[String, chisel3.Data]).to(SeqMap) ++ ListMap("clk" -> Input(Clock()), "resetn" -> Input(Reset()))
+    }
   })
-  // Input(MixedVec(gen.getElements)).suggestName("blah")
 }
+
+class ILA[T <: Bundle](gen: T) extends Module {
+  val io = IO(new Bundle {
+    val ila_data = Input(gen)
+  })
+
+  val ila = Module(new ILARaw(gen))
+  ila.io.elements("clk")    := clock
+  ila.io.elements("resetn") := !reset.asBool
+
+  println(io.ila_data.getElements)
+
+  io.ila_data.elements.zip(0 until gen.elements.size).foreach(elem => {
+    val idx = elem._2
+    ila.io.elements(s"probe$idx") := io.ila_data.getElements(idx)
+  })
+
+  Files.write(Paths.get("file.txt"), "file contents".getBytes(StandardCharsets.UTF_8))
+
+}
+
+
 
 class ClockWizard extends BlackBox {
   val io = IO(new Bundle {
@@ -105,12 +143,15 @@ class ClockWizard extends BlackBox {
 
 class ProcessorSystemReset extends BlackBox {
   val io = IO(new Bundle {
-    val slowest_sync_clk   = Input(Clock())
-    val ext_reset_in       = Input(Bool())
-    val aux_reset_in       = Input(Bool())
-    val dcm_locked         = Input(UInt(1.W))
-    val peripheral_reset   = Output(Bool())
-    // val peripheral_areset  = Output(Reset())
-    // val peripheral_aresetn = Output(Reset())
+    val slowest_sync_clk     = Input(Clock())
+    val ext_reset_in         = Input(Bool())
+    val aux_reset_in         = Input(Bool())
+    val dcm_locked           = Input(UInt(1.W))
+    val peripheral_reset     = Output(Bool())
+    val mb_reset             = Output(UInt(1.W))
+    val bus_struct_reset     = Output(UInt(1.W))
+    val interconnect_aresetn = Output(UInt(1.W))
+    val peripheral_aresetn   = Output(UInt(1.W))
+    val mb_debug_sys_rst     = Input(UInt(1.W))
   })
 }

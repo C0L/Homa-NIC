@@ -3,6 +3,7 @@ package gpnic
 import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
+import scala.collection.immutable.ListMap
 
 /*
  * pcie_read_cmd_t - read request to pcie core with a destination in psdram for the result. This must match the instantiation of the pcie core. 
@@ -34,12 +35,12 @@ class ram_read_desc_t extends Bundle {
 }
 
 class ram_read_data_t extends Bundle {
- val ram_addr = UInt(512.W)
- val keep     = UInt(64.W)
- val last     = UInt(1.W)
- val id       = UInt(1.W)
- val dest     = UInt(8.W)
- val user     = UInt(1.W)
+ val data = UInt(512.W)
+ val keep = UInt(64.W)
+ val last = UInt(1.W)
+ val id   = UInt(1.W)
+ val dest = UInt(8.W)
+ val user = UInt(1.W)
 }
 
 class ram_read_desc_status_t extends Bundle {
@@ -77,8 +78,8 @@ class dma_read_desc_status_t extends Bundle {
 }
 
 class dma_write_desc_status_t extends Bundle {
-  val status_tag   = UInt(8.W)
-  val status_error = UInt(4.W)
+  val tag   = UInt(8.W)
+  val error = UInt(4.W)
 }
 
 class dma_read_t extends Bundle {
@@ -110,11 +111,11 @@ class ram_wr_t extends Bundle {
   val cmd_data   = Output(UInt(1024.W))
   val cmd_valid  = Output(UInt(2.W))
   val cmd_ready  = Input(UInt(2.W))
-  val wr_done    = Input(UInt(2.W))
+  val done    = Input(UInt(2.W))
 }
 
 class ram_rd_t extends Bundle {
-  val cmd_sel    = Output(UInt(2.W))
+  // val cmd_sel    = Output(UInt(2.W))
   val cmd_addr   = Output(UInt(22.W))
   val cmd_valid  = Output(UInt(2.W))
   val cmd_ready  = Input(UInt(2.W))
@@ -230,3 +231,12 @@ object dma_map_type extends ChiselEnum {
   val h2c_map, c2h_map, meta_map = Value
 }
 
+class MyBundle extends Record {
+  val elements = ListMap(Seq.tabulate(10) { i =>
+    s"foo$i" -> Input(UInt(i.W))
+  }:_*)
+
+  val clk    = Input(Clock())
+  val resetn = Input(Reset())
+  // override def cloneType: this.type = (new MyBundle).asInstanceOf[this.type]
+}

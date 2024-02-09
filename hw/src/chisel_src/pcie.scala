@@ -85,10 +85,10 @@ class pcie extends Module {
   pcie_core.io.dma_write_desc_status <> dma_write_desc_status
 
   // pcie_core writes to segmented ram to read from DMA
-  h2c_psdpram.io.wr <> pcie_core.io.ram_wr
+  h2c_psdpram.io.ram_wr <> pcie_core.io.ram_wr
 
   // pcie_core reads from segmented ram to write to DMA
-  c2h_psdpram.io.rd <> pcie_core.io.ram_rd
+  c2h_psdpram.io.ram_rd <> pcie_core.io.ram_rd
 
   // DMA client accepts read descriptors from the packet egress logic
   dma_client_read.io.ram_read_desc        <> ram_read_desc 
@@ -99,7 +99,7 @@ class pcie extends Module {
 
   dma_client_read.io.enable := 1.U(1.W)
   
-  dma_client_read.io.rd <> h2c_psdpram.io.rd
+  dma_client_read.io.ram_rd <> h2c_psdpram.io.ram_rd
 
   // DMA client accepts write descriptors from the packet ingress logic
   dma_client_write.io.ram_write_desc        <> ram_write_desc
@@ -110,6 +110,9 @@ class pcie extends Module {
 
   dma_client_write.io.enable := 1.U(1.W)
 
-  dma_client_write.io.wr <> c2h_psdpram.io.wr
+  dma_client_write.io.ram_wr <> c2h_psdpram.io.ram_wr
+
+  // TODO maybe for recursive def?
+  // override def typeName = s"MyBundle_${gen.typeName}_${intParam}"
 }
 

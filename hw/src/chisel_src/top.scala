@@ -25,11 +25,15 @@ class top extends RawModule {
 
   val ps_reset = Module(new ProcessorSystemReset)
 
-  ps_reset.io.ext_reset_in     := reset
-  ps_reset.io.aux_reset_in     := false.B
-  ps_reset.io.slowest_sync_clk := mainClk.io.clk_out1
-  ps_reset.io.dcm_locked       := mainClk.io.locked
-  // ps_reset.io.peripheral_reset := DontCare
+  ps_reset.io.ext_reset_in         := !reset
+  ps_reset.io.aux_reset_in         := true.B // Active Low 
+  ps_reset.io.slowest_sync_clk     := mainClk.io.clk_out1
+  ps_reset.io.dcm_locked           := mainClk.io.locked
+  ps_reset.io.mb_reset             := DontCare
+  ps_reset.io.bus_struct_reset     := DontCare
+  ps_reset.io.interconnect_aresetn := DontCare
+  ps_reset.io.peripheral_aresetn   := DontCare
+  ps_reset.io.mb_debug_sys_rst     := 0.U
 
   /* core logic operates at 200MHz output from clock generator */
   val core = withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) { Module(new core) }
@@ -43,7 +47,7 @@ class top extends RawModule {
   pcie_user_reset := pcie.pcie_user_reset
 
   pcie.pcie_rx_p     := pcie_rx_p
-  pcie.pcie_rx_n     := pcie_rx_p
+  pcie.pcie_rx_n     := pcie_rx_n
   pcie_tx_p          := pcie.pcie_tx_p 
   pcie_tx_n          := pcie.pcie_tx_n
   pcie.pcie_refclk_p := pcie_refclk_p
