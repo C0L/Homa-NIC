@@ -5,11 +5,6 @@ package gpnic
 import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
-// import chisel3.experimental.prefix
-// import chisel3.experimental.noPrefix
-// import chisel3.util.experimental.{forceName, InlineInstance}
-// import chisel3.internal.plugin.autoNameRecursively
-// import chisel3.internal.plugin.prefix
 import scala.collection.immutable.ListMap
 import scala.collection.immutable.SeqMap
 import scala.collection.mutable.Map
@@ -37,8 +32,17 @@ class AXISClockConverterRaw(
     val m_axis_aclk    = Input(Clock())
   })
 
-  // TODO why is this needed
-  override def desiredName = s"AXISClockConverter_$DATA_WIDTH"
+  override def desiredName = "AXISClockConverter" + this.hashCode()
+
+  val ipname   = this.desiredName
+
+  val ipgen    = new StringBuilder()
+  val numbytes = ((io.s_axis.getWidth.toFloat / 8 ).ceil).toInt
+
+  ipgen ++= s"create_ip -name axis_clock_converter -vendor xilinx.com -library ip -module_name ${ipname}\n"
+  ipgen ++= s"set_property CONFIG.TDATA_NUM_BYTES ${numbytes} [get_ips ${ipname}]"
+
+  Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))
 }
 
 // Polymorphic clock converter
@@ -92,57 +96,19 @@ class AXIClockConverter(
     val m_axi_aresetn = Input(Reset())
     val m_axi_aclk    = Input(Clock())
   })
-}
 
-class ILARaw[T <: Bundle](gen: T) extends BlackBox {
-  val io = IO(new Record {
-    val elements = {
-      val list = gen.elements.zip(0 until gen.elements.size).map(elem => {
-        val index = elem._2
-        (s"probe$index", Input(UInt(elem._1._2.getWidth.W)))
-      })
-
-      println(list)
-      
-      (list.toMap[String, chisel3.Data]).to(SeqMap) ++ ListMap("clk" -> Input(Clock()), "resetn" -> Input(Reset()))
-    }
-  })
-}
-
-class ILA[T <: Bundle](gen: T) extends Module {
-  val io = IO(new Bundle {
-    val ila_data = Input(gen)
-  })
-
-  val ila = Module(new ILARaw(gen))
-  ila.io.elements("clk")    := clock
-  ila.io.elements("resetn") := !reset.asBool
-
-  io.ila_data.elements.zip(0 until gen.elements.size).foreach(elem => {
-    val index = elem._2
-    ila.io.elements(s"probe$index") := io.ila_data.getElements(index).asUInt
-  })
-
-  override def desiredName = "ILA_" + this.hashCode()
+  override def desiredName = "AXIClockConverter" + this.hashCode()
 
   val ipname   = this.desiredName
-  val numprobs = io.ila_data.getElements.length
 
-  val ipgen = new StringBuilder()
+  val ipgen    = new StringBuilder()
+  val numbits = ((DATA_WIDTH.toFloat / 8 ).ceil).toInt * 8
 
-  ipgen ++= s"create_ip -name ila -vendor xilinx.com -library ip -module_name ${ipname}\n"
-  ipgen ++= s"set_property CONFIG.C_NUM_OF_PROBES {$numprobs} [get_ips ${ipname}]\n"
-
-  io.ila_data.elements.zip(0 until gen.elements.size).foreach(elem => {
-    val index = elem._2
-    val width = io.ila_data.getElements(index).getWidth
-    ipgen ++= s"set_property CONFIG.C_PROBE${index}_WIDTH {${width}} [get_ips ${ipname}]\n"
-  })
+  ipgen ++= s"create_ip -name axi_clock_converter -vendor xilinx.com -library ip -module_name ${ipname}\n"
+  ipgen ++= s"set_property CONFIG.DATA_WIDth {${numbits}} [get_ips ${ipname}]"
 
   Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))
 }
-
-
 
 class ClockWizard extends BlackBox {
   val io = IO(new Bundle {
@@ -167,5 +133,56 @@ class ProcessorSystemReset extends BlackBox {
     val interconnect_aresetn = Output(UInt(1.W))
     val peripheral_aresetn   = Output(UInt(1.W))
     val mb_debug_sys_rst     = Input(UInt(1.W))
+  })
+}
+
+
+/* TODO Document this */
+
+class ILARaw[T <: Bundle](gen: T) extends BlackBox {
+  val io = IO(new Record {
+    val elements = {
+      val list = gen.elements.zip(0 until gen.elements.size).map(elem => {
+        val index = elem._2
+        (s"probe$index", Input(UInt(elem._1._2.getWidth.W)))
+      })
+
+      println(list)
+      
+      (list.toMap[String, chisel3.Data]).to(SeqMap) ++ ListMap("clk" -> Input(Clock()), "resetn" -> Input(Reset()))
+    }
+  })
+
+  override def desiredName = "ILA_" + this.hashCode()
+
+  val ipname   = this.desiredName
+  val numprobs = gen.getElements.length
+
+  val ipgen = new StringBuilder()
+
+  ipgen ++= s"create_ip -name ila -vendor xilinx.com -library ip -module_name ${ipname}\n"
+  ipgen ++= s"set_property CONFIG.C_NUM_OF_PROBES {${numprobs}} [get_ips ${ipname}]\n"
+
+  gen.elements.zip(0 until gen.elements.size).foreach(elem => {
+    val index = elem._2
+    val width = gen.getElements(index).getWidth
+    ipgen ++= s"set_property CONFIG.C_PROBE${index}_WIDTH {${width}} [get_ips ${ipname}]\n"
+  })
+
+  Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))
+}
+
+class ILA[T <: Bundle](gen: T) extends Module {
+  val io = IO(new Bundle {
+    val ila_data = Input(gen)
+  })
+
+  val ila = Module(new ILARaw(gen))
+  ila.io.elements("clk")    := clock
+  ila.io.elements("resetn") := !reset.asBool
+
+  io.ila_data.elements.zip(0 until gen.elements.size).foreach(elem => {
+    val index = elem._2
+    ila.io.elements(s"probe$index") := io.ila_data.getElements(index).asUInt
   })
 }

@@ -1,34 +1,30 @@
-set target homa
-set bd homa
-set new_ip_paths [list "./ip/homa" "./ip/interface"]
+# set target homa
+# set bd homa
+# set new_ip_paths [list "./ip/homa" "./ip/interface"]
 set part xcu250-figd2104-2L-e
 set board xilinx.com:au250:part0:1.3 
 
-create_project $target $target -force -part $part
+create_project homa homa -force -part $part
 
 set_property board_part xilinx.com:au250:part0:1.3 [current_project]
 
+# Constraints
 add_files -fileset constrs_1 ./xdc/homa.xdc
-add_files -fileset sources_1 ./ip/picorv32/picorv32.v
-add_files -fileset sources_1 ./ip/wb2axip/
 set_property is_enabled true [get_files ./xdc/homa.xdc]
+
 add_files -fileset constrs_1 ./xdc/alveo-u250-xdc.xdc
 set_property is_enabled true [get_files ./xdc/alveo-u250-xdc.xdc]
 
-set cur_ip_paths [get_property ip_repo_paths [current_project]]
-set_property ip_repo_paths [concat $new_ip_paths $cur_ip_paths] [current_project]
-# set_property ip_repo_paths [lappend new_ip_paths $cur_ip_paths] [current_project]
-update_ip_catalog
+# Source files 
+add_files -fileset sources_1 ./src/
 
-source ./tcl/homa.tcl
-
-make_wrapper -files [get_files ./$target/$target.srcs/sources_1/bd/$bd/$bd.bd] -top
-add_files -norecurse ./$target/$target.srcs/sources_1/bd/$bd/hdl/$bd\_wrapper.v
-
-set_property top $target\_wrapper [current_fileset]
+set_property top top [current_fileset]
+update_compile_order -fileset sources_1
 
 update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1
+
+foreach script [glob ./src/chisel_src/*.tcl] {source $script}
 
 # Launch Synthesis
 launch_runs synth_1

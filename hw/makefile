@@ -25,47 +25,6 @@ TCL_DIR   = ./tcl
 SRC_V = \
         $(V_SRC_DIR)/srpt_grant_queue.v
 
-# TB_V = \
-#         $(V_SRC_DIR)/srpt_grant_pkts.v
-
-
-SRC_JSON = \
-        $(V_SRC_DIR)/srpt_grant_pkts.json \
-        $(V_SRC_DIR)/srpt_data_queue.json \
-        $(V_SRC_DIR)/srpt_fetch_queue.json
-
-CSRC_INF =                     \
-    $(C_SRC_DIR)/interface.cc  \
-    $(C_SRC_DIR)/interface.hh  \
-    $(C_SRC_DIR)/homa.hh       
-
-
-SRC_C =                       \
-    $(C_SRC_DIR)/databuff.cc  \
-    $(C_SRC_DIR)/databuff.hh  \
-    $(C_SRC_DIR)/user.cc      \
-    $(C_SRC_DIR)/user.hh      \
-    $(C_SRC_DIR)/map.cc       \
-    $(C_SRC_DIR)/map.hh       \
-    $(C_SRC_DIR)/homa.cc      \
-    $(C_SRC_DIR)/homa.hh      \
-    $(C_SRC_DIR)/link.cc      \
-    $(C_SRC_DIR)/link.hh      \
-    $(C_SRC_DIR)/peer.cc      \
-    $(C_SRC_DIR)/peer.hh      \
-    $(C_SRC_DIR)/rpcmgmt.cc   \
-    $(C_SRC_DIR)/rpcmgmt.hh   \
-    $(C_SRC_DIR)/srptmgmt.cc  \
-    $(C_SRC_DIR)/srptmgmt.hh  \
-    $(C_SRC_DIR)/stack.hh     \
-    $(C_SRC_DIR)/fifo.hh     \
-    $(C_SRC_DIR)/packetmap.hh \
-    $(C_SRC_DIR)/packetmap.cc \
-    $(C_SRC_DIR)/dma.cc \
-    $(C_SRC_DIR)/dma.hh \
-    $(C_SRC_DIR)/logger.cc \
-    $(C_SRC_DIR)/logger.hh \
-
 PART = xcu250-figd2104-2L-e
 
 CSIM = 0
@@ -76,66 +35,6 @@ COSIM = 2
 
 homa: 
 	$(VIVADO) -mode batch -source tcl/compile.tcl
-
-############ Vitis C Synth ############
-
-HOMA_SYNTH_FLAGS = $(PART) $(SYNTH) 
-
-synth_kernels: c2h_dma_synth h2c_dma_synth cache_ctrl_synth addr_map_synth intf_synth user_synth pkt_ctor_synth pkt_dtor_synth
-
-# TODO can generalize this
-# TODO should generate dir to palce IP
-c2h_dma_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		c2h_dma \
-		src/dma/dma.cc 
-
-h2c_dma_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		h2c_dma \
-		src/dma/dma.cc
-
-cache_ctrl_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		cache_ctrl \
-		src/cache/databuff.cc 
-
-addr_map_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		addr_map \
-		src/dma/dma.cc 
-
-intf_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		interface \
-		src/intf/interface.cc
-
-user_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		user \
-		src/control/homa.cc
-
-pkt_ctor_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		pkt_ctor \
-		src/packet/packet.cc
-
-pkt_dtor_synth:
-	$(VITIS) tcl/homa_hls.tcl -tclargs \
-		$(HOMA_SYNTH_FLAGS) \
-		pkt_dtor \
-		src/packet/packet.cc
-
-chisel_src:
-	sbt run ./src/chisel_src
-
 
 ############ Verilog Synthesis ############ 
 

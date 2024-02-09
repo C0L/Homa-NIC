@@ -28,11 +28,16 @@ class core extends Module {
   fetch_arbiter.io.out   <> fetch_queue.io.enqueue
 
   axi2axis.io.s_axi  <> io.s_axi
-  // pcie.m_axi
   axi2axis.io.m_axis <> delegate.io.function_i
+
+  val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false)))
+  axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
   // TODO another clock converter
   delegate.io.sendmsg_o <> sendmsg_queue.io.enqueue // TODO eventually shared
+
+  val sendmsg_ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  sendmsg_ila.io.ila_data := delegate.io.sendmsg_o
 
   // TODO placeholder
   delegate.io.dma_w_req_o       := DontCare
@@ -40,13 +45,9 @@ class core extends Module {
   // TODO eventually goes to packet constructor
   sendmsg_queue.io.dequeue      := DontCare
 
+  val axi_ila = Module(new ILA(new axi(512,8,32)))
+  axi_ila.io.ila_data := io.s_axi
+
   val ila = Module(new ILA(Decoupled(new queue_entry_t)))
   ila.io.ila_data := io.dbuff_notif_i
-
-  // val ila2 = Module(new ILA(new Bundle {
-  //   io.dbuff_notif_i.bits
-  //   io.dbuff_notif_i.valid
-  //   io.dbuff_notif_i.ready
-  // }))
-  // ila2.io.ila_data := io.dbuff_notif_i
 }
