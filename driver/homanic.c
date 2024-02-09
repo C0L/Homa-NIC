@@ -312,15 +312,18 @@ void dump_log() {
 }
 
 void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
-    iomov64B((void*) io_regs + 256, (void*) port_to_phys);
+    // iomov64B((void*) io_regs + 256, (void*) port_to_phys);
+   *((uint64_t*) (io_regs + 0x60000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
 }
 
 void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iomov64B((void*) io_regs + 128, (void*) port_to_phys);
+	*((uint64_t*) (io_regs + 0x80000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
+    // iomov64B((void*) io_regs + 128, (void*) port_to_phys);
 }
 
 void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iomov64B((void*) io_regs + 192, (void*) port_to_phys);
+	*((uint64_t*) (io_regs + 0x70000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
+    // iomov64B((void*) io_regs + 192, (void*) port_to_phys);
 }
 
 int homanic_open(struct inode * inode, struct file * file) {
@@ -535,25 +538,44 @@ exit:
     return ret;
 }
 
+static void pci_enable_capability(struct pci_dev *pdev, int cap) {
+	uint16_t v;
+	int pos;
+	pos = pci_pcie_cap(pdev);
+	if (pos > 0) {
+		pci_read_config_word(pdev, pos + PCI_EXP_DEVCTL, &v);
+		v |= cap;
+		pci_write_config_word(pdev, pos + PCI_EXP_DEVCTL, v);
+	}
+}
+
 int homanic_init(void) {
     dev_t dev;
     int err;
 
     pr_info("homanic_init\n");
 
-    pdev = pci_get_device(0x10ee, 0x903f, NULL);
+    pdev = pci_get_device(0x1234, 0x903f, NULL);
+     
+    pr_info("device %x.\n", pdev);
 
     /* Wake up the device if suspended and allocate IO and mem regions of the device if BIOS did not */
     pci_enable_device(pdev);
+    
+    // pci_enable_capability(pdev, PCI_EXP_DEVCTL_RELAX_EN);
+    pci_enable_capability(pdev, PCI_EXP_DEVCTL_EXT_TAG);
+
+    // pcie_set_readrq(pdev, 128);
+    //if (err) pr_info("device %s, error set PCI_EXP_DEVCTL_READRQ: %d.\n", dev_name(&pdev->dev), err);
 
     /* Enables DMA by setting the bus master bit in PCI_COMMAND register */
     pci_set_master(pdev);
 
-    // pr_alert("rom: %llx\n", (uint64_t) pci_resource_start(pdev, 0));
+    pr_alert("bar: %llx\n", (uint64_t) pci_resource_start(pdev, 0));
 
     BAR_0 = pci_resource_start(pdev, 0);
 
-    dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(64));
+    dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(48));
 
     err = alloc_chrdev_region(&dev, 0, MAX_MINOR, "homanic");
 
@@ -581,23 +603,28 @@ int homanic_init(void) {
 
     io_regs = ioremap_wc(BAR_0, 0xA0000);
 
-    iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
-    iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
+    // pr_info("io %p\n", io_regs);
+
+    // iowrite32(0xFFFFFFFF, io_regs + 0x70000);
+    //iowrite32(0xAAAAAAAA, io_regs + 4);
+    //iowrite32(0xBBBBBBBB, io_regs + 8);
+    //iowrite32(0xCCCCCCCC, io_regs + 0x70000);
+    // pr_info("read back %x\n", ioread32(io_regs + 0x70000));
+    // iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
+    // iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
+
+    // init_mb();
+
+    // TODO should not be needed
+    // msleep(1000);
+
+    // iowrite32(0x1, io_regs + 0x50000);
+
+    // msleep(1000);
 
     // iowrite32(0x0, io_regs + 0x50000);
 
-    init_mb();
-
-    // TODO should not be needed
-    msleep(1000);
-
-    iowrite32(0x1, io_regs + 0x50000);
-
-    msleep(1000);
-
-    iowrite32(0x0, io_regs + 0x50000);
-
-    dump_mb();
+    // dump_mb();
 
     init_eth();
 

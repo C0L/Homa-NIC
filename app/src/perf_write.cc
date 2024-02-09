@@ -39,12 +39,22 @@ int main() {
     	perror("mmap failed\n");
     }
 
+    char pattern[5] = "\xDE\xAD\xBE\xEF";
+
+    for (int i = 0; i < (HOMA_MAX_MESSAGE_LENGTH/64)-1; ++i) {
+        memset(pattern, i+1, 4);
+    	for (int j = 0; j < 64/4; ++j) {
+        	memcpy((((char*) h2c_msgbuff_map)) + (j*4) + (i*64), pattern, 4);
+    	}
+    }
+
     uint32_t retoff = 0; // Lte 12 bits used
-    uint32_t size   = 0; // Lte 20 bits used
+    uint32_t size   = 16000; // Lte 20 bits used
+    // uint32_t size   = 100000; // Lte 20 bits used
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
-    msghdr_send_in.sport     = 0x1;
-    msghdr_send_in.dport     = 0x1;
+    msghdr_send_in.sport     = 0x0;
+    msghdr_send_in.dport     = 0x0;
     msghdr_send_in.buff_addr = 0;
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
@@ -57,7 +67,7 @@ int main() {
     snprintf(thread_name, sizeof(thread_name), "main");
     time_trace::thread_buffer thread_buffer(thread_name);
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1; i++) {
 	__m512i ymm0;
 	ymm0 = _mm512_load_si512(reinterpret_cast<__m512i*>(&msghdr_send_in));
 	_mm_mfence();
@@ -67,7 +77,7 @@ int main() {
 	while(*poll == 0);
 	tt(rdtsc(), "write response", 0, 0, 0, 0);
 	*poll = 0;
-    }
+    } 
 
     time_trace::print_to_file("parse/perf_write.tt");
 

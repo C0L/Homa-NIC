@@ -12,9 +12,7 @@ APPS := bin/perf_write \
 	bin/perf_latency_server \
 	bin/perf_latency_client \
 	bin/perf_bitrate_server \
-	bin/perf_bitrate_client \
-	bin/perf_msgrate_server \
-	bin/perf_msgrate_client
+	bin/perf_bitrate_client
 
 
 .PHONY: parse
