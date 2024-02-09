@@ -12,20 +12,6 @@
 
 #include <linux/io.h>
 
-#define AXI_STREAM_FIFO_ISR  0x00 // Interrupt Status Register (r/clear on w)
-#define AXI_STREAM_FIFO_IER  0x04 // Interrupt Enable Register (r/w)
-#define AXI_STREAM_FIFO_TDFR 0x08 // Transmit Data FIFO Reset (w)
-#define AXI_STREAM_FIFO_TDFV 0x0C // Transmit Data FIFO Vacancy (r)
-#define AXI_STREAM_FIFO_TDFD 0x10 // Transmit Data FIFO Write (w)
-#define AXI_STREAM_FIFO_TLR  0x14 // Transmit Length Register (w)
-#define AXI_STREAM_FIFO_RDFR 0x18 // Receive Data FIFO Reset (w)
-#define AXI_STREAM_FIFO_RDFO 0x1C // Receive Data FIFO Occupancy (r)
-#define AXI_STREAM_FIFO_RDFD 0x20 // Receive Data FIFO Read (r)
-#define AXI_STREAM_FIFO_RLR  0x24 // Receive Length Register (r)
-#define AXI_STREAM_FIFO_SRR  0x28 // AXI4-Stream Reset (w)
-#define AXI_STREAM_FIFO_TDR  0x2C // Transmit Destination Register (w)
-#define AXI_STREAM_FIFO_RDR  0x30 // Receive Destination Register (r)
-
 #define AXI_CMAC_1 0x30000
 
 #define MINOR_H2C_METADATA 0
@@ -62,17 +48,6 @@ dma_addr_t c2h_metadata_dma_handle;
 // TODO this will just cycle around and eventually reallocate ports
 uint16_t ports = 1;
 
-struct msghdr_send_t {
-    char saddr[16];
-    char daddr[16];
-    uint16_t sport;
-    uint16_t dport;
-    uint64_t buff_addr;
-    uint32_t metadata;
-    uint64_t id;
-    uint64_t cc;
-}__attribute__((packed));
-
 struct log_entry_t {
     uint8_t  dma_w_req_log;
     uint8_t  dma_w_stat_log;
@@ -89,6 +64,7 @@ struct log_entry_t {
 struct port_to_phys_t {
     uint64_t phys_addr;
     uint32_t port;
+    // TODO need to include destination map
     char     pad[52];
 }__attribute__((packed));
 
@@ -145,108 +121,43 @@ void iomov64B(__m256i * dst, __m256i * src) {
     kernel_fpu_end();
 }
 
-void dump_mb() {
-    int i;
-
-    volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40000);
- 
-    for (i = 0; i < 200; ++i) {
-	pr_alert("mem index %x: %x\n", i * 4, *((uint32_t*) (prog_mem + i)));
-    }
-}
-
-void init_mb() {
-    int i;
-
-    uint32_t * prog_mem = (uint32_t*) (io_regs + 0x40000);
-
-    for (i = 0; i < ((_binary_firmware_end - _binary_firmware_start) / 4); ++i) {
-	iowrite32(*(((uint32_t*) _binary_firmware_start) + i), prog_mem + i);
-    }
-
-    for (i = 0; i < 150; ++i) {
-    	pr_alert("mem index %x: %x\n", i * 4, ioread32(prog_mem + i));
-    }
-}
+// void dump_mb() {
+//     int i;
+// 
+//     volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40000);
+//  
+//     for (i = 0; i < 200; ++i) {
+// 	pr_alert("mem index %x: %x\n", i * 4, *((uint32_t*) (prog_mem + i)));
+//     }
+// }
+// 
+// void init_mb() {
+//     int i;
+// 
+//     uint32_t * prog_mem = (uint32_t*) (io_regs + 0x40000);
+// 
+//     for (i = 0; i < ((_binary_firmware_end - _binary_firmware_start) / 4); ++i) {
+// 	iowrite32(*(((uint32_t*) _binary_firmware_start) + i), prog_mem + i);
+//     }
+// 
+//     for (i = 0; i < 150; ++i) {
+//     	pr_alert("mem index %x: %x\n", i * 4, ioread32(prog_mem + i));
+//     }
+// }
 
 // https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Without-AXI4-Lite-Interface
 void init_eth() {
     iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00000);
 
-    //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
-
-    //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
-    //pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
-
-    // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x00014);
-    // iowrite32(0x00000010, io_regs + AXI_CMAC_0 + 0x0000C);
-
     iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00014);
     iowrite32(0x00000010, io_regs + AXI_CMAC_1 + 0x0000C);
 
-    //// TODO 2.Wait for RX_aligned then write the below registers:
-    //// TODO should instead poll on particular bit?
-    // iowrite32(0x00000001, io_regs + AXI_CMAC_0 + 0x0000C);
     iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x0000C);
-    // while((ioread32(io_regs + AXI_CMAC_0 + 0x0204) & 0x2) != 0x2);
     while((ioread32(io_regs + AXI_CMAC_1 + 0x0204) & 0x2) != 0x2);
-
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
-
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
-
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
-
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
-
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
-
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
-    pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
-
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0204));
-    // pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_0 + 0x0200));
 
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0204));
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 } 
-
-void ipv6_to_str(char * str, char * s6_addr) {
-   sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
-                 (int)s6_addr[0],  (int)s6_addr[1],
-                 (int)s6_addr[2],  (int)s6_addr[3],
-                 (int)s6_addr[4],  (int)s6_addr[5],
-                 (int)s6_addr[6],  (int)s6_addr[7],
-                 (int)s6_addr[8],  (int)s6_addr[9],
-                 (int)s6_addr[10], (int)s6_addr[11],
-                 (int)s6_addr[12], (int)s6_addr[13],
-                 (int)s6_addr[14], (int)s6_addr[15]);
-}
-
-void print_msghdr(struct msghdr_send_t * msghdr_send) {
-    char saddr[64];
-    char daddr[64];
-
-    pr_alert("sendmsg content dump:\n");
-
-    ipv6_to_str(saddr, msghdr_send->saddr);
-    ipv6_to_str(daddr, msghdr_send->daddr);
-
-    pr_alert("  - source address      : %s\n", saddr);
-    pr_alert("  - destination address : %s\n", daddr);
-    pr_alert("  - source port         : %u\n", (unsigned int) msghdr_send->sport);
-    pr_alert("  - dest port           : %u\n", (unsigned int) msghdr_send->dport);
-    pr_alert("  - buffer address      : %llx\n", msghdr_send->buff_addr);
-    pr_alert("  - buffer size         : %u\n",  msghdr_send->metadata);
-    pr_alert("  - rpc id              : %llu\n", msghdr_send->id);
-    pr_alert("  - completion cookie   : %llu\n", msghdr_send->cc);
-}
 
 struct file_operations homanic_fops = {
     .owner          = THIS_MODULE,
@@ -266,63 +177,63 @@ struct class * cls;
 
 int dev_major = 0;
 
-void dump_log() {
-     uint32_t rlr = 0;
-     uint32_t rdfo = 0;
- 
-     // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
- 
-     log_control.state = LOG_DRAIN;
-
-     iomov64B((void*) io_regs + 320, (void*) &log_control);
- 
-     pr_alert("Dump Log\n");
- 
-     rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
-     rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
- 
-     while (rdfo != 0) {
- 	iomov64B((void *) &log_entry, (void*) io_regs + 0x13000);
- 	
- 	iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
- 	iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
- 
- 	rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
- 	rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
- 
- 	pr_alert("Log Entry: ");
- 	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
- 	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
- 	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
- 	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
- 	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
- 	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
- 	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
- 	pr_alert("  Duff Notif     - %02hhX", log_entry.dbuff_notif_log);
- 	pr_alert("  Timer          - %u",     log_entry.timer);
-     }
-    
-     // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
- 
-     log_control.state = LOG_RECORD;
- 
-     iomov64B((void*) io_regs + 320, (void*) &log_control);
- 
-     // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
-}
+// void dump_log() {
+//      uint32_t rlr = 0;
+//      uint32_t rdfo = 0;
+//  
+//      // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+//  
+//      log_control.state = LOG_DRAIN;
+// 
+//      iomov64B((void*) io_regs + 320, (void*) &log_control);
+//  
+//      pr_alert("Dump Log\n");
+//  
+//      rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
+//      rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
+//  
+//      while (rdfo != 0) {
+//  	iomov64B((void *) &log_entry, (void*) io_regs + 0x13000);
+//  	
+//  	iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
+//  	iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
+//  
+//  	rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
+//  	rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
+//  
+//  	pr_alert("Log Entry: ");
+//  	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
+//  	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
+//  	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
+//  	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
+//  	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
+//  	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
+//  	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
+//  	pr_alert("  Duff Notif     - %02hhX", log_entry.dbuff_notif_log);
+//  	pr_alert("  Timer          - %u",     log_entry.timer);
+//      }
+//     
+//      // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+//  
+//      log_control.state = LOG_RECORD;
+//  
+//      iomov64B((void*) io_regs + 320, (void*) &log_control);
+//  
+//      // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+// }
 
 void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
-    // iomov64B((void*) io_regs + 256, (void*) port_to_phys);
-   *((uint64_t*) (io_regs + 0x60000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
+    iomov64B((void*) io_regs, (void*) port_to_phys);
+    // *((uint64_t*) (io_regs + 0x60000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
 }
 
 void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-	*((uint64_t*) (io_regs + 0x80000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
+    // *((uint64_t*) (io_regs + 0x80000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
     // iomov64B((void*) io_regs + 128, (void*) port_to_phys);
 }
 
 void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-	*((uint64_t*) (io_regs + 0x70000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
+    // *((uint64_t*) (io_regs + 0x70000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
     // iomov64B((void*) io_regs + 192, (void*) port_to_phys);
 }
 
@@ -420,43 +331,32 @@ int homanic_close(struct inode * inode, struct file * file) {
 	    dma_free_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_msgbuff_cpu_addr,  c2h_msgbuff_dma_handle);
 	    break;
     }
-
-//    for (i = 0; i < 2; ++i) {
-//    	printk(KERN_ALERT "Chunk %d: ", i);
-//    	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
-//    }
-//
-//    for (i = 0; i < 2; ++i) {
-//    	printk(KERN_ALERT "Chunk %d: ", i);
-//    	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
-//    }
-
     pr_info("homanic_close\n");
 
     return 0;
 }
 
-long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioctl_param) {
-    printk(KERN_ALERT "homanic_ioctl\n");
-
-    switch(ioctl_num) {
-	case IOCTL_DMA_DUMP:
-
-	    dump_log();
-	    // for (i = 0; i < 8; ++i) {
-	    // 	printk(KERN_ALERT "Chunk %d: ", i);
-	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
-	    // }
-	    // 
-	    // for (i = 0; i < 8; ++i) {
-	    // 	printk(KERN_ALERT "Chunk %d: ", i);
-	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
-	    // }
-	    break;
-    }
-
-    return 0;
-}
+// long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioctl_param) {
+//     printk(KERN_ALERT "homanic_ioctl\n");
+// 
+//     switch(ioctl_num) {
+// 	case IOCTL_DMA_DUMP:
+// 
+// 	    // dump_log();
+// 	    // for (i = 0; i < 8; ++i) {
+// 	    // 	printk(KERN_ALERT "Chunk %d: ", i);
+// 	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
+// 	    // }
+// 	    // 
+// 	    // for (i = 0; i < 8; ++i) {
+// 	    // 	printk(KERN_ALERT "Chunk %d: ", i);
+// 	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
+// 	    // }
+// 	    break;
+//     }
+// 
+//     return 0;
+// }
 
 
 int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
@@ -539,14 +439,14 @@ exit:
 }
 
 static void pci_enable_capability(struct pci_dev *pdev, int cap) {
-	uint16_t v;
-	int pos;
-	pos = pci_pcie_cap(pdev);
-	if (pos > 0) {
-		pci_read_config_word(pdev, pos + PCI_EXP_DEVCTL, &v);
-		v |= cap;
-		pci_write_config_word(pdev, pos + PCI_EXP_DEVCTL, v);
-	}
+    uint16_t v;
+    int pos;
+    pos = pci_pcie_cap(pdev);
+    if (pos > 0) {
+	pci_read_config_word(pdev, pos + PCI_EXP_DEVCTL, &v);
+	v |= cap;
+	pci_write_config_word(pdev, pos + PCI_EXP_DEVCTL, v);
+    }
 }
 
 int homanic_init(void) {
@@ -562,11 +462,7 @@ int homanic_init(void) {
     /* Wake up the device if suspended and allocate IO and mem regions of the device if BIOS did not */
     pci_enable_device(pdev);
     
-    // pci_enable_capability(pdev, PCI_EXP_DEVCTL_RELAX_EN);
     pci_enable_capability(pdev, PCI_EXP_DEVCTL_EXT_TAG);
-
-    // pcie_set_readrq(pdev, 128);
-    //if (err) pr_info("device %s, error set PCI_EXP_DEVCTL_READRQ: %d.\n", dev_name(&pdev->dev), err);
 
     /* Enables DMA by setting the bus master bit in PCI_COMMAND register */
     pci_set_master(pdev);
@@ -603,29 +499,6 @@ int homanic_init(void) {
 
     io_regs = ioremap_wc(BAR_0, 0xA0000);
 
-    // pr_info("io %p\n", io_regs);
-
-    // iowrite32(0xFFFFFFFF, io_regs + 0x70000);
-    //iowrite32(0xAAAAAAAA, io_regs + 4);
-    //iowrite32(0xBBBBBBBB, io_regs + 8);
-    //iowrite32(0xCCCCCCCC, io_regs + 0x70000);
-    // pr_info("read back %x\n", ioread32(io_regs + 0x70000));
-    // iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
-    // iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
-
-    // init_mb();
-
-    // TODO should not be needed
-    // msleep(1000);
-
-    // iowrite32(0x1, io_regs + 0x50000);
-
-    // msleep(1000);
-
-    // iowrite32(0x0, io_regs + 0x50000);
-
-    // dump_mb();
-
     init_eth();
 
     return 0;
@@ -650,5 +523,5 @@ void homanic_exit(void) {
 }
 
 module_init(homanic_init)
-module_exit(homanic_exit)
-MODULE_LICENSE("GPL");
+    module_exit(homanic_exit)
+    MODULE_LICENSE("MIT");

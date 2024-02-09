@@ -101,7 +101,7 @@ class dma_write_t extends Bundle {
 class dma_map_t extends Bundle {
   val pcie_addr = UInt(64.W)
   val port      = UInt(16.W)
-  val map_type  = dma_map_type()
+  val map_type  = dma_map_type() // TODO need to explicitly set values here for Kernel module interaction
 }
 
 // TODO these should be parmeterizable
@@ -111,7 +111,7 @@ class ram_wr_t extends Bundle {
   val cmd_data   = Output(UInt(1024.W))
   val cmd_valid  = Output(UInt(2.W))
   val cmd_ready  = Input(UInt(2.W))
-  val done    = Input(UInt(2.W))
+  val done       = Input(UInt(2.W))
 }
 
 class ram_rd_t extends Bundle {
@@ -123,16 +123,6 @@ class ram_rd_t extends Bundle {
   val resp_valid = Input(UInt(2.W))
   val resp_ready = Output(UInt(2.W))
 }
-
-//class pcie_raw extends Bundle {
-//  val pcie_rx_p     = Input(UInt(1.W))
-//  val pcie_rx_n     = Input(UInt(1.W))
-//  val pcie_tx_p     = Output(UInt(1.W))
-//  val pcie_tx_n     = Output(UInt(1.W))
-//  val pcie_refclk_p = Input(Clock())
-//  val pcie_refclk_n = Input(Clock())
-//  val pcie_reset_n  = Input(UInt(1.W))
-//}
 
 // Default axi_m
 class axi(AXI_DATA_WIDTH: Int, AXI_ID_WIDTH: Int, AXI_ADDR_WIDTH: Int) extends Bundle {
@@ -216,27 +206,6 @@ class queue_entry_t extends Bundle {
   val priority  = UInt(3.W)
 }
 
-
-//class dbuff_notif_t extends Bundle {
-//  val rpc_id          = UInt(16.W) // TODO make this the same across all
-//  val cache_id        = UInt(10.W)
-//  val remaining_bytes = UInt(20.W)
-//  val dbuffered_bytes = UInt(20.W)
-//  val granted_bytes   = UInt(20.W)
-//  val priority        = UInt(3.W)
-//}
-
-
 object dma_map_type extends ChiselEnum {
   val h2c_map, c2h_map, meta_map = Value
-}
-
-class MyBundle extends Record {
-  val elements = ListMap(Seq.tabulate(10) { i =>
-    s"foo$i" -> Input(UInt(i.W))
-  }:_*)
-
-  val clk    = Input(Clock())
-  val resetn = Input(Reset())
-  // override def cloneType: this.type = (new MyBundle).asInstanceOf[this.type]
 }

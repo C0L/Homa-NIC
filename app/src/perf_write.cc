@@ -92,72 +92,34 @@ int main() {
     close(c2h_msgbuff_fd);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // struct msghdr_send_t msghdr_send_out = msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
-    // print_msghdr(&msghdr_send_out);
-
-    // ioctl(h2c_metadata_fd, 0, NULL);
-
-    // printf("C2H Message Contents Start\n");
-    // for (int i = 0; i < 4; ++i) {
-    // 	printf("Chunk %d: ", i);
-    // 	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
-    // 	printf("\n");
-    // }
-    // printf("C2H Message Contents End\n");
-
-    // munlockall();
-
-
-    //char pattern[5] = "\xDE\xAD\xBE\xEF";
-
-    //for (int i = 0; i < (4*(64/4)); ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
-    //memset((void *) c2h_msgbuff_map, 0, 512);
-    //memset((void *) c2h_metadata_map, 0, 16384);
-
-    //printf("H2C Message Content Start\n");
-    //for (int i = 0; i < 4; ++i) {
-    //	printf("Chunk %d: ", i);
-    //	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) h2c_msgbuff_map) + j + (i*64)));
-    //	printf("\n");
-    //}
-    //printf("H2C Message Content End\n");
-
-    //printf("C2H Message Content Start\n");
-    //for (int i = 0; i < 4; ++i) {
-    //	printf("Chunk %d: ", i);
-    //	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
-    //	printf("\n");
-    //}
-    //printf("C2H Message Content End\n");
-
-    //printf("Initial Message Header\n");
-    //print_msghdr(&msghdr_send_in);
-
-    // struct msghdr_send_t msghdr_send_out = *(((struct msghdr_send_t *) c2h_metadata_map) + retoff);
-    // print_msghdr(&msghdr_send_out);
+// TODO placesomewhere more organized
+// void ipv6_to_str(char * str, char * s6_addr) {
+//    sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+//                  (int)s6_addr[0],  (int)s6_addr[1],
+//                  (int)s6_addr[2],  (int)s6_addr[3],
+//                  (int)s6_addr[4],  (int)s6_addr[5],
+//                  (int)s6_addr[6],  (int)s6_addr[7],
+//                  (int)s6_addr[8],  (int)s6_addr[9],
+//                  (int)s6_addr[10], (int)s6_addr[11],
+//                  (int)s6_addr[12], (int)s6_addr[13],
+//                  (int)s6_addr[14], (int)s6_addr[15]);
+// }
+// 
+// void print_msghdr(struct msghdr_send_t * msghdr_send) {
+//     char saddr[64];
+//     char daddr[64];
+// 
+//     pr_alert("sendmsg content dump:\n");
+// 
+//     ipv6_to_str(saddr, msghdr_send->saddr);
+//     ipv6_to_str(daddr, msghdr_send->daddr);
+// 
+//     pr_alert("  - source address      : %s\n", saddr);
+//     pr_alert("  - destination address : %s\n", daddr);
+//     pr_alert("  - source port         : %u\n", (unsigned int) msghdr_send->sport);
+//     pr_alert("  - dest port           : %u\n", (unsigned int) msghdr_send->dport);
+//     pr_alert("  - buffer address      : %llx\n", msghdr_send->buff_addr);
+//     pr_alert("  - buffer size         : %u\n",  msghdr_send->metadata);
+//     pr_alert("  - rpc id              : %llu\n", msghdr_send->id);
+//     pr_alert("  - completion cookie   : %llu\n", msghdr_send->cc);
+// }
