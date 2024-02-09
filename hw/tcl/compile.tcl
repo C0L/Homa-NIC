@@ -25,6 +25,7 @@ update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1
 
 foreach script [glob ./src/chisel_src/*.tcl] {source $script}
+source ./tcl/xilinx_ip.tcl
 
 # Launch Synthesis
 launch_runs synth_1

@@ -1,5 +1,3 @@
-// Xilinx IP wrapper
-
 package gpnic 
 
 import chisel3._
@@ -12,10 +10,11 @@ import scala.collection.mutable.Map
 import java.nio.file.{Paths, Files}
 import java.nio.charset.StandardCharsets
 
-
-
-// TODO maybe specify the type to the clock conveter through a module on top that handles bit conversion
-
+/* AXISClockConverterRaw - This blackbox module maps down to the
+ * xilinx axis_clock_converter IP. The signal names of this module
+ * need to map to the signals of the axis_clock_converter IP. This
+ * generates a corresponding tcl file for instantiating the xilinx IP.
+ */ 
 class AXISClockConverterRaw(
   DATA_WIDTH: Int,
   ENABLE_ID: Boolean,
@@ -32,21 +31,27 @@ class AXISClockConverterRaw(
     val m_axis_aclk    = Input(Clock())
   })
 
+  // Create a unique name for the axis clock converter
   override def desiredName = "AXISClockConverter" + this.hashCode()
 
   val ipname   = this.desiredName
-
   val ipgen    = new StringBuilder()
+
+  // Roundoff to the nearest number of bytes
   val numbytes = ((io.s_axis.getWidth.toFloat / 8 ).ceil).toInt
 
+  // Generate tcl to 1) construct the ip with the given name, 2) parameterize the module 
   ipgen ++= s"create_ip -name axis_clock_converter -vendor xilinx.com -library ip -module_name ${ipname}\n"
   ipgen ++= s"set_property CONFIG.TDATA_NUM_BYTES ${numbytes} [get_ips ${ipname}]"
 
+  // Dump the generated tcl for build flow
   Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))
 }
 
-// Polymorphic clock converter
-// RawModule means no clock and reset
+/* AXISClockConverter - Wrapper for the AXISClockConverterRaw that
+ * converts from a chisel type to a generic AXI stream type for
+ * compatibility with the axis_clock_converter Xilinx IP.
+ */
 class AXISClockConverter[T <: Data](gen: T) extends RawModule {
   val io = IO(new Bundle {
     val s_axis         = Flipped(Decoupled(gen))
@@ -59,7 +64,6 @@ class AXISClockConverter[T <: Data](gen: T) extends RawModule {
 
   val DATA_WIDTH = gen.getWidth
 
-  // TODO all other signals disabled for now
   val axis_cc_raw = Module(new AXISClockConverterRaw(DATA_WIDTH, false, 0, false, 0, false))
 
   axis_cc_raw.io.s_axis_aresetn := io.s_axis_aresetn
@@ -76,11 +80,11 @@ class AXISClockConverter[T <: Data](gen: T) extends RawModule {
   axis_cc_raw.io.m_axis.tready  := io.m_axis.ready
 }
 
-// TODO axi4 needs to be more parmeterizable. Or compute most of the values manually
-
-// Pass the desired type (preconfigured into the class)
-// TODO can this be handle polymorphically?
-
+/* AXIClockConverter - blackbox module for the axi_clock_converter IP.
+ * The signals of this module need to match that of the Xilinx IP. A
+ * corresponding tcl file is generated which is used in the build
+ * process for IP generation.
+ */ 
 class AXIClockConverter(
   DATA_WIDTH: Int,
   ENABLE_ID: Boolean,
@@ -97,6 +101,7 @@ class AXIClockConverter(
     val m_axi_aclk    = Input(Clock())
   })
 
+  // Construct a unique identifier for this module (which we will map to from tcl)
   override def desiredName = "AXIClockConverter" + this.hashCode()
 
   val ipname   = this.desiredName
@@ -104,12 +109,17 @@ class AXIClockConverter(
   val ipgen    = new StringBuilder()
   val numbits = ((DATA_WIDTH.toFloat / 8 ).ceil).toInt * 8
 
+  // Generate tcl to 1) construct the ip with the given name, 2) parameterize the module 
   ipgen ++= s"create_ip -name axi_clock_converter -vendor xilinx.com -library ip -module_name ${ipname}\n"
   ipgen ++= s"set_property CONFIG.DATA_WIDth {${numbits}} [get_ips ${ipname}]"
 
+  // Dump the generated tcl for build flow
   Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))
 }
 
+/* ClockWizard - This blackbox module maps down to the clk_wiz xilinx
+ * IP. The port names of this module needs to map to the xilinx IP.
+ */
 class ClockWizard extends BlackBox {
   val io = IO(new Bundle {
     val clk_in1_n = Input(Clock())
@@ -121,6 +131,10 @@ class ClockWizard extends BlackBox {
   })
 }
 
+/* ProcessorSystemReset - This blackbox module maps down to the
+ * processor_system_reset xilinx IP. The port names of this module
+ * needs to map to the xilinx IP signals
+ */ 
 class ProcessorSystemReset extends BlackBox {
   val io = IO(new Bundle {
     val slowest_sync_clk     = Input(Clock())
@@ -136,23 +150,28 @@ class ProcessorSystemReset extends BlackBox {
   })
 }
 
-
-/* TODO Document this */
-
+/* ILARaw - This blackbox module maps to the xilinx ILA primitive IP.
+ * The signal names of this module need to match that of the signals
+ * in the xilinx ip. To accomplish that we take a generic bundle gen
+ * and convert it to bitvectors named param0-X where X is the number
+ * of signals in the bundle.
+ */ 
 class ILARaw[T <: Bundle](gen: T) extends BlackBox {
+  // Construct the IO ports manually by interating through the elements in the input bundle
   val io = IO(new Record {
     val elements = {
       val list = gen.elements.zip(0 until gen.elements.size).map(elem => {
         val index = elem._2
+        // Incremenent index and associate with bitvector to bundle entry
         (s"probe$index", Input(UInt(elem._1._2.getWidth.W)))
       })
 
-      println(list)
-      
-      (list.toMap[String, chisel3.Data]).to(SeqMap) ++ ListMap("clk" -> Input(Clock()), "resetn" -> Input(Reset()))
+      // Add the clk port in final port map
+      (list.toMap[String, chisel3.Data]).to(SeqMap) ++ ListMap("clk" -> Input(Clock()))
     }
   })
 
+  // Construct a unique identifier for this module (which we will map to from tcl)
   override def desiredName = "ILA_" + this.hashCode()
 
   val ipname   = this.desiredName
@@ -160,6 +179,7 @@ class ILARaw[T <: Bundle](gen: T) extends BlackBox {
 
   val ipgen = new StringBuilder()
 
+  // Generate tcl to 1) construct the ip with the given name, 2) parameterize the module 
   ipgen ++= s"create_ip -name ila -vendor xilinx.com -library ip -module_name ${ipname}\n"
   ipgen ++= s"set_property CONFIG.C_NUM_OF_PROBES {${numprobs}} [get_ips ${ipname}]\n"
 
@@ -169,18 +189,24 @@ class ILARaw[T <: Bundle](gen: T) extends BlackBox {
     ipgen ++= s"set_property CONFIG.C_PROBE${index}_WIDTH {${width}} [get_ips ${ipname}]\n"
   })
 
+  // Dump the generated tcl for build flow
   Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))
 }
 
+/* ILA - wrapper for raw ila module. Inverters the reset to create
+ * more natural interface. Maps the bundle entries to the params of
+ * the raw ila.
+ */ 
 class ILA[T <: Bundle](gen: T) extends Module {
   val io = IO(new Bundle {
     val ila_data = Input(gen)
   })
 
+  // Construct the raw clock generator and map implicit clock to raw clk
   val ila = Module(new ILARaw(gen))
-  ila.io.elements("clk")    := clock
-  ila.io.elements("resetn") := !reset.asBool
+  ila.io.elements("clk") := clock
 
+  // Map all of the bundle elements to the params of the raw clock generator
   io.ila_data.elements.zip(0 until gen.elements.size).foreach(elem => {
     val index = elem._2
     ila.io.elements(s"probe$index") := io.ila_data.getElements(index).asUInt
