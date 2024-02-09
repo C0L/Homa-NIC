@@ -1,7 +1,10 @@
-vitis_hls.log
 homa
 xelab*
 .*
 !.gitignore
 ignore
-xdc/alveo-u250-xdc.xdc
+hw/xdc/alveo-u250-xdc.xdc
+*.log
+*.jou
+*.tmp
+*.str
