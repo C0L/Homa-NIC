@@ -43,6 +43,10 @@ class core extends Module {
   val ila = Module(new ILA(Decoupled(new queue_entry_t)))
   ila.io.ila_data := io.dbuff_notif_i
 
-  val ila2 = Module(new ILA(Decoupled(new queue_entry_t)))
-  ila2.io.ila_data := io.dbuff_notif_i
+  // val ila2 = Module(new ILA(new Bundle {
+  //   io.dbuff_notif_i.bits
+  //   io.dbuff_notif_i.valid
+  //   io.dbuff_notif_i.ready
+  // }))
+  // ila2.io.ila_data := io.dbuff_notif_i
 }

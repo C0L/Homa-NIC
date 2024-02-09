@@ -98,8 +98,8 @@ class ILARaw[T <: Bundle](gen: T) extends BlackBox {
   val io = IO(new Record {
     val elements = {
       val list = gen.elements.zip(0 until gen.elements.size).map(elem => {
-        val idx = elem._2
-        (s"probe$idx", Input(UInt(elem._1._2.getWidth.W)))
+        val index = elem._2
+        (s"probe$index", Input(UInt(elem._1._2.getWidth.W)))
       })
 
       println(list)
@@ -119,22 +119,27 @@ class ILA[T <: Bundle](gen: T) extends Module {
   ila.io.elements("resetn") := !reset.asBool
 
   io.ila_data.elements.zip(0 until gen.elements.size).foreach(elem => {
-    val idx = elem._2
-    ila.io.elements(s"probe$idx") := io.ila_data.getElements(idx).asUInt
+    val index = elem._2
+    ila.io.elements(s"probe$index") := io.ila_data.getElements(index).asUInt
   })
-
-  // println(this.hashCode())
 
   override def desiredName = "ILA_" + this.hashCode()
 
-  // val num_probs = io.ila_data. TODO size of vector
+  val ipname   = this.desiredName
+  val numprobs = io.ila_data.getElements.length
 
-  val ipgen   = s"create_ip -name ila -vendor xilinx.com -library ip -module_name ILA_" + this.hashCode()
-  // val numprob = s"set_property CONFIG.C_NUM_OF_PROBES {$}"
-  // val parms = "set_property CONFIG.TDATA_NUM_BYTES {9} [get_ips AXISClockConverter_82]"
+  val ipgen = new StringBuilder()
 
-  Files.write(Paths.get("file.txt"), ipgen.getBytes(StandardCharsets.UTF_8))
+  ipgen ++= s"create_ip -name ila -vendor xilinx.com -library ip -module_name ${ipname}\n"
+  ipgen ++= s"set_property CONFIG.C_NUM_OF_PROBES {$numprobs} [get_ips ${ipname}]\n"
 
+  io.ila_data.elements.zip(0 until gen.elements.size).foreach(elem => {
+    val index = elem._2
+    val width = io.ila_data.getElements(index).getWidth
+    ipgen ++= s"set_property CONFIG.C_PROBE${index}_WIDTH {${width}} [get_ips ${ipname}]\n"
+  })
+
+  Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))
 }
 
 
