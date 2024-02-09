@@ -4,27 +4,34 @@ import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
 
+/* top - entry point to the design. Composes the pcie hierarchy and
+ * core user logic together.
+ */
 class top extends RawModule {
+  /* pcie lanes */ 
   val pcie_rx_p     = IO(Input(UInt(16.W)))
   val pcie_rx_n     = IO(Input(UInt(16.W)))
   val pcie_tx_p     = IO(Output(UInt(16.W)))
   val pcie_tx_n     = IO(Output(UInt(16.W)))
+
+  /* pcie reference clock and reset */
   val pcie_refclk_p = IO(Input(Clock()))
   val pcie_refclk_n = IO(Input(Clock()))
   val pcie_reset_n  = IO(Input(Bool()))
 
+  /* 300 MHz Input Clock */
   val clk_in1_n = IO(Input(Clock()))
   val clk_in1_p = IO(Input(Clock()))
   val reset     = IO(Input(Bool()))
 
+  /* primary clock of user logic */
   val mainClk  = Module(new ClockWizard)
-
   mainClk.io.clk_in1_n := clk_in1_n
   mainClk.io.clk_in1_p := clk_in1_p
   mainClk.io.reset     := reset
 
+  /* synchronizes resets to slowest clock */
   val ps_reset = Module(new ProcessorSystemReset)
-
   ps_reset.io.ext_reset_in         := !reset
   ps_reset.io.aux_reset_in         := true.B // Active Low 
   ps_reset.io.slowest_sync_clk     := mainClk.io.clk_out1
@@ -40,6 +47,7 @@ class top extends RawModule {
 
   val pcie_user_clk   = Wire(Clock())
   val pcie_user_reset = Wire(Bool())
+
   /* pcie logic operates at 250MHz output from internal pcie core */
   val pcie = withClockAndReset(pcie_user_clk, pcie_user_reset) { Module(new pcie) }
 
@@ -108,6 +116,8 @@ class top extends RawModule {
   axi_cc.io.m_axi         <> core.io.s_axi
 }
 
+/* Main - generate the system verilog code of the entire design (top.sv)
+ */
 object Main extends App {
   ChiselStage.emitSystemVerilogFile(new top,
     firtoolOpts = Array("-disable-all-randomization", "-strip-debug-info")
