@@ -84,19 +84,24 @@ class AXISClockConverter[T <: Data](gen: T) extends RawModule {
  * The signals of this module need to match that of the Xilinx IP. A
  * corresponding tcl file is generated which is used in the build
  * process for IP generation.
- */ 
+ */
+
+// TODO should just type as input
 class AXIClockConverter(
-  DATA_WIDTH: Int,
+  AXI_DATA_WIDTH: Int,
+  AXI_ADDR_WIDTH: Int,
   ENABLE_ID: Boolean,
-  ID_WIDTH: Int,
-  ENABLE_USER: Boolean,
-  USER_WIDTH: Int,
-  ENABLE_LAST: Boolean) extends BlackBox {
+  AXI_ID_WIDTH: Int,
+  ENABLE_REGION: Boolean,
+  AXI_REGION_WIDTH: Int,
+  ENABLE_QOS: Boolean,
+  AXI_QOS_WIDTH: Int
+) extends BlackBox {
   val io = IO(new Bundle {
-    val s_axi         = Flipped(new axi(DATA_WIDTH, 0, 0))
+    val s_axi         = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
     val s_axi_aresetn = Input(Reset())
     val s_axi_aclk    = Input(Clock())
-    val m_axi         = new axi(DATA_WIDTH, 0, 0)
+    val m_axi         = new axi(512, 26, true, 8, true, 4, true, 4)
     val m_axi_aresetn = Input(Reset())
     val m_axi_aclk    = Input(Clock())
   })
@@ -107,11 +112,15 @@ class AXIClockConverter(
   val ipname   = this.desiredName
 
   val ipgen    = new StringBuilder()
-  val numbits = ((DATA_WIDTH.toFloat / 8 ).ceil).toInt * 8
+  val data_width = AXI_DATA_WIDTH
+  val addr_width = AXI_ADDR_WIDTH
+  val id_width   = AXI_ID_WIDTH
 
   // Generate tcl to 1) construct the ip with the given name, 2) parameterize the module 
   ipgen ++= s"create_ip -name axi_clock_converter -vendor xilinx.com -library ip -module_name ${ipname}\n"
-  ipgen ++= s"set_property CONFIG.DATA_WIDth {${numbits}} [get_ips ${ipname}]"
+  ipgen ++= s"set_property CONFIG.DATA_WIDTH {${data_width}} [get_ips ${ipname}]\n"
+  ipgen ++= s"set_property CONFIG.ADDR_WIDTH {${addr_width}} [get_ips ${ipname}]\n"
+  ipgen ++= s"set_property CONFIG.ID_WIDTH {${id_width}} [get_ips ${ipname}]\n"
 
   // Dump the generated tcl for build flow
   Files.write(Paths.get(s"${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))

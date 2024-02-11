@@ -22,18 +22,18 @@ class top extends RawModule {
   /* 300 MHz Input Clock */
   val clk_in1_n = IO(Input(Clock()))
   val clk_in1_p = IO(Input(Clock()))
-  val reset     = IO(Input(Bool()))
+  val resetn    = IO(Input(Bool()))
 
   /* primary clock of user logic */
   val mainClk  = Module(new ClockWizard)
   mainClk.io.clk_in1_n := clk_in1_n
   mainClk.io.clk_in1_p := clk_in1_p
-  mainClk.io.reset     := reset
+  mainClk.io.reset     := !resetn
 
   /* synchronizes resets to slowest clock */
   val ps_reset = Module(new ProcessorSystemReset)
-  ps_reset.io.ext_reset_in         := !reset
-  ps_reset.io.aux_reset_in         := true.B // Active Low 
+  ps_reset.io.ext_reset_in         := !resetn
+  ps_reset.io.aux_reset_in         := false.B
   ps_reset.io.slowest_sync_clk     := mainClk.io.clk_out1
   ps_reset.io.dcm_locked           := mainClk.io.locked
   ps_reset.io.mb_reset             := DontCare
@@ -59,7 +59,7 @@ class top extends RawModule {
   pcie_tx_p          := pcie.pcie_tx_p 
   pcie_tx_n          := pcie.pcie_tx_n
   pcie.pcie_refclk_p := pcie_refclk_p
-  pcie.pcie_refclk_n := pcie_refclk_p
+  pcie.pcie_refclk_n := pcie_refclk_n
   pcie.pcie_reset_n  := pcie_reset_n
 
   /* Eventually from packet processing pipeline */
@@ -106,9 +106,9 @@ class top extends RawModule {
   dmamap_cc.io.m_axis         <> pcie.dma_map_i
 
   /* Clock Convert pcie (250MHz) -> core (200MHz) */
-  val axi_cc    = Module(new AXIClockConverter(512, false, 0, false, 0, false))
+  val axi_cc    = Module(new AXIClockConverter(512, 26, true, 8, true, 4, true, 4))
 
-  pcie.m_axi              <> axi_cc.io.s_axi
+  axi_cc.io.s_axi <> pcie.m_axi
   axi_cc.io.s_axi_aresetn := !pcie.pcie_user_reset
   axi_cc.io.s_axi_aclk    := pcie.pcie_user_clk
   axi_cc.io.m_axi_aresetn := !ps_reset.io.peripheral_reset.asBool

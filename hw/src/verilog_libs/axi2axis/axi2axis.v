@@ -41,7 +41,7 @@
 `default_nettype	none
 module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
 		  parameter integer C_S_AXI_DATA_WIDTH = 512,
-		  parameter integer C_S_AXI_ADDR_WIDTH = 32)
+		  parameter integer C_S_AXI_ADDR_WIDTH = 26)
    
    (input wire				      s_axis_tvalid,
     output reg				      s_axis_tready,
@@ -90,6 +90,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
     input wire [3 : 0]			      s_axi_awqos,
     // Region identifier. Permits a single physical interface
     // on a slave to be used for multiple logical interfaces.
+    input wire [3 : 0]			      s_axi_awregion,
     // Write address valid. This signal indicates that
     // the channel is signaling valid write address and
     // control information.
@@ -162,6 +163,7 @@ module axi2axis #(parameter integer C_S_AXI_ID_WIDTH = 4,
     // Region identifier. Permits a single physical interface
     // on a slave to be used for multiple logical interfaces.
     // Optional User-defined signal in the read address channel.
+    input wire [3 : 0]			      s_axi_arregion,
     // Write address valid. This signal indicates that
     // the channel is signaling valid read address and
     // control information.

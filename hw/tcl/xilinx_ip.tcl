@@ -43,35 +43,13 @@ set_property -dict [list \
     CONFIG.CLKOUT2_JITTER {101.475} \
     CONFIG.CLKOUT2_PHASE_ERROR {77.836} \
     CONFIG.CLKOUT2_USED {true} \
-    CONFIG.CLK_IN1_BOARD_INTERFACE {default_300mhz_clk0} \
     CONFIG.MMCM_CLKFBOUT_MULT_F {4.000} \
     CONFIG.MMCM_CLKIN1_PERIOD {3.333} \
     CONFIG.MMCM_CLKIN2_PERIOD {10.0} \
     CONFIG.MMCM_CLKOUT0_DIVIDE_F {6.000} \
     CONFIG.MMCM_CLKOUT1_DIVIDE {12} \
     CONFIG.NUM_OUT_CLKS {2} \
+    CONFIG.PRIM_IN_FREQ {300.000} \
     CONFIG.PRIM_SOURCE {Differential_clock_capable_pin} \
     CONFIG.RESET_TYPE {ACTIVE_HIGH} \
   ] [get_ips ClockWizard]
-
-create_ip -name system_ila -vendor xilinx.com -library ip -module_name SystemILA
-set_property -dict [list \
-  CONFIG.C_MON_TYPE {INTERFACE} \
-  CONFIG.C_SLOT_0_AXIS_TDATA_WIDTH {64} \
-  CONFIG.C_SLOT_0_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
-] [get_ips SystemILA]
-
-# TODO configure the ILA
-
-create_ip -name axis_clock_converter -vendor xilinx.com -library ip -module_name AXISClockConverter_142
-set_property CONFIG.TDATA_NUM_BYTES {18} [get_ips AXISClockConverter_142]
-
-create_ip -name axis_clock_converter -vendor xilinx.com -library ip -module_name AXISClockConverter_95
-set_property CONFIG.TDATA_NUM_BYTES {12} [get_ips AXISClockConverter_95]
-
-create_ip -name axis_clock_converter -vendor xilinx.com -library ip -module_name AXISClockConverter_82
-set_property CONFIG.TDATA_NUM_BYTES {9} [get_ips AXISClockConverter_82]
-
-create_ip -name axi_clock_converter -vendor xilinx.com -library ip -module_name AXIClockConverter
-set_property CONFIG.DATA_WIDTH {512} [get_ips AXIClockConverter]
-

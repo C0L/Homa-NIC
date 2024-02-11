@@ -2,18 +2,18 @@
 # part: xcu250-figd2104-2-e
 
 # General configuration
-# set_property CFGBVS GND                                [current_design]
-#set_property CONFIG_VOLTAGE 1.8                        [current_design]
-#set_property BITSTREAM.GENERAL.COMPRESS true           [current_design]
-#set_property BITSTREAM.CONFIG.CONFIGFALLBACK ENABLE    [current_design]
-#set_property BITSTREAM.CONFIG.EXTMASTERCCLK_EN DISABLE [current_design]
-#set_property BITSTREAM.CONFIG.CONFIGRATE 63.8          [current_design]
-#set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR YES       [current_design]
-#set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4           [current_design]
-#set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES        [current_design]
-#set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP         [current_design]
+set_property CFGBVS GND                                [current_design]
+set_property CONFIG_VOLTAGE 1.8                        [current_design]
+set_property BITSTREAM.GENERAL.COMPRESS true           [current_design]
+set_property BITSTREAM.CONFIG.CONFIGFALLBACK ENABLE    [current_design]
+set_property BITSTREAM.CONFIG.EXTMASTERCCLK_EN DISABLE [current_design]
+set_property BITSTREAM.CONFIG.CONFIGRATE 63.8          [current_design]
+set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR YES       [current_design]
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4           [current_design]
+set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES        [current_design]
+set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP         [current_design]
 
-#set_operating_conditions -design_power_budget 160
+set_operating_conditions -design_power_budget 160
 
 # System clocks
 # 300 MHz (DDR 0)
@@ -49,8 +49,8 @@ create_clock -period 3.333 -name clk_in1 [get_ports clk_in1_p]
 # set_false_path -to [get_ports {led[*]}]
 # set_output_delay 0 [get_ports {led[*]}]
 
-# Reset button
-set_property -dict {LOC AL20 IOSTANDARD LVCMOS12} [get_ports reset]
+# Main Reset
+set_property -dict {LOC AL20 IOSTANDARD LVCMOS12} [get_ports resetn]
 
 set_false_path -from [get_ports {reset}]
 set_input_delay 0 [get_ports {reset}]

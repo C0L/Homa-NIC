@@ -9,7 +9,7 @@ class core extends Module {
     val dbuff_notif_i = Flipped(Decoupled(new queue_entry_t))
     val fetch_dequeue = Decoupled(new dma_read_t)
     val dma_map_o     = Decoupled(new dma_map_t)
-    val s_axi         = Flipped(new axi(512, 8, 32))
+    val s_axi         = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
   })
 
   val axi2axis   = Module(new axi2axis) // Convert incoming AXI requests to AXIS
@@ -27,8 +27,10 @@ class core extends Module {
   fetch_arbiter.io.in(1) <> io.dbuff_notif_i
   fetch_arbiter.io.out   <> fetch_queue.io.enqueue
 
-  axi2axis.io.s_axi  <> io.s_axi
-  axi2axis.io.m_axis <> delegate.io.function_i
+  axi2axis.io.s_axi         <> io.s_axi
+  axi2axis.io.m_axis        <> delegate.io.function_i
+  axi2axis.io.s_axi_aclk    <> clock
+  axi2axis.io.s_axi_aresetn <> !reset.asBool
 
   val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false)))
   axi2axis_ila.io.ila_data := axi2axis.io.m_axis
@@ -45,7 +47,7 @@ class core extends Module {
   // TODO eventually goes to packet constructor
   sendmsg_queue.io.dequeue      := DontCare
 
-  val axi_ila = Module(new ILA(new axi(512,8,32)))
+  val axi_ila = Module(new ILA(new axi(512, 26, true, 8, true, 4, true, 4)))
   axi_ila.io.ila_data := io.s_axi
 
   val ila = Module(new ILA(Decoupled(new queue_entry_t)))

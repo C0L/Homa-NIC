@@ -125,42 +125,55 @@ class ram_rd_t extends Bundle {
 }
 
 // Default axi_m
-class axi(AXI_DATA_WIDTH: Int, AXI_ID_WIDTH: Int, AXI_ADDR_WIDTH: Int) extends Bundle {
-  val awid    = Output(UInt(AXI_ID_WIDTH.W))
-  val awaddr  = Output(UInt(AXI_ADDR_WIDTH.W))
-  val awlen   = Output(UInt(8.W))
-  val awsize  = Output(UInt(3.W))
-  val awburst = Output(UInt(2.W))
-  val awlock  = Output(UInt(1.W))
-  val awcache = Output(UInt(4.W))
-  val awprot  = Output(UInt(3.W))
-  val awvalid = Output(UInt(1.W))
-  val awready = Input(UInt(1.W))
-  val wdata   = Output(UInt(AXI_DATA_WIDTH.W))
-  val wstrb   = Output(UInt((AXI_DATA_WIDTH/8).W))
-  val wlast   = Output(UInt(1.W))
-  val wvalid  = Output(UInt(1.W))
-  val wready  = Input(UInt(1.W))
-  val bid     = Input(UInt(AXI_ID_WIDTH.W))
-  val bresp   = Input(UInt(2.W))
-  val bvalid  = Input(UInt(1.W))
-  val bready  = Output(UInt(1.W))
-  val arid    = Output(UInt(AXI_ID_WIDTH.W))
-  val araddr  = Output(UInt(AXI_ADDR_WIDTH.W))
-  val arlen   = Output(UInt(8.W))
-  val arsize  = Output(UInt(4.W)) 
-  val arburst = Output(UInt(2.W))
-  val arlock  = Output(UInt(1.W))
-  val arcache = Output(UInt(4.W))
-  val arprot  = Output(UInt(3.W))
-  val arvalid = Output(UInt(1.W))
-  val arready = Input(UInt(1.W))
-  val rid     = Input(UInt(AXI_ID_WIDTH.W))
-  val rdata   = Input(UInt(AXI_DATA_WIDTH.W))
-  val rresp   = Input(UInt(2.W))
-  val rlast   = Input(UInt(1.W))
-  val rvalid  = Input(UInt(1.W))
-  val rready  = Output(UInt(1.W))
+class axi(
+  AXI_DATA_WIDTH: Int,
+  AXI_ADDR_WIDTH: Int,
+  ENABLE_ID: Boolean,
+  AXI_ID_WIDTH: Int,
+  ENABLE_REGION: Boolean,
+  AXI_REGION_WIDTH: Int,
+  ENABLE_QOS: Boolean,
+  AXI_QOS_WIDTH: Int
+  ) extends Bundle {
+  val awid     = Output(UInt(AXI_ID_WIDTH.W))
+  val awaddr   = Output(UInt(AXI_ADDR_WIDTH.W))
+  val awlen    = Output(UInt(8.W))
+  val awsize   = Output(UInt(3.W))
+  val awburst  = Output(UInt(2.W))
+  val awlock   = Output(UInt(1.W))
+  val awcache  = Output(UInt(4.W))
+  val awprot   = Output(UInt(3.W))
+  val awvalid  = Output(UInt(1.W))
+  val awready  = Input(UInt(1.W))
+  val awqos    = Output(UInt(AXI_QOS_WIDTH.W))
+  val awregion = Output(UInt(AXI_REGION_WIDTH.W))
+  val wdata    = Output(UInt(AXI_DATA_WIDTH.W))
+  val wstrb    = Output(UInt((AXI_DATA_WIDTH/8).W))
+  val wlast    = Output(UInt(1.W))
+  val wvalid   = Output(UInt(1.W))
+  val wready   = Input(UInt(1.W))
+  val bid      = Input(UInt(AXI_ID_WIDTH.W))
+  val bresp    = Input(UInt(2.W))
+  val bvalid   = Input(UInt(1.W))
+  val bready   = Output(UInt(1.W))
+  val arid     = Output(UInt(AXI_ID_WIDTH.W))
+  val araddr   = Output(UInt(AXI_ADDR_WIDTH.W))
+  val arlen    = Output(UInt(8.W))
+  val arsize   = Output(UInt(4.W)) 
+  val arburst  = Output(UInt(2.W))
+  val arlock   = Output(UInt(1.W))
+  val arcache  = Output(UInt(4.W))
+  val arprot   = Output(UInt(3.W))
+  val arvalid  = Output(UInt(1.W))
+  val arready  = Input(UInt(1.W))
+  val arqos    = Output(UInt(AXI_QOS_WIDTH.W))
+  val arregion = Output(UInt(AXI_REGION_WIDTH.W))
+  val rid      = Input(UInt(AXI_ID_WIDTH.W))
+  val rdata    = Input(UInt(AXI_DATA_WIDTH.W))
+  val rresp    = Input(UInt(2.W))
+  val rlast    = Input(UInt(1.W))
+  val rvalid   = Input(UInt(1.W))
+  val rready   = Output(UInt(1.W))
 }
 
 

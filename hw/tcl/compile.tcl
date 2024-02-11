@@ -12,14 +12,13 @@ set_property board_part xilinx.com:au250:part0:1.3 [current_project]
 add_files -fileset constrs_1 ./xdc/homa.xdc
 set_property is_enabled true [get_files ./xdc/homa.xdc]
 
-add_files -fileset constrs_1 ./xdc/alveo-u250-xdc.xdc
-set_property is_enabled true [get_files ./xdc/alveo-u250-xdc.xdc]
+# add_files -fileset constrs_1 ./xdc/alveo-u250-xdc.xdc
+# set_property is_enabled true [get_files ./xdc/alveo-u250-xdc.xdc]
 
 # Source files 
 add_files -fileset sources_1 ./src/
 
 set_property top top [current_fileset]
-update_compile_order -fileset sources_1
 
 update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1

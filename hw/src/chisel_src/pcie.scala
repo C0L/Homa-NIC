@@ -24,7 +24,7 @@ class pcie extends Module {
   val dma_write_desc        = IO(Flipped(Decoupled(new dma_write_desc_t)))
   val dma_write_desc_status = IO(Decoupled(new dma_write_desc_status_t))
 
-  val m_axi                 = IO(new axi(512, 8, 26))
+  val m_axi                 = IO(new axi(512, 26, true, 8, true, 4, true, 4))
 
   val pcie_user_clk         = IO(Output(Clock()))
   val pcie_user_reset       = IO(Output(Bool()))
