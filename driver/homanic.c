@@ -88,7 +88,7 @@ int     homanic_open(struct inode *, struct file *);
 ssize_t homanic_read(struct file *, char *, size_t, loff_t *);
 int     homanic_close(struct inode *, struct file *);
 int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
-long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
+// long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
 
 /* Helper Functions */
 void dump_log(void);
@@ -164,7 +164,7 @@ struct file_operations homanic_fops = {
     .open           = homanic_open,
     .release        = homanic_close,
     .mmap           = homanic_mmap,
-    .unlocked_ioctl = homanic_ioctl
+    // .unlocked_ioctl = homanic_ioctl
 };
 
 struct device_data {
@@ -455,7 +455,7 @@ int homanic_init(void) {
 
     pr_info("homanic_init\n");
 
-    pdev = pci_get_device(0x1234, 0x903f, NULL);
+    pdev = pci_get_device(0x1234, 0x0001, NULL);
      
     pr_info("device %x.\n", pdev);
 
@@ -499,7 +499,7 @@ int homanic_init(void) {
 
     io_regs = ioremap_wc(BAR_0, 0xA0000);
 
-    init_eth();
+    // init_eth();
 
     return 0;
 }
@@ -523,5 +523,5 @@ void homanic_exit(void) {
 }
 
 module_init(homanic_init)
-    module_exit(homanic_exit)
-    MODULE_LICENSE("MIT");
+module_exit(homanic_exit)
+MODULE_LICENSE("GPL");
