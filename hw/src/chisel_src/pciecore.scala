@@ -4,7 +4,15 @@ import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
 
-class pcie extends Module {
+/* pcie_core - Groups pcie logic. The address map stores DMA
+ * translation addressess. When DMA read and write operations are
+ * inputed to pcie_core, the addr_map core translates them to absolute
+ * DMA addresses and feeds them to the dma_ctrl core. This core stores
+ * message state associated with that request and makes the actual
+ * request to the pcie RTL core. The RPL interacts only with the
+ * psdprams to read and write data.
+ */
+class pcie_core extends Module {
   val pcie_rx_p             = IO(Input(UInt(16.W)))
   val pcie_rx_n             = IO(Input(UInt(16.W)))
   val pcie_tx_p             = IO(Output(UInt(16.W)))
@@ -33,7 +41,7 @@ class pcie extends Module {
   val dbuff_notif_o         = IO(Decoupled(new queue_entry_t))
   val dma_map_i             = IO(Flipped(Decoupled(new dma_map_t)))
 
-  val pcie_core             = Module(new pcie_core)
+  val pcie_core             = Module(new pcie_rtl)
   val dma_client_read       = Module(new dma_client_axis_source)
   val dma_client_write      = Module(new dma_client_axis_sink)
   val h2c_psdpram           = Module(new dma_psdpram)
@@ -79,8 +87,6 @@ class pcie extends Module {
   pcie_core.io.pcie_reset_n  <> pcie_reset_n
 
   // Pcie DMA descriptor interface
-  // pcie_core.io.dma_read_desc         <> dma_read_desc
-  // pcie_core.io.dma_read_desc_status  <> dma_read_desc_status
   pcie_core.io.dma_write_desc        <> dma_write_desc
   pcie_core.io.dma_write_desc_status <> dma_write_desc_status
 

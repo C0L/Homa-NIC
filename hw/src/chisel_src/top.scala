@@ -43,13 +43,13 @@ class top extends RawModule {
   ps_reset.io.mb_debug_sys_rst     := 0.U
 
   /* core logic operates at 200MHz output from clock generator */
-  val core = withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) { Module(new core) }
+  val core = withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) { Module(new mgmt_core) }
 
   val pcie_user_clk   = Wire(Clock())
   val pcie_user_reset = Wire(Bool())
 
   /* pcie logic operates at 250MHz output from internal pcie core */
-  val pcie = withClockAndReset(pcie_user_clk, pcie_user_reset) { Module(new pcie) }
+  val pcie = withClockAndReset(pcie_user_clk, pcie_user_reset) { Module(new pcie_core) }
 
   pcie_user_clk   := pcie.pcie_user_clk
   pcie_user_reset := pcie.pcie_user_reset
