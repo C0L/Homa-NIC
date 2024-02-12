@@ -8,10 +8,9 @@ import chisel3.util._
  * the ID field carries the destination address. The destination
  * address determines both the destination user and the desired
  * functionality. Currently that functionality is:
- *     Address 0   -> New DMA Map
- *     Address 64 (TODO plus user offset)  -> sendmsg
- *
- * TODO implement multi user (port) support
+ *     Address 0                  -> New DMA Map
+ *     Address 0  + (port * 4096) -> sendmsg
+ *     Address 64 + (port * 4096) -> recvmsg 
  */
 class delegate extends Module {
   val io = IO(new Bundle {
@@ -33,6 +32,9 @@ class delegate extends Module {
   io.dma_w_req_o.valid := false.B
   io.dma_map_o.valid   := false.B
 
+  val dma_map_ila = Module(new ILA(new dma_map_t))
+  dma_map_ila.io.ila_data := io.dma_map_o.bits
+
   // Data stored in the queue
   class encaps extends Bundle {
     val data = UInt(512.W)
@@ -52,43 +54,52 @@ class delegate extends Module {
   // Be default nothing will exit our queue
   function_queue.io.deq.ready     := false.B
 
+  val user_id = function_queue.io.deq_valid >> 12;
+
   // Is there a valid registered transaction?
   when(function_queue.io.deq.valid) {
-    /* User bits specify the function of this 512 bit block
-     * these bits are assigned from the AXI4 write address
-     */
-    switch (function_queue.io.deq.bits.user) {
-      // new DMA map
-      is (0.U) {
+    // Are we talking to the kernel or a user
+    when (user_id == 0.U) {
         function_queue.io.deq.ready := io.dma_map_o.ready
-        io.dma_map_o.bits  := function_queue.io.deq.bits.data.asTypeOf(new dma_map_t)
-        io.dma_map_o.valid := function_queue.io.deq.valid
-      }
+        io.dma_map_o.bits           := function_queue.io.deq.bits.data.asTypeOf(new dma_map_t)
+        io.dma_map_o.valid          := function_queue.io.deq.valid
+    } elsewhen {
+      /* User bits specify the function of this 512 bit block
+       * these bits are assigned from the AXI4 write address
+       */
+      switch (function_queue.io.deq.bits.user) {
+        // new sendmsg
+        is (0.U) {
 
-      // new sendmsg
-      is (64.U) {
-        val msghdr_send = function_queue.io.deq.bits.data.asTypeOf(new msghdr_send_t)
+          // TODO port is derived from the address
 
-        // TODO placeholder
-        msghdr_send.send_id := 1.U
+          val msghdr_send = function_queue.io.deq.bits.data.asTypeOf(new msghdr_send_t)
 
-        io.sendmsg_o.bits.rpc_id    := msghdr_send.send_id
-        io.sendmsg_o.bits.dbuff_id  := 1.U // TODO placeholder
-        io.sendmsg_o.bits.remaining := msghdr_send.buff_size
-        io.sendmsg_o.bits.dbuffered := msghdr_send.buff_size
-        io.sendmsg_o.bits.granted   := 0.U
-        io.sendmsg_o.bits.priority  := 5.U
+          // TODO placeholder
+          msghdr_send.send_id := 1.U
 
-        io.fetchdata_o.bits.rpc_id    := msghdr_send.send_id
-        io.fetchdata_o.bits.dbuff_id  := 1.U // TODO placeholder
-        io.fetchdata_o.bits.remaining := msghdr_send.buff_size
-        io.fetchdata_o.bits.dbuffered := 0.U
-        io.fetchdata_o.bits.granted   := msghdr_send.buff_size
-        io.fetchdata_o.bits.priority  := 5.U
+          io.sendmsg_o.bits.rpc_id    := msghdr_send.send_id
+          io.sendmsg_o.bits.dbuff_id  := 1.U // TODO placeholder
+          io.sendmsg_o.bits.remaining := msghdr_send.buff_size
+          io.sendmsg_o.bits.dbuffered := msghdr_send.buff_size
+          io.sendmsg_o.bits.granted   := 0.U
+          io.sendmsg_o.bits.priority  := 5.U
 
-        function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready
-        io.sendmsg_o.valid          := function_queue.io.deq.valid
-        io.fetchdata_o.valid        := function_queue.io.deq.valid
+          io.fetchdata_o.bits.rpc_id    := msghdr_send.send_id
+          io.fetchdata_o.bits.dbuff_id  := 1.U // TODO placeholder
+          io.fetchdata_o.bits.remaining := msghdr_send.buff_size
+          io.fetchdata_o.bits.dbuffered := 0.U
+          io.fetchdata_o.bits.granted   := msghdr_send.buff_size
+          io.fetchdata_o.bits.priority  := 5.U
+
+          function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready
+          io.sendmsg_o.valid          := function_queue.io.deq.valid
+          io.fetchdata_o.valid        := function_queue.io.deq.valid
+        }
+
+        // new recvmsg
+        is (64.U) {
+        }
       }
     }
   }
