@@ -101,7 +101,7 @@ class dma_write_t extends Bundle {
 class dma_map_t extends Bundle {
   val pcie_addr = UInt(64.W)
   val port      = UInt(16.W)
-  val map_type  = dma_map_type() // TODO need to explicitly set values here for Kernel module interaction
+  val map_type  = UInt(2.W)
 }
 
 // TODO these should be parmeterizable
@@ -220,5 +220,16 @@ class queue_entry_t extends Bundle {
 }
 
 object dma_map_type extends ChiselEnum {
-  val h2c_map, c2h_map, meta_map = Value
+  val H2C  = Value(0.U)
+  val C2H  = Value(1.U)
+  val META = Value(2.U)
+}
+
+object queue_priority extends ChiselEnum {
+  val INVALIDATE   = Value(0.U)
+  val DBUFF_UPDATE = Value(1.U)
+  val GRANT_UPDATE = Value(2.U)
+  val EMPTY        = Value(3.U)
+  val BLOCKED      = Value(4.U)
+  val ACTIVE       = Value(5.U)
 }

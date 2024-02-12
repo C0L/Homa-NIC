@@ -128,7 +128,7 @@ class addr_map_test extends AnyFreeSpec {
 
         dut.io.dma_map_i.bits.pcie_addr.poke(transaction.U)
         dut.io.dma_map_i.bits.port.poke(transaction.U)
-        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.h2c_map)
+        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.H2C.asUInt)
 
         dut.clock.step()
 
@@ -136,7 +136,7 @@ class addr_map_test extends AnyFreeSpec {
 
         dut.io.dma_map_i.bits.pcie_addr.poke((transaction + 16384).U)
         dut.io.dma_map_i.bits.port.poke(transaction.U)
-        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.c2h_map)
+        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.C2H.asUInt)
 
         dut.clock.step()
 
@@ -144,7 +144,7 @@ class addr_map_test extends AnyFreeSpec {
 
         dut.io.dma_map_i.bits.pcie_addr.poke((transaction + 32768).U)
         dut.io.dma_map_i.bits.port.poke(transaction.U)
-        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.meta_map)
+        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.META.asUInt)
 
         dut.clock.step()
       }

@@ -131,14 +131,14 @@ class addr_map extends Module {
 
   // TODO this needlessly stores the map_type
   when(dma_map_i_reg_0_valid) {
-    switch (dma_map_i_reg_0_bits.map_type) {
-      is (dma_map_type.h2c_map) {
+    switch (dma_map_type(dma_map_i_reg_0_bits.map_type)) {
+      is (dma_map_type.H2C) {
         h2c_data_maps.write(dma_map_i_reg_0_bits.port, dma_map_i_reg_0_bits)
       }
-      is (dma_map_type.c2h_map) {
+      is (dma_map_type.C2H) {
         c2h_data_maps.write(dma_map_i_reg_0_bits.port, dma_map_i_reg_0_bits)
       }
-      is (dma_map_type.meta_map) {
+      is (dma_map_type.META) {
         metadata_maps.write(dma_map_i_reg_0_bits.port, dma_map_i_reg_0_bits)
       }
     }

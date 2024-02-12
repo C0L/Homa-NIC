@@ -55,6 +55,12 @@ class delegate extends Module {
   val user_id   = function_queue.io.deq.bits.user >> 12
   val user_func = function_queue.io.deq.bits.user(11,0)
 
+  val send_id = RegInit(0.asUInt(16.W))
+  // send_id := next_send_id
+
+  val dbuff_id = RegInit(0.asUInt(6.W))
+  // dbuff_id := next_dbuff_id
+
   // Is there a valid registered transaction?
   when(function_queue.io.deq.valid) {
     // Are we talking to the kernel (raw address 0) or a user (port * 4096)
@@ -67,30 +73,32 @@ class delegate extends Module {
        switch (user_func) {
          // new sendmsg
          is (0.U) {
-           // TODO port is derived from the address
-
            val msghdr_send = function_queue.io.deq.bits.data.asTypeOf(new msghdr_send_t)
 
-           // TODO placeholder
-           msghdr_send.send_id := 1.U
+           msghdr_send.send_id := send_id
 
            io.sendmsg_o.bits.rpc_id    := msghdr_send.send_id
-           io.sendmsg_o.bits.dbuff_id  := 1.U // TODO placeholder
+           io.sendmsg_o.bits.dbuff_id  := dbuff_id;
            io.sendmsg_o.bits.remaining := msghdr_send.buff_size
            io.sendmsg_o.bits.dbuffered := msghdr_send.buff_size
            io.sendmsg_o.bits.granted   := 0.U
-           io.sendmsg_o.bits.priority  := 5.U
+           io.sendmsg_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            io.fetchdata_o.bits.rpc_id    := msghdr_send.send_id
            io.fetchdata_o.bits.dbuff_id  := 1.U // TODO placeholder
            io.fetchdata_o.bits.remaining := msghdr_send.buff_size
            io.fetchdata_o.bits.dbuffered := 0.U
            io.fetchdata_o.bits.granted   := msghdr_send.buff_size
-           io.fetchdata_o.bits.priority  := 5.U
+           io.fetchdata_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready
            io.sendmsg_o.valid          := function_queue.io.deq.valid
            io.fetchdata_o.valid        := function_queue.io.deq.valid
+
+           when (function_queue.io.deq.fire) {
+             send_id  := send_id + 1.U
+             dbuff_id := dbuff_id + 1.U
+           }
          }
 
          // new recvmsg
