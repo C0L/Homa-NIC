@@ -64,52 +64,7 @@ class h2c_dma_test extends AnyFreeSpec {
       }
     }
   }
-
-
-
-
-  //"Gcd should calculate proper greatest common denominator" in {
-  //  simulate(new DecoupledGcd(16)) { dut =>
-  //    val testValues = for { x <- 0 to 10; y <- 0 to 10} yield (x, y)
-  //    val inputSeq = testValues.map { case (x, y) => (new GcdInputBundle(16)).Lit(_.value1 -> x.U, _.value2 -> y.U) }
-  //    val resultSeq = testValues.map { case (x, y) =>
-  //      (new GcdOutputBundle(16)).Lit(_.value1 -> x.U, _.value2 -> y.U, _.gcd -> BigInt(x).gcd(BigInt(y)).U)
-  //    }
-
-  //    dut.reset.poke(true.B)
-  //    dut.clock.step()
-  //    dut.reset.poke(false.B)
-  //    dut.clock.step()
-
-  //    var sent, received, cycles: Int = 0
-  //    while (sent != 100 && received != 100) {
-  //      assert(cycles <= 1000, "timeout reached")
-
-  //      if (sent < 100) {
-  //        dut.input.valid.poke(true.B)
-  //        dut.input.bits.value1.poke(testValues(sent)._1.U)
-  //        dut.input.bits.value2.poke(testValues(sent)._2.U)
-  //        if (dut.input.ready.peek().litToBoolean) {
-  //          sent += 1
-  //        }
-  //      }
-
-  //      if (received < 100) {
-  //        dut.output.ready.poke(true.B)
-  //        if (dut.output.valid.peekValue().asBigInt == 1) {
-  //          dut.output.bits.gcd.expect(BigInt(testValues(received)._1).gcd(testValues(received)._2))
-  //          received += 1
-  //        }
-  //      }
-
-  //      // Step the simulation forward.
-  //      dut.clock.step()
-  //      cycles += 1
-  //    }
-  //  }
-  //}
 }
-
 
 class addr_map_test extends AnyFreeSpec {
 
@@ -128,7 +83,7 @@ class addr_map_test extends AnyFreeSpec {
 
         dut.io.dma_map_i.bits.pcie_addr.poke(transaction.U)
         dut.io.dma_map_i.bits.port.poke(transaction.U)
-        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.H2C.asUInt)
+        dut.io.dma_map_i.bits.map_type.poke(0.U)
 
         dut.clock.step()
 
@@ -136,7 +91,7 @@ class addr_map_test extends AnyFreeSpec {
 
         dut.io.dma_map_i.bits.pcie_addr.poke((transaction + 16384).U)
         dut.io.dma_map_i.bits.port.poke(transaction.U)
-        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.C2H.asUInt)
+        dut.io.dma_map_i.bits.map_type.poke(1.U)
 
         dut.clock.step()
 
@@ -144,7 +99,7 @@ class addr_map_test extends AnyFreeSpec {
 
         dut.io.dma_map_i.bits.pcie_addr.poke((transaction + 32768).U)
         dut.io.dma_map_i.bits.port.poke(transaction.U)
-        dut.io.dma_map_i.bits.map_type.poke(dma_map_type.META.asUInt)
+        dut.io.dma_map_i.bits.map_type.poke(2.U)
 
         dut.clock.step()
       }

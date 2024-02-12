@@ -55,21 +55,18 @@ class delegate extends Module {
   val user_id   = function_queue.io.deq.bits.user >> 12
   val user_func = function_queue.io.deq.bits.user(11,0)
 
-  val send_id = RegInit(0.asUInt(16.W))
-  // send_id := next_send_id
-
+  val send_id  = RegInit(0.asUInt(16.W))
   val dbuff_id = RegInit(0.asUInt(6.W))
-  // dbuff_id := next_dbuff_id
 
   // Is there a valid registered transaction?
   when(function_queue.io.deq.valid) {
     // Are we talking to the kernel (raw address 0) or a user (port * 4096)
     when (user_id === 0.U) {
-        function_queue.io.deq.ready := io.dma_map_o.ready
-        io.dma_map_o.bits           := function_queue.io.deq.bits.data.asTypeOf(new dma_map_t)
-        io.dma_map_o.valid          := function_queue.io.deq.valid
+      function_queue.io.deq.ready := io.dma_map_o.ready
+      io.dma_map_o.bits           := function_queue.io.deq.bits.data.asTypeOf(new dma_map_t)
+      io.dma_map_o.valid          := function_queue.io.deq.valid
     } otherwise {
-      // User bits specify the function of this 512 bit block for a particular port 
+      // User bits specify the function of this 512 bit block for a particular port
        switch (user_func) {
          // new sendmsg
          is (0.U) {
@@ -85,16 +82,19 @@ class delegate extends Module {
            io.sendmsg_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            io.fetchdata_o.bits.rpc_id    := msghdr_send.send_id
-           io.fetchdata_o.bits.dbuff_id  := 1.U // TODO placeholder
+           io.fetchdata_o.bits.dbuff_id  := dbuff_id 
            io.fetchdata_o.bits.remaining := msghdr_send.buff_size
            io.fetchdata_o.bits.dbuffered := 0.U
+           // TODO begginning as initially granted
            io.fetchdata_o.bits.granted   := msghdr_send.buff_size
            io.fetchdata_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
+           // Only signal that a transaction is ready to exit our queue if both recievers are ready
            function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready
            io.sendmsg_o.valid          := function_queue.io.deq.valid
            io.fetchdata_o.valid        := function_queue.io.deq.valid
 
+           // Only when te transaction takes place we increment the send and dbuff IDs
            when (function_queue.io.deq.fire) {
              send_id  := send_id + 1.U
              dbuff_id := dbuff_id + 1.U
@@ -107,9 +107,4 @@ class delegate extends Module {
        }
     }
   }
-
-  /* DEBUGGING ILAS */
-
-  val dma_map_ila = Module(new ILA(new dma_map_t))
-  dma_map_ila.io.ila_data := io.dma_map_o.bits
 }

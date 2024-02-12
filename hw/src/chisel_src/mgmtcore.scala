@@ -62,4 +62,7 @@ class mgmt_core extends Module {
 
   val ila = Module(new ILA(Decoupled(new queue_entry_t)))
   ila.io.ila_data := io.dbuff_notif_i
+
+  val dma_map_ila = Module(new ILA(new dma_map_t))
+  dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits
 }
