@@ -4,6 +4,9 @@ import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
 
+/* h2c_dma - Generates tag identifers to store read requests as they
+ * are outstanding in the pcie engine.
+ */
 class h2c_dma extends Module {
   val io = IO(new Bundle {
     val dma_read_req_i     = Flipped(Decoupled(new dma_read_t))
@@ -13,9 +16,10 @@ class h2c_dma extends Module {
   })
 
   // Memory of 256 tags
-  // TODO maybe SyncReadMem?
   val tag = RegInit(0.U(8.W))
   val tag_mem = Mem(256, new dma_read_t)
+
+  // TODO this is unregistered
 
   // We are ready to accept dma reqs if there is room in the pcie core
   io.dma_read_req_i.ready := io.pcie_read_cmd_o.ready
@@ -59,6 +63,9 @@ class h2c_dma extends Module {
   }
 }
 
+/* addr_map - performs DMA address translations for read and write
+ * requests before they are passed the pcie core.
+ */
 class addr_map extends Module {
   val io = IO(new Bundle {
     val dma_map_i    = Flipped(Decoupled(new dma_map_t))
@@ -75,7 +82,7 @@ class addr_map extends Module {
   val metadata_maps = SyncReadMem(16384, new dma_map_t)
 
   // TODO this should not always be true because we cannot accept w meta and w data simultanously
-  io.dma_map_i.ready := true.B
+  io.dma_map_i.ready     := true.B
   io.dma_w_meta_i.ready  := true.B
   io.dma_w_data_i.ready  := true.B
   io.dma_r_req_i.ready   := true.B
@@ -131,7 +138,7 @@ class addr_map extends Module {
 
   // TODO this needlessly stores the map_type
   when(dma_map_i_reg_0_valid) {
-    switch (dma_map_type(dma_map_i_reg_0_bits.map_type)) {
+    switch (dma_map_type.safe(dma_map_i_reg_0_bits.map_type)._1) {
       is (dma_map_type.H2C) {
         h2c_data_maps.write(dma_map_i_reg_0_bits.port, dma_map_i_reg_0_bits)
       }

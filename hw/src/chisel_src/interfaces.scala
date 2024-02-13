@@ -102,7 +102,6 @@ class dma_map_t extends Bundle {
   val pcie_addr = UInt(64.W)
   val port      = UInt(16.W)
   val map_type  = UInt(8.W)
-  // val buff      = UInt((512-82).W)
 }
 
 // TODO these should be parmeterizable

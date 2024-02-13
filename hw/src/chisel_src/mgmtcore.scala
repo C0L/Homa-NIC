@@ -49,7 +49,6 @@ class mgmt_core extends Module {
   // TODO eventually goes to packet constructor
   sendmsg_queue.io.dequeue      := DontCare
 
-
   /* DEBUGGING ILAS */
   val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false)))
   axi2axis_ila.io.ila_data := axi2axis.io.m_axis
@@ -65,4 +64,10 @@ class mgmt_core extends Module {
 
   val dma_map_ila = Module(new ILA(new dma_map_t))
   dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits
+
+  val fetch_in_ila = Module(new ILA(new queue_entry_t))
+  fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
+
+  val fetch_out_ila = Module(new ILA(new dma_read_t))
+  fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
 }

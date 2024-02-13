@@ -52,7 +52,9 @@ class delegate extends Module {
   // Be default nothing will exit our queue
   function_queue.io.deq.ready     := false.B
 
+  // The user ID is the page allocated to this user
   val user_id   = function_queue.io.deq.bits.user >> 12
+  // The user func is the ofset within that page
   val user_func = function_queue.io.deq.bits.user(11,0)
 
   val send_id  = RegInit(0.asUInt(16.W))
