@@ -2,7 +2,7 @@
 
 `default_nettype none
 
-module pcie_core#
+module pcie_rtl#
   (
    parameter AXIS_PCIE_DATA_WIDTH = 512,
    parameter AXIS_PCIE_KEEP_WIDTH = (AXIS_PCIE_DATA_WIDTH/32),
