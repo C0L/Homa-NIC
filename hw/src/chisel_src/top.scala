@@ -67,13 +67,11 @@ class top extends RawModule {
   pcie.ram_read_desc_status  := DontCare
   pcie.ram_read_data         := DontCare
 
-  /* Eventually from c2h_dma */
-  // pcie.dma_write_desc        := DontCare
-  // pcie.dma_write_desc_status := DontCare
-
-  // TODO 
-  pcie.dma_w_meta_i := DontCare
+  // TODO need to clock convert to  core.dma_w_meta_o
+  pcie.dma_w_meta_i <> core.io.dma_w_meta_o
   pcie.dma_w_data_i := DontCare
+
+  // TODO this should be able to be compacted a bit
 
   /* Clock Convert core (200MHz) -> pcie (250MHz) */
   val fetch_cc  = Module(new AXISClockConverter(new dma_read_t))
@@ -84,6 +82,17 @@ class top extends RawModule {
   fetch_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
   fetch_cc.io.m_axis_aclk    := pcie.pcie_user_clk
   fetch_cc.io.m_axis         <> pcie.dma_r_req_i
+
+  /* Clock Convert core (200MHz) -> pcie (250MHz) */
+  val dma_meta_cc  = Module(new AXISClockConverter(new dma_write_t))
+
+  core.io.dma_w_meta_o             <> dma_meta_cc.io.s_axis
+  dma_meta_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
+  dma_meta_cc.io.s_axis_aclk    := mainClk.io.clk_out1
+  dma_meta_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
+  dma_meta_cc.io.m_axis_aclk    := pcie.pcie_user_clk
+  dma_meta_cc.io.m_axis         <> pcie.dma_w_meta_i
+
 
   /* Clock Convert pcie (200MHz) -> core (250MHz) */
   val dbnotif_cc = Module(new AXISClockConverter(new queue_entry_t))
@@ -108,7 +117,7 @@ class top extends RawModule {
   /* Clock Convert pcie (250MHz) -> core (200MHz) */
   val axi_cc    = Module(new AXIClockConverter(512, 26, true, 8, true, 4, true, 4))
 
-  axi_cc.io.s_axi <> pcie.m_axi
+  axi_cc.io.s_axi         <> pcie.m_axi
   axi_cc.io.s_axi_aresetn := !pcie.pcie_user_reset
   axi_cc.io.s_axi_aclk    := pcie.pcie_user_clk
   axi_cc.io.m_axi_aresetn := !ps_reset.io.peripheral_reset.asBool

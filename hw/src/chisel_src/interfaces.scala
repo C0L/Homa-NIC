@@ -227,10 +227,10 @@ object dma_map_type extends ChiselEnum {
 }
 
 object queue_priority extends ChiselEnum {
-  val INVALIDATE   = Value(0x00.U) 
-  val DBUFF_UPDATE = Value(0x01.U)
-  val GRANT_UPDATE = Value(0x02.U)
-  val EMPTY        = Value(0x03.U)
-  val BLOCKED      = Value(0x04.U)
-  val ACTIVE       = Value(0x05.U)
+  val INVALIDATE   = Value(0x0.U) 
+  val DBUFF_UPDATE = Value(0x1.U)
+  val GRANT_UPDATE = Value(0x2.U)
+  val EMPTY        = Value(0x3.U)
+  val BLOCKED      = Value(0x4.U)
+  val ACTIVE       = Value(0x5.U)
 }

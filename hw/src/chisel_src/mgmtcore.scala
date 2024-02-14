@@ -15,6 +15,7 @@ class mgmt_core extends Module {
     val dbuff_notif_i = Flipped(Decoupled(new queue_entry_t))
     val fetch_dequeue = Decoupled(new dma_read_t)
     val dma_map_o     = Decoupled(new dma_map_t)
+    val dma_w_meta_o  = Decoupled(new dma_write_t)
     val s_axi         = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
   })
 
@@ -44,7 +45,8 @@ class mgmt_core extends Module {
   delegate.io.sendmsg_o <> sendmsg_queue.io.enqueue // TODO eventually shared
 
   // TODO placeholder
-  delegate.io.dma_w_req_o       := DontCare
+  // delegate.io.dma_w_req_o       := DontCare
+  io.dma_w_meta_o <> delegate.io.dma_w_req_o
 
   // TODO eventually goes to packet constructor
   sendmsg_queue.io.dequeue      := DontCare
@@ -70,4 +72,7 @@ class mgmt_core extends Module {
 
   val fetch_out_ila = Module(new ILA(new dma_read_t))
   fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
+
+  val dma_meta_w_ila = Module(new ILA(new dma_write_t))
+  dma_meta_w_ila.io.ila_data := delegate.io.dma_w_req_o.bits
 }

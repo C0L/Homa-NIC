@@ -19,46 +19,37 @@ class h2c_dma extends Module {
   val tag = RegInit(0.U(8.W))
   val tag_mem = Mem(256, new dma_read_t)
 
-  // TODO this is unregistered
+  val dma_read_queue  = Module(new Queue(new dma_read_t, 1, true, true))
+  val dma_read_status = Module(new Queue(new dma_read_desc_status_t, 1, true, true))
 
-  // We are ready to accept dma reqs if there is room in the pcie core
-  io.dma_read_req_i.ready := io.pcie_read_cmd_o.ready
+  dma_read_status.io.enq <> io.pcie_read_status_i
+  dma_read_queue.io.enq  <> io.dma_read_req_i
 
-  // We are ready to handle status outputs if dbuff queue is ready to handle notifs
-  io.pcie_read_status_i.ready := io.dbuff_notif_o.ready
+  dma_read_queue.io.deq.ready  := io.pcie_read_cmd_o.ready
+  dma_read_status.io.deq.ready := io.dbuff_notif_o.ready
+  io.pcie_read_cmd_o.valid     := dma_read_queue.io.deq.valid
+  io.dbuff_notif_o.valid       := dma_read_status.io.deq.valid
 
-  // Expect not to send data downstream
-  io.pcie_read_cmd_o.valid := false.B
-  io.dbuff_notif_o.valid   := false.B
+  io.pcie_read_cmd_o.bits.pcie_addr := dma_read_queue.io.deq.bits.pcie_read_addr
+  io.pcie_read_cmd_o.bits.ram_sel   := 0.U(2.W)
+  io.pcie_read_cmd_o.bits.ram_addr  := dma_read_queue.io.deq.bits.dest_ram_addr
+  io.pcie_read_cmd_o.bits.len       := dma_read_queue.io.deq.bits.read_len
+  io.pcie_read_cmd_o.bits.tag       := tag
 
-  // TODO should zero init?
-
-  io.pcie_read_cmd_o.bits.pcie_addr := io.dma_read_req_i.bits.pcie_read_addr
-  io.pcie_read_cmd_o.bits.ram_sel        := 0.U(2.W)
-  io.pcie_read_cmd_o.bits.ram_addr       := io.dma_read_req_i.bits.dest_ram_addr
-  io.pcie_read_cmd_o.bits.len            := io.dma_read_req_i.bits.read_len
-  io.pcie_read_cmd_o.bits.tag            := tag
-
-  val pending_read = tag_mem.read(io.pcie_read_status_i.bits.tag)
+  val pending_read = tag_mem.read(dma_read_status.io.deq.bits.tag)
 
   io.dbuff_notif_o.bits.rpc_id     := 0.U
   io.dbuff_notif_o.bits.dbuff_id   := pending_read.cache_id
   io.dbuff_notif_o.bits.remaining  := pending_read.read_len - pending_read.dest_ram_addr - 256.U(20.W)
   io.dbuff_notif_o.bits.dbuffered  := 0.U
   io.dbuff_notif_o.bits.granted    := 0.U
-  io.dbuff_notif_o.bits.priority   := 1.U  // TODO update
+  io.dbuff_notif_o.bits.priority   := queue_priority.DBUFF_UPDATE.asUInt
 
   // Did a dma request just arrive
-  when(io.dma_read_req_i.valid) {
-    io.pcie_read_cmd_o.valid := true.B
-    
-    tag_mem.write(tag, io.dma_read_req_i.bits)
+  when(dma_read_queue.io.deq.valid) {
+    tag_mem.write(tag, dma_read_queue.io.deq.bits)
 
     tag := tag + 1.U(8.W)
-  }
-
-  when (io.pcie_read_status_i.valid) {
-    io.dbuff_notif_o.valid := true.B
   }
 }
 
@@ -89,12 +80,12 @@ class c2h_dma extends Module {
   io.ram_write_data.bits := 0.U.asTypeOf(new ram_write_data_t)
   io.ram_write_data.valid := 0.U
 
-  io.ram_write_desc_status.ready := 0.U
+  io.ram_write_desc_status.ready := true.B
 
   io.dma_write_desc.bits := 0.U.asTypeOf(new dma_write_desc_t)
   io.dma_write_desc.valid := 0.U
 
-  io.dma_write_desc_status.ready := 0.U
+  io.dma_write_desc_status.ready := true.B
 
   // We are ready to accept dma reqs if there is room in the pcie core
   io.dma_write_req_i.ready := io.dma_write_desc.ready

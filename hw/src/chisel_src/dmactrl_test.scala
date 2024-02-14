@@ -1,4 +1,4 @@
-package gpnic 
+package gpnic
 
 import chisel3._
 import chisel3.experimental.BundleLiterals._
@@ -55,13 +55,70 @@ class h2c_dma_test extends AnyFreeSpec {
         dut.io.dbuff_notif_o.bits.rpc_id.expect(0.U)
         dut.io.dbuff_notif_o.bits.dbuff_id.expect(transaction.U)
         dut.io.dbuff_notif_o.bits.remaining.expect(transaction.U)
-        dut.io.dbuff_notif_o.bits.dbuffered.expect(0.U) 
+        dut.io.dbuff_notif_o.bits.dbuffered.expect(0.U)
         dut.io.dbuff_notif_o.bits.granted.expect(0.U)
         dut.io.dbuff_notif_o.bits.priority.expect(1.U)
 
         dut.clock.step()
         // TODO ensure the signals reset in the next cycle
       }
+    }
+  }
+}
+
+
+class c2h_dma_test extends AnyFreeSpec {
+
+  "c2h_dma_test: testing dma write request triggers RAM write" in {
+    simulate(new c2h_dma) { dut =>
+
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.ram_write_desc.ready.poke(true.B)
+      dut.io.ram_write_data.ready.poke(true.B)
+      dut.io.ram_write_desc_status.valid.poke(false.B)
+
+      dut.io.dma_write_desc.ready.poke(true.B)
+      dut.io.dma_write_desc_status.valid.poke(false.B)
+
+      dut.io.dma_write_req_i.valid.poke(true.B)
+      dut.io.dma_write_req_i.bits.pcie_write_addr.poke(4096.U)
+      dut.io.dma_write_req_i.bits.data.poke("hDEADBEEF".U)
+      dut.io.dma_write_req_i.bits.length.poke(64.U)
+      dut.io.dma_write_req_i.bits.port.poke(1.U)
+
+      dut.io.ram_write_desc.valid.expect(true.B)
+      dut.io.ram_write_data.valid.expect(true.B)
+
+      dut.io.dma_write_req_i.valid.poke(false.B)
+
+      // TODO check the values of the output 
+    }
+  }
+
+  "c2h_dma_test: testing status response triggers dma write request" in {
+    simulate(new c2h_dma) { dut =>
+
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.dma_write_req_i.valid.poke(false.B)
+
+      dut.io.ram_write_desc.ready.poke(true.B)
+      dut.io.ram_write_data.ready.poke(true.B)
+      dut.io.ram_write_desc_status.valid.poke(true.B)
+
+      dut.io.dma_write_desc.ready.poke(true.B)
+      dut.io.dma_write_desc_status.valid.poke(false.B)
+
+      dut.io.ram_write_desc_status.bits.tag.poke(1.U)
+
+      dut.io.dma_write_desc.valid.expect(true.B)
     }
   }
 }
@@ -103,8 +160,6 @@ class addr_map_test extends AnyFreeSpec {
 
         dut.clock.step()
       }
-
-      println("Filled all slots\n")
 
       dut.io.dma_map_i.valid.poke(false.B)
 

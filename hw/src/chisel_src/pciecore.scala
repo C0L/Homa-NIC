@@ -50,8 +50,8 @@ class pcie_core extends Module {
   addr_map.io.dma_map_i         <> dma_map_i
   h2c_dma.io.pcie_read_cmd_o    <> pcie_core.io.dma_read_desc
   h2c_dma.io.pcie_read_status_i <> pcie_core.io.dma_read_desc_status
-  m_axi <> pcie_core.io.m_axi
-  h2c_dma.io.dbuff_notif_o <> dbuff_notif_o
+  m_axi                         <> pcie_core.io.m_axi
+  h2c_dma.io.dbuff_notif_o      <> dbuff_notif_o
 
   c2h_dma.io.ram_write_desc        <> dma_client_write.io.ram_write_desc
   c2h_dma.io.ram_write_desc_status <> dma_client_write.io.ram_write_desc_status
