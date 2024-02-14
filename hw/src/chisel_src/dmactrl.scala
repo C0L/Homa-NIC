@@ -91,6 +91,7 @@ class addr_map extends Module {
   dma_r_req_aug  := h2c_data_maps.io.track_out
   dma_w_data_aug := c2h_data_maps.io.track_out
 
+  // TODO this is a little sloppy
   dma_w_meta_aug.pcie_write_addr := meta_data_maps.io.r_data_data.asTypeOf(new dma_map_t).pcie_addr + meta_data_maps.io.track_out.asTypeOf(new dma_write_t).pcie_write_addr
   dma_r_req_aug.pcie_read_addr   := h2c_data_maps.io.r_data_data.asTypeOf(new dma_map_t).pcie_addr  + h2c_data_maps.io.track_out.asTypeOf(new dma_read_t).pcie_read_addr
   dma_w_data_aug.pcie_write_addr := c2h_data_maps.io.r_data_data.asTypeOf(new dma_map_t).pcie_addr  + c2h_data_maps.io.track_out.asTypeOf(new dma_write_t).pcie_write_addr
@@ -108,21 +109,19 @@ class addr_map extends Module {
   io.dma_w_req_o.valid := write_arbiter.io.out.valid
   io.dma_w_req_o.bits        := write_arbiter.io.out.bits
 
-
   io.dma_r_req_o.valid          := h2c_data_maps.io.r_data_valid
   h2c_data_maps.io.r_data_ready := io.dma_r_req_o.ready
   io.dma_r_req_o.bits           := dma_r_req_aug
 
-
-  io.dma_w_meta_i.ready      := meta_data_maps.io.r_cmd_ready
+  io.dma_w_meta_i.ready         := meta_data_maps.io.r_cmd_ready
   meta_data_maps.io.r_cmd_valid := io.dma_w_meta_i.valid
   meta_data_maps.io.r_cmd_addr  := io.dma_w_meta_i.bits.port
   meta_data_maps.io.track_in    := io.dma_w_meta_i.bits
 
-  io.dma_w_data_i.ready      := c2h_data_maps.io.r_cmd_ready
-  c2h_data_maps.io.r_cmd_valid  := io.dma_w_data_i.valid
-  c2h_data_maps.io.r_cmd_addr   := io.dma_w_data_i.bits.port
-  c2h_data_maps.io.track_in     := io.dma_w_data_i.bits
+  io.dma_w_data_i.ready        := c2h_data_maps.io.r_cmd_ready
+  c2h_data_maps.io.r_cmd_valid := io.dma_w_data_i.valid
+  c2h_data_maps.io.r_cmd_addr  := io.dma_w_data_i.bits.port
+  c2h_data_maps.io.track_in    := io.dma_w_data_i.bits
 
   io.dma_r_req_i.ready          := h2c_data_maps.io.r_cmd_ready
   h2c_data_maps.io.r_cmd_valid  := io.dma_r_req_i.valid
@@ -131,34 +130,29 @@ class addr_map extends Module {
 
   // TODO this can be better -- some mux??
   meta_data_maps.io.w_cmd_valid := false.B
-  meta_data_maps.io.w_cmd_addr  := 0.U
-  meta_data_maps.io.w_cmd_data  := 0.U.asTypeOf(new dma_map_t)
+  c2h_data_maps.io.w_cmd_valid  := false.B
+  h2c_data_maps.io.w_cmd_valid  := false.B
 
-  c2h_data_maps.io.w_cmd_valid := false.B
-  c2h_data_maps.io.w_cmd_addr  := 0.U
-  c2h_data_maps.io.w_cmd_data  := 0.U.asTypeOf(new dma_map_t)
+  meta_data_maps.io.w_cmd_addr  := io.dma_map_i.bits.port
+  meta_data_maps.io.w_cmd_data  := io.dma_map_i.bits
 
-  h2c_data_maps.io.w_cmd_valid := false.B
-  h2c_data_maps.io.w_cmd_addr  := 0.U
-  h2c_data_maps.io.w_cmd_data  := 0.U.asTypeOf(new dma_map_t)
+  c2h_data_maps.io.w_cmd_addr  := io.dma_map_i.bits.port
+  c2h_data_maps.io.w_cmd_data  := io.dma_map_i.bits
 
-  io.dma_map_i.ready := h2c_data_maps.io.w_cmd_ready && c2h_data_maps.io.w_cmd_ready && meta_data_maps.io.w_cmd_ready
+  h2c_data_maps.io.w_cmd_addr  := io.dma_map_i.bits.port
+  h2c_data_maps.io.w_cmd_data  := io.dma_map_i.bits
 
-  switch (dma_map_type.safe(io.dma_map_i.bits.map_type)._1) {
-    is (dma_map_type.H2C) {
-      h2c_data_maps.io.w_cmd_valid := io.dma_map_i.valid
-      h2c_data_maps.io.w_cmd_addr  := io.dma_map_i.bits.port
-      h2c_data_maps.io.w_cmd_data  := io.dma_map_i.bits
-    }
-    is (dma_map_type.C2H) {
-      c2h_data_maps.io.w_cmd_valid := io.dma_map_i.valid
-      c2h_data_maps.io.w_cmd_addr  := io.dma_map_i.bits.port
-      c2h_data_maps.io.w_cmd_data  := io.dma_map_i.bits
-    }
-    is (dma_map_type.META) {
-      meta_data_maps.io.w_cmd_valid := io.dma_map_i.valid
-      meta_data_maps.io.w_cmd_addr  := io.dma_map_i.bits.port
-      meta_data_maps.io.w_cmd_data  := io.dma_map_i.bits
-    }
-  }
+  io.dma_map_i.ready := true.B
+
+   switch (dma_map_type.safe(io.dma_map_i.bits.map_type)._1) {
+     is (dma_map_type.H2C) {
+       h2c_data_maps.io.w_cmd_valid := io.dma_map_i.valid
+     }
+     is (dma_map_type.C2H) {
+       c2h_data_maps.io.w_cmd_valid := io.dma_map_i.valid
+     }
+     is (dma_map_type.META) {
+       meta_data_maps.io.w_cmd_valid := io.dma_map_i.valid
+     }
+   }
 }

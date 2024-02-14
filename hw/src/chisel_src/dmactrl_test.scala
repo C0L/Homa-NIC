@@ -104,6 +104,8 @@ class addr_map_test extends AnyFreeSpec {
         dut.clock.step()
       }
 
+      println("Filled all slots\n")
+
       dut.io.dma_map_i.valid.poke(false.B)
 
       for (transaction <- 0 to 16383) {
