@@ -57,9 +57,78 @@ class h2c_dma extends Module {
     tag := tag + 1.U(8.W)
   }
 
-  // Did a status completion from dma write just return
   when (io.pcie_read_status_i.valid) {
     io.dbuff_notif_o.valid := true.B
+  }
+}
+
+/* c2h_dma - Generates tag identifers to store read requests as they
+ * are outstanding in the pcie engine.
+ */
+class c2h_dma extends Module {
+  val io = IO(new Bundle {
+    val dma_write_req_i       = Flipped(Decoupled(new dma_write_t))
+
+    val ram_write_desc        = Decoupled(new ram_write_desc_t)
+    val ram_write_data        = Decoupled(new ram_write_data_t)
+    val ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))
+
+    val dma_write_desc        = Decoupled(new dma_write_desc_t)
+    val dma_write_desc_status = Flipped(Decoupled(new dma_write_desc_status_t))
+  })
+
+  // Memory of 256 tags
+  val tag = RegInit(0.U(8.W))
+  val tag_mem = Mem(256, new dma_write_desc_t)
+
+  val ram_head = RegInit(0.U(14.W))
+
+  io.ram_write_desc.bits  := 0.U.asTypeOf(new ram_write_desc_t)
+  io.ram_write_desc.valid := 0.U
+
+  io.ram_write_data.bits := 0.U.asTypeOf(new ram_write_data_t)
+  io.ram_write_data.valid := 0.U
+
+  io.ram_write_desc_status.ready := 0.U
+
+  io.dma_write_desc.bits := 0.U.asTypeOf(new dma_write_desc_t)
+  io.dma_write_desc.valid := 0.U
+
+  io.dma_write_desc_status.ready := 0.U
+
+  // We are ready to accept dma reqs if there is room in the pcie core
+  io.dma_write_req_i.ready := io.dma_write_desc.ready
+
+  when(io.dma_write_req_i.valid) {
+
+    io.ram_write_desc.bits.ram_addr  := ram_head
+    io.ram_write_desc.bits.len       := io.dma_write_req_i.bits.length
+    io.ram_write_desc.bits.tag       := tag
+
+    io.ram_write_data.bits.data := io.dma_write_req_i.bits.data
+    io.ram_write_data.bits.last := 1.U
+    io.ram_write_data.bits.keep := ("hFFFFFFFFFFFFFFFF".U >> (64.U - io.dma_write_req_i.bits.length))
+
+    io.ram_write_desc.valid  := true.B
+    io.ram_write_data.valid := true.B
+
+    val dma_write = Wire(new dma_write_desc_t)
+    dma_write.pcie_addr := io.dma_write_req_i.bits.pcie_write_addr
+    dma_write.ram_sel   := 0.U
+    dma_write.ram_addr  := ram_head
+    dma_write.len       := io.dma_write_req_i.bits.pcie_write_addr
+    dma_write.tag       := tag
+
+    tag_mem.write(tag, dma_write)
+
+    tag      := tag + 1.U(8.W)
+    ram_head := ram_head + 64.U(14.W)
+  }
+
+  // TODO there needs to be some flow control here
+  when (io.ram_write_desc_status.valid) {
+    io.dma_write_desc.bits  := tag_mem.read(io.ram_write_desc_status.bits.tag)
+    io.dma_write_desc.valid := true.B
   }
 }
 

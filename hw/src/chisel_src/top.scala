@@ -67,13 +67,13 @@ class top extends RawModule {
   pcie.ram_read_desc_status  := DontCare
   pcie.ram_read_data         := DontCare
 
-  pcie.ram_write_desc        := DontCare
-  pcie.ram_write_data        := DontCare
-  pcie.ram_write_desc_status := DontCare
-
   /* Eventually from c2h_dma */
-  pcie.dma_write_desc        := DontCare
-  pcie.dma_write_desc_status := DontCare
+  // pcie.dma_write_desc        := DontCare
+  // pcie.dma_write_desc_status := DontCare
+
+  // TODO 
+  pcie.dma_w_meta_i := DontCare
+  pcie.dma_w_data_i := DontCare
 
   /* Clock Convert core (200MHz) -> pcie (250MHz) */
   val fetch_cc  = Module(new AXISClockConverter(new dma_read_t))
