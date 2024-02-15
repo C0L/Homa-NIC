@@ -93,7 +93,6 @@ class top extends RawModule {
   dma_meta_cc.io.m_axis_aclk    := pcie.pcie_user_clk
   dma_meta_cc.io.m_axis         <> pcie.dma_w_meta_i
 
-
   /* Clock Convert pcie (200MHz) -> core (250MHz) */
   val dbnotif_cc = Module(new AXISClockConverter(new queue_entry_t))
 

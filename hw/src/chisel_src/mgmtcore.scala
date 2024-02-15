@@ -42,7 +42,7 @@ class mgmt_core extends Module {
   axi2axis.io.s_axi_aclk    <> clock
   axi2axis.io.s_axi_aresetn <> !reset.asBool
 
-  delegate.io.sendmsg_o <> sendmsg_queue.io.enqueue // TODO eventually shared
+  delegate.io.sendmsg_o <> sendmsg_queue.io.enqueue 
 
   // TODO placeholder
   // delegate.io.dma_w_req_o       := DontCare

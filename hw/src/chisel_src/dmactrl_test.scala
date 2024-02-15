@@ -84,16 +84,16 @@ class c2h_dma_test extends AnyFreeSpec {
       dut.io.dma_write_desc.ready.poke(true.B)
       dut.io.dma_write_desc_status.valid.poke(false.B)
 
-      dut.io.dma_write_req_i.valid.poke(true.B)
-      dut.io.dma_write_req_i.bits.pcie_write_addr.poke(4096.U)
-      dut.io.dma_write_req_i.bits.data.poke("hDEADBEEF".U)
-      dut.io.dma_write_req_i.bits.length.poke(64.U)
-      dut.io.dma_write_req_i.bits.port.poke(1.U)
+      dut.io.dma_write_req.valid.poke(true.B)
+      dut.io.dma_write_req.bits.pcie_write_addr.poke(4096.U)
+      dut.io.dma_write_req.bits.data.poke("hDEADBEEF".U)
+      dut.io.dma_write_req.bits.length.poke(64.U)
+      dut.io.dma_write_req.bits.port.poke(1.U)
 
       dut.io.ram_write_desc.valid.expect(true.B)
       dut.io.ram_write_data.valid.expect(true.B)
 
-      dut.io.dma_write_req_i.valid.poke(false.B)
+      dut.io.dma_write_req.valid.poke(false.B)
 
       // TODO check the values of the output 
     }
@@ -107,7 +107,7 @@ class c2h_dma_test extends AnyFreeSpec {
       dut.reset.poke(false.B)
       dut.clock.step()
 
-      dut.io.dma_write_req_i.valid.poke(false.B)
+      dut.io.dma_write_req.valid.poke(false.B)
 
       dut.io.ram_write_desc.ready.poke(true.B)
       dut.io.ram_write_data.ready.poke(true.B)

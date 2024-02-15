@@ -59,7 +59,7 @@ class pcie_core extends Module {
   c2h_dma.io.dma_write_desc        <> pcie_core.io.dma_write_desc
   c2h_dma.io.dma_write_desc_status <> pcie_core.io.dma_write_desc_status
 
-  c2h_dma.io.dma_write_req_i <> addr_map.io.dma_w_req_o
+  c2h_dma.io.dma_write_req <> addr_map.io.dma_w_req_o
 
   addr_map.io.dma_w_meta_i <> dma_w_meta_i 
   addr_map.io.dma_w_data_i <> dma_w_data_i 
