@@ -88,7 +88,7 @@
  */
 module srpt_queue #(parameter MAX_RPCS = 64,
 		    parameter TYPE = "sendmsg")
-   (input ap_clk, ap_rst_n, 
+   (input clk, rst, 
     
     input			       s_axis_tvalid,
     output reg			       s_axis_tready,
@@ -195,12 +195,12 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 
    integer rst_entry;
 
-   always @(posedge ap_clk) begin
+   always @(posedge clk) begin
       s_axis_tready <= 1;
    end
 
-   always @(posedge ap_clk) begin
-      if (!ap_rst_n) begin
+   always @(posedge clk) begin
+      if (rst) begin
 	 m_axis_tvalid <= 0;
 	 queue_swap_polarity <= 0;
 	 for (rst_entry = 0; rst_entry < MAX_RPCS; rst_entry = rst_entry + 1) begin

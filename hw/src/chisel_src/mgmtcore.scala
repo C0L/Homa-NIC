@@ -22,6 +22,8 @@ class mgmt_core extends Module {
   val axi2axis   = Module(new axi2axis) // Convert incoming AXI requests to AXIS
   val delegate   = Module(new delegate) // Decide where those requests should be placed
 
+  // TODO move addr map, c2h, and h2c here
+
   val fetch_queue   = Module(new fetch_queue)    // Fetch the next best chunk of data
   val sendmsg_queue = Module(new sendmsg_queue)  // Send the next best message 
 

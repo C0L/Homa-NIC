@@ -70,21 +70,22 @@ class c2h_dma extends Module {
 
   // Memory of 256 tags
   val tag = RegInit(0.U(8.W))
-  val tag_mem = Mem(256, new dma_write_desc_t)
+  // val tag_mem = Mem(256, new dma_write_desc_t)
 
   val ram_head = RegInit(0.U(14.W))
 
   val ram_write_req_queue = Module(new Queue(new dma_write_t, 1, true, true))
-  val dma_write_req_queue = Module(new Queue(new ram_write_desc_status_t, 1, true, true))
+  // val dma_write_req_queue = Module(new Queue(new ram_write_desc_status_t, 1, true, true))
 
   ram_write_req_queue.io.enq <> io.dma_write_req
-  dma_write_req_queue.io.enq <> io.ram_write_desc_status
+  // dma_write_req_queue.io.enq <> io.ram_write_desc_status
 
   io.ram_write_desc.valid := ram_write_req_queue.io.deq.valid
   io.ram_write_data.valid := ram_write_req_queue.io.deq.valid
-  io.dma_write_desc.valid := dma_write_req_queue.io.deq.valid
-  ram_write_req_queue.io.deq.ready := io.ram_write_desc.ready && io.ram_write_data.ready
-  dma_write_req_queue.io.deq.ready := io.dma_write_desc.ready
+  io.dma_write_desc.valid := ram_write_req_queue.io.deq.valid
+  // io.dma_write_desc.valid := dma_write_req_queue.io.deq.valid
+  ram_write_req_queue.io.deq.ready := io.ram_write_desc.ready && io.ram_write_data.ready && io.dma_write_desc.ready
+  // dma_write_req_queue.io.deq.ready := io.dma_write_desc.ready
 
   io.ram_write_desc.bits.ram_addr  := ram_head
   io.ram_write_desc.bits.len       := ram_write_req_queue.io.deq.bits.length
@@ -102,17 +103,23 @@ class c2h_dma extends Module {
   dma_write.len       := ram_write_req_queue.io.deq.bits.pcie_write_addr
   dma_write.tag       := tag
 
+  io.dma_write_desc.bits := dma_write
+
   when(ram_write_req_queue.io.deq.fire) {
 
-    tag_mem.write(tag, dma_write)
+    // tag_mem.write(tag, dma_write)
 
     tag      := tag + 1.U(8.W)
-    ram_head := ram_head + 64.U(14.W)
+    // ram_head := ram_head + 64.U(14.W)
   }
 
-  io.dma_write_desc.bits  := tag_mem.read(dma_write_req_queue.io.deq.bits.tag)
+  // io.dma_write_desc.bits  := tag_mem.read(dma_write_req_queue.io.deq.bits.tag)
 
   // TODO unused
+  io.ram_write_desc_status.ready := true.B
+  io.ram_write_desc_status.bits  := DontCare 
+  io.ram_write_desc_status.valid := DontCare
+
   io.dma_write_desc_status.ready := true.B
   io.dma_write_desc_status.bits  := DontCare 
   io.dma_write_desc_status.valid := DontCare

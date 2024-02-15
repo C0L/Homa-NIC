@@ -3,7 +3,6 @@ package gpnic
 import chisel3._
 import chisel3.util._
 
-
 class dma_client_axis_source extends BlackBox(
   Map("RAM_ADDR_WIDTH" -> 18,
       "SEG_COUNT" -> 2,
@@ -80,6 +79,9 @@ class srpt_queue (qtype: String) extends BlackBox (
   )) {
 
   val io = IO(new Bundle {
+    val clk = Input(Clock())
+    val rst = Input(UInt(1.W))
+
     val s_axis = Flipped(new axis(88, false, 0, false, 0, false))
     val m_axis = new axis(88, false, 0, false, 0, false)
   })
@@ -93,6 +95,15 @@ class fetch_queue extends Module {
   })
 
   val fetch_queue_raw = Module(new srpt_queue("fetch"))
+
+  fetch_queue_raw.io.clk := clock
+  fetch_queue_raw.io.rst := reset.asUInt
+
+  val fetch_out_ila = Module(new ILA(Flipped(new axis(88, false, 0, false, 0, false))))
+  fetch_out_ila.io.ila_data := fetch_queue_raw.io.s_axis
+
+  val fetch_in_ila = Module(new ILA(new axis(88, false, 0, false, 0, false)))
+  fetch_in_ila.io.ila_data := fetch_queue_raw.io.m_axis
 
   fetch_queue_raw.io.s_axis.tdata  := io.enqueue.bits.asTypeOf(UInt(88.W))
   io.enqueue.ready                 := fetch_queue_raw.io.s_axis.tready
@@ -125,6 +136,9 @@ class sendmsg_queue extends Module {
   })
 
   val send_queue_raw = Module(new srpt_queue("sendmsg"))
+
+  send_queue_raw.io.clk := clock
+  send_queue_raw.io.rst := reset.asUInt
 
   val raw_in  = io.enqueue.bits.asTypeOf(UInt(88.W))
   val raw_out = Wire(new queue_entry_t)

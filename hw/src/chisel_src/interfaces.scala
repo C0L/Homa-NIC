@@ -99,9 +99,9 @@ class dma_write_t extends Bundle {
 }
 
 class dma_map_t extends Bundle {
-  val pcie_addr = UInt(64.W)
-  val port      = UInt(16.W)
   val map_type  = UInt(8.W)
+  val port      = UInt(16.W)
+  val pcie_addr = UInt(64.W)
 }
 
 // TODO these should be parmeterizable
@@ -198,25 +198,25 @@ class axis(
  * recvmsg requests that form the msghdr
  */
 class msghdr_send_t extends Bundle {
-  val saddr     = UInt(128.W)
-  val daddr     = UInt(128.W)
-  val sport     = UInt(16.W)
-  val dport     = UInt(16.W)
-  val buff_addr = UInt(32.W)
-  val ret       = UInt(12.W)
-  val buff_size = UInt(20.W)
-  val send_id   = UInt(64.W)
   val send_cc   = UInt(64.W)
+  val send_id   = UInt(64.W)
+  val buff_size = UInt(20.W)
+  val ret       = UInt(12.W)
+  val buff_addr = UInt(32.W)
+  val dport     = UInt(16.W)
+  val sport     = UInt(16.W)
+  val daddr     = UInt(128.W)
+  val saddr     = UInt(128.W)
 }
 
 // TODO this can be specilized now
 class queue_entry_t extends Bundle {
-  val rpc_id    = UInt(16.W)
-  val dbuff_id  = UInt(16.W)
-  val remaining = UInt(20.W)
-  val dbuffered = UInt(20.W)
-  val granted   = UInt(20.W)
   val priority  = UInt(3.W)
+  val granted   = UInt(20.W)
+  val dbuffered = UInt(20.W)
+  val remaining = UInt(20.W)
+  val dbuff_id  = UInt(10.W)
+  val rpc_id    = UInt(16.W)
 }
 
 object dma_map_type extends ChiselEnum {

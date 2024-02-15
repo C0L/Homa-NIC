@@ -99,28 +99,28 @@ class c2h_dma_test extends AnyFreeSpec {
     }
   }
 
-  "c2h_dma_test: testing status response triggers dma write request" in {
-    simulate(new c2h_dma) { dut =>
-
-      dut.reset.poke(true.B)
-      dut.clock.step()
-      dut.reset.poke(false.B)
-      dut.clock.step()
-
-      dut.io.dma_write_req.valid.poke(false.B)
-
-      dut.io.ram_write_desc.ready.poke(true.B)
-      dut.io.ram_write_data.ready.poke(true.B)
-      dut.io.ram_write_desc_status.valid.poke(true.B)
-
-      dut.io.dma_write_desc.ready.poke(true.B)
-      dut.io.dma_write_desc_status.valid.poke(false.B)
-
-      dut.io.ram_write_desc_status.bits.tag.poke(1.U)
-
-      dut.io.dma_write_desc.valid.expect(true.B)
-    }
-  }
+//  "c2h_dma_test: testing status response triggers dma write request" in {
+//    simulate(new c2h_dma) { dut =>
+//
+//      dut.reset.poke(true.B)
+//      dut.clock.step()
+//      dut.reset.poke(false.B)
+//      dut.clock.step()
+//
+//      dut.io.dma_write_req.valid.poke(false.B)
+//
+//      dut.io.ram_write_desc.ready.poke(true.B)
+//      dut.io.ram_write_data.ready.poke(true.B)
+//      dut.io.ram_write_desc_status.valid.poke(true.B)
+//
+//      dut.io.dma_write_desc.ready.poke(true.B)
+//      dut.io.dma_write_desc_status.valid.poke(false.B)
+//
+//      dut.io.ram_write_desc_status.bits.tag.poke(1.U)
+//
+//      dut.io.dma_write_desc.valid.expect(true.B)
+//    }
+//  }
 }
 
 class addr_map_test extends AnyFreeSpec {
