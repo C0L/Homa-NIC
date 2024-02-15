@@ -64,8 +64,8 @@ struct log_entry_t {
 struct port_to_phys_t {
     uint64_t phys_addr;
     uint32_t port;
-    // TODO need to include destination map
-    char     pad[52];
+    uint8_t  type;
+    char     pad[51];
 }__attribute__((packed));
 
 struct log_control_t {
@@ -228,11 +228,13 @@ void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
 }
 
 void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
+    iomov64B((void*) io_regs, (void*) port_to_phys);
     // *((uint64_t*) (io_regs + 0x80000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
     // iomov64B((void*) io_regs + 128, (void*) port_to_phys);
 }
 
 void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
+    iomov64B((void*) io_regs, (void*) port_to_phys);
     // *((uint64_t*) (io_regs + 0x70000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
     // iomov64B((void*) io_regs + 192, (void*) port_to_phys);
 }
@@ -266,6 +268,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 
 	    c2h_port_to_metadata.phys_addr = ((uint64_t) c2h_metadata_dma_handle);
 	    c2h_port_to_metadata.port      = ports;
+	    c2h_port_to_metadata.type 	   = 2;
 
 	    c2h_new_metadata(&c2h_port_to_metadata);
 
@@ -278,6 +281,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 
 	    h2c_port_to_msgbuff.phys_addr = ((uint64_t) h2c_msgbuff_dma_handle);
 	    h2c_port_to_msgbuff.port      = ports;
+	    h2c_port_to_msgbuff.type 	  = 0;
 
 	    h2c_new_msgbuff(&h2c_port_to_msgbuff);
 
@@ -291,6 +295,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 
 	    c2h_port_to_msgbuff.phys_addr = ((uint64_t) c2h_msgbuff_dma_handle);
 	    c2h_port_to_msgbuff.port      = ports;
+	    c2h_port_to_msgbuff.type      = 0;
 
 	    c2h_new_msgbuff(&c2h_port_to_msgbuff);
 
@@ -373,7 +378,8 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	case MINOR_H2C_METADATA:
 	    pr_alert("device register remap");
 
-	    ret = remap_pfn_range(vma, vma->vm_start, BAR_0 >> PAGE_SHIFT, 16384, vma->vm_page_prot);
+	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + 4096) >> PAGE_SHIFT, 4096, vma->vm_page_prot);
+	    // ret = remap_pfn_range(vma, vma->vm_start, BAR_0 >> PAGE_SHIFT, 16384, vma->vm_page_prot);
 	    // ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + AXI_STREAM_AXIL) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
 	    // set_memory_wc((uint64_t) vma->vm_start, 16384 / PAGE_SIZE);
 

@@ -73,7 +73,7 @@ int main() {
 	_mm_mfence();
 
 	tt(rdtsc(), "write request", 0, 0, 0, 0);
-	_mm512_store_si512(reinterpret_cast<__m512i*>(((char *) h2c_metadata_map) + 64), ymm0);
+	_mm512_store_si512(reinterpret_cast<__m512i*>(((char *) h2c_metadata_map)), ymm0);
 	while(*poll == 0);
 	tt(rdtsc(), "write response", 0, 0, 0, 0);
 	*poll = 0;
