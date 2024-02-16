@@ -62,9 +62,9 @@ struct log_entry_t {
 }__attribute__((packed));
 
 struct port_to_phys_t {
-    uint8_t  type;
-    uint16_t port;
     uint64_t phys_addr;
+    uint16_t port;
+    uint8_t  type;
     char     pad[53];
 }__attribute__((packed));
 
@@ -282,7 +282,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 
 	    h2c_port_to_msgbuff.phys_addr = ((uint64_t) h2c_msgbuff_dma_handle);
 	    h2c_port_to_msgbuff.port      = ports;
-	    h2c_port_to_msgbuff.type 	  = 1;
+	    h2c_port_to_msgbuff.type 	  = 0;
 
 	    h2c_new_msgbuff(&h2c_port_to_msgbuff);
 
@@ -297,7 +297,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 	    c2h_port_to_msgbuff.phys_addr = ((uint64_t) c2h_msgbuff_dma_handle);
 	    c2h_port_to_msgbuff.port      = ports;
 	    // c2h_port_to_msgbuff.type      = 0xff;
-	    c2h_port_to_msgbuff.type      = 0;
+	    c2h_port_to_msgbuff.type      = 1;
 
 	    c2h_new_msgbuff(&c2h_port_to_msgbuff);
 
