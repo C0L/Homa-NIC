@@ -74,13 +74,15 @@ class delegate extends Module {
          is (0.U) {
            val msghdr_send = function_queue.io.deq.bits.data.asTypeOf(new msghdr_send_t)
 
+           msghdr_send.send_id := send_id
+
+           // Construct a new meta data writeback request with the newly assigned ID
            io.dma_w_req_o.bits.pcie_write_addr := 64.U << msghdr_send.ret 
            io.dma_w_req_o.bits.data            := function_queue.io.deq.bits.data
            io.dma_w_req_o.bits.length          := 64.U
            io.dma_w_req_o.bits.port            := user_id
 
-           msghdr_send.send_id := send_id
-
+           // Construct a new entry for the packet queue to send packets
            io.sendmsg_o.bits.rpc_id    := msghdr_send.send_id
            io.sendmsg_o.bits.dbuff_id  := dbuff_id;
            io.sendmsg_o.bits.remaining := msghdr_send.buff_size
@@ -88,6 +90,7 @@ class delegate extends Module {
            io.sendmsg_o.bits.granted   := 0.U
            io.sendmsg_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
+           // Construct a new entry for the fetch queue to fetch data
            io.fetchdata_o.bits.rpc_id    := msghdr_send.send_id
            io.fetchdata_o.bits.dbuff_id  := dbuff_id 
            io.fetchdata_o.bits.remaining := msghdr_send.buff_size

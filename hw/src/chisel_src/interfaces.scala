@@ -5,10 +5,6 @@ import circt.stage.ChiselStage
 import chisel3.util._
 import scala.collection.immutable.ListMap
 
-/*
- * pcie_read_cmd_t - read request to pcie core with a destination in psdram for the result. This must match the instantiation of the pcie core. 
- */
-// TODO this should probably be parameterized from the top
 class dma_read_desc_t extends Bundle {
   val pcie_addr = UInt(64.W)
   val ram_sel   = UInt(2.W)
@@ -83,7 +79,7 @@ class dma_write_desc_status_t extends Bundle {
 }
 
 class dma_read_t extends Bundle {
-  val pcie_read_addr = UInt(64.W) // TODO make this the same across all
+  val pcie_read_addr = UInt(64.W)
   val cache_id       = UInt(10.W)
   val message_size   = UInt(20.W)
   val read_len       = UInt(12.W)
@@ -92,7 +88,7 @@ class dma_read_t extends Bundle {
 }
 
 class dma_write_t extends Bundle {
-  val pcie_write_addr = UInt(64.W) // TODO make this the same across all
+  val pcie_write_addr = UInt(64.W)
   val data            = UInt(512.W)
   val length          = UInt(8.W)
   val port            = UInt(16.W)
@@ -104,7 +100,6 @@ class dma_map_t extends Bundle {
   val pcie_addr = UInt(64.W)
 }
 
-// TODO these should be parmeterizable
 class ram_wr_t extends Bundle {
   val cmd_be     = Output(UInt(128.W))
   val cmd_addr   = Output(UInt(22.W))
@@ -115,7 +110,6 @@ class ram_wr_t extends Bundle {
 }
 
 class ram_rd_t extends Bundle {
-  // val cmd_sel    = Output(UInt(2.W))
   val cmd_addr   = Output(UInt(22.W))
   val cmd_valid  = Output(UInt(2.W))
   val cmd_ready  = Input(UInt(2.W))
@@ -176,7 +170,6 @@ class axi(
   val rready   = Output(UInt(1.W))
 }
 
-
 // Default axis_m
 // TODO make parameterizable
 class axis(
@@ -234,3 +227,63 @@ object queue_priority extends ChiselEnum {
   val BLOCKED      = Value(0x4.U)
   val ACTIVE       = Value(0x5.U)
 }
+
+// #define IPV6_VERSION       6
+// #define IPV6_TRAFFIC       0
+// #define IPV6_FLOW          0xFFFF
+// #define IPV6_ETHERTYPE     0x86DD
+// #define IPV6_HOP_LIMIT     0x00
+// #define IPPROTO_HOMA       0xFD
+// #define IPV6_HEADER_LENGTH 40
+// 
+// // TODO clean this up
+// #define HDR_IPV6_MAC_DEST         511+512,464+512 
+// #define HDR_IPV6_MAC_SRC          463+512,416+512
+// #define HDR_IPV6_ETHERTYPE        415+512,400+512
+// #define HDR_IPV6_VERSION          399+512,396+512
+// #define HDR_IPV6_TRAFFIC          395+512,388+512
+// #define HDR_IPV6_FLOW             387+512,368+512
+// #define HDR_IPV6_PAYLOAD_LEN      367+512,352+512
+// #define HDR_IPV6_NEXT_HEADER      351+512,344+512
+// #define HDR_IPV6_HOP_LIMIT        343+512,336+512
+// #define HDR_IPV6_SADDR            335+512,208+512
+// #define HDR_IPV6_DADDR            207+512,80+512
+// #define HDR_HOMA_COMMON_SPORT     79+512,64+512 
+// #define HDR_HOMA_COMMON_DPORT     63+512,48+512
+// #define HDR_HOMA_COMMON_UNUSED0   47+512,0+512
+// #define HDR_HOMA_COMMON_UNUSED1   511,496
+// #define HDR_HOMA_COMMON_DOFF      495,488
+// #define HDR_HOMA_COMMON_TYPE      487,480
+// #define HDR_HOMA_COMMON_UNUSED3   479,464
+// #define HDR_HOMA_COMMON_CHECKSUM  463,448
+// #define HDR_HOMA_COMMON_UNUSED4   447,432
+// #define HDR_HOMA_COMMON_SENDER_ID 431,368
+// #define HDR_HOMA_DATA_MSG_LEN     367,336
+// #define HDR_HOMA_DATA_INCOMING    335,304
+// #define HDR_HOMA_DATA_CUTOFF      303,288
+// #define HDR_HOMA_DATA_REXMIT      287,280
+// #define HDR_HOMA_DATA_PAD         279,272
+// #define HDR_HOMA_DATA_OFFSET      271,240
+// #define HDR_HOMA_DATA_SEG_LEN     239,208
+// #define HDR_HOMA_ACK_ID           207,144
+// #define HDR_HOMA_ACK_SPORT        143,128
+// #define HDR_HOMA_ACK_DPORT        127,112
+// 
+// #define OUT_OF_BAND               111,0
+// 
+// 
+// /* Ethernet Header Constants
+//  *
+//  * TODO: Who is responsible for setting the MAX_DST and MAX_SRC? The
+//  * PHY?
+//  */
+// #define MAC_DST 0xFFFFFFFFFFFF
+// #define MAC_SRC 0xDEADBEEFDEAD
+// 
+// /* Homa Header Constants: Used for computing packet chunk offsets
+//  */
+// #define DOFF             160 // Number of 4 byte chunks in the data header (<< 2)
+// #define DATA_PKT_HEADER  114 // How many bytes the Homa DATA packet header takes
+// #define GRANT_PKT_HEADER 87  // Number of bytes in ethernet + ipv6 + common + data 
+// #define PREFACE_HEADER   54  // Number of bytes in ethernet + ipv6 header 
+// #define HOMA_DATA_HEADER 60  // Number of bytes in homa data ethernet header
