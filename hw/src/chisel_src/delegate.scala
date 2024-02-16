@@ -74,6 +74,11 @@ class delegate extends Module {
          is (0.U) {
            val msghdr_send = function_queue.io.deq.bits.data.asTypeOf(new msghdr_send_t)
 
+           io.dma_w_req_o.bits.pcie_write_addr := 64.U << msghdr_send.ret 
+           io.dma_w_req_o.bits.data            := function_queue.io.deq.bits.data
+           io.dma_w_req_o.bits.length          := 64.U
+           io.dma_w_req_o.bits.port            := user_id
+
            msghdr_send.send_id := send_id
 
            io.sendmsg_o.bits.rpc_id    := msghdr_send.send_id
@@ -92,9 +97,10 @@ class delegate extends Module {
            io.fetchdata_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Only signal that a transaction is ready to exit our queue if both recievers are ready
-           function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready
+           function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready & io.dma_w_req_o.ready
            io.sendmsg_o.valid          := function_queue.io.deq.valid
            io.fetchdata_o.valid        := function_queue.io.deq.valid
+           io.dma_w_req_o.valid        := function_queue.io.deq.valid
 
            // Only when te transaction takes place we increment the send and dbuff IDs
            when (function_queue.io.deq.fire) {

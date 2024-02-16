@@ -82,8 +82,8 @@ class srpt_queue (qtype: String) extends BlackBox (
     val clk = Input(Clock())
     val rst = Input(UInt(1.W))
 
-    val s_axis = Flipped(new axis(88, false, 0, false, 0, false))
-    val m_axis = new axis(88, false, 0, false, 0, false)
+    val s_axis = Flipped(new axis(89, false, 0, false, 0, false))
+    val m_axis = new axis(89, false, 0, false, 0, false)
   })
 }
 
@@ -99,13 +99,13 @@ class fetch_queue extends Module {
   fetch_queue_raw.io.clk := clock
   fetch_queue_raw.io.rst := reset.asUInt
 
-  val fetch_out_ila = Module(new ILA(Flipped(new axis(88, false, 0, false, 0, false))))
+  val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false))))
   fetch_out_ila.io.ila_data := fetch_queue_raw.io.s_axis
 
-  val fetch_in_ila = Module(new ILA(new axis(88, false, 0, false, 0, false)))
+  val fetch_in_ila = Module(new ILA(new axis(89, false, 0, false, 0, false)))
   fetch_in_ila.io.ila_data := fetch_queue_raw.io.m_axis
 
-  fetch_queue_raw.io.s_axis.tdata  := io.enqueue.bits.asTypeOf(UInt(88.W))
+  fetch_queue_raw.io.s_axis.tdata  := io.enqueue.bits.asTypeOf(UInt(89.W))
   io.enqueue.ready                 := fetch_queue_raw.io.s_axis.tready
   fetch_queue_raw.io.s_axis.tvalid := io.enqueue.valid
 
@@ -140,7 +140,7 @@ class sendmsg_queue extends Module {
   send_queue_raw.io.clk := clock
   send_queue_raw.io.rst := reset.asUInt
 
-  val raw_in  = io.enqueue.bits.asTypeOf(UInt(88.W))
+  val raw_in  = io.enqueue.bits.asTypeOf(UInt(89.W))
   val raw_out = Wire(new queue_entry_t)
 
   raw_out := send_queue_raw.io.m_axis.tdata.asTypeOf(new queue_entry_t)

@@ -9,10 +9,12 @@ import chisel3.util._
  */
 class h2c_dma extends Module {
   val io = IO(new Bundle {
-    val dma_read_req_i     = Flipped(Decoupled(new dma_read_t))
-    val pcie_read_cmd_o    = Decoupled(new dma_read_desc_t)
-    val pcie_read_status_i = Flipped(Decoupled(new dma_read_desc_status_t))
-    val dbuff_notif_o      = Decoupled(new queue_entry_t)
+    val dma_r_req    = Flipped(Decoupled(new dma_read_t))
+
+    val dma_read_desc   = Decoupled(new dma_read_desc_t)
+    val dma_read_status = Flipped(Decoupled(new dma_read_desc_status_t))
+
+    val dbuff_notif_o   = Decoupled(new queue_entry_t)
   })
 
   // Memory of 256 tags
@@ -22,19 +24,19 @@ class h2c_dma extends Module {
   val dma_read_queue  = Module(new Queue(new dma_read_t, 1, true, true))
   val dma_read_status = Module(new Queue(new dma_read_desc_status_t, 1, true, true))
 
-  dma_read_status.io.enq <> io.pcie_read_status_i
-  dma_read_queue.io.enq  <> io.dma_read_req_i
+  dma_read_status.io.enq <> io.dma_read_status
+  dma_read_queue.io.enq  <> io.dma_r_req
 
-  dma_read_queue.io.deq.ready  := io.pcie_read_cmd_o.ready
+  dma_read_queue.io.deq.ready  := io.dma_read_desc.ready
   dma_read_status.io.deq.ready := io.dbuff_notif_o.ready
-  io.pcie_read_cmd_o.valid     := dma_read_queue.io.deq.valid
+  io.dma_read_desc.valid           := dma_read_queue.io.deq.valid
   io.dbuff_notif_o.valid       := dma_read_status.io.deq.valid
 
-  io.pcie_read_cmd_o.bits.pcie_addr := dma_read_queue.io.deq.bits.pcie_read_addr
-  io.pcie_read_cmd_o.bits.ram_sel   := 0.U(2.W)
-  io.pcie_read_cmd_o.bits.ram_addr  := dma_read_queue.io.deq.bits.dest_ram_addr
-  io.pcie_read_cmd_o.bits.len       := dma_read_queue.io.deq.bits.read_len
-  io.pcie_read_cmd_o.bits.tag       := tag
+  io.dma_read_desc.bits.pcie_addr := dma_read_queue.io.deq.bits.pcie_read_addr
+  io.dma_read_desc.bits.ram_sel   := 0.U(2.W)
+  io.dma_read_desc.bits.ram_addr  := dma_read_queue.io.deq.bits.dest_ram_addr
+  io.dma_read_desc.bits.len       := dma_read_queue.io.deq.bits.read_len
+  io.dma_read_desc.bits.tag       := tag
 
   val pending_read = tag_mem.read(dma_read_status.io.deq.bits.tag)
 
@@ -75,17 +77,14 @@ class c2h_dma extends Module {
   val ram_head = RegInit(0.U(14.W))
 
   val ram_write_req_queue = Module(new Queue(new dma_write_t, 1, true, true))
-  // val dma_write_req_queue = Module(new Queue(new ram_write_desc_status_t, 1, true, true))
 
   ram_write_req_queue.io.enq <> io.dma_write_req
-  // dma_write_req_queue.io.enq <> io.ram_write_desc_status
 
   io.ram_write_desc.valid := ram_write_req_queue.io.deq.valid
   io.ram_write_data.valid := ram_write_req_queue.io.deq.valid
   io.dma_write_desc.valid := ram_write_req_queue.io.deq.valid
-  // io.dma_write_desc.valid := dma_write_req_queue.io.deq.valid
+
   ram_write_req_queue.io.deq.ready := io.ram_write_desc.ready && io.ram_write_data.ready && io.dma_write_desc.ready
-  // dma_write_req_queue.io.deq.ready := io.dma_write_desc.ready
 
   io.ram_write_desc.bits.ram_addr  := ram_head
   io.ram_write_desc.bits.len       := ram_write_req_queue.io.deq.bits.length
@@ -106,14 +105,8 @@ class c2h_dma extends Module {
   io.dma_write_desc.bits := dma_write
 
   when(ram_write_req_queue.io.deq.fire) {
-
-    // tag_mem.write(tag, dma_write)
-
     tag      := tag + 1.U(8.W)
-    // ram_head := ram_head + 64.U(14.W)
   }
-
-  // io.dma_write_desc.bits  := tag_mem.read(dma_write_req_queue.io.deq.bits.tag)
 
   // TODO unused
   io.ram_write_desc_status.ready := true.B

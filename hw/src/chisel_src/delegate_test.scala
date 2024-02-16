@@ -19,7 +19,7 @@ class delegate_test extends AnyFreeSpec {
       dut.io.function_i.tready.expect(true.B)
 
       dut.io.function_i.tvalid.poke(true.B)
-      dut.io.function_i.tdata.poke("hDEADBEEFDEADBEEFAABB01".U)
+      dut.io.function_i.tdata.poke("h01AABBDEADBEEFDEADBEEF".U)
       dut.io.function_i.tuser.get.poke(0.U)
 
       dut.clock.step()
@@ -58,8 +58,11 @@ class delegate_test extends AnyFreeSpec {
 
       dut.io.sendmsg_o.ready.poke(true.B)
       dut.io.fetchdata_o.ready.poke(true.B)
+      dut.io.dma_w_req_o.ready.poke(true.B)
+
       dut.io.sendmsg_o.valid.expect(true.B)
       dut.io.fetchdata_o.valid.expect(true.B)
+      dut.io.dma_w_req_o.valid.expect(true.B)
 
       // TODO not currently checking the port out
 
@@ -67,6 +70,7 @@ class delegate_test extends AnyFreeSpec {
 
       dut.io.sendmsg_o.valid.expect(false.B)
       dut.io.fetchdata_o.valid.expect(false.B)
+      dut.io.dma_w_req_o.valid.expect(false.B)
     }
 
   }

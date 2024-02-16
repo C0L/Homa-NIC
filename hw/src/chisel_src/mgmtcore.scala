@@ -12,28 +12,66 @@ import chisel3.util._
  */
 class mgmt_core extends Module {
   val io = IO(new Bundle {
-    val dbuff_notif_i = Flipped(Decoupled(new queue_entry_t))
-    val fetch_dequeue = Decoupled(new dma_read_t)
-    val dma_map_o     = Decoupled(new dma_map_t)
-    val dma_w_meta_o  = Decoupled(new dma_write_t)
-    val s_axi         = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
+    val s_axi = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
+
+    val ram_read_desc         = Decoupled(new ram_read_desc_t)
+    val ram_read_desc_status  = Flipped(Decoupled(new ram_read_desc_status_t))
+    val ram_read_data         = Flipped(Decoupled(new ram_read_data_t))
+
+    val ram_write_desc        = Decoupled(new ram_write_desc_t)
+    val ram_write_data        = Decoupled(new ram_write_data_t)
+    val ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))
+
+    val dma_read_desc         = Decoupled(new dma_read_desc_t)
+    val dma_read_desc_status  = Flipped(Decoupled(new dma_read_desc_status_t))
+
+    val dma_write_desc        = Decoupled(new dma_write_desc_t)
+    val dma_write_desc_status = Flipped(Decoupled(new dma_write_desc_status_t))
+
+    // TODO from the packet core Eventually maybe move queues to another module 
+    val dma_w_data_i          = Flipped(Decoupled(new dma_write_t))
   })
 
-  val axi2axis   = Module(new axi2axis) // Convert incoming AXI requests to AXIS
-  val delegate   = Module(new delegate) // Decide where those requests should be placed
+  val axi2axis       = Module(new axi2axis) // Convert incoming AXI requests to AXIS
+  val delegate       = Module(new delegate) // Decide where those requests should be placed
 
-  // TODO move addr map, c2h, and h2c here
+  val addr_map       = Module(new addr_map) // Map read and write requests to DMA address
+  val h2c_dma        = Module(new h2c_dma)  // Manage dma reads 
+  val c2h_dma        = Module(new c2h_dma)  // Manage dma writes
 
-  val fetch_queue   = Module(new fetch_queue)    // Fetch the next best chunk of data
-  val sendmsg_queue = Module(new sendmsg_queue)  // Send the next best message 
+  val fetch_queue    = Module(new fetch_queue)    // Fetch the next best chunk of data
+  val sendmsg_queue  = Module(new sendmsg_queue)  // Send the next best message
 
-  fetch_queue.io.dequeue <> io.fetch_dequeue
-  io.dma_map_o           <> delegate.io.dma_map_o
+  io.ram_read_desc := DontCare
+  io.ram_read_desc_status := DontCare
+  io.ram_read_data := DontCare
+
+  addr_map.io.dma_map_i    <> delegate.io.dma_map_o
+  addr_map.io.dma_w_meta_i <> delegate.io.dma_w_req_o
+  addr_map.io.dma_r_req_i  <> fetch_queue.io.dequeue
+  addr_map.io.dma_w_data_i <> io.dma_w_data_i
+
+  addr_map.io.dma_r_req_o  <> h2c_dma.io.dma_r_req
+
+  h2c_dma.io.dma_read_desc   <> io.dma_read_desc
+  h2c_dma.io.dma_read_status <> io.dma_read_desc_status
+
+  c2h_dma.io.ram_write_desc        <> io.ram_write_desc
+  c2h_dma.io.ram_write_data        <> io.ram_write_data
+  c2h_dma.io.ram_write_desc_status <> io.ram_write_desc_status
+
+  io.dma_write_desc                <> c2h_dma.io.dma_write_desc
+
+  c2h_dma.io.dma_write_desc_status <> io.dma_write_desc_status
+  c2h_dma.io.dma_write_req         <> addr_map.io.dma_w_req_o
+
+  io.dma_write_desc        <> c2h_dma.io.dma_write_desc
+  io.dma_write_desc_status <> c2h_dma.io.dma_write_desc_status
 
   // Alternate between fetchdata and notifs to the fetch queue
   val fetch_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
   fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
-  fetch_arbiter.io.in(1) <> io.dbuff_notif_i
+  fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
   fetch_arbiter.io.out   <> fetch_queue.io.enqueue
 
   // TODO need to throw out read requests
@@ -48,7 +86,7 @@ class mgmt_core extends Module {
 
   // TODO placeholder
   // delegate.io.dma_w_req_o       := DontCare
-  io.dma_w_meta_o <> delegate.io.dma_w_req_o
+  // io.dma_w_meta_o <> delegate.io.dma_w_req_o
 
   // TODO eventually goes to packet constructor
   sendmsg_queue.io.dequeue      := DontCare
@@ -63,8 +101,8 @@ class mgmt_core extends Module {
   val axi_ila = Module(new ILA(new axi(512, 26, true, 8, true, 4, true, 4)))
   axi_ila.io.ila_data := io.s_axi
 
-  val ila = Module(new ILA(Decoupled(new queue_entry_t)))
-  ila.io.ila_data := io.dbuff_notif_i
+  // val ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  // ila.io.ila_data := io.dbuff_notif_i
 
   val dma_map_ila = Module(new ILA(new dma_map_t))
   dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits

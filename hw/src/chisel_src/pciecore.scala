@@ -25,50 +25,39 @@ class pcie_core extends Module {
   val ram_read_desc_status  = IO(Decoupled(new ram_read_desc_status_t))
   val ram_read_data         = IO(Decoupled(new ram_read_data_t))
 
+  val ram_write_desc        = IO(Flipped(Decoupled(new ram_write_desc_t)))
+  val ram_write_data        = IO(Flipped(Decoupled(new ram_write_data_t)))
+  val ram_write_desc_status = IO(Decoupled(new ram_write_desc_status_t))
+
+  val dma_read_desc         = IO(Flipped(Decoupled(new dma_read_desc_t)))
+  val dma_read_desc_status  = IO(Decoupled(new dma_read_desc_status_t))
+
+  val dma_write_desc        = IO(Flipped(Decoupled(new dma_write_desc_t)))
+  val dma_write_desc_status = IO(Decoupled(new dma_write_desc_status_t))
+
+  // TODO DMA Channels
+
   val m_axi                 = IO(new axi(512, 26, true, 8, true, 4, true, 4))
 
   val pcie_user_clk         = IO(Output(Clock()))
   val pcie_user_reset       = IO(Output(Bool()))
-
-  val dma_r_req_i           = IO(Flipped(Decoupled(new dma_read_t)))
-  val dbuff_notif_o         = IO(Decoupled(new queue_entry_t))
-  val dma_map_i             = IO(Flipped(Decoupled(new dma_map_t)))
-
-  // TODO make the number of read and write channels configurable??
-  val dma_w_meta_i          = IO(Flipped(Decoupled(new dma_write_t)))
-  val dma_w_data_i          = IO(Flipped(Decoupled(new dma_write_t)))
 
   val pcie_core             = Module(new pcie_rtl)
   val dma_client_read       = Module(new dma_client_axis_source)
   val dma_client_write      = Module(new dma_client_axis_sink)
   val h2c_psdpram           = Module(new dma_psdpram)
   val c2h_psdpram           = Module(new dma_psdpram)
-  val addr_map              = Module(new addr_map) // Map read and write requests to DMA address
-  val h2c_dma               = Module(new h2c_dma)  // Manage dma reads 
-  val c2h_dma               = Module(new c2h_dma)  // Manage dma writes 
 
-  addr_map.io.dma_map_i         <> dma_map_i
-  h2c_dma.io.pcie_read_cmd_o    <> pcie_core.io.dma_read_desc
-  h2c_dma.io.pcie_read_status_i <> pcie_core.io.dma_read_desc_status
-  m_axi                         <> pcie_core.io.m_axi
-  h2c_dma.io.dbuff_notif_o      <> dbuff_notif_o
-
-  c2h_dma.io.ram_write_desc        <> dma_client_write.io.ram_write_desc
-  c2h_dma.io.ram_write_desc_status <> dma_client_write.io.ram_write_desc_status
-
-  c2h_dma.io.dma_write_desc        <> pcie_core.io.dma_write_desc
-  c2h_dma.io.dma_write_desc_status <> pcie_core.io.dma_write_desc_status
-
-  c2h_dma.io.dma_write_req <> addr_map.io.dma_w_req_o
-
-  addr_map.io.dma_w_meta_i <> dma_w_meta_i 
-  addr_map.io.dma_w_data_i <> dma_w_data_i 
-
-  addr_map.io.dma_r_req_i <> dma_r_req_i
-  addr_map.io.dma_r_req_o <> h2c_dma.io.dma_read_req_i //TODO inconsistent names
+  m_axi <> pcie_core.io.m_axi
 
   pcie_user_clk   := pcie_core.io.pcie_user_clk
   pcie_user_reset := pcie_core.io.pcie_user_reset
+
+  dma_read_desc <> pcie_core.io.dma_read_desc
+  dma_read_desc_status <> pcie_core.io.dma_read_desc_status
+
+  dma_write_desc <> pcie_core.io.dma_write_desc
+  dma_write_desc_status <> pcie_core.io.dma_write_desc_status
 
   dma_client_read.io.clk  := pcie_core.io.pcie_user_clk
   dma_client_read.io.rst  := pcie_core.io.pcie_user_reset 
@@ -91,36 +80,33 @@ class pcie_core extends Module {
   pcie_core.io.pcie_refclk_n <> pcie_refclk_n
   pcie_core.io.pcie_reset_n  <> pcie_reset_n
 
-  // Pcie DMA descriptor interface
-  pcie_core.io.dma_write_desc        <> c2h_dma.io.dma_write_desc
-  pcie_core.io.dma_write_desc_status <> c2h_dma.io.dma_write_desc_status
-
   // pcie_core writes to segmented ram to read from DMA
   h2c_psdpram.io.ram_wr <> pcie_core.io.ram_wr
 
   // pcie_core reads from segmented ram to write to DMA
   c2h_psdpram.io.ram_rd <> pcie_core.io.ram_rd
 
-  // DMA client accepts read descriptors from the packet egress logic
   dma_client_read.io.ram_read_desc        <> ram_read_desc 
-  // DMA client returns read status to the packet egress logic
   dma_client_read.io.ram_read_desc_status <> ram_read_desc_status
-  // DMA client returns read data to the packet egress logic
   dma_client_read.io.ram_read_data        <> ram_read_data
-
   dma_client_read.io.enable := 1.U(1.W)
-  
+
   dma_client_read.io.ram_rd <> h2c_psdpram.io.ram_rd
 
-  // DMA client accepts write descriptors from the packet ingress logic
-  dma_client_write.io.ram_write_desc        <> c2h_dma.io.ram_write_desc
-  // DMA client accepts write data from the packet ingress logic
-  dma_client_write.io.ram_write_data        <> c2h_dma.io.ram_write_data
-  // DMA client returns write status to the packet ingress logic
-  dma_client_write.io.ram_write_desc_status <> c2h_dma.io.ram_write_desc_status
-
+  dma_client_write.io.ram_write_desc        <> ram_write_desc
+  dma_client_write.io.ram_write_data        <> ram_write_data
+  dma_client_write.io.ram_write_desc_status <> ram_write_desc_status
   dma_client_write.io.enable := 1.U(1.W)
 
   dma_client_write.io.ram_wr <> c2h_psdpram.io.ram_wr
+
+  /* DEBUGGING ILAS */
+
+  val h2c_psdpram_wr_ila = Module(new ILA(Flipped(new ram_wr_t)))
+  h2c_psdpram_wr_ila.io.ila_data := pcie_core.io.ram_wr
+
+  val c2h_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t)))
+  c2h_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd
+
 }
 

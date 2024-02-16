@@ -18,38 +18,38 @@ class h2c_dma_test extends AnyFreeSpec {
 
       for (transaction <- 0 to 511) {
 
-        dut.io.pcie_read_status_i.valid.poke(true.B)
+        dut.io.dma_read_status.valid.poke(true.B)
         dut.io.dbuff_notif_o.ready.poke(true.B)
 
-        dut.io.dma_read_req_i.valid.poke(true.B)
-        dut.io.pcie_read_cmd_o.ready.poke(true.B)
+        dut.io.dma_r_req.valid.poke(true.B)
+        dut.io.dma_read_desc.ready.poke(true.B)
 
-        dut.io.dma_read_req_i.bits.pcie_read_addr.poke(transaction.U)
-        dut.io.dma_read_req_i.bits.cache_id.poke(transaction.U)
-        dut.io.dma_read_req_i.bits.message_size.poke(transaction.U)
-        dut.io.dma_read_req_i.bits.read_len.poke((transaction + 256).U)
-        dut.io.dma_read_req_i.bits.dest_ram_addr.poke(0.U)
+        dut.io.dma_r_req.bits.pcie_read_addr.poke(transaction.U)
+        dut.io.dma_r_req.bits.cache_id.poke(transaction.U)
+        dut.io.dma_r_req.bits.message_size.poke(transaction.U)
+        dut.io.dma_r_req.bits.read_len.poke((transaction + 256).U)
+        dut.io.dma_r_req.bits.dest_ram_addr.poke(0.U)
 
-        dut.io.dma_read_req_i.ready.expect(true.B)
-        dut.io.pcie_read_cmd_o.valid.expect(true.B)
-        dut.io.pcie_read_cmd_o.bits.pcie_addr.expect(transaction.U)
-        dut.io.pcie_read_cmd_o.bits.ram_sel.expect(0.U)
-        dut.io.pcie_read_cmd_o.bits.ram_addr.expect(0.U)
-        dut.io.pcie_read_cmd_o.bits.len.expect((transaction + 256).U)
-        dut.io.pcie_read_cmd_o.bits.tag.expect((transaction % 256).U)
+        dut.io.dma_r_req.ready.expect(true.B)
+        dut.io.dma_read_desc.valid.expect(true.B)
+        dut.io.dma_read_desc.bits.pcie_addr.expect(transaction.U)
+        dut.io.dma_read_desc.bits.ram_sel.expect(0.U)
+        dut.io.dma_read_desc.bits.ram_addr.expect(0.U)
+        dut.io.dma_read_desc.bits.len.expect((transaction + 256).U)
+        dut.io.dma_read_desc.bits.tag.expect((transaction % 256).U)
 
         dut.clock.step()
 
-        dut.io.dma_read_req_i.valid.poke(false.B)
-        dut.io.pcie_read_cmd_o.ready.poke(false.B)
+        dut.io.dma_r_req.valid.poke(false.B)
+        dut.io.dma_read_desc.ready.poke(false.B)
 
-        dut.io.pcie_read_status_i.valid.poke(true.B)
+        dut.io.dma_read_status.valid.poke(true.B)
         dut.io.dbuff_notif_o.ready.poke(true.B)
 
-        dut.io.pcie_read_status_i.bits.tag.poke((transaction % 256).U)
-        dut.io.pcie_read_status_i.bits.error.poke(2.U)
+        dut.io.dma_read_status.bits.tag.poke((transaction % 256).U)
+        dut.io.dma_read_status.bits.error.poke(2.U)
 
-        dut.io.pcie_read_status_i.ready.expect(true.B)
+        dut.io.dma_read_status.ready.expect(true.B)
         dut.io.dbuff_notif_o.valid.expect(true.B)
 
         dut.io.dbuff_notif_o.bits.rpc_id.expect(0.U)
