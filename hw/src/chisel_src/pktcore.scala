@@ -7,8 +7,6 @@ import chisel3.util._
 
 // TODO turn flow mode off
 
-
-
 class pp_egress_stages extends Module {
   val io = IO(new Bundle {
     val trigger = Flipped(Decoupled(new queue_entry_t)) // Input from sendmsg priority queue
@@ -205,14 +203,11 @@ class pp_egress_xmit extends Module {
 
 class pp_ingress_stages extends Module {
   val io = IO(new Bundle {
-    val igress       = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
+    val ingress       = new axis(512, false, 0, false, 0, true, 64, true) // Input from ethernet
     val dma_w_data_i = Decoupled(new dma_write_t)
 
-    // TODO some final output channel
+    // TODO some final output channel to packet map
     // val packet_out = Decoupled(new PacketFactory)
-
-    // val trigger = Flipped(Decoupled(new queue_entry_t)) // Input from sendmsg priority queue
-    // val ingress = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet 
   })
 
   val pp_dtor    = new pp_ingress_dtor
@@ -220,19 +215,15 @@ class pp_ingress_stages extends Module {
   val pp_lookup  = new pp_ingress_lookup
   val pp_payload = new pp_ingress_payload
 
-  pp_dtor.io.ingress  <> io.ingress
-  pp_map.io.packet_in <> pp_dtor.io.packet_out
-
-  // pp_lookup.io.packet_out <> pp_payload.io.packet_in
-  // pp_payload.io.packet_out <> pp_ctor.io.packet_in
-  // pp_ctor.io.packet_out    <> pp_xmit.io.packet_in
-  // pp_xmit.io.egress <> io.egress
+  pp_dtor.io.ingress      <> io.ingress
+  pp_map.io.packet_in     <> pp_dtor.io.packet_out
+  pp_lookup.io.packet_in  <> pp_map.io.packet_out
+  pp_payload.io.packet_in <> pp_lookup.io.packet_out
 }
-
 
 class pp_ingress_dtor extends Module {
   val io = IO(new Bundle {
-    val igress     = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
+    val ingress     = new axis(512, false, 0, false, 0, true, 64, true) // Input from ethernet
     val packet_out = Decoupled(new PacketFactory)
   })
 
@@ -240,27 +231,27 @@ class pp_ingress_dtor extends Module {
   val pktfac    = Reg(new PacketFactory)
 
   // TODO this is probably not good
-  io.igress.tready := io.packet_out.ready
+  io.ingress.tready := io.packet_out.ready
 
   // State machine for parsing packets
-  when (io.igress.tready) {
+  when (io.ingress.tready) {
     when (processed === 0.U) {
       // Process data into packet fac
-      pktfac.asUInt(511,0) := io.igress.tdata
+      pktfac.asUInt(511,0) := io.ingress.tdata
       pktfac.frame         := processed
     }.elsewhen (processed === 64.U) {
       // We know that packet_out was ready so this will send data
-      pktfac.asUInt(1023,512) := io.igress.tdata
+      pktfac.asUInt(1023,512) := io.ingress.tdata
       pktfac.frame            := processed
       io.packet_out.valid     := true.B
     }.otherwise {
       // Fill the payload section
       io.packet_out.valid := true.B
-      pktfac.payload := io.igress.tdata
+      pktfac.payload := io.ingress.tdata
       pktfac.frame   := processed
     }
 
-    when (io.igress.tlast.get) {
+    when (io.ingress.tlast.get) {
       processed := 0.U
     }
   }
@@ -323,7 +314,7 @@ class pp_ingress_lookup extends Module {
 
 class pp_ingress_payload extends Module {
   val io = IO(new Bundle {
-    val dma_w_data_i = Decoupled(new dma_write_t) 
+    val dma_w_data = Flipped(Decoupled(new dma_write_t))
 
     val packet_in  = Flipped(Decoupled(new PacketFactory))
     val packet_out = Decoupled(new PacketFactory)
@@ -332,5 +323,15 @@ class pp_ingress_payload extends Module {
 
   pending.io.enq <> io.packet_in
 
-  pending.io.deq <> io.packet_out
+  val dma_w_data = Wire(new dma_write_t)
+
+  // TODO eventually mult by offset 
+  io.dma_w_data.bits.pcie_write_addr := pending.io.deq.bits.data.data_seg.offset + pending.io.deq.bits.frame
+  io.dma_w_data.bits.data            := pending.io.deq.bits.payload
+  io.dma_w_data.bits.length          := 64.U // TODO
+  io.dma_w_data.bits.port            := pending.io.deq.bits.cb.dport
+  io.dma_w_data.valid           := pending.io.deq.valid
+
+  io.packet_out.bits  := pending.io.deq.bits
+  io.packet_out.valid := io.dma_w_data.fire
 }
