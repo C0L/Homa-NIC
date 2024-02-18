@@ -42,6 +42,38 @@ class mgmt_core extends Module {
   val fetch_queue    = Module(new fetch_queue)    // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new sendmsg_queue)  // Send the next best message
 
+  val control_block = Module(new psdpram)
+  val cb_client_wr  = Module(new client_axis_sink)
+  val cb_client_rd  = Module(new client_axis_source)
+
+  control_block.io.clk := clock
+  control_block.io.rst := reset.asUInt
+
+  cb_client_wr.io.clk := clock
+  cb_client_wr.io.rst := reset.asUInt
+
+  cb_client_rd.io.clk := clock
+  cb_client_rd.io.rst := reset.asUInt
+
+  control_block.io.ram_wr <> cb_client_wr.io.ram_wr
+  control_block.io.ram_rd <> cb_client_rd.io.ram_rd
+
+  cb_client_wr.io.enable := 1.U
+  cb_client_rd.io.enable := 1.U
+
+  cb_client_rd.io.ram_read_desc        := DontCare
+  cb_client_rd.io.ram_read_desc_status := DontCare
+  cb_client_rd.io.ram_read_data        := DontCare
+
+  // delegate.io.ram__desc        <> cb_client_rd.io.ram_read_desc
+  // delegate.io.ram__desc_status <> cb_client_rd.io.ram_read_desc_status
+  // delegate.io.ram__data        <> cb_client_rd.io.ram_read_data
+
+  delegate.io.ram_write_desc        <> cb_client_wr.io.ram_write_desc
+  delegate.io.ram_write_desc_status <> cb_client_wr.io.ram_write_desc_status
+  delegate.io.ram_write_data        <> cb_client_wr.io.ram_write_data
+
+
   io.ram_read_desc := DontCare
   io.ram_read_desc_status := DontCare
   io.ram_read_data := DontCare
@@ -92,7 +124,7 @@ class mgmt_core extends Module {
   sendmsg_queue.io.dequeue      := DontCare
 
   /* DEBUGGING ILAS */
-  val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false)))
+  val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
   axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
   val sendmsg_ila = Module(new ILA(Decoupled(new queue_entry_t)))

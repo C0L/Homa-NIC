@@ -3,7 +3,7 @@ package gpnic
 import chisel3._
 import chisel3.util._
 
-class dma_client_axis_source extends BlackBox(
+class client_axis_source extends BlackBox(
   Map("RAM_ADDR_WIDTH" -> 18,
       "SEG_COUNT" -> 2,
       "SEG_DATA_WIDTH" -> 512,
@@ -38,7 +38,7 @@ class dma_client_axis_source extends BlackBox(
   })
 }
 
-class dma_client_axis_sink extends BlackBox(
+class client_axis_sink extends BlackBox(
   Map("RAM_ADDR_WIDTH" -> 18,
       "SEG_COUNT" -> 2,
       "SEG_DATA_WIDTH" -> 512,
@@ -82,8 +82,8 @@ class srpt_queue (qtype: String) extends BlackBox (
     val clk = Input(Clock())
     val rst = Input(UInt(1.W))
 
-    val s_axis = Flipped(new axis(89, false, 0, false, 0, false))
-    val m_axis = new axis(89, false, 0, false, 0, false)
+    val s_axis = Flipped(new axis(89, false, 0, false, 0, false, 0, false))
+    val m_axis = new axis(89, false, 0, false, 0, false, 0, false)
   })
 }
 
@@ -99,10 +99,10 @@ class fetch_queue extends Module {
   fetch_queue_raw.io.clk := clock
   fetch_queue_raw.io.rst := reset.asUInt
 
-  val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false))))
+  val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
   fetch_out_ila.io.ila_data := fetch_queue_raw.io.s_axis
 
-  val fetch_in_ila = Module(new ILA(new axis(89, false, 0, false, 0, false)))
+  val fetch_in_ila = Module(new ILA(new axis(89, false, 0, false, 0, false, 0, false)))
   fetch_in_ila.io.ila_data := fetch_queue_raw.io.m_axis
 
   fetch_queue_raw.io.s_axis.tdata  := io.enqueue.bits.asTypeOf(UInt(89.W))
@@ -154,7 +154,7 @@ class sendmsg_queue extends Module {
   io.dequeue.bits                 := raw_out
 }
 
-class dma_psdpram extends BlackBox(
+class psdpram extends BlackBox(
   Map("SIZE" -> 262144,
       "SEG_COUNT" -> 2,
       "SEG_DATA_WIDTH" -> 512,
@@ -185,7 +185,7 @@ class axi2axis extends BlackBox (
     val s_axi_aclk    = Input(Clock())
     val s_axi_aresetn = Input(Reset())
     val s_axi         = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
-    val m_axis        = new axis(512, false, 0, true, 32, false)
+    val m_axis        = new axis(512, false, 0, true, 32, false, 0, false)
   })
 }
 

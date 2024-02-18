@@ -14,11 +14,15 @@ import chisel3.util._
  */
 class delegate extends Module {
   val io = IO(new Bundle {
-    val function_i  = Flipped(new axis(512, false, 0, true, 32, false))
-    val sendmsg_o   = Decoupled(new queue_entry_t)
-    val fetchdata_o = Decoupled(new queue_entry_t)
-    val dma_w_req_o = Decoupled(new dma_write_t)
-    val dma_map_o   = Decoupled(new dma_map_t)
+    val function_i  = Flipped(new axis(512, false, 0, true, 32, false, 0, false)) // 512 bit blocks from user
+    val sendmsg_o   = Decoupled(new queue_entry_t) // Output to sendmsg priority queue
+    val fetchdata_o = Decoupled(new queue_entry_t) // Output to datafetch queue
+    val dma_w_req_o = Decoupled(new dma_write_t)   // Output to pcie write
+    val dma_map_o   = Decoupled(new dma_map_t)     // Output to add new DMA map
+
+    val ram_write_desc        = Decoupled(new ram_write_desc_t) // Descriptor to write to RAM
+    val ram_write_data        = Decoupled(new ram_write_data_t) // Data to write to RAM
+    val ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))   // Result of RAM write
   })
 
   // By default all output streams are 0 initialized
@@ -49,6 +53,14 @@ class delegate extends Module {
   function_queue.io.enq.valid     := io.function_i.tvalid
   io.function_i.tready            := function_queue.io.enq.ready
 
+  io.ram_write_data.bits  := 0.U.asTypeOf(new ram_write_data_t)
+  io.ram_write_data.valid := false.B
+
+  // We throw away status returns
+  io.ram_write_desc_status       := DontCare
+  io.ram_write_desc_status.ready := true.B
+  io.ram_write_desc              := DontCare
+
   // Be default nothing will exit our queue
   function_queue.io.deq.ready     := false.B
 
@@ -76,6 +88,14 @@ class delegate extends Module {
 
            msghdr_send.send_id := send_id
 
+           io.ram_write_data.bits.data     := msghdr_send.asUInt
+           io.ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)
+           io.ram_write_data.bits.last     := 1.U
+
+           io.ram_write_desc.bits.ram_addr := 64.U * send_id
+           io.ram_write_desc.bits.len      := 64.U
+           io.ram_write_desc.bits.tag      := send_id
+
            // Construct a new meta data writeback request with the newly assigned ID
            io.dma_w_req_o.bits.pcie_write_addr := 64.U << msghdr_send.ret 
            io.dma_w_req_o.bits.data            := function_queue.io.deq.bits.data
@@ -100,10 +120,13 @@ class delegate extends Module {
            io.fetchdata_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Only signal that a transaction is ready to exit our queue if both recievers are ready
+           // Ram core will always be ready
            function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready & io.dma_w_req_o.ready
            io.sendmsg_o.valid          := function_queue.io.deq.valid
            io.fetchdata_o.valid        := function_queue.io.deq.valid
            io.dma_w_req_o.valid        := function_queue.io.deq.valid
+           io.ram_write_desc.valid     := function_queue.io.deq.valid
+           io.ram_write_data.valid     := function_queue.io.deq.valid
 
            // Only when te transaction takes place we increment the send and dbuff IDs
            when (function_queue.io.deq.fire) {

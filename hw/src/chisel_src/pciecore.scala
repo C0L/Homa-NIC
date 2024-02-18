@@ -41,10 +41,10 @@ class pcie_core extends Module {
   val pcie_user_reset       = IO(Output(Bool()))
 
   val pcie_core             = Module(new pcie_rtl)
-  val dma_client_read       = Module(new dma_client_axis_source)
-  val dma_client_write      = Module(new dma_client_axis_sink)
-  val h2c_psdpram           = Module(new dma_psdpram)
-  val c2h_psdpram           = Module(new dma_psdpram)
+  val dma_client_read       = Module(new client_axis_source)
+  val dma_client_write      = Module(new client_axis_sink)
+  val h2c_psdpram           = Module(new psdpram)
+  val c2h_psdpram           = Module(new psdpram)
 
   m_axi <> pcie_core.io.m_axi
 

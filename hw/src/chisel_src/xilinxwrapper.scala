@@ -23,10 +23,10 @@ class AXISClockConverterRaw(
   USER_WIDTH: Int,
   ENABLE_LAST: Boolean) extends BlackBox {
   val io = IO(new Bundle {
-    val s_axis         = Flipped(new axis(DATA_WIDTH, ENABLE_ID, ID_WIDTH, ENABLE_USER, USER_WIDTH, ENABLE_LAST))
+    val s_axis         = Flipped(new axis(DATA_WIDTH, ENABLE_ID, ID_WIDTH, ENABLE_USER, USER_WIDTH, false, 0, ENABLE_LAST))
     val s_axis_aresetn = Input(Reset())
     val s_axis_aclk    = Input(Clock())
-    val m_axis         = new axis(DATA_WIDTH, ENABLE_ID, ID_WIDTH, ENABLE_USER, USER_WIDTH, ENABLE_LAST)
+    val m_axis         = new axis(DATA_WIDTH, ENABLE_ID, ID_WIDTH, ENABLE_USER, USER_WIDTH, false, 0, ENABLE_LAST)
     val m_axis_aresetn = Input(Reset())
     val m_axis_aclk    = Input(Clock())
   })
@@ -221,3 +221,7 @@ class ILA[T <: Bundle](gen: T) extends Module {
     ila.io.elements(s"probe$index") := io.ila_data.getElements(index).asUInt
   })
 }
+
+// class CMAC extends RawModule {
+// 
+// }
