@@ -245,8 +245,8 @@ object IPV6 {
 }
 
 object MAC {
-  val dst = "hFFFFFFFFFFFF".U
-  val src = "hDEADBEEFDEAD".U
+  val dst = "hFFFFFFFFF".U
+  val src = "hDEADBEEFD".U
 }
 
 object HOMA {
@@ -261,7 +261,7 @@ class PacketFactory extends Bundle {
   val common  = new HomaCommonHeader
   val data    = new HomaDataHeader
   val payload = UInt(512.W)
-  val cb      = new msghdr_send_t
+  val cb      = new msghdr_t
   val trigger = new queue_entry_t
   val frame   = UInt(32.W)
 }

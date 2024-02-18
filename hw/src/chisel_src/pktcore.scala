@@ -5,16 +5,28 @@ import circt.stage.ChiselStage
 import chisel3.util.Decoupled
 import chisel3.util._
 
+// TODO turn flow mode off
+
+
+
 class pp_egress_stages extends Module {
   val io = IO(new Bundle {
     val trigger = Flipped(Decoupled(new queue_entry_t)) // Input from sendmsg priority queue
-    val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet 
+    val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet
+
+    val cb_ram_read_desc         = Decoupled(new ram_read_desc_t)
+    val cb_ram_read_desc_status  = Flipped(Decoupled(new ram_read_desc_status_t))
+    val cb_ram_read_data         = Flipped(Decoupled(new ram_read_data_t))
+
+    val payload_ram_read_desc        = Decoupled(new ram_read_desc_t)
+    val payload_ram_read_desc_status = Flipped(Decoupled(new ram_read_desc_status_t))
+    val payload_ram_read_data        = Flipped(Decoupled(new ram_read_data_t))
   })
 
-  val pp_lookup  = new pp_egress_lookup
-  val pp_payload = new pp_egress_payload
-  val pp_ctor    = new pp_egress_ctor
-  val pp_xmit    = new pp_egress_xmit
+  val pp_lookup  = Module(new pp_egress_lookup)
+  val pp_payload = Module(new pp_egress_payload)
+  val pp_ctor    = Module(new pp_egress_ctor)
+  val pp_xmit    = Module(new pp_egress_xmit)
 
   pp_lookup.io.packet_in  <> io.trigger
   pp_lookup.io.packet_out <> pp_payload.io.packet_in
@@ -97,10 +109,6 @@ class pp_egress_payload extends Module {
   pending.io.enq.valid        := io.packet_in.valid
   io.packet_in.ready          := pending.io.enq.ready
 
-  // Convert the enqueue data to a PacketFactory while storing queue output
-  pending.io.enq.bits         := 0.U.asTypeOf(new PacketFactory)
-  pending.io.enq.bits.trigger := io.packet_in.bits
-
   // Construct a read descriptor for this piece of data
   io.ram_read_desc.valid         := io.packet_in.valid
   // TODO should clean this up
@@ -124,49 +132,49 @@ class pp_egress_payload extends Module {
   io.packet_out.valid  := pending.io.deq.valid && io.ram_read_data.valid
 
   io.packet_out.bits         := pending.io.deq.bits
-  io.packet_out.bits.payload := io.ram_read_data.bits
+  io.packet_out.bits.payload := io.ram_read_data.bits.data
 }
 
 class pp_egress_ctor extends Module {
   val io = IO(new Bundle {
-     val packet_in  = Decoupled(new PacketFactory)
-     val packet_out = Flipped(Decoupled(new PacketFactory))
+     val packet_in  = Flipped(Decoupled(new PacketFactory))
+     val packet_out = Decoupled(new PacketFactory)
   })
 
   val packet_reg = Module(new Queue(new PacketFactory, 1, true, true))
   packet_reg.io.enq <> io.packet_in
   packet_reg.io.deq <> io.packet_out
 
-  packet_reg.io.deq.bits.eth.mac_dest  := MAC.dst
-  packet_reg.io.deq.bits.eth.mac_src   := MAC.src
-  packet_reg.io.deq.bits.eth.ethertype := IPV6.ethertype
+  io.packet_out.bits.eth.mac_dest  := MAC.dst
+  io.packet_out.bits.eth.mac_src   := MAC.src
+  io.packet_out.bits.eth.ethertype := IPV6.ethertype
 
-  packet_reg.io.deq.bits.ipv6.version     := IPV6.version
-  packet_reg.io.deq.bits.ipv6.traffic     := IPV6.traffic
-  packet_reg.io.deq.bits.ipv6.flow        := IPV6.flow
-  packet_reg.io.deq.bits.ipv6.payload_len := 0.U // TODO 
-  packet_reg.io.deq.bits.ipv6.next_header := IPV6.ipproto_homa
-  packet_reg.io.deq.bits.ipv6.hop_limit   := IPV6.hop_limit
-  packet_reg.io.deq.bits.ipv6.saddr       := packet_reg.io.deq.bits.cb.saddr
-  packet_reg.io.deq.bits.ipv6.daddr       := packet_reg.io.deq.bits.cb.daddr
+  io.packet_out.bits.ipv6.version     := IPV6.version
+  io.packet_out.bits.ipv6.traffic     := IPV6.traffic
+  io.packet_out.bits.ipv6.flow        := IPV6.flow
+  io.packet_out.bits.ipv6.payload_len := 0.U // TODO 
+  io.packet_out.bits.ipv6.next_header := IPV6.ipproto_homa
+  io.packet_out.bits.ipv6.hop_limit   := IPV6.hop_limit
+  io.packet_out.bits.ipv6.saddr       := packet_reg.io.deq.bits.cb.saddr
+  io.packet_out.bits.ipv6.daddr       := packet_reg.io.deq.bits.cb.daddr
 
-  packet_reg.io.deq.bits.common.sport     := packet_reg.io.deq.bits.cb.saddr
-  packet_reg.io.deq.bits.common.dport     := packet_reg.io.deq.bits.cb.daddr
-  packet_reg.io.deq.bits.common.doff      := HOMA.doff
-  packet_reg.io.deq.bits.common.homatype  := HOMA.DATA
-  packet_reg.io.deq.bits.common.checksum  := 0.U // TODO 
-  packet_reg.io.deq.bits.common.sender_id := packet_reg.io.deq.bits.cb.send_id
+  io.packet_out.bits.common.sport     := packet_reg.io.deq.bits.cb.saddr
+  io.packet_out.bits.common.dport     := packet_reg.io.deq.bits.cb.daddr
+  io.packet_out.bits.common.doff      := HOMA.doff
+  io.packet_out.bits.common.homatype  := HOMA.DATA
+  io.packet_out.bits.common.checksum  := 0.U // TODO 
+  io.packet_out.bits.common.sender_id := packet_reg.io.deq.bits.cb.id
 
-  packet_reg.io.deq.bits.data.data.offset      := packet_reg.io.deq.bits.cb.buff_size - packet_reg.io.deq.bits.trigger.remaining
-  packet_reg.io.deq.bits.data.data.seg_len     := 1386.U // packet_reg.io.deq.bits.trigger TODO 1386 or remaining
-  packet_reg.io.deq.bits.data.data.ack.id      := 0.U
-  packet_reg.io.deq.bits.data.data.ack.sport   := 0.U
-  packet_reg.io.deq.bits.data.data.ack.dport   := 0.U
+  io.packet_out.bits.data.data.offset      := packet_reg.io.deq.bits.cb.buff_size - packet_reg.io.deq.bits.trigger.remaining
+  io.packet_out.bits.data.data.seg_len     := 1386.U // packet_reg.io.deq.bits.trigger TODO 1386 or remaining
+  io.packet_out.bits.data.data.ack.id      := 0.U
+  io.packet_out.bits.data.data.ack.sport   := 0.U
+  io.packet_out.bits.data.data.ack.dport   := 0.U
 }
  
 class pp_egress_xmit extends Module {
   val io = IO(new Bundle {
-    val packet_in  = Decoupled(new PacketFactory)
+    val packet_in  = Flipped(Decoupled(new PacketFactory))
     val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet
   })
 
@@ -197,8 +205,14 @@ class pp_egress_xmit extends Module {
 
 class pp_ingress_stages extends Module {
   val io = IO(new Bundle {
-    val trigger = Flipped(Decoupled(new queue_entry_t)) // Input from sendmsg priority queue
-    val ingress = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet 
+    val igress       = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
+    val dma_w_data_i = Decoupled(new dma_write_t)
+
+    // TODO some final output channel
+    // val packet_out = Decoupled(new PacketFactory)
+
+    // val trigger = Flipped(Decoupled(new queue_entry_t)) // Input from sendmsg priority queue
+    // val ingress = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet 
   })
 
   val pp_dtor    = new pp_ingress_dtor
@@ -206,7 +220,9 @@ class pp_ingress_stages extends Module {
   val pp_lookup  = new pp_ingress_lookup
   val pp_payload = new pp_ingress_payload
 
-  // pp_lookup.io.packet_in  <> io.trigger
+  pp_dtor.io.ingress  <> io.ingress
+  pp_map.io.packet_in <> pp_dtor.io.packet_out
+
   // pp_lookup.io.packet_out <> pp_payload.io.packet_in
   // pp_payload.io.packet_out <> pp_ctor.io.packet_in
   // pp_ctor.io.packet_out    <> pp_xmit.io.packet_in
@@ -216,36 +232,36 @@ class pp_ingress_stages extends Module {
 
 class pp_ingress_dtor extends Module {
   val io = IO(new Bundle {
-    val egress     = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
+    val igress     = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
     val packet_out = Decoupled(new PacketFactory)
   })
 
-  val processed := RegInit(0.U)
-  val pktfac    := Reg(new PacketFactory)
+  val processed = RegInit(0.U(32.W))
+  val pktfac    = Reg(new PacketFactory)
 
   // TODO this is probably not good
-  io.egress.tready := io.packet_out.ready
+  io.igress.tready := io.packet_out.ready
 
   // State machine for parsing packets
-  when (io.egress.tready) {
+  when (io.igress.tready) {
     when (processed === 0.U) {
       // Process data into packet fac
-      pktfac.asUInt(511,0) := io.egress.tdata
+      pktfac.asUInt(511,0) := io.igress.tdata
       pktfac.frame         := processed
-    }.elsewhen (processed == 64.U) {
+    }.elsewhen (processed === 64.U) {
       // We know that packet_out was ready so this will send data
-      pktfac.asUInt(1023,512) := io.egress.tdata
+      pktfac.asUInt(1023,512) := io.igress.tdata
       pktfac.frame            := processed
       io.packet_out.valid     := true.B
     }.otherwise {
       // Fill the payload section
       io.packet_out.valid := true.B
-      pktfact.payload     := io.egress.tdata
-      pktfac.frame        := processed
+      pktfac.payload := io.igress.tdata
+      pktfac.frame   := processed
     }
 
-    when (io.egress.tlast) {
-      processed := 0
+    when (io.igress.tlast.get) {
+      processed := 0.U
     }
   }
 }
@@ -260,7 +276,7 @@ class pp_ingress_map extends Module {
   })
 
   // TODO 
-  packet_in <> packet_out 
+  io.packet_in <> io.packet_out 
 }
 
 class pp_ingress_lookup extends Module {
@@ -282,7 +298,7 @@ class pp_ingress_lookup extends Module {
   // Construct a read descriptor for this piece of data
   io.ram_read_desc.valid         := io.packet_in.valid
   // TODO should clean this up
-  io.ram_read_desc.bits.ram_addr := 64.U * io.packet_in.cb.bits.id
+  io.ram_read_desc.bits.ram_addr := 64.U * io.packet_in.bits.cb.id
   io.ram_read_desc.bits.len      := 64.U
   io.ram_read_desc.bits.tag      := 0.U // Everything is ordered
   io.ram_read_desc.bits.id       := 0.U
@@ -312,40 +328,9 @@ class pp_ingress_payload extends Module {
     val packet_in  = Flipped(Decoupled(new PacketFactory))
     val packet_out = Decoupled(new PacketFactory)
   })
-
-  io.ram_read_desc_status := DontCare
-
   val pending = Module(new Queue(new PacketFactory, 6, true, true))
-  // Accept a new packet factory if the input is valid and we have room
-  pending.io.enq.valid        := io.packet_in.valid
-  io.packet_in.ready          := pending.io.enq.ready
 
-  // Convert the enqueue data to a PacketFactory while storing queue output
-  pending.io.enq.bits         := 0.U.asTypeOf(new PacketFactory)
-  pending.io.enq.bits.trigger := io.packet_in.bits
+  pending.io.enq <> io.packet_in
 
-  // Construct a read descriptor for this piece of data
-  io.ram_read_desc.valid         := io.packet_in.valid
-  // TODO should clean this up
-  io.ram_read_desc.bits.ram_addr := (io.packet_in.bits.trigger.dbuff_id * 16384.U) + (io.packet_in.bits.cb.buff_size - io.packet_in.bits.trigger.remaining) + io.packet_in.bits.frame 
-  io.ram_read_desc.bits.len      := 64.U
-  io.ram_read_desc.bits.tag      := 0.U // Everything is ordered
-  io.ram_read_desc.bits.id       := 0.U
-  io.ram_read_desc.bits.dest     := 0.U
-  io.ram_read_desc.bits.user     := 0.U
-
-  // TODO this logic is not very clean
-
-  // Dequeue if the downstream can accept and we have ram data
-  pending.io.deq.ready   := io.packet_out.ready && io.ram_read_data.valid
-
-  // If the RAM read has data there is always data in queue. That will
-  // be emptied when the downstream is availible
-  io.ram_read_data.ready := io.packet_out.ready
-
-  // Write to packet output if there is ram read data and elements in the queue
-  io.packet_out.valid  := pending.io.deq.valid && io.ram_read_data.valid
-
-  io.packet_out.bits         := pending.io.deq.bits
-  io.packet_out.bits.payload := io.ram_read_data.bits
+  pending.io.deq <> io.packet_out
 }

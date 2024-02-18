@@ -65,6 +65,14 @@ class delegate extends Module {
   io.sendmsg_ram_write_desc_status.ready := true.B
   io.sendmsg_ram_write_desc              := DontCare
 
+  io.recvmsg_ram_write_data.bits      := 0.U.asTypeOf(new ram_write_data_t)
+  io.recvmsg_ram_write_data.valid := false.B
+
+  // We throw away status returns
+  io.recvmsg_ram_write_desc_status       := DontCare
+  io.recvmsg_ram_write_desc_status.ready := true.B
+  io.recvmsg_ram_write_desc              := DontCare
+
   // Be default nothing will exit our queue
   function_queue.io.deq.ready     := false.B
 
@@ -141,7 +149,7 @@ class delegate extends Module {
 
          // new recvmsg
          is (64.U) {
-           val msghdr_recv = function_queue.io.deq.bits.data.asTypeOf(new msghdr_recv_t)
+           val msghdr_recv = function_queue.io.deq.bits.data.asTypeOf(new msghdr_t)
 
            io.recvmsg_ram_write_data.bits.data     := msghdr_recv.asUInt
            io.recvmsg_ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)

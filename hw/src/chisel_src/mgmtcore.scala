@@ -42,41 +42,79 @@ class mgmt_core extends Module {
   val fetch_queue    = Module(new fetch_queue)    // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new sendmsg_queue)  // Send the next best message
 
-  val control_block = Module(new psdpram)
-  val cb_client_wr  = Module(new client_axis_sink)
-  val cb_client_rd  = Module(new client_axis_source)
+  val sendmsg_cb     = Module(new psdpram)
+  val recvmsg_cb     = Module(new psdpram)
+  val sendmsg_cb_wr  = Module(new client_axis_sink)
+  val sendmsg_cb_rd  = Module(new client_axis_source)
+  val recvmsg_cb_wr  = Module(new client_axis_sink)
+  val recvmsg_cb_rd  = Module(new client_axis_source)
 
-  // TODO this should be seperated out 
-  val pp_egress = Module(new pp_egress_stages)
+  // TODO this should be seperated out
+
+  // val pp_ingress = Module(new pp_egress_stages)
+
+  // pp_ingress.io.cb_ram_read_desc        <> cb_client_rd.io.ram_read_desc
+  // pp_ingress.io.cb_ram_read_desc_status <> cb_client_rd.io.ram_read_desc_status
+  // pp_ingress.io.cb_ram_read_data        <> cb_client_rd.io.ram_read_data
+
+  val pp_egress  = Module(new pp_egress_stages)
+
+  pp_egress.io.cb_ram_read_desc        <> sendmsg_cb_rd.io.ram_read_desc
+  pp_egress.io.cb_ram_read_desc_status <> sendmsg_cb_rd.io.ram_read_desc_status
+  pp_egress.io.cb_ram_read_data        <> sendmsg_cb_rd.io.ram_read_data
+
   pp_egress.io.trigger <> sendmsg_queue.io.dequeue
-  pp_egress.io.egress  <> pp_ingress.io.ingress
+  // pp_egress.io.egress  <> pp_ingress.io.ingress
 
-  control_block.io.clk := clock
-  control_block.io.rst := reset.asUInt
+  // TODO should be able to handle this with a small wrapper + implicit clk/reset
 
-  cb_client_wr.io.clk := clock
-  cb_client_wr.io.rst := reset.asUInt
+  sendmsg_cb.io.clk := clock
+  sendmsg_cb.io.rst := reset.asUInt
 
-  cb_client_rd.io.clk := clock
-  cb_client_rd.io.rst := reset.asUInt
+  recvmsg_cb.io.clk := clock
+  recvmsg_cb.io.rst := reset.asUInt
 
-  control_block.io.ram_wr <> cb_client_wr.io.ram_wr
-  control_block.io.ram_rd <> cb_client_rd.io.ram_rd
+  sendmsg_cb_wr.io.clk := clock
+  sendmsg_cb_wr.io.rst := reset.asUInt
 
-  cb_client_wr.io.enable := 1.U
-  cb_client_rd.io.enable := 1.U
+  sendmsg_cb_rd.io.clk := clock
+  sendmsg_cb_rd.io.rst := reset.asUInt
 
-  cb_client_rd.io.ram_read_desc        := DontCare
-  cb_client_rd.io.ram_read_desc_status := DontCare
-  cb_client_rd.io.ram_read_data        := DontCare
+  sendmsg_cb.io.ram_wr <> sendmsg_cb_wr.io.ram_wr
+  sendmsg_cb.io.ram_rd <> sendmsg_cb_rd.io.ram_rd
 
-  delegate.io.ram_write_desc        <> cb_client_wr.io.ram_write_desc
-  delegate.io.ram_write_desc_status <> cb_client_wr.io.ram_write_desc_status
-  delegate.io.ram_write_data        <> cb_client_wr.io.ram_write_data
+  recvmsg_cb_wr.io.clk := clock
+  recvmsg_cb_wr.io.rst := reset.asUInt
 
-  io.ram_read_desc := DontCare
+  recvmsg_cb_rd.io.clk := clock
+  recvmsg_cb_rd.io.rst := reset.asUInt
+
+  recvmsg_cb.io.ram_wr <> sendmsg_cb_wr.io.ram_wr
+  recvmsg_cb.io.ram_rd <> sendmsg_cb_rd.io.ram_rd
+
+  sendmsg_cb_wr.io.enable := 1.U
+  sendmsg_cb_rd.io.enable := 1.U
+
+// TODO pass to pp ingress
+  // pp_ingress.io.cb_ram_read_desc        <> sendmsg_cb_rd.io.ram_read_desc
+  // pp_ingress.io.cb_ram_read_desc_status <> sendmsg_cb_rd.io.ram_read_desc_status
+  // pp_ingress.io.cb_ram_read_data        <> sendmsg_cb_rd.io.ram_read_data       
+
+  // pp_ingress.io.cb_ram_read_desc        <> recvmsg_cb_rd.io.ram_read_desc       
+  // pp_ingress.io.cb_ram_read_desc_status <> recvmsg_cb_rd.io.ram_read_desc_status
+  // pp_ingress.io.cb_ram_read_data        <> recvmsg_cb_rd.io.ram_read_data       
+
+  delegate.io.sendmsg_ram_write_desc        <> sendmsg_cb_wr.io.ram_write_desc
+  delegate.io.sendmsg_ram_write_desc_status <> sendmsg_cb_wr.io.ram_write_desc_status
+  delegate.io.sendmsg_ram_write_data        <> sendmsg_cb_wr.io.ram_write_data
+
+  delegate.io.recvmsg_ram_write_desc        <> recvmsg_cb_wr.io.ram_write_desc
+  delegate.io.recvmsg_ram_write_desc_status <> recvmsg_cb_wr.io.ram_write_desc_status
+  delegate.io.recvmsg_ram_write_data        <> recvmsg_cb_wr.io.ram_write_data
+
+  io.ram_read_desc        := DontCare
   io.ram_read_desc_status := DontCare
-  io.ram_read_data := DontCare
+  io.ram_read_data        := DontCare
 
   addr_map.io.dma_map_i    <> delegate.io.dma_map_o
   addr_map.io.dma_w_meta_i <> delegate.io.dma_w_req_o
