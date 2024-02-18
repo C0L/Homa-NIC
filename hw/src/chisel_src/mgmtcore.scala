@@ -46,6 +46,11 @@ class mgmt_core extends Module {
   val cb_client_wr  = Module(new client_axis_sink)
   val cb_client_rd  = Module(new client_axis_source)
 
+  // TODO this should be seperated out 
+  val pp_egress = Module(new pp_egress_stages)
+  pp_egress.io.trigger <> sendmsg_queue.io.dequeue
+  pp_egress.io.egress  <> pp_ingress.io.ingress
+
   control_block.io.clk := clock
   control_block.io.rst := reset.asUInt
 
@@ -65,14 +70,9 @@ class mgmt_core extends Module {
   cb_client_rd.io.ram_read_desc_status := DontCare
   cb_client_rd.io.ram_read_data        := DontCare
 
-  // delegate.io.ram__desc        <> cb_client_rd.io.ram_read_desc
-  // delegate.io.ram__desc_status <> cb_client_rd.io.ram_read_desc_status
-  // delegate.io.ram__data        <> cb_client_rd.io.ram_read_data
-
   delegate.io.ram_write_desc        <> cb_client_wr.io.ram_write_desc
   delegate.io.ram_write_desc_status <> cb_client_wr.io.ram_write_desc_status
   delegate.io.ram_write_data        <> cb_client_wr.io.ram_write_data
-
 
   io.ram_read_desc := DontCare
   io.ram_read_desc_status := DontCare
@@ -121,7 +121,7 @@ class mgmt_core extends Module {
   // io.dma_w_meta_o <> delegate.io.dma_w_req_o
 
   // TODO eventually goes to packet constructor
-  sendmsg_queue.io.dequeue      := DontCare
+  // sendmsg_queue.io.dequeue      := DontCare
 
   /* DEBUGGING ILAS */
   val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))

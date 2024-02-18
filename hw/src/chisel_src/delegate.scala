@@ -20,9 +20,13 @@ class delegate extends Module {
     val dma_w_req_o = Decoupled(new dma_write_t)   // Output to pcie write
     val dma_map_o   = Decoupled(new dma_map_t)     // Output to add new DMA map
 
-    val ram_write_desc        = Decoupled(new ram_write_desc_t) // Descriptor to write to RAM
-    val ram_write_data        = Decoupled(new ram_write_data_t) // Data to write to RAM
-    val ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))   // Result of RAM write
+    val sendmsg_ram_write_desc        = Decoupled(new ram_write_desc_t) // Descriptor to write to RAM
+    val sendmsg_ram_write_data        = Decoupled(new ram_write_data_t) // Data to write to RAM
+    val sendmsg_ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))   // Result of RAM write
+
+    val recvmsg_ram_write_desc        = Decoupled(new ram_write_desc_t) // Descriptor to write to RAM
+    val recvmsg_ram_write_data        = Decoupled(new ram_write_data_t) // Data to write to RAM
+    val recvmsg_ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))   // Result of RAM write
   })
 
   // By default all output streams are 0 initialized
@@ -53,13 +57,13 @@ class delegate extends Module {
   function_queue.io.enq.valid     := io.function_i.tvalid
   io.function_i.tready            := function_queue.io.enq.ready
 
-  io.ram_write_data.bits  := 0.U.asTypeOf(new ram_write_data_t)
-  io.ram_write_data.valid := false.B
+  io.sendmsg_ram_write_data.bits  := 0.U.asTypeOf(new ram_write_data_t)
+  io.sendmsg_ram_write_data.valid := false.B
 
   // We throw away status returns
-  io.ram_write_desc_status       := DontCare
-  io.ram_write_desc_status.ready := true.B
-  io.ram_write_desc              := DontCare
+  io.sendmsg_ram_write_desc_status       := DontCare
+  io.sendmsg_ram_write_desc_status.ready := true.B
+  io.sendmsg_ram_write_desc              := DontCare
 
   // Be default nothing will exit our queue
   function_queue.io.deq.ready     := false.B
@@ -84,17 +88,17 @@ class delegate extends Module {
        switch (user_func) {
          // new sendmsg
          is (0.U) {
-           val msghdr_send = function_queue.io.deq.bits.data.asTypeOf(new msghdr_send_t)
+           val msghdr_send = function_queue.io.deq.bits.data.asTypeOf(new msghdr_t)
 
-           msghdr_send.send_id := send_id
+           msghdr_send.id := send_id
 
-           io.ram_write_data.bits.data     := msghdr_send.asUInt
-           io.ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)
-           io.ram_write_data.bits.last     := 1.U
+           io.sendmsg_ram_write_data.bits.data     := msghdr_send.asUInt
+           io.sendmsg_ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)
+           io.sendmsg_ram_write_data.bits.last     := 1.U
 
-           io.ram_write_desc.bits.ram_addr := 64.U * send_id
-           io.ram_write_desc.bits.len      := 64.U
-           io.ram_write_desc.bits.tag      := send_id
+           io.sendmsg_ram_write_desc.bits.ram_addr := 64.U * send_id
+           io.sendmsg_ram_write_desc.bits.len      := 64.U
+           io.sendmsg_ram_write_desc.bits.tag      := send_id
 
            // Construct a new meta data writeback request with the newly assigned ID
            io.dma_w_req_o.bits.pcie_write_addr := 64.U << msghdr_send.ret 
@@ -103,7 +107,7 @@ class delegate extends Module {
            io.dma_w_req_o.bits.port            := user_id
 
            // Construct a new entry for the packet queue to send packets
-           io.sendmsg_o.bits.rpc_id    := msghdr_send.send_id
+           io.sendmsg_o.bits.rpc_id    := msghdr_send.id
            io.sendmsg_o.bits.dbuff_id  := dbuff_id;
            io.sendmsg_o.bits.remaining := msghdr_send.buff_size
            io.sendmsg_o.bits.dbuffered := msghdr_send.buff_size
@@ -111,7 +115,7 @@ class delegate extends Module {
            io.sendmsg_o.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Construct a new entry for the fetch queue to fetch data
-           io.fetchdata_o.bits.rpc_id    := msghdr_send.send_id
+           io.fetchdata_o.bits.rpc_id    := msghdr_send.id
            io.fetchdata_o.bits.dbuff_id  := dbuff_id 
            io.fetchdata_o.bits.remaining := msghdr_send.buff_size
            io.fetchdata_o.bits.dbuffered := 0.U
@@ -125,8 +129,8 @@ class delegate extends Module {
            io.sendmsg_o.valid          := function_queue.io.deq.valid
            io.fetchdata_o.valid        := function_queue.io.deq.valid
            io.dma_w_req_o.valid        := function_queue.io.deq.valid
-           io.ram_write_desc.valid     := function_queue.io.deq.valid
-           io.ram_write_data.valid     := function_queue.io.deq.valid
+           io.sendmsg_ram_write_desc.valid := function_queue.io.deq.valid
+           io.sendmsg_ram_write_data.valid := function_queue.io.deq.valid
 
            // Only when te transaction takes place we increment the send and dbuff IDs
            when (function_queue.io.deq.fire) {
@@ -137,6 +141,15 @@ class delegate extends Module {
 
          // new recvmsg
          is (64.U) {
+           val msghdr_recv = function_queue.io.deq.bits.data.asTypeOf(new msghdr_recv_t)
+
+           io.recvmsg_ram_write_data.bits.data     := msghdr_recv.asUInt
+           io.recvmsg_ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)
+           io.recvmsg_ram_write_data.bits.last     := 1.U
+
+           io.recvmsg_ram_write_desc.bits.ram_addr := 64.U * send_id
+           io.recvmsg_ram_write_desc.bits.len      := 64.U
+           io.recvmsg_ram_write_desc.bits.tag      := send_id
          }
        }
     }

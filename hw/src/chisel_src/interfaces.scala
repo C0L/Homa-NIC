@@ -193,9 +193,9 @@ class axis(
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
  * recvmsg requests that form the msghdr
  */
-class msghdr_send_t extends Bundle {
-  val send_cc   = UInt(64.W)
-  val send_id   = UInt(64.W)
+class msghdr_t extends Bundle {
+  val cc        = UInt(64.W)
+  val id        = UInt(64.W)
   val buff_size = UInt(20.W)
   val ret       = UInt(12.W)
   val buff_addr = UInt(32.W)
