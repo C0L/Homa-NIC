@@ -3,7 +3,7 @@ package gpnic
 import chisel3._
 import chisel3.util._
 
-class client_axis_source extends BlackBox(
+class dma_client_axis_source extends BlackBox(
   Map("RAM_ADDR_WIDTH" -> 18,
       "SEG_COUNT" -> 2,
       "SEG_DATA_WIDTH" -> 512,
@@ -38,7 +38,7 @@ class client_axis_source extends BlackBox(
   })
 }
 
-class client_axis_sink extends BlackBox(
+class dma_client_axis_sink extends BlackBox(
   Map("RAM_ADDR_WIDTH" -> 18,
       "SEG_COUNT" -> 2,
       "SEG_DATA_WIDTH" -> 512,
@@ -154,7 +154,7 @@ class sendmsg_queue extends Module {
   io.dequeue.bits                 := raw_out
 }
 
-class psdpram extends BlackBox(
+class dma_psdpram extends BlackBox(
   Map("SIZE" -> 262144,
       "SEG_COUNT" -> 2,
       "SEG_DATA_WIDTH" -> 512,

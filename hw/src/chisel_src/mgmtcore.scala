@@ -41,12 +41,12 @@ class mgmt_core extends Module {
   val fetch_queue    = Module(new fetch_queue)    // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new sendmsg_queue)  // Send the next best message
 
-  val sendmsg_cb     = Module(new psdpram)
-  val recvmsg_cb     = Module(new psdpram)
-  val sendmsg_cb_wr  = Module(new client_axis_sink)
-  val sendmsg_cb_rd  = Module(new client_axis_source)
-  val recvmsg_cb_wr  = Module(new client_axis_sink)
-  val recvmsg_cb_rd  = Module(new client_axis_source)
+  val sendmsg_cb     = Module(new dma_psdpram)
+  val recvmsg_cb     = Module(new dma_psdpram)
+  val sendmsg_cb_wr  = Module(new dma_client_axis_sink)
+  val sendmsg_cb_rd  = Module(new dma_client_axis_source)
+  val recvmsg_cb_wr  = Module(new dma_client_axis_sink)
+  val recvmsg_cb_rd  = Module(new dma_client_axis_source)
 
   // TODO this should be seperated out
 
