@@ -6,7 +6,7 @@ import chisel3.simulator.EphemeralSimulator._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
-class pp_lookup_test extends AnyFreeSpec {
+class pp_egress_lookup_test extends AnyFreeSpec {
   "pp_lookup_test: read reaquest dispatch" in {
     simulate(new pp_egress_lookup) { dut =>
 
@@ -88,3 +88,16 @@ class pp_lookup_test extends AnyFreeSpec {
     }
   }
 }
+
+// class pp_egress_stages_test extends AnyFreeSpec {
+//   "pp_egress_stages: test complete flow" in {
+//     simulate(new pp_egress_stages) { dut =>
+// 
+//       dut.reset.poke(true.B)
+//       dut.clock.step()
+//       dut.reset.poke(false.B)
+//       dut.clock.step()
+// 
+// 
+//   }
+// }

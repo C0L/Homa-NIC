@@ -28,8 +28,7 @@ class mgmt_core extends Module {
     val dma_write_desc        = Decoupled(new dma_write_desc_t)
     val dma_write_desc_status = Flipped(Decoupled(new dma_write_desc_status_t))
 
-    // TODO from the packet core Eventually maybe move queues to another module 
-    val dma_w_data_i          = Flipped(Decoupled(new dma_write_t))
+
   })
 
   val axi2axis       = Module(new axi2axis) // Convert incoming AXI requests to AXIS
@@ -51,7 +50,13 @@ class mgmt_core extends Module {
 
   // TODO this should be seperated out
 
-  // val pp_ingress = Module(new pp_egress_stages)
+  val pp_ingress = Module(new pp_ingress_stages)
+
+  pp_ingress.io.cb_ram_read_desc        <> recvmsg_cb_rd.io.ram_read_desc
+  pp_ingress.io.cb_ram_read_desc_status <> recvmsg_cb_rd.io.ram_read_desc_status
+  pp_ingress.io.cb_ram_read_data        <> recvmsg_cb_rd.io.ram_read_data
+
+  addr_map.io.dma_w_data_i <> pp_ingress.io.dma_w_data
 
   // pp_ingress.io.cb_ram_read_desc        <> cb_client_rd.io.ram_read_desc
   // pp_ingress.io.cb_ram_read_desc_status <> cb_client_rd.io.ram_read_desc_status
@@ -63,8 +68,12 @@ class mgmt_core extends Module {
   pp_egress.io.cb_ram_read_desc_status <> sendmsg_cb_rd.io.ram_read_desc_status
   pp_egress.io.cb_ram_read_data        <> sendmsg_cb_rd.io.ram_read_data
 
+  pp_egress.io.payload_ram_read_desc        <> io.ram_read_desc
+  pp_egress.io.payload_ram_read_desc_status <> io.ram_read_desc_status
+  pp_egress.io.payload_ram_read_data        <> io.ram_read_data
+
   pp_egress.io.trigger <> sendmsg_queue.io.dequeue
-  // pp_egress.io.egress  <> pp_ingress.io.ingress
+  pp_egress.io.egress  <> pp_ingress.io.ingress
 
   // TODO should be able to handle this with a small wrapper + implicit clk/reset
 
@@ -89,11 +98,16 @@ class mgmt_core extends Module {
   recvmsg_cb_rd.io.clk := clock
   recvmsg_cb_rd.io.rst := reset.asUInt
 
-  recvmsg_cb.io.ram_wr <> sendmsg_cb_wr.io.ram_wr
-  recvmsg_cb.io.ram_rd <> sendmsg_cb_rd.io.ram_rd
+  recvmsg_cb.io.ram_wr <> recvmsg_cb_wr.io.ram_wr
+  recvmsg_cb.io.ram_rd <> recvmsg_cb_rd.io.ram_rd
 
   sendmsg_cb_wr.io.enable := 1.U
   sendmsg_cb_rd.io.enable := 1.U
+
+  recvmsg_cb_wr.io.enable := 1.U
+  recvmsg_cb_rd.io.enable := 1.U
+
+
 
 // TODO pass to pp ingress
   // pp_ingress.io.cb_ram_read_desc        <> sendmsg_cb_rd.io.ram_read_desc
@@ -119,7 +133,7 @@ class mgmt_core extends Module {
   addr_map.io.dma_map_i    <> delegate.io.dma_map_o
   addr_map.io.dma_w_meta_i <> delegate.io.dma_w_req_o
   addr_map.io.dma_r_req_i  <> fetch_queue.io.dequeue
-  addr_map.io.dma_w_data_i <> io.dma_w_data_i
+
 
   addr_map.io.dma_r_req_o  <> h2c_dma.io.dma_r_req
 

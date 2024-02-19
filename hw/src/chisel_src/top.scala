@@ -69,7 +69,7 @@ class top extends RawModule {
 
   // TODO need to clock convert to  core.dma_w_meta_o
   // pcie.dma_w_meta_i <> core.io.dma_w_meta_o
-  core.io.dma_w_data_i := DontCare
+  // core.io.dma_w_data_i := DontCare
 
   /* Clock Convert core (200MHz) -> pcie (250MHz) */
   val ram_read_desc_cc  = Module(new AXISClockConverter(new ram_read_desc_t))
