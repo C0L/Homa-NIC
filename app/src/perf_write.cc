@@ -60,7 +60,8 @@ int main() {
     msghdr_send_in.cc        = 0;
     msghdr_send_in.metadata  = (size << 12) | retoff;
 
-    char * poll = ((char *) c2h_metadata_map) + (retoff * 64);
+    char * poll = ((char *) c2h_metadata_map) + 64 + 10;
+    // char * poll = ((char *) c2h_metadata_map) + ((retoff+1) * 64);
     *poll = 0;
 
     char thread_name[50];

@@ -2,6 +2,7 @@
 #define NICUTILS_H
 
 struct msghdr_send_t {
+    uint32_t unused;
     char saddr[16];
     char daddr[16];
     uint16_t sport;
