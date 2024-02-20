@@ -190,7 +190,7 @@ class pp_egress_dupe_test extends AnyFreeSpec {
       // TODO temporary count 
       for (transaction <- 0 to 1386/64) {
         dut.io.packet_out.valid.expect(true.B)
-        // TODO check frame number
+        dut.io.packet_out.bits.frame.expect((transaction * 64).U)
         dut.clock.step()
       }
       
@@ -198,33 +198,41 @@ class pp_egress_dupe_test extends AnyFreeSpec {
     }
   }
 
-  //  "pp_dupe_test: testing packet duplication input block" in {
-  //    simulate(new pp_egress_dupe) { dut =>
-  //
-  //      dut.reset.poke(true.B)
-  //      dut.clock.step()
-  //      dut.reset.poke(false.B)
-  //      dut.clock.step()
-  //
-  //      dut.io.packet_in.valid.poke(true.B)
-  //
-  //      dut.clock.step()
-  //
-  //      dut.io.packet_in.valid.poke(false.B)
-  //      dut.io.packet_out.ready.poke(true.B)
-  //
-  //      dut.clock.step()
-  //
-  //      // TODO temporary count
-  //      for (transaction <- 0 to 1386/64) {
-  //        dut.io.packet_out.valid.expect(true.B)
-  //        // TODO check frame number
-  //        dut.clock.step()
-  //      }
-  //
-  //      // dut.io.packet_out.valid.expect(false.B)
-  //    }
-  // }
+  "pp_dupe_test: testing pipelined packet duplication" in {
+    simulate(new pp_egress_dupe) { dut =>
 
-  // Test short legnths and long lengths
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.packet_in.valid.poke(true.B)
+
+      dut.clock.step()
+
+      dut.io.packet_out.ready.poke(true.B)
+
+      dut.clock.step()
+
+      // TODO temporary count 
+      for (transaction <- 0 to 1386/64) {
+        dut.io.packet_out.valid.expect(true.B)
+        dut.io.packet_out.bits.frame.expect((transaction * 64).U)
+        dut.clock.step()
+      }
+
+      dut.io.packet_in.valid.poke(false.B)
+
+       // TODO temporary count 
+       for (transaction <- 0 to 1386/64) {
+         dut.io.packet_out.valid.expect(true.B)
+         dut.io.packet_out.bits.frame.expect((transaction * 64).U)
+         dut.clock.step()
+       }
+       
+       dut.io.packet_out.valid.expect(false.B)
+    }
+  }
+
+   // Test short legnths and long lengths
 }
