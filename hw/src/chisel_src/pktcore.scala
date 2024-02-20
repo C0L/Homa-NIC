@@ -5,6 +5,11 @@ import circt.stage.ChiselStage
 import chisel3.util.Decoupled
 import chisel3.util._
 
+// TODO if the DMA write logic is moved to the pipeline we can size
+// the writes based on the number of incoming data as provided by the
+// segment length
+
+
 /* pp_egress_stages - combine the egress (out to network) packet
  * processing stages. This involves a lookup to find the data
  * associated with the outgoing RPC (addresses, ports, etc), get the
@@ -133,9 +138,9 @@ class pp_egress_dupe extends Module {
    * Only remove the element from the first stage if we have sent all
    * the frames and receiver is ready
    */
-  packet_reg_0.io.deq.ready      := packet_reg_1.io.enq.ready && (frame >= (1386 - 64).U)
+  packet_reg_0.io.deq.ready      := packet_reg_1.io.enq.ready && (frame >= (1386 - 64).U) // TODO temp
   packet_reg_1.io.enq.valid      := packet_reg_0.io.deq.valid
-  packet_reg_1.io.enq            <> packet_reg_0.io.deq
+  packet_reg_1.io.enq.bits       := packet_reg_0.io.deq.bits
   packet_reg_1.io.enq.bits.frame := frame
 
   /* When a new frame is accepted then reset frame offset When a new
@@ -143,7 +148,7 @@ class pp_egress_dupe extends Module {
    */
   when (io.packet_in.fire) { 
     frame := 0.U
-  }.elsewhen (io.packet_out.fire) {
+  }.elsewhen (packet_reg_1.io.enq.ready && packet_reg_0.io.deq.valid) {
     frame := frame + 64.U
   }
 }
@@ -442,7 +447,7 @@ class pp_ingress_lookup extends Module {
   // Construct a read descriptor for this piece of data
   io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
   // TODO should clean this up
-  io.ram_read_desc.bits.ram_addr := 64.U * packet_reg_0.bits.cb.id
+  io.ram_read_desc.bits.ram_addr := 64.U * packet_reg_0.io.deq.bits.cb.id
   io.ram_read_desc.bits.len      := 64.U
 
   /*
@@ -475,11 +480,8 @@ class pp_ingress_payload extends Module {
   })
 
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  // val pending = Module(new Queue(new PacketFactory, 6, true, false))
-  // val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
-  // val pending = Module(new Queue(new PacketFactory, 6, true, false))
 
-  packet_reg_0 <> io.packet_in
+  packet_reg_0.io.enq <> io.packet_in
 
   val dma_w_data = Wire(new dma_write_t)
 
