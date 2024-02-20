@@ -53,6 +53,22 @@ class pp_egress_stages extends Module {
   pp_payload.io.ram_read_desc        <> io.payload_ram_read_desc
   pp_payload.io.ram_read_desc_status <> io.payload_ram_read_desc_status
   pp_payload.io.ram_read_data        <> io.payload_ram_read_data
+
+  val pp_egress_trigger_ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  pp_egress_trigger_ila.io.ila_data := io.trigger
+
+  val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+
+
+  val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
+
+  val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
+
+  val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
 }
 
 /* pp_egress_lookup - take an input trigger from the sendmsg queue and
@@ -177,7 +193,6 @@ class pp_egress_payload extends Module {
   val pending = Module(new Queue(new PacketFactory, 6, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
 
-
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
   io.packet_out       <> packet_reg_1.io.deq
@@ -188,11 +203,11 @@ class pp_egress_payload extends Module {
    */ 
   pending.io.enq <> packet_reg_0.io.deq
 
-  io.ram_read_desc.bits          := 0.U.asTypeOf(new ram_read_desc_t)
+  io.ram_read_desc.bits := 0.U.asTypeOf(new ram_read_desc_t)
 
   // Construct a read descriptor for this piece of data
   io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
-  // TODO should clean this up
+  // TODO should clean this up, 16384 is one message cache size
   io.ram_read_desc.bits.ram_addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining) + packet_reg_0.io.deq.bits.frame 
   io.ram_read_desc.bits.len      := 64.U
 
@@ -275,17 +290,21 @@ class pp_egress_xmit extends Module {
   packet_reg.io.deq.ready := io.egress.tready
   io.egress.tvalid := packet_reg.io.deq.valid
 
+  val length = (new PacketFactory).getWidth
+
   when (packet_reg.io.deq.bits.frame === 0.U) {
     // First 64 bytes
-    io.egress.tdata := packet_reg.io.deq.bits.asUInt(512,0) // TODO this is from the wrong dir?
+    io.egress.tdata := packet_reg.io.deq.bits.asUInt(length-1, length-512) // TODO this is from the wrong dir?
+    // io.egress.tdata := packet_reg.io.deq.bits.asUInt(512,0) // TODO this is from the wrong dir?
   }.elsewhen (packet_reg.io.deq.bits.frame === 64.U) {
     // Second 64 bytes
-    io.egress.tdata := packet_reg.io.deq.bits.asUInt(1023,512) // TODO this is from the wrong dir?
+    io.egress.tdata := packet_reg.io.deq.bits.asUInt(length - 512 - 1, length - 1024) // TODO this is from the wrong dir?
   }.otherwise {
     io.egress.tdata := packet_reg.io.deq.bits.payload
   }
 
   io.egress.tlast.get := 0.U
+
   // TODO temporary full length packets only
   when (packet_reg.io.deq.bits.frame >= 1386.U) {
     io.egress.tlast.get := 1.U
@@ -332,6 +351,9 @@ class pp_ingress_stages extends Module {
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
   pp_lookup.io.ram_read_desc_status <> io.cb_ram_read_desc_status
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
+
+
+
 }
 
 /* pp_ingress_dtor - take 64 byte chunks from off the network and

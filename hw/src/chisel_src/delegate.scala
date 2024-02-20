@@ -30,16 +30,26 @@ class delegate extends Module {
   })
 
   // By default all output streams are 0 initialized
-  io.sendmsg_o.bits   := 0.U.asTypeOf(new queue_entry_t)
-  io.fetchdata_o.bits := 0.U.asTypeOf(new queue_entry_t)
-  io.dma_w_req_o.bits := 0.U.asTypeOf(new dma_write_t)
   io.dma_map_o.bits   := 0.U.asTypeOf(new dma_map_t)
 
   // By default none of the output streams are active
-  io.sendmsg_o.valid   := false.B
-  io.fetchdata_o.valid := false.B
-  io.dma_w_req_o.valid := false.B
   io.dma_map_o.valid   := false.B
+
+  val sendmsg_queue   = Module(new Queue(new queue_entry_t, 1, true, false))
+  val fetchdata_queue = Module(new Queue(new queue_entry_t, 1, true, false))
+  val dma_w_req_queue = Module(new Queue(new dma_write_t, 1, true, false))
+
+  sendmsg_queue.io.deq <> io.sendmsg_o
+  fetchdata_queue.io.deq <> io.fetchdata_o
+  dma_w_req_queue.io.deq <> io.dma_w_req_o
+
+  sendmsg_queue.io.enq.bits   := io.sendmsg_o.bits
+  fetchdata_queue.io.enq.bits := io.fetchdata_o.bits
+  dma_w_req_queue.io.enq.bits := io.dma_w_req_o.bits
+
+  sendmsg_queue.io.enq.valid   := false.B 
+  fetchdata_queue.io.enq.valid := false.B
+  dma_w_req_queue.io.enq.valid := false.B
 
   // Data stored in the queue
   class encaps extends Bundle {
@@ -109,36 +119,38 @@ class delegate extends Module {
            io.sendmsg_ram_write_desc.bits.tag      := send_id
 
            // Construct a new meta data writeback request with the newly assigned ID
-           io.dma_w_req_o.bits.pcie_write_addr := 64.U << msghdr_send.ret 
-           io.dma_w_req_o.bits.data            := function_queue.io.deq.bits.data
-           io.dma_w_req_o.bits.length          := 64.U
-           io.dma_w_req_o.bits.port            := user_id
+           dma_w_req_queue.io.enq.bits.pcie_write_addr := 64.U * msghdr_send.ret 
+           dma_w_req_queue.io.enq.bits.data            := function_queue.io.deq.bits.data
+           dma_w_req_queue.io.enq.bits.length          := 64.U
+           dma_w_req_queue.io.enq.bits.port            := user_id
 
            // Construct a new entry for the packet queue to send packets
-           io.sendmsg_o.bits.rpc_id    := msghdr_send.id
-           io.sendmsg_o.bits.dbuff_id  := dbuff_id;
-           io.sendmsg_o.bits.remaining := msghdr_send.buff_size
-           io.sendmsg_o.bits.dbuffered := msghdr_send.buff_size
-           io.sendmsg_o.bits.granted   := 0.U
-           io.sendmsg_o.bits.priority  := queue_priority.ACTIVE.asUInt;
+           sendmsg_queue.io.enq.bits.rpc_id    := msghdr_send.id
+           sendmsg_queue.io.enq.bits.dbuff_id  := dbuff_id;
+           sendmsg_queue.io.enq.bits.remaining := msghdr_send.buff_size
+           sendmsg_queue.io.enq.bits.dbuffered := msghdr_send.buff_size
+           sendmsg_queue.io.enq.bits.granted   := 0.U
+           sendmsg_queue.io.enq.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Construct a new entry for the fetch queue to fetch data
-           io.fetchdata_o.bits.rpc_id    := msghdr_send.id
-           io.fetchdata_o.bits.dbuff_id  := dbuff_id 
-           io.fetchdata_o.bits.remaining := msghdr_send.buff_size
-           io.fetchdata_o.bits.dbuffered := 0.U
-           // TODO begginning as initially granted
-           io.fetchdata_o.bits.granted   := msghdr_send.buff_size
-           io.fetchdata_o.bits.priority  := queue_priority.ACTIVE.asUInt;
+           fetchdata_queue.io.enq.bits.rpc_id    := msghdr_send.id
+           fetchdata_queue.io.enq.bits.dbuff_id  := dbuff_id 
+           fetchdata_queue.io.enq.bits.remaining := msghdr_send.buff_size
+           fetchdata_queue.io.enq.bits.dbuffered := 0.U
+           // TODO beginning as initially granted
+           fetchdata_queue.io.enq.bits.granted   := msghdr_send.buff_size
+           fetchdata_queue.io.enq.bits.priority  := queue_priority.ACTIVE.asUInt;
 
-           // Only signal that a transaction is ready to exit our queue if both recievers are ready
+           // Only signal that a transaction is ready to exit our queue if all recievers are ready
            // Ram core will always be ready
-           function_queue.io.deq.ready := io.sendmsg_o.ready & io.fetchdata_o.ready & io.dma_w_req_o.ready
-           io.sendmsg_o.valid          := function_queue.io.deq.valid
-           io.fetchdata_o.valid        := function_queue.io.deq.valid
-           io.dma_w_req_o.valid        := function_queue.io.deq.valid
-           io.sendmsg_ram_write_desc.valid := function_queue.io.deq.valid
-           io.sendmsg_ram_write_data.valid := function_queue.io.deq.valid
+           // TODO this could also block things in unintended ways, but they really should be one op
+           function_queue.io.deq.ready     := sendmsg_queue.io.enq.ready & fetchdata_queue.io.enq.ready & dma_w_req_queue.io.enq.ready
+
+           sendmsg_queue.io.enq.valid      := function_queue.io.deq.fire
+           fetchdata_queue.io.enq.valid    := function_queue.io.deq.fire
+           dma_w_req_queue.io.enq.valid    := function_queue.io.deq.fire
+           io.sendmsg_ram_write_desc.valid := function_queue.io.deq.fire
+           io.sendmsg_ram_write_data.valid := function_queue.io.deq.fire
 
            // Only when te transaction takes place we increment the send and dbuff IDs
            when (function_queue.io.deq.fire) {

@@ -100,10 +100,10 @@ class fetch_queue extends Module {
   fetch_queue_raw.io.rst := reset.asUInt
 
   val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
-  fetch_out_ila.io.ila_data := fetch_queue_raw.io.s_axis
+  fetch_out_ila.io.ila_data := fetch_queue_raw.io.m_axis
 
   val fetch_in_ila = Module(new ILA(new axis(89, false, 0, false, 0, false, 0, false)))
-  fetch_in_ila.io.ila_data := fetch_queue_raw.io.m_axis
+  fetch_in_ila.io.ila_data := fetch_queue_raw.io.s_axis
 
   fetch_queue_raw.io.s_axis.tdata  := io.enqueue.bits.asTypeOf(UInt(89.W))
   io.enqueue.ready                 := fetch_queue_raw.io.s_axis.tready

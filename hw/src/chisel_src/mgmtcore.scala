@@ -107,17 +107,6 @@ class mgmt_core extends Module {
   recvmsg_cb_wr.io.enable := 1.U
   recvmsg_cb_rd.io.enable := 1.U
 
-
-
-// TODO pass to pp ingress
-  // pp_ingress.io.cb_ram_read_desc        <> sendmsg_cb_rd.io.ram_read_desc
-  // pp_ingress.io.cb_ram_read_desc_status <> sendmsg_cb_rd.io.ram_read_desc_status
-  // pp_ingress.io.cb_ram_read_data        <> sendmsg_cb_rd.io.ram_read_data       
-
-  // pp_ingress.io.cb_ram_read_desc        <> recvmsg_cb_rd.io.ram_read_desc       
-  // pp_ingress.io.cb_ram_read_desc_status <> recvmsg_cb_rd.io.ram_read_desc_status
-  // pp_ingress.io.cb_ram_read_data        <> recvmsg_cb_rd.io.ram_read_data       
-
   delegate.io.sendmsg_ram_write_desc        <> sendmsg_cb_wr.io.ram_write_desc
   delegate.io.sendmsg_ram_write_desc_status <> sendmsg_cb_wr.io.ram_write_desc_status
   delegate.io.sendmsg_ram_write_data        <> sendmsg_cb_wr.io.ram_write_data
@@ -152,11 +141,12 @@ class mgmt_core extends Module {
   io.dma_write_desc        <> c2h_dma.io.dma_write_desc
   io.dma_write_desc_status <> c2h_dma.io.dma_write_desc_status
 
-  // Alternate between fetchdata and notifs to the fetch queue
-  val fetch_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
-  fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
-  fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
-  fetch_arbiter.io.out   <> fetch_queue.io.enqueue
+  // TODO These are updates from the outgoing packet queue
+  // val fetch_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
+  // fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
+  // fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
+  // fetch_arbiter.io.out   <> fetch_queue.io.enqueue
+  fetch_queue.io.enqueue <> delegate.io.fetchdata_o
 
   // TODO need to throw out read requests
   // axi2axis takes the address of an AXI write and converts it to an
@@ -166,27 +156,26 @@ class mgmt_core extends Module {
   axi2axis.io.s_axi_aclk    <> clock
   axi2axis.io.s_axi_aresetn <> !reset.asBool
 
-  delegate.io.sendmsg_o <> sendmsg_queue.io.enqueue 
 
-  // TODO placeholder
-  // delegate.io.dma_w_req_o       := DontCare
-  // io.dma_w_meta_o <> delegate.io.dma_w_req_o
+  // Alternate between fetchdata and notifs to the fetch queue
+  val sendmsg_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
+  sendmsg_arbiter.io.in(0) <> delegate.io.sendmsg_o
+  sendmsg_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
+  sendmsg_arbiter.io.out   <> sendmsg_queue.io.enqueue
 
-  // TODO eventually goes to packet constructor
-  // sendmsg_queue.io.dequeue      := DontCare
 
   /* DEBUGGING ILAS */
   val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
   axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
-  val sendmsg_ila = Module(new ILA(Decoupled(new queue_entry_t)))
-  sendmsg_ila.io.ila_data := delegate.io.sendmsg_o
+  val sendmsg_in_ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  sendmsg_in_ila.io.ila_data := delegate.io.sendmsg_o
+
+  val sendmsg_out_ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
 
   val axi_ila = Module(new ILA(new axi(512, 26, true, 8, true, 4, true, 4)))
   axi_ila.io.ila_data := io.s_axi
-
-  // val ila = Module(new ILA(Decoupled(new queue_entry_t)))
-  // ila.io.ila_data := io.dbuff_notif_i
 
   val dma_map_ila = Module(new ILA(new dma_map_t))
   dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits

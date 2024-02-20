@@ -64,6 +64,9 @@ class delegate_test extends AnyFreeSpec {
       dut.io.fetchdata_o.valid.expect(true.B)
       dut.io.dma_w_req_o.valid.expect(true.B)
 
+      // Should check more items
+      dut.io.dma_w_req_o.bits.length.expect(64.U)
+
       // TODO not currently checking the port out
 
       dut.clock.step()
@@ -72,8 +75,45 @@ class delegate_test extends AnyFreeSpec {
       dut.io.fetchdata_o.valid.expect(false.B)
       dut.io.dma_w_req_o.valid.expect(false.B)
     }
-
   }
+
+
+  "delegate_test: testing sendmsg" in {
+    simulate(new delegate) { dut =>
+
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.function_i.tready.expect(true.B)
+
+      dut.io.function_i.tvalid.poke(true.B)
+      dut.io.function_i.tdata.poke(0.U)
+      dut.io.function_i.tuser.get.poke(4096.U)
+
+      dut.clock.step()
+
+      dut.io.function_i.tvalid.poke(false.B)
+
+      dut.io.sendmsg_o.ready.poke(true.B)
+      dut.io.fetchdata_o.ready.poke(true.B)
+      dut.io.dma_w_req_o.ready.poke(true.B)
+
+      dut.io.sendmsg_o.valid.expect(true.B)
+      dut.io.fetchdata_o.valid.expect(true.B)
+      dut.io.dma_w_req_o.valid.expect(true.B)
+
+      // TODO not currently checking the port out
+
+      dut.clock.step()
+
+      dut.io.sendmsg_o.valid.expect(false.B)
+      dut.io.fetchdata_o.valid.expect(false.B)
+      dut.io.dma_w_req_o.valid.expect(false.B)
+    }
+  }
+
 
  "delegate_test: ID assignment" in {
  }

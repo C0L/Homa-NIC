@@ -24,8 +24,8 @@ class h2c_dma extends Module {
   val tag_mem = Mem(256, new dma_read_t)
 
   // Add a register stage to this module for timing 
-  val dma_read_queue  = Module(new Queue(new dma_read_t, 1, true, true))
-  val dma_read_status = Module(new Queue(new dma_read_desc_status_t, 1, true, true))
+  val dma_read_queue  = Module(new Queue(new dma_read_t, 1, true, false))
+  val dma_read_status = Module(new Queue(new dma_read_desc_status_t, 1, true, false))
 
   // Add data to the queues if there are inputs from status or requests
   dma_read_status.io.enq <> io.dma_read_status
@@ -50,8 +50,8 @@ class h2c_dma extends Module {
 
   io.dbuff_notif_o.bits.rpc_id     := 0.U
   io.dbuff_notif_o.bits.dbuff_id   := pending_read.cache_id
-  io.dbuff_notif_o.bits.remaining  := pending_read.read_len - pending_read.dest_ram_addr - 256.U(20.W)
-  io.dbuff_notif_o.bits.dbuffered  := 0.U
+  io.dbuff_notif_o.bits.remaining  := 0.U
+  io.dbuff_notif_o.bits.dbuffered  := pending_read.message_size - pending_read.dest_ram_addr - 256.U(20.W)
   io.dbuff_notif_o.bits.granted    := 0.U
   io.dbuff_notif_o.bits.priority   := queue_priority.DBUFF_UPDATE.asUInt
 

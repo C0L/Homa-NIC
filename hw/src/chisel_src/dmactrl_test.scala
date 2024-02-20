@@ -18,19 +18,26 @@ class h2c_dma_test extends AnyFreeSpec {
 
       for (transaction <- 0 to 511) {
 
-        dut.io.dma_read_status.valid.poke(true.B)
-        dut.io.dbuff_notif_o.ready.poke(true.B)
-
+        dut.io.dma_read_status.valid.poke(false.B)
+        dut.io.dbuff_notif_o.ready.poke(false.B)
         dut.io.dma_r_req.valid.poke(true.B)
-        dut.io.dma_read_desc.ready.poke(true.B)
+        dut.io.dma_read_desc.ready.poke(false.B)
 
         dut.io.dma_r_req.bits.pcie_read_addr.poke(transaction.U)
         dut.io.dma_r_req.bits.cache_id.poke(transaction.U)
-        dut.io.dma_r_req.bits.message_size.poke(transaction.U)
+        dut.io.dma_r_req.bits.message_size.poke((transaction + 256).U)
         dut.io.dma_r_req.bits.read_len.poke((transaction + 256).U)
         dut.io.dma_r_req.bits.dest_ram_addr.poke(0.U)
 
         dut.io.dma_r_req.ready.expect(true.B)
+
+        dut.clock.step()
+
+        dut.io.dma_read_status.valid.poke(false.B)
+        dut.io.dbuff_notif_o.ready.poke(false.B)
+        dut.io.dma_r_req.valid.poke(false.B)
+        dut.io.dma_read_desc.ready.poke(true.B)
+
         dut.io.dma_read_desc.valid.expect(true.B)
         dut.io.dma_read_desc.bits.pcie_addr.expect(transaction.U)
         dut.io.dma_read_desc.bits.ram_sel.expect(0.U)
@@ -40,22 +47,28 @@ class h2c_dma_test extends AnyFreeSpec {
 
         dut.clock.step()
 
-        dut.io.dma_r_req.valid.poke(false.B)
-        dut.io.dma_read_desc.ready.poke(false.B)
-
         dut.io.dma_read_status.valid.poke(true.B)
-        dut.io.dbuff_notif_o.ready.poke(true.B)
+        dut.io.dbuff_notif_o.ready.poke(false.B)
+        dut.io.dma_r_req.valid.poke(false.B)
+        dut.io.dma_read_desc.ready.poke(true.B)
 
         dut.io.dma_read_status.bits.tag.poke((transaction % 256).U)
         dut.io.dma_read_status.bits.error.poke(2.U)
+
+        dut.clock.step()
+
+        dut.io.dma_read_status.valid.poke(false.B)
+        dut.io.dbuff_notif_o.ready.poke(true.B)
+        dut.io.dma_r_req.valid.poke(false.B)
+        dut.io.dma_read_desc.ready.poke(true.B)
 
         dut.io.dma_read_status.ready.expect(true.B)
         dut.io.dbuff_notif_o.valid.expect(true.B)
 
         dut.io.dbuff_notif_o.bits.rpc_id.expect(0.U)
         dut.io.dbuff_notif_o.bits.dbuff_id.expect(transaction.U)
-        dut.io.dbuff_notif_o.bits.remaining.expect(transaction.U)
-        dut.io.dbuff_notif_o.bits.dbuffered.expect(0.U)
+        dut.io.dbuff_notif_o.bits.remaining.expect(0.U)
+        dut.io.dbuff_notif_o.bits.dbuffered.expect((transaction).U)
         dut.io.dbuff_notif_o.bits.granted.expect(0.U)
         dut.io.dbuff_notif_o.bits.priority.expect(1.U)
 
