@@ -377,6 +377,8 @@ class pp_ingress_dtor extends Module {
   // TODO this is probably not good
   io.ingress.tready := io.packet_out.ready
 
+  val length = (new PacketFactory).getWidth
+
   /* State machine for parsing packets
    * If there is data from ingress (64 byte chunks coming from the
    * network), we make a decision as to what to do with the data based
@@ -394,15 +396,17 @@ class pp_ingress_dtor extends Module {
    * up with the data being added to the packet factory we are
    * constructing.
    */
-  when (io.ingress.tready) {
+  when (io.ingress.tvalid && io.ingress.tready) {
     when (processed === 0.U) {
+      printf("Added frame 1 data\n\n")
       pkt := Cat(io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 512).W)).asTypeOf(new PacketFactory)
       pkt.frame := processed
     }.elsewhen (processed === 64.U) {
+      printf("Added frame 2 data\n\n")
       // We know that packet_out was ready so this will send data
-      pkt := Cat(0.U(512.W), io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 1024).W)).asTypeOf(new PacketFactory)
-      pkt.frame           := processed
-      pktvalid := true.B
+      pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 1024).W)).asTypeOf(new PacketFactory)
+      pkt.frame := processed
+      pktvalid  := true.B
     }.otherwise {
       // Fill the payload section
       pktvalid := true.B
@@ -412,6 +416,8 @@ class pp_ingress_dtor extends Module {
 
     when (io.ingress.tlast.get) {
       processed := 0.U
+    }.otherwise {
+      processed := processed + 64.U
     }
   }.otherwise {
     pktvalid := false.B

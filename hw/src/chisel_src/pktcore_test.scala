@@ -593,9 +593,8 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.packet_out.valid.expect(false.B)
-
-      dut.clock.step()
+      dut.io.packet_out.valid.expect(true.B)
+      dut.io.ingress.tvalid.poke(false.B)
     }
   }
 
@@ -617,13 +616,75 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.packet_out.eth.mac_dest.expect(0.U)
-      dut.io.packet_out.valid.expect(false.B)
+      dut.io.packet_out.bits.frame.expect(64.U)
+      dut.io.packet_out.bits.eth.mac_dest.expect("hdeadbeefd".U)
+      dut.io.packet_out.valid.expect(true.B)
 
       dut.clock.step()
     }
   }
 
+
+
+  "pp_dtor_test: testing second block packet header reconstruction" in {
+    simulate(new pp_ingress_dtor) { dut =>
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.packet_out.ready.poke(true.B)
+      dut.io.ingress.tvalid.poke(true.B)
+      dut.io.ingress.tdata.poke("hdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".U)
+
+      dut.clock.step()
+
+      dut.io.packet_out.valid.expect(false.B)
+      dut.io.ingress.tvalid.poke(true.B)
+      dut.io.ingress.tdata.poke("hdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".U)
+
+      dut.clock.step()
+
+      dut.io.packet_out.bits.frame.expect(64.U)
+      dut.io.packet_out.bits.eth.mac_dest.expect("hdeadbeefd".U)
+      dut.io.packet_out.bits.common.unused3.expect("hdead".U)
+      dut.io.packet_out.valid.expect(true.B)
+
+      dut.clock.step()
+    }
+  }
+
+
+//  "pp_dtor_test: testing second block packet header reconstruction" in {
+//    simulate(new pp_ingress_dtor) { dut =>
+//      dut.reset.poke(true.B)
+//      dut.clock.step()
+//      dut.reset.poke(false.B)
+//      dut.clock.step()
+//
+//      dut.io.packet_out.ready.poke(true.B)
+//      dut.io.ingress.tvalid.poke(true.B)
+//
+//      dut.clock.step()
+//
+//      dut.io.ingress.tvalid.poke(true.B)
+//      dut.io.packet_out.valid.expect(false.B)
+//
+//      dut.clock.step()
+//
+//      dut.io.packet_out.bits.frame.expect(64.U)
+//      dut.io.ingress.tdata.poke("hdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".U)
+//      dut.io.ingress.tvalid.poke(true.B)
+//      dut.io.packet_out.valid.expect(true.B)
+//
+//      dut.clock.step()
+//
+//      dut.io.packet_out.bits.common.unused3.expect("hdead".U)
+//      dut.io.packet_out.valid.expect(false.B)
+//
+//      dut.clock.step()
+//    }
+//  }
 
   // "pp_dtor_test: frst input gets buffered" in {
   //   simulate(new pp_ingress_dtory) { dut =>
