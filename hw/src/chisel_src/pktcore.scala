@@ -398,11 +398,9 @@ class pp_ingress_dtor extends Module {
    */
   when (io.ingress.tvalid && io.ingress.tready) {
     when (processed === 0.U) {
-      printf("Added frame 1 data\n\n")
       pkt := Cat(io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 512).W)).asTypeOf(new PacketFactory)
       pkt.frame := processed
     }.elsewhen (processed === 64.U) {
-      printf("Added frame 2 data\n\n")
       // We know that packet_out was ready so this will send data
       pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 1024).W)).asTypeOf(new PacketFactory)
       pkt.frame := processed
