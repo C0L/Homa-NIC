@@ -866,31 +866,26 @@ class pp_ingress_payload_test extends AnyFreeSpec {
 
        dut.clock.step()
 
-       dut.io.dma_w_req_o.valid.expect(true.B)
+       dut.io.dma_w_data.valid.expect(true.B)
      }
    }
 
-  // "pp_payload_test: RAM read response triggers next stage" in {
-  //   simulate(new pp_egress_payload) { dut =>
+  "pp_payload_test: pcie write addr" in {
+    simulate(new pp_ingress_payload) { dut =>
 
-  //     dut.reset.poke(true.B)
-  //     dut.clock.step()
-  //     dut.reset.poke(false.B)
-  //     dut.clock.step()
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
 
-  //     dut.io.packet_out.ready.poke(true.B)
-  //     dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.data.data_seg.offset.poke(100.U)
+      dut.io.packet_in.bits.frame.poke(64.U)
 
-  //     dut.clock.step()
+      dut.clock.step()
 
-  //     dut.io.packet_in.valid.poke(false.B)
-  //     dut.io.ram_read_desc.valid.expect(true.B)
-  //     dut.io.ram_read_data.valid.poke(true.B)
-
-  //     dut.clock.step()
-  //     dut.clock.step()
-
-  //     dut.io.packet_out.valid.expect(true.B)
-  //   }
-  // }
+      dut.io.dma_w_data.bits.pcie_write_addr.expect(164.U)
+      dut.io.dma_w_data.valid.expect(true.B)
+    }
+  }
 }
