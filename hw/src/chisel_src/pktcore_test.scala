@@ -690,7 +690,6 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
   }
 }
 
-
 class pp_ingress_lookup_test extends AnyFreeSpec {
   "pp_lookup_test: packet input triggers RAM read request" in {
     simulate(new pp_ingress_lookup) { dut =>
@@ -851,4 +850,47 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
       dut.io.packet_out.bits.cb.unused.expect("hbeefdead".U)
     }
   }
+}
+
+
+class pp_ingress_payload_test extends AnyFreeSpec {
+  "pp_payload_test: data in gives data out" in {
+    simulate(new pp_ingress_payload) { dut =>
+
+       dut.reset.poke(true.B)
+       dut.clock.step()
+       dut.reset.poke(false.B)
+       dut.clock.step()
+
+       dut.io.packet_in.valid.poke(true.B)
+
+       dut.clock.step()
+
+       dut.io.dma_w_req_o.valid.expect(true.B)
+     }
+   }
+
+  // "pp_payload_test: RAM read response triggers next stage" in {
+  //   simulate(new pp_egress_payload) { dut =>
+
+  //     dut.reset.poke(true.B)
+  //     dut.clock.step()
+  //     dut.reset.poke(false.B)
+  //     dut.clock.step()
+
+  //     dut.io.packet_out.ready.poke(true.B)
+  //     dut.io.packet_in.valid.poke(true.B)
+
+  //     dut.clock.step()
+
+  //     dut.io.packet_in.valid.poke(false.B)
+  //     dut.io.ram_read_desc.valid.expect(true.B)
+  //     dut.io.ram_read_data.valid.poke(true.B)
+
+  //     dut.clock.step()
+  //     dut.clock.step()
+
+  //     dut.io.packet_out.valid.expect(true.B)
+  //   }
+  // }
 }

@@ -62,15 +62,6 @@ class top extends RawModule {
   pcie.pcie_refclk_n := pcie_refclk_n
   pcie.pcie_reset_n  := pcie_reset_n
 
-  /* Eventually from packet processing pipeline */
-  pcie.ram_read_desc         := DontCare
-  pcie.ram_read_desc_status  := DontCare
-  pcie.ram_read_data         := DontCare
-
-  // TODO need to clock convert to  core.dma_w_meta_o
-  // pcie.dma_w_meta_i <> core.io.dma_w_meta_o
-  // core.io.dma_w_data_i := DontCare
-
   /* Clock Convert core (200MHz) -> pcie (250MHz) */
   val ram_read_desc_cc  = Module(new AXISClockConverter(new ram_read_desc_t))
   val ram_write_desc_cc = Module(new AXISClockConverter(new ram_write_desc_t))

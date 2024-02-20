@@ -27,8 +27,6 @@ class mgmt_core extends Module {
 
     val dma_write_desc        = Decoupled(new dma_write_desc_t)
     val dma_write_desc_status = Flipped(Decoupled(new dma_write_desc_status_t))
-
-
   })
 
   val axi2axis       = Module(new axi2axis) // Convert incoming AXI requests to AXIS
@@ -57,10 +55,6 @@ class mgmt_core extends Module {
   pp_ingress.io.cb_ram_read_data        <> recvmsg_cb_rd.io.ram_read_data
 
   addr_map.io.dma_w_data_i <> pp_ingress.io.dma_w_data
-
-  // pp_ingress.io.cb_ram_read_desc        <> cb_client_rd.io.ram_read_desc
-  // pp_ingress.io.cb_ram_read_desc_status <> cb_client_rd.io.ram_read_desc_status
-  // pp_ingress.io.cb_ram_read_data        <> cb_client_rd.io.ram_read_data
 
   val pp_egress  = Module(new pp_egress_stages)
 
@@ -114,10 +108,6 @@ class mgmt_core extends Module {
   delegate.io.recvmsg_ram_write_desc        <> recvmsg_cb_wr.io.ram_write_desc
   delegate.io.recvmsg_ram_write_desc_status <> recvmsg_cb_wr.io.ram_write_desc_status
   delegate.io.recvmsg_ram_write_data        <> recvmsg_cb_wr.io.ram_write_data
-
-  io.ram_read_desc        := DontCare
-  io.ram_read_desc_status := DontCare
-  io.ram_read_data        := DontCare
 
   addr_map.io.dma_map_i    <> delegate.io.dma_map_o
   addr_map.io.dma_w_meta_i <> delegate.io.dma_w_req_o
