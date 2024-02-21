@@ -53,8 +53,8 @@ int main() {
     // uint32_t size   = 100000; // Lte 20 bits used
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
-    msghdr_send_in.sport     = 0x0;
-    msghdr_send_in.dport     = 0x0;
+    msghdr_send_in.sport     = 0x1;
+    msghdr_send_in.dport     = 0x1;
     msghdr_send_in.buff_addr = 0;
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
