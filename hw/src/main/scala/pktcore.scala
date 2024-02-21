@@ -259,8 +259,8 @@ class pp_egress_ctor extends Module {
   packet_reg_1.io.enq.bits.ipv6.saddr       := packet_reg_0.io.deq.bits.cb.saddr
   packet_reg_1.io.enq.bits.ipv6.daddr       := packet_reg_0.io.deq.bits.cb.daddr
 
-  packet_reg_1.io.enq.bits.common.sport     := packet_reg_0.io.deq.bits.cb.saddr
-  packet_reg_1.io.enq.bits.common.dport     := packet_reg_0.io.deq.bits.cb.daddr
+  packet_reg_1.io.enq.bits.common.sport     := packet_reg_0.io.deq.bits.cb.sport
+  packet_reg_1.io.enq.bits.common.dport     := packet_reg_0.io.deq.bits.cb.dport
   packet_reg_1.io.enq.bits.common.doff      := HOMA.doff
   packet_reg_1.io.enq.bits.common.homatype  := HOMA.DATA
   packet_reg_1.io.enq.bits.common.checksum  := 0.U // TODO 
@@ -538,21 +538,26 @@ class pp_ingress_payload extends Module {
  * a message is complete dispatches the write completion over DMA
  * TODO in progress/not part of the packet processing pipeline
  */
-class pp_ingress_bitmap extends Module {
-  val io = IO(new Bundle {
-    val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory 
-    // val packet_out = Decoupled(new PacketFactory) // 
-  })
-
-  /* Computation occurs between register stage 0 and 1
-   */
-  val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFactory, 6, true, false))
-  // val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
-
-  packet_reg_0.io.enq <> io.packet_in
-
-  // Tie register stages to input and output 
-  // packet_reg_0.io.enq <> packet_reg_1.io.deq
-
-}
+// class pp_ingress_bitmap extends Module {
+//   val io = IO(new Bundle {
+//     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory 
+//     // val packet_out = Decoupled(new PacketFactory) // 
+//   })
+// 
+//   /* Computation occurs between register stage 0 and 1
+//    */
+//   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
+//   val pending = Module(new Queue(new PacketFactory, 6, true, false))
+//   // val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+// 
+//   // TODO create bundle of count offset + 64 bits of map
+//   // TODO how do we know if the first packet in sequence? Can init the RAM?
+//   // Would be better if we just had a unique local identifier?
+//   // This can be provided in an initial request for a subsequent response
+//   // But this only works for the requestor. 
+// 
+//   packet_reg_0.io.enq <> io.packet_in
+// 
+//   // Tie register stages to input and output 
+//   // packet_reg_0.io.enq <> packet_reg_1.io.deq
+// }
