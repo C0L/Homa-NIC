@@ -15,7 +15,7 @@ set_property is_enabled true [get_files ./xdc/homa.xdc]
 # set_property is_enabled true [get_files ./xdc/alveo-u250-xdc.xdc]
 
 # Source files 
-add_files -fileset sources_1 ./src/main/resouces
+add_files -fileset sources_1 ./src/main/resources
 add_files -fileset sources_1 ./gen
 
 set_property top top [current_fileset]

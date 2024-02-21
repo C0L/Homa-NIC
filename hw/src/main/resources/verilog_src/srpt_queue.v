@@ -20,9 +20,6 @@
 
 `define CACHE_SIZE 131072
 
-// TODO does not work for small byte remaining entries? (like single byte)
-// TODO re-enable general swap
-
 /**
  * srpt_data_pkts() - Determines which data packet should be transmit
  * next based on the number of remaining bytes to send. Packets
@@ -158,7 +155,9 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    
    assign sendq_dbuffered = (queue_head[`QUEUE_ENTRY_DBUFFERED] + `HOMA_PAYLOAD_SIZE <= queue_head[`QUEUE_ENTRY_REMAINING]) 
      | (queue_head[`QUEUE_ENTRY_DBUFFERED] == 0);
-   assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
+   assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] == 0;
+   
+   // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
 
    assign head_active = (queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE);
    assign fetch_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE;
@@ -168,7 +167,8 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    // https://zipcpu.com/blog/2021/08/28/axi-rules.html
    always @* begin
       if (TYPE == "sendmsg") begin
-	 ripe = sendq_granted & sendq_dbuffered & !sendq_empty & head_active;
+	 ripe = sendq_granted & sendq_dbuffered & head_active;
+	 // ripe = sendq_granted & sendq_dbuffered & !sendq_empty & head_active;
       end else if (TYPE == "fetch") begin
 	 ripe = head_active & !fetch_empty;
       end
@@ -178,7 +178,6 @@ module srpt_queue #(parameter MAX_RPCS = 64,
       
       // The condition in which we remove an element from the queue
       dequeue_ready = !queue_ready & ripe;
-      // TODO this is not always the case?
       queue_insert = s_axis_tdata;
       
       prioritize(queue_swap_odd[0], queue_swap_odd[1], queue_insert, queue[0]);
@@ -246,23 +245,19 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	    
 	    m_axis_tvalid <= dequeue_ready;
 	    m_axis_tdata  <= queue_head;
-	 end // if (!m_axis_tvalid || m_axis_tready)
-
-	 if (!dequeue_ready) begin
-	    if (queue_swap_polarity == 1'b0) begin
-	       // Assumes that write does not keep data around
-	       for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
-		  queue[entry] <= queue_swap_even[entry];
-	       end
-	       queue_swap_polarity <= 1'b1;
-	    end else begin
-	       for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
-		  queue[entry] <= queue_swap_odd[entry+1];
-	       end
-	       queue_swap_polarity <= 1'b0;
-	    end // else: !if(queue_swap_polarity == 1'b0)
-	 end // if (!dequeue_ready)
-      end 
+	 end else if (queue_swap_polarity == 1'b0) begin
+	    // Assumes that write does not keep data around
+	    for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
+	       queue[entry] <= queue_swap_even[entry];
+	    end
+	    queue_swap_polarity <= 1'b1;
+	 end else begin
+	    for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
+	       queue[entry] <= queue_swap_odd[entry+1];
+	    end
+	    queue_swap_polarity <= 1'b0;
+	 end // else: !if(queue_swap_polarity == 1'b0)
+      end // if (!dequeue_ready)
    end 
 
 endmodule // srpt_queue
