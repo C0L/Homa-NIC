@@ -60,8 +60,8 @@ int main() {
     msghdr_send_in.cc        = 0;
     msghdr_send_in.metadata  = (size << 12) | retoff;
 
-    char * poll = ((char *) c2h_metadata_map) + 64 + 10;
-    // char * poll = ((char *) c2h_metadata_map) + ((retoff+1) * 64);
+    char * poll = ((char *) c2h_msgbuff_map) + 128;
+    // char * poll = ((char *) c2h_metadata_map) + ((retoff) * 64) + 10;
     *poll = 0;
 
     char thread_name[50];
@@ -79,6 +79,13 @@ int main() {
 	tt(rdtsc(), "write response", 0, 0, 0, 0);
 	*poll = 0;
     } 
+
+    printf("Data buffer out\n");
+    for (int i = 0; i < 16; ++i) {
+    	printf("Chunk %d: ", i);
+    	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
+    	printf("\n");
+    }
 
     time_trace::print_to_file("parse/perf_write.tt");
 
