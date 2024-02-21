@@ -255,6 +255,7 @@ object HOMA {
 }
 
 // TODO make this parmeterizable
+// TODO this only generates on chunk
 class PacketFactory extends Bundle {
   val eth     = new EthHeader
   val ipv6    = new IPV6Header
@@ -303,13 +304,12 @@ class HomaDataSegment extends Bundle {
 }
 
 class HomaDataHeader extends Bundle {
-  val data     = new HomaDataSegment
   val msg_len  = UInt(32.W)
   val incoming = UInt(32.W) 
   val cutoff   = UInt(16.W)
   val rexmit   = UInt(8.W)
   val pad      = UInt(8.W)
-  val data_seg = new HomaDataSegment
+  val data     = new HomaDataSegment
 }
 
 class HomaAck extends Bundle {

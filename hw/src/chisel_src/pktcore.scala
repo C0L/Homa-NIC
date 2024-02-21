@@ -9,7 +9,6 @@ import chisel3.util._
 // the writes based on the number of incoming data as provided by the
 // segment length
 
-
 /* pp_egress_stages - combine the egress (out to network) packet
  * processing stages. This involves a lookup to find the data
  * associated with the outgoing RPC (addresses, ports, etc), get the
@@ -33,7 +32,7 @@ class pp_egress_stages extends Module {
   val pp_lookup  = Module(new pp_egress_lookup)  // Lookup the control block
   val pp_dupe    = Module(new pp_egress_dupe) // Generate a packet factory for each 64 bytes of packet
   val pp_payload = Module(new pp_egress_payload) // Grab the payload data for this packet factory
-  val pp_ctor    = Module(new pp_egress_ctor) // Construct the packet header from control block data
+  val pp_ctor    = Module(new pp_egress_ctor) // Construct the packet header from control block data // TODO Move this after the lookup
   val pp_xmit    = Module(new pp_egress_xmit) // Contruct 64B chunks from packet factory for network
 
   // Link all the units together
@@ -59,7 +58,6 @@ class pp_egress_stages extends Module {
 
   val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
   pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
-
 
   val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
   pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
@@ -353,6 +351,17 @@ class pp_ingress_stages extends Module {
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
 
+  val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  pp_ingress_ila.io.ila_data := io.ingress
+
+  val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
+
+  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+
+  val pp_payload_ila = Module(new ILA(Decoupled(new dma_write_t)))
+  pp_payload_ila.io.ila_data := pp_payload.io.dma_w_data
 
 }
 
@@ -514,7 +523,7 @@ class pp_ingress_payload extends Module {
   dma_w_data := 0.U.asTypeOf(new dma_write_t)
 
   // TODO eventually mult by offset 
-  io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data_seg.offset + packet_reg_0.io.deq.bits.frame).asTypeOf(UInt(64.W))
+  io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.frame).asTypeOf(UInt(64.W))
   io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload
   io.dma_w_data.bits.length          := 64.U // TODO
   io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.cb.dport
@@ -523,4 +532,27 @@ class pp_ingress_payload extends Module {
   packet_reg_0.io.deq.ready := true.B
   packet_reg_0.io.deq.bits  := DontCare
   packet_reg_0.io.deq.valid := DontCare
+}
+
+/* pp_ingress_bitmap - updates a bit map of outstanding packets. When
+ * a message is complete dispatches the write completion over DMA
+ * TODO in progress/not part of the packet processing pipeline
+ */
+class pp_ingress_bitmap extends Module {
+  val io = IO(new Bundle {
+    val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory 
+    // val packet_out = Decoupled(new PacketFactory) // 
+  })
+
+  /* Computation occurs between register stage 0 and 1
+   */
+  val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
+  val pending = Module(new Queue(new PacketFactory, 6, true, false))
+  // val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+
+  packet_reg_0.io.enq <> io.packet_in
+
+  // Tie register stages to input and output 
+  // packet_reg_0.io.enq <> packet_reg_1.io.deq
+
 }

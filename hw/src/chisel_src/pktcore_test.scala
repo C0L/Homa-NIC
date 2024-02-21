@@ -6,11 +6,9 @@ import chisel3.simulator.EphemeralSimulator._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
-
 import circt.stage.ChiselStage
 import chisel3.util.Decoupled
 import chisel3.util._
-
 
 class pp_egress_lookup_test extends AnyFreeSpec {
   "pp_lookup_test: packet input triggers RAM read request" in {
@@ -879,7 +877,7 @@ class pp_ingress_payload_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(true.B)
-      dut.io.packet_in.bits.data.data_seg.offset.poke(100.U)
+      dut.io.packet_in.bits.data.data.offset.poke(100.U)
       dut.io.packet_in.bits.frame.poke(64.U)
 
       dut.clock.step()
