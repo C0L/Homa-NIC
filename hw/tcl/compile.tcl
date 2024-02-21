@@ -1,6 +1,5 @@
 # set target homa
 # set bd homa
-# set new_ip_paths [list "./ip/homa" "./ip/interface"]
 set part xcu250-figd2104-2L-e
 set board xilinx.com:au250:part0:1.3 
 
@@ -16,14 +15,15 @@ set_property is_enabled true [get_files ./xdc/homa.xdc]
 # set_property is_enabled true [get_files ./xdc/alveo-u250-xdc.xdc]
 
 # Source files 
-add_files -fileset sources_1 ./src/
+add_files -fileset sources_1 ./src/main/resouces
+add_files -fileset sources_1 ./gen
 
 set_property top top [current_fileset]
 
 update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1
 
-foreach script [glob ./src/chisel_src/*.tcl] {source $script}
+foreach script [glob ./gen/*.tcl] {source $script}
 source ./tcl/xilinx_ip.tcl
 
 # Launch Synthesis
