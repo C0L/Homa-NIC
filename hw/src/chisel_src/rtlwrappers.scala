@@ -76,7 +76,7 @@ class dma_client_axis_sink extends BlackBox(
 class srpt_queue (qtype: String) extends BlackBox (
     Map("MAX_RPCS" -> 64,
       "TYPE" -> qtype,
-  )) {
+  )) with HasBlackBoxResource {
 
   val io = IO(new Bundle {
     val clk = Input(Clock())
@@ -85,11 +85,13 @@ class srpt_queue (qtype: String) extends BlackBox (
     val s_axis = Flipped(new axis(89, false, 0, false, 0, false, 0, false))
     val m_axis = new axis(89, false, 0, false, 0, false, 0, false)
   })
+
+  addResource("/srpt_queue.v")
 }
 
 class fetch_queue extends Module {
   val io = IO(new Bundle {
-    val enqueue = Flipped(Decoupled(new queue_entry_t))
+    val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
     val dequeue = Decoupled(new dma_read_t)
   })
@@ -109,9 +111,9 @@ class fetch_queue extends Module {
   io.enqueue.ready                 := fetch_queue_raw.io.s_axis.tready
   fetch_queue_raw.io.s_axis.tvalid := io.enqueue.valid
 
-  val fetch_queue_raw_out = Wire(new queue_entry_t)
+  val fetch_queue_raw_out = Wire(new QueueEntry)
 
-  fetch_queue_raw_out := fetch_queue_raw.io.m_axis.tdata.asTypeOf(new queue_entry_t)
+  fetch_queue_raw_out := fetch_queue_raw.io.m_axis.tdata.asTypeOf(new QueueEntry)
   val dma_read = Wire(new dma_read_t)
 
   dma_read.pcie_read_addr := fetch_queue_raw_out.dbuffered
@@ -125,14 +127,13 @@ class fetch_queue extends Module {
 
   fetch_queue_raw.io.m_axis.tready := io.dequeue.ready
   io.dequeue.valid                 := fetch_queue_raw.io.m_axis.tvalid
-
 }
 
-class sendmsg_queue extends Module {
+class SendmsgQueue extends Module {
   val io = IO(new Bundle {
-    val enqueue = Flipped(Decoupled(new queue_entry_t))
+    val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
-    val dequeue = Decoupled(new queue_entry_t)
+    val dequeue = Decoupled(new QueueEntry)
   })
 
   val send_queue_raw = Module(new srpt_queue("sendmsg"))
@@ -141,9 +142,9 @@ class sendmsg_queue extends Module {
   send_queue_raw.io.rst := reset.asUInt
 
   val raw_in  = io.enqueue.bits.asTypeOf(UInt(89.W))
-  val raw_out = Wire(new queue_entry_t)
+  val raw_out = Wire(new QueueEntry)
 
-  raw_out := send_queue_raw.io.m_axis.tdata.asTypeOf(new queue_entry_t)
+  raw_out := send_queue_raw.io.m_axis.tdata.asTypeOf(new QueueEntry)
 
   io.enqueue.ready                := send_queue_raw.io.s_axis.tready
   send_queue_raw.io.s_axis.tvalid := io.enqueue.valid

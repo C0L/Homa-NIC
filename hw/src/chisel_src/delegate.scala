@@ -15,8 +15,8 @@ import chisel3.util._
 class delegate extends Module {
   val io = IO(new Bundle {
     val function_i  = Flipped(new axis(512, false, 0, true, 32, false, 0, false)) // 512 bit blocks from user
-    val sendmsg_o   = Decoupled(new queue_entry_t) // Output to sendmsg priority queue
-    val fetchdata_o = Decoupled(new queue_entry_t) // Output to datafetch queue
+    val sendmsg_o   = Decoupled(new QueueEntry) // Output to sendmsg priority queue
+    val fetchdata_o = Decoupled(new QueueEntry) // Output to datafetch queue
     val dma_w_req_o = Decoupled(new dma_write_t)   // Output to pcie write
     val dma_map_o   = Decoupled(new dma_map_t)     // Output to add new DMA map
 
@@ -35,8 +35,8 @@ class delegate extends Module {
   // By default none of the output streams are active
   io.dma_map_o.valid   := false.B
 
-  val sendmsg_queue   = Module(new Queue(new queue_entry_t, 1, true, false))
-  val fetchdata_queue = Module(new Queue(new queue_entry_t, 1, true, false))
+  val sendmsg_queue   = Module(new Queue(new QueueEntry, 1, true, false))
+  val fetchdata_queue = Module(new Queue(new QueueEntry, 1, true, false))
   val dma_w_req_queue = Module(new Queue(new dma_write_t, 1, true, false))
 
   sendmsg_queue.io.deq <> io.sendmsg_o

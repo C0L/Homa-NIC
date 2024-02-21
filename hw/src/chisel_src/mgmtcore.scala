@@ -37,7 +37,7 @@ class mgmt_core extends Module {
   val c2h_dma        = Module(new c2h_dma)  // Manage dma writes
 
   val fetch_queue    = Module(new fetch_queue)    // Fetch the next best chunk of data
-  val sendmsg_queue  = Module(new sendmsg_queue)  // Send the next best message
+  val sendmsg_queue  = Module(new SendmsgQueue)  // Send the next best message
 
   val sendmsg_cb     = Module(new dma_psdpram)
   val recvmsg_cb     = Module(new dma_psdpram)
@@ -132,7 +132,7 @@ class mgmt_core extends Module {
   io.dma_write_desc_status <> c2h_dma.io.dma_write_desc_status
 
   // TODO These are updates from the outgoing packet queue
-  // val fetch_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
+  // val fetch_arbiter = Module(new RRArbiter(new QueueEntry, 2))
   // fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
   // fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
   // fetch_arbiter.io.out   <> fetch_queue.io.enqueue
@@ -148,7 +148,7 @@ class mgmt_core extends Module {
 
 
   // Alternate between fetchdata and notifs to the fetch queue
-  val sendmsg_arbiter = Module(new RRArbiter(new queue_entry_t, 2))
+  val sendmsg_arbiter = Module(new RRArbiter(new QueueEntry, 2))
   sendmsg_arbiter.io.in(0) <> delegate.io.sendmsg_o
   sendmsg_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
   sendmsg_arbiter.io.out   <> sendmsg_queue.io.enqueue
@@ -158,10 +158,10 @@ class mgmt_core extends Module {
   val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
   axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
-  val sendmsg_in_ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  val sendmsg_in_ila = Module(new ILA(Decoupled(new QueueEntry)))
   sendmsg_in_ila.io.ila_data := delegate.io.sendmsg_o
 
-  val sendmsg_out_ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  val sendmsg_out_ila = Module(new ILA(Decoupled(new QueueEntry)))
   sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
 
   val axi_ila = Module(new ILA(new axi(512, 26, true, 8, true, 4, true, 4)))
@@ -170,7 +170,7 @@ class mgmt_core extends Module {
   val dma_map_ila = Module(new ILA(new dma_map_t))
   dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits
 
-  val fetch_in_ila = Module(new ILA(new queue_entry_t))
+  val fetch_in_ila = Module(new ILA(new QueueEntry))
   fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
 
   val fetch_out_ila = Module(new ILA(new dma_read_t))

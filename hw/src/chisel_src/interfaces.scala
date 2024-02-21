@@ -207,7 +207,7 @@ class msghdr_t extends Bundle {
 }
 
 // TODO this can be specilized now
-class queue_entry_t extends Bundle {
+class QueueEntry extends Bundle {
   val priority  = UInt(3.W)
   val granted   = UInt(20.W)
   val dbuffered = UInt(20.W)
@@ -263,7 +263,7 @@ class PacketFactory extends Bundle {
   val data    = new HomaDataHeader
   val payload = UInt(512.W)
   val cb      = new msghdr_t
-  val trigger = new queue_entry_t
+  val trigger = new QueueEntry
   val frame   = UInt(32.W)
 }
 

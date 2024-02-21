@@ -12,7 +12,7 @@ class h2c_dma extends Module {
     val dma_r_req       = Flipped(Decoupled(new dma_read_t)) // New DMA read requests
     val dma_read_desc   = Decoupled(new dma_read_desc_t) // Descriptors to pcie to init request
     val dma_read_status = Flipped(Decoupled(new dma_read_desc_status_t)) // Status of read
-    val dbuff_notif_o   = Decoupled(new queue_entry_t) // Alert the fetch queue of data arrival
+    val dbuff_notif_o   = Decoupled(new QueueEntry) // Alert the fetch queue of data arrival
   })
 
   /* Read requests are stored in a memory while they are pending

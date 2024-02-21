@@ -17,7 +17,7 @@ import chisel3.util._
  */
 class pp_egress_stages extends Module {
   val io = IO(new Bundle {
-    val trigger = Flipped(Decoupled(new queue_entry_t)) // Input from sendmsg priority queue
+    val trigger = Flipped(Decoupled(new QueueEntry)) // Input from sendmsg priority queue
     val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet
 
     val cb_ram_read_desc         = Decoupled(new ram_read_desc_t) // Read descriptors for sendmsg control blocks
@@ -53,7 +53,7 @@ class pp_egress_stages extends Module {
   pp_payload.io.ram_read_desc_status <> io.payload_ram_read_desc_status
   pp_payload.io.ram_read_data        <> io.payload_ram_read_data
 
-  val pp_egress_trigger_ila = Module(new ILA(Decoupled(new queue_entry_t)))
+  val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
   pp_egress_trigger_ila.io.ila_data := io.trigger
 
   val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
@@ -78,7 +78,7 @@ class pp_egress_lookup extends Module {
     val ram_read_desc_status  = Flipped(Decoupled(new ram_read_desc_status_t)) // Result of read descriptor
     val ram_read_data         = Flipped(Decoupled(new ram_read_data_t)) // Control block returned from read
 
-    val packet_in  = Flipped(Decoupled(new queue_entry_t)) // Output from sendmsg queue
+    val packet_in  = Flipped(Decoupled(new QueueEntry)) // Output from sendmsg queue
     val packet_out = Decoupled(new PacketFactory) // Packet factory associated with this queue output 
   })
 
@@ -88,7 +88,7 @@ class pp_egress_lookup extends Module {
 
   /* Computation occurs between register stage 0 and 1
    */
-  val packet_reg_0 = Module(new Queue(new queue_entry_t, 1, true, false))
+  val packet_reg_0 = Module(new Queue(new QueueEntry, 1, true, false))
   val pending      = Module(new Queue(new PacketFactory, 6, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
 
@@ -123,8 +123,8 @@ class pp_egress_lookup extends Module {
   // be emptied when the downstream is availible
   io.ram_read_data.ready := packet_reg_1.io.enq.ready
 
-  packet_reg_1.io.enq.bits       := pending.io.deq.bits
-  packet_reg_1.io.enq.bits.cb    := io.ram_read_data.bits.data.asTypeOf(new msghdr_t)
+  packet_reg_1.io.enq.bits    := pending.io.deq.bits
+  packet_reg_1.io.enq.bits.cb := io.ram_read_data.bits.data.asTypeOf(new msghdr_t)
 }
 
 /* pp_egress_dupe - convert a single outgoing packet factory into one

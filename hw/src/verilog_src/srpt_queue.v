@@ -247,48 +247,23 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	    m_axis_tdata  <= queue_head;
 	 end // if (!m_axis_tvalid || m_axis_tready)
 
-	 // TODO
+	 if (!dequeue_ready) begin
+	    if (queue_swap_polarity == 1'b0) begin
+	       // Assumes that write does not keep data around
+	       for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
+	  	  queue[entry] <= queue_swap_even[entry];
+	       end
 
-	 // if (head_active) begin 
-	       // else if (!queue_ready && sendq_empty) begin
-	       // 	  queue[0] <= queue[1];
-	       // 	  queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
-	       // 	  $display("wipe!! %d", head_active);
-	       // end else if (!queue_ready) begin
-	       // 	  queue[0] <= queue[1];
-	       // 	  queue[1] <= queue[0];
-	       // 	  queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_BLOCKED;
-	       // end
-	    // end 
-	 // end 
-	 // else if (!dequeue_ready && !queue_ready) begin
-	 //    $display("swap!!");
-	 //    if (queue_swap_polarity == 1'b0) begin
-	 //       // Assumes that write does not keep data around
-	 //       for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
-	 // 	  queue[entry] <= queue_swap_even[entry];
-	 //       end
+	       queue_swap_polarity <= 1'b1;
+	    end else begin
+	       for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
+	    	  queue[entry] <= queue_swap_odd[entry+1];
+	       end
 
-	 //       queue_swap_polarity <= 1'b1;
-	 //    end else begin
-	 //       for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
-	 // 	  queue[entry] <= queue_swap_odd[entry+1];
-	 //       end
-
-	 //       queue_swap_polarity <= 1'b0;
-	 //    end
-	 // end
+	       queue_swap_polarity <= 1'b0;
+	    end
+	 end // if (!dequeue_ready)
       end 
    end 
 
 endmodule // srpt_queue
-
-//task fetch_test_single_entry();
-//   begin
-//      enqueue(1, 1, 0, 0, 10000);
-//      for (i = 0; i < 10000 / `HOMA_PAYLOAD_SIZE + 1; i=i+1) begin
-//	 dequeue();
-//      end
-//      
-//   end
-//endtask
