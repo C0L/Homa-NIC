@@ -10,6 +10,12 @@ import chisel3.util._
 // segment length
 
 
+
+/////// TODO
+
+/////// THE PAYLOAD OFFSET RELIES ON DATA SEG FIELD ONLY SET IN CTOR!!!?!!!!!!!!
+
+
 /* pp_egress_stages - combine the egress (out to network) packet
  * processing stages. This involves a lookup to find the data
  * associated with the outgoing RPC (addresses, ports, etc), get the
@@ -31,17 +37,17 @@ class pp_egress_stages extends Module {
   })
 
   val pp_lookup  = Module(new pp_egress_lookup)  // Lookup the control block
+  val pp_ctor    = Module(new pp_egress_ctor) // Construct the packet header from control block data // TODO Move this after the lookup
   val pp_dupe    = Module(new pp_egress_dupe) // Generate a packet factory for each 64 bytes of packet
   val pp_payload = Module(new pp_egress_payload) // Grab the payload data for this packet factory
-  val pp_ctor    = Module(new pp_egress_ctor) // Construct the packet header from control block data // TODO Move this after the lookup
   val pp_xmit    = Module(new pp_egress_xmit) // Contruct 64B chunks from packet factory for network
 
   // Link all the units together
   pp_lookup.io.packet_in  <> io.trigger
-  pp_dupe.io.packet_in    <> pp_lookup.io.packet_out
+  pp_ctor.io.packet_in    <> pp_lookup.io.packet_out
+  pp_dupe.io.packet_in    <> pp_ctor.io.packet_out
   pp_payload.io.packet_in <> pp_dupe.io.packet_out
-  pp_ctor.io.packet_in    <> pp_payload.io.packet_out
-  pp_xmit.io.packet_in    <> pp_ctor.io.packet_out
+  pp_xmit.io.packet_in    <> pp_payload.io.packet_out
   io.egress               <> pp_xmit.io.egress
 
   // Hook control block core up to the control block RAM
@@ -54,8 +60,8 @@ class pp_egress_stages extends Module {
   pp_payload.io.ram_read_desc_status <> io.payload_ram_read_desc_status
   pp_payload.io.ram_read_data        <> io.payload_ram_read_data
 
-  val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  pp_egress_trigger_ila.io.ila_data := io.trigger
+  // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
+  // pp_egress_trigger_ila.io.ila_data := io.trigger
 
   // val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
@@ -63,11 +69,11 @@ class pp_egress_stages extends Module {
   // val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
-  // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
+  val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
 
-  val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
+  // val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  // pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
 }
 
 /* pp_egress_lookup - take an input trigger from the sendmsg queue and

@@ -162,10 +162,10 @@ class top extends RawModule {
   axi_cc.io.m_axi         <> core.io.s_axi
 
   withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) {
-  //val ram_read_desc_ila  = Module(new ILA(new ram_read_desc_t))
-  //ram_read_desc_ila.io.ila_data := core.io.ram_read_desc.bits
-  //val ram_write_desc_ila = Module(new ILA(new ram_write_desc_t))
-  //ram_write_desc_ila.io.ila_data := core.io.ram_write_desc.bits
+  val ram_read_desc_ila  = Module(new ILA(new ram_read_desc_t))
+  ram_read_desc_ila.io.ila_data := core.io.ram_read_desc.bits
+  val ram_write_desc_ila = Module(new ILA(new ram_write_desc_t))
+  ram_write_desc_ila.io.ila_data := core.io.ram_write_desc.bits
   //val ram_write_data_ila = Module(new ILA(new ram_write_data_t))
   //ram_write_data_ila.io.ila_data := core.io.ram_write_data.bits
   val dma_read_desc_ila  = Module(new ILA(new dma_read_desc_t))
