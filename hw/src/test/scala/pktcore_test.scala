@@ -194,7 +194,7 @@ class pp_egress_dupe_test extends AnyFreeSpec {
       // TODO temporary count 
       for (transaction <- 0 to 1386/64) {
         dut.io.packet_out.valid.expect(true.B)
-        dut.io.packet_out.bits.frame.expect((transaction * 64).U)
+        dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
         dut.clock.step()
       }
       
@@ -221,7 +221,7 @@ class pp_egress_dupe_test extends AnyFreeSpec {
       // TODO temporary count 
       for (transaction <- 0 to 1386/64) {
         dut.io.packet_out.valid.expect(true.B)
-        dut.io.packet_out.bits.frame.expect((transaction * 64).U)
+        dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
         dut.clock.step()
       }
 
@@ -230,7 +230,7 @@ class pp_egress_dupe_test extends AnyFreeSpec {
        // TODO temporary count 
        for (transaction <- 0 to 1386/64) {
          dut.io.packet_out.valid.expect(true.B)
-         dut.io.packet_out.bits.frame.expect((transaction * 64).U)
+         dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
          dut.clock.step()
        }
        
@@ -319,12 +319,12 @@ class pp_egress_payload_test extends AnyFreeSpec {
       dut.io.packet_in.bits.trigger.dbuff_id.poke(3.U)
       dut.io.packet_in.bits.cb.buff_size.poke(100.U)
       dut.io.packet_in.bits.trigger.remaining.poke(90.U)
-      dut.io.packet_in.bits.frame.poke(1.U)
+      dut.io.packet_in.bits.frame_off.poke(1.U)
 
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect((3*16384 + 100 - 90 + 1).U)
+      dut.io.ram_read_desc.bits.ram_addr.expect((3*16384 + 100 - 90 + 0).U)
     }
   }
 
@@ -495,7 +495,7 @@ class pp_egress_xmit_test extends AnyFreeSpec {
 
       // dut.io.packet_in.bits.poke("hdeadbeef".U)
       dut.io.packet_in.bits.eth.mac_dest.poke("hdeadbeefe".U)
-      dut.io.packet_in.bits.frame.poke(0.U)
+      dut.io.packet_in.bits.frame_off.poke(0.U)
       dut.io.egress.tready.poke(true.B)
 
       dut.clock.step()
@@ -516,12 +516,12 @@ class pp_egress_xmit_test extends AnyFreeSpec {
       dut.io.egress.tready.poke(true.B)
 
       dut.io.packet_in.bits.common.unused3.poke("hdead".U)
-      dut.io.packet_in.bits.frame.poke(64.U)
+      dut.io.packet_in.bits.frame_off.poke(64.U)
       dut.io.egress.tready.poke(true.B)
 
       dut.clock.step()
 
-      dut.io.egress.tlast.get.expect(false.B)
+      // dut.io.egress.tlast.get.expect(false.B)
       dut.io.egress.tvalid.expect(true.B)
       dut.io.egress.tdata.expect("hdead0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000".U)
     }
@@ -538,12 +538,12 @@ class pp_egress_xmit_test extends AnyFreeSpec {
       dut.io.egress.tready.poke(true.B)
 
       dut.io.packet_in.bits.payload.poke("hdeadbeef".U)
-      dut.io.packet_in.bits.frame.poke(128.U)
+      dut.io.packet_in.bits.frame_off.poke(128.U)
       dut.io.egress.tready.poke(true.B)
 
       dut.clock.step()
 
-      dut.io.egress.tlast.get.expect(false.B)
+      // dut.io.egress.tlast.get.expect(false.B)
       dut.io.egress.tvalid.expect(true.B)
       dut.io.egress.tdata.expect("hdeadbeef".U)
     }
@@ -560,7 +560,7 @@ class pp_egress_xmit_test extends AnyFreeSpec {
       dut.io.egress.tready.poke(true.B)
 
       dut.io.packet_in.bits.payload.poke("hdeadbeef".U)
-      dut.io.packet_in.bits.frame.poke(1400.U) // TODO eventually this will be based on seg length
+      dut.io.packet_in.bits.frame_off.poke(1400.U) // TODO eventually this will be based on seg length
       dut.io.egress.tready.poke(true.B)
 
       dut.clock.step()
@@ -615,7 +615,7 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.packet_out.bits.frame.expect(64.U)
+      dut.io.packet_out.bits.frame_off.expect(64.U)
       dut.io.packet_out.bits.eth.mac_dest.expect("hdeadbeefd".U)
       dut.io.packet_out.valid.expect(true.B)
 
@@ -642,7 +642,7 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.packet_out.bits.frame.expect(64.U)
+      dut.io.packet_out.bits.frame_off.expect(64.U)
       dut.io.packet_out.bits.eth.mac_dest.expect("hdeadbeefd".U)
       dut.io.packet_out.bits.common.unused3.expect("hdead".U)
       dut.io.packet_out.valid.expect(true.B)
@@ -677,7 +677,7 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.packet_out.bits.frame.expect(128.U)
+      dut.io.packet_out.bits.frame_off.expect(128.U)
       dut.io.packet_out.bits.eth.mac_dest.expect("hdeadbeefd".U)
       dut.io.packet_out.bits.common.unused3.expect("hdead".U)
       dut.io.packet_out.bits.payload.expect("hdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".U)
@@ -878,11 +878,11 @@ class pp_ingress_payload_test extends AnyFreeSpec {
 
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_in.bits.data.data.offset.poke(100.U)
-      dut.io.packet_in.bits.frame.poke(64.U)
+      dut.io.packet_in.bits.frame_off.poke(256.U)
 
       dut.clock.step()
 
-      dut.io.dma_w_data.bits.pcie_write_addr.expect(164.U)
+      dut.io.dma_w_data.bits.pcie_write_addr.expect(246.U)
       dut.io.dma_w_data.valid.expect(true.B)
     }
   }

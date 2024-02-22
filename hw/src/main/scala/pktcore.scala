@@ -9,6 +9,7 @@ import chisel3.util._
 // the writes based on the number of incoming data as provided by the
 // segment length
 
+
 /* pp_egress_stages - combine the egress (out to network) packet
  * processing stages. This involves a lookup to find the data
  * associated with the outgoing RPC (addresses, ports, etc), get the
@@ -137,7 +138,7 @@ class pp_egress_dupe extends Module {
   })
 
   // Tag each duplicated packet factory out with 64 byte increments
-  val frame = RegInit(0.U(32.W))
+  val frame_off = RegInit(0.U(32.W))
 
   /* Computation occurs between register stage 0 and 1
    */
@@ -152,18 +153,18 @@ class pp_egress_dupe extends Module {
    * Only remove the element from the first stage if we have sent all
    * the frames and receiver is ready
    */
-  packet_reg_0.io.deq.ready      := packet_reg_1.io.enq.ready && (frame >= (1386 - 64).U) // TODO temp
+  packet_reg_0.io.deq.ready      := packet_reg_1.io.enq.ready && (frame_off >= (1386 - 64).U) // TODO temp
   packet_reg_1.io.enq.valid      := packet_reg_0.io.deq.valid
   packet_reg_1.io.enq.bits       := packet_reg_0.io.deq.bits
-  packet_reg_1.io.enq.bits.frame := frame
+  packet_reg_1.io.enq.bits.frame_off := frame_off
 
   /* When a new frame is accepted then reset frame offset When a new
    * frame is removed then increment the frame offset
    */
   when (io.packet_in.fire) { 
-    frame := 0.U
+    frame_off := 0.U
   }.elsewhen (packet_reg_1.io.enq.ready && packet_reg_0.io.deq.valid) {
-    frame := frame + 64.U
+    frame_off := frame_off + 64.U
   }
 }
 
@@ -206,8 +207,8 @@ class pp_egress_payload extends Module {
   // Construct a read descriptor for this piece of data
   io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
   // TODO should clean this up, 16384 is one message cache size
-  io.ram_read_desc.bits.ram_addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining) + packet_reg_0.io.deq.bits.frame 
-  io.ram_read_desc.bits.len      := 64.U
+  io.ram_read_desc.bits.ram_addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining) + packet_reg_0.io.deq.bits.payloadOffset()
+  io.ram_read_desc.bits.len      := 64.U // Get from PayloadBytes
 
   /*
    * Tie delay queue to stage 1
@@ -240,6 +241,19 @@ class pp_egress_ctor extends Module {
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
 
+  /* If there is more than 1 packet remaining, send 1 packet's worth
+   * Otherwise send the remainder (remaining)
+   */
+  val seg_len = Wire(UInt(32.W))
+
+  when (packet_reg_0.io.deq.bits.trigger.remaining > 1386.U) {
+    seg_len := 1386.U
+  }.otherwise {
+    seg_len := packet_reg_0.io.deq.bits.trigger.remaining
+  }
+   
+  val offset  = packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining
+
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
   io.packet_out       <> packet_reg_1.io.deq
@@ -266,8 +280,8 @@ class pp_egress_ctor extends Module {
   packet_reg_1.io.enq.bits.common.checksum  := 0.U // TODO 
   packet_reg_1.io.enq.bits.common.sender_id := packet_reg_0.io.deq.bits.cb.id
 
-  packet_reg_1.io.enq.bits.data.data.offset      := packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining
-  packet_reg_1.io.enq.bits.data.data.seg_len     := 1386.U // packet_reg.io.deq.bits.trigger TODO 1386 or remaining
+  packet_reg_1.io.enq.bits.data.data.offset      := offset
+  packet_reg_1.io.enq.bits.data.data.seg_len     := seg_len
   packet_reg_1.io.enq.bits.data.data.ack.id      := 0.U
   packet_reg_1.io.enq.bits.data.data.ack.sport   := 0.U
   packet_reg_1.io.enq.bits.data.data.ack.dport   := 0.U
@@ -288,29 +302,13 @@ class pp_egress_xmit extends Module {
   packet_reg.io.deq.ready := io.egress.tready
   io.egress.tvalid := packet_reg.io.deq.valid
 
-  val length = (new PacketFactory).getWidth
-
-  when (packet_reg.io.deq.bits.frame === 0.U) {
-    // First 64 bytes
-    io.egress.tdata := packet_reg.io.deq.bits.asUInt(length-1, length-512) // TODO this is from the wrong dir?
-    // io.egress.tdata := packet_reg.io.deq.bits.asUInt(512,0) // TODO this is from the wrong dir?
-  }.elsewhen (packet_reg.io.deq.bits.frame === 64.U) {
-    // Second 64 bytes
-    io.egress.tdata := packet_reg.io.deq.bits.asUInt(length - 512 - 1, length - 1024) // TODO this is from the wrong dir?
-  }.otherwise {
-    io.egress.tdata := packet_reg.io.deq.bits.payload
-  }
-
-  io.egress.tlast.get := 0.U
+  io.egress.tdata := packet_reg.io.deq.bits.wireFrame()
 
   // TODO temporary full length packets only
-  when (packet_reg.io.deq.bits.frame >= 1386.U) {
-    io.egress.tlast.get := 1.U
-  }
-
-  // when (packet_reg.io.deq.bits.frame >= /* payload size */) {
-  io.egress.tkeep.get := "hffffffffffffffff".U
-  // }
+  // when (packet_reg.io.deq.bits.frame_off >= 1386.U) {
+  io.egress.tlast.get := packet_reg.io.deq.bits.lastFrame()
+    // }
+  io.egress.tkeep.get := packet_reg.io.deq.bits.keepBytes()
 }
 
 /* pp_ingress_stages - combine the ingress (coming from network)
@@ -408,17 +406,17 @@ class pp_ingress_dtor extends Module {
   when (io.ingress.tvalid && io.ingress.tready) {
     when (processed === 0.U) {
       pkt := Cat(io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 512).W)).asTypeOf(new PacketFactory)
-      pkt.frame := processed
+      pkt.frame_off := processed
     }.elsewhen (processed === 64.U) {
       // We know that packet_out was ready so this will send data
       pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 1024).W)).asTypeOf(new PacketFactory)
-      pkt.frame := processed
+      pkt.frame_off := processed
       pktvalid  := true.B
     }.otherwise {
       // Fill the payload section
       pktvalid := true.B
       pkt.payload := io.ingress.tdata
-      pkt.frame := processed
+      pkt.frame_off := processed
     }
 
     when (io.ingress.tlast.get) {
@@ -522,12 +520,20 @@ class pp_ingress_payload extends Module {
 
   dma_w_data := 0.U.asTypeOf(new dma_write_t)
 
+  // TODO this should be handled more explicitly
   // TODO eventually mult by offset 
-  io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.frame).asTypeOf(UInt(64.W))
+  io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
   io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload
-  io.dma_w_data.bits.length          := 64.U // TODO
+  io.dma_w_data.bits.length          := 64.U // TODO payload bytes
   io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
-  io.dma_w_data.valid                := packet_reg_0.io.deq.valid
+
+  // TODO can we make these offsets properties of the type?
+  // TODO sloppy
+  when (packet_reg_0.io.deq.bits.frame_off >= 0.U) {
+    io.dma_w_data.valid  := packet_reg_0.io.deq.valid
+  }.otherwise {
+    io.dma_w_data.valid  := false.B
+  }
 
   packet_reg_0.io.deq.ready := true.B
   packet_reg_0.io.deq.bits  := DontCare

@@ -257,14 +257,97 @@ object HOMA {
 // TODO make this parmeterizable
 // TODO this only generates on chunk
 class PacketFactory extends Bundle {
-  val eth     = new EthHeader
-  val ipv6    = new IPV6Header
-  val common  = new HomaCommonHeader
-  val data    = new HomaDataHeader
-  val payload = UInt(512.W)
-  val cb      = new msghdr_t
-  val trigger = new QueueEntry
-  val frame   = UInt(32.W)
+  val eth       = new EthHeader
+  val ipv6      = new IPV6Header
+  val common    = new HomaCommonHeader
+  val data      = new HomaDataHeader
+  val payload   = UInt(512.W)
+  val cb        = new msghdr_t
+  val trigger   = new QueueEntry
+  val frame_off = UInt(32.W)
+
+  val ETH_BYTES    = eth.getWidth / 8
+  val IPV6_BYTES   = ipv6.getWidth / 8
+  val COMMON_BYTES = common.getWidth / 8
+  val DATA_BYTES   = data.getWidth / 8
+  val HDR_BYTES    = ETH_BYTES + IPV6_BYTES + COMMON_BYTES + DATA_BYTES
+
+  def wireFrame(): UInt = {
+    val frame = Wire(UInt(512.W))
+
+    when (frame_off === 0.U) {
+      // First 64 bytes
+      frame := this.asUInt(this.getWidth - 1, this.getWidth - 512) 
+    }.elsewhen (frame_off === 64.U) {
+      // Second 64 bytes
+      frame := this.asUInt(this.getWidth - 512 - 1, this.getWidth - 1024)
+    }.otherwise {
+      frame := this.payload
+    }
+
+    frame
+  }
+
+  def lastFrame(): UInt = {
+    val last = Wire(UInt(1.W))
+    // If the next 64 bytes from frame offset exceeds the size then set last signal
+    when (frame_off + 64.U > HDR_BYTES.U + data.data.seg_len) {
+      last := 1.U
+    }.otherwise {
+      last := 0.U
+    }
+    last
+  }
+
+  def payloadBytes(): UInt = {
+    val bytes = Wire(UInt(32.W))
+
+    when (frame_off === 0.U) {
+      bytes := 0.U
+    }.elsewhen (frame_off === 64.U) {
+      bytes := (128 - HDR_BYTES).U
+    }.otherwise {
+      bytes := 64.U
+    }
+
+    when (this.payloadOffset() + bytes > data.data.seg_len) {
+      bytes := data.data.seg_len - this.payloadOffset()
+    }
+    bytes
+  }
+
+  def payloadOffset(): UInt = {
+    val offset = Wire(UInt(32.W))
+
+    /* The first frame has no payload, so leave offset as 0. The
+     * second frame has payload which starts at offset 0 from the
+     * segment offset. Sucessive frames have an offset that begins
+     * after the first partial chunk.
+     */
+    when (frame_off <= 64.U) {
+      offset := 0.U
+    }.otherwise {
+      offset := frame_off - HDR_BYTES.U
+    }
+   offset  
+  }
+
+  def keepBytes(): UInt = {
+    val keep = Wire(UInt(64.W))
+
+
+
+    // val keep = ("hffffffffffffffff".U << (64.U - this.payloadBytes()(5,0)))
+
+    // If the next 64 bytes from frame offset exceeds the size then set last signal
+    when (frame_off + 64.U > HDR_BYTES.U + data.data.seg_len) {
+      keep := ("hffffffffffffffff".U(64.W) << (frame_off + 64.U - (HDR_BYTES.U + data.data.seg_len))(5,0))
+    }.otherwise {
+      keep := "hffffffffffffffff".U(64.W)
+    }
+
+    keep
+  }
 }
 
 class EthHeader extends Bundle {

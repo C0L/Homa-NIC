@@ -105,7 +105,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 
    wire				       sendq_granted;
    wire				       sendq_dbuffered;
-   wire				       sendq_empty;
+   // wire				       sendq_empty;
 
    wire				       head_active;
    wire				       fetch_empty;
@@ -155,7 +155,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    
    assign sendq_dbuffered = (queue_head[`QUEUE_ENTRY_DBUFFERED] + `HOMA_PAYLOAD_SIZE <= queue_head[`QUEUE_ENTRY_REMAINING]) 
      | (queue_head[`QUEUE_ENTRY_DBUFFERED] == 0);
-   assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] == 0;
+   // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] == 0;
    
    // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
 
@@ -168,7 +168,6 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    always @* begin
       if (TYPE == "sendmsg") begin
 	 ripe = sendq_granted & sendq_dbuffered & head_active;
-	 // ripe = sendq_granted & sendq_dbuffered & !sendq_empty & head_active;
       end else if (TYPE == "fetch") begin
 	 ripe = head_active & !fetch_empty;
       end
