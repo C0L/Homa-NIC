@@ -403,6 +403,8 @@ class pp_ingress_dtor extends Module {
    * up with the data being added to the packet factory we are
    * constructing.
    */
+
+  // TODO can some of this be moved into packet factory?
   when (io.ingress.tvalid && io.ingress.tready) {
     when (processed === 0.U) {
       pkt := Cat(io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 512).W)).asTypeOf(new PacketFactory)

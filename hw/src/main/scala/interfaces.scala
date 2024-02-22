@@ -329,16 +329,11 @@ class PacketFactory extends Bundle {
     }.otherwise {
       offset := frame_off - HDR_BYTES.U
     }
-   offset  
+    offset
   }
 
   def keepBytes(): UInt = {
     val keep = Wire(UInt(64.W))
-
-
-
-    // val keep = ("hffffffffffffffff".U << (64.U - this.payloadBytes()(5,0)))
-
     // If the next 64 bytes from frame offset exceeds the size then set last signal
     when (frame_off + 64.U > HDR_BYTES.U + data.data.seg_len) {
       keep := ("hffffffffffffffff".U(64.W) << (frame_off + 64.U - (HDR_BYTES.U + data.data.seg_len))(5,0))

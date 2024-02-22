@@ -328,6 +328,68 @@ class pp_egress_payload_test extends AnyFreeSpec {
     }
   }
 
+  "pp_payload_test: test sequenece of addresses out" in {
+    simulate(new pp_egress_payload) { dut =>
+
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.ram_read_data.valid.poke(true.B)
+
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.trigger.dbuff_id.poke(0.U)
+      dut.io.packet_in.bits.cb.buff_size.poke(0.U)
+      dut.io.packet_in.bits.trigger.remaining.poke(0.U)
+      dut.io.packet_in.bits.frame_off.poke(0.U)
+
+      dut.clock.step()
+
+      dut.io.ram_read_desc.valid.expect(true.B)
+      dut.io.ram_read_desc.bits.ram_addr.expect(0.U)
+
+      dut.clock.step()
+
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.trigger.dbuff_id.poke(0.U)
+      dut.io.packet_in.bits.cb.buff_size.poke(0.U)
+      dut.io.packet_in.bits.trigger.remaining.poke(0.U)
+      dut.io.packet_in.bits.frame_off.poke(64.U)
+
+      dut.clock.step()
+
+      dut.io.ram_read_desc.valid.expect(true.B)
+      dut.io.ram_read_desc.bits.ram_addr.expect(0.U)
+
+      dut.clock.step()
+
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.trigger.dbuff_id.poke(0.U)
+      dut.io.packet_in.bits.cb.buff_size.poke(0.U)
+      dut.io.packet_in.bits.trigger.remaining.poke(0.U)
+      dut.io.packet_in.bits.frame_off.poke(128.U)
+
+      dut.clock.step()
+
+      dut.io.ram_read_desc.valid.expect(true.B)
+      dut.io.ram_read_desc.bits.ram_addr.expect(18.U)
+
+      dut.clock.step()
+
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.trigger.dbuff_id.poke(0.U)
+      dut.io.packet_in.bits.cb.buff_size.poke(0.U)
+      dut.io.packet_in.bits.trigger.remaining.poke(0.U)
+      dut.io.packet_in.bits.frame_off.poke(192.U)
+
+      dut.clock.step()
+
+      dut.io.ram_read_desc.valid.expect(true.B)
+      dut.io.ram_read_desc.bits.ram_addr.expect(82.U)
+    }
+  }
+
   "pp_payload_test: test data out" in {
     simulate(new pp_egress_payload) { dut =>
 
