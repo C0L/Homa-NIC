@@ -203,7 +203,6 @@ class pp_egress_payload extends Module {
 
   io.ram_read_desc.bits := 0.U.asTypeOf(new ram_read_desc_t)
 
-
   // TODO should clean this up, 16384 is one message cache size. This can be computed in packet fac?
   // TODO This should only be on first one
   // io.ram_read_desc.valid         := packet_reg_0.io.deq.fire && (packet_reg_0.io.deq.frame == 0.U)
@@ -527,11 +526,15 @@ class pp_ingress_payload extends Module {
 
   dma_w_data := 0.U.asTypeOf(new dma_write_t)
 
+  // Write data at un-aligned offset in RAM
+  // Keep count of bufferd bytes
+  // When we exceed 256, or end of packet, send write TLP 
+
   // TODO this should be handled more explicitly
   // TODO eventually mult by offset 
   io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
   io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload
-  io.dma_w_data.bits.length          := 64.U // TODO payload bytes
+  io.dma_w_data.bits.length          := packet_reg_0.io.deq.bits.payloadBytes()
   io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
 
   // TODO can we make these offsets properties of the type?

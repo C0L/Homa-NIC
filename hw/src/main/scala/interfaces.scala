@@ -310,10 +310,15 @@ class PacketFactory extends Bundle {
       bytes := 64.U
     }
 
+    val offset = Wire(UInt(32.W))
+
+    val truncbytes = Wire(UInt(32.W))
+    truncbytes := bytes
+
     when (this.payloadOffset() + bytes > data.data.seg_len) {
-      bytes := data.data.seg_len - this.payloadOffset()
+      truncbytes := data.data.seg_len - this.payloadOffset()
     }
-    bytes
+    truncbytes
   }
 
   def payloadOffset(): UInt = {
