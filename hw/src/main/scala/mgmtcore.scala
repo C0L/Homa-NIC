@@ -96,9 +96,11 @@ class mgmt_core extends Module {
   recvmsg_cb.io.ram_rd <> recvmsg_cb_rd.io.ram_rd
 
   sendmsg_cb_wr.io.enable := 1.U
+  sendmsg_cb_wr.io.abort  := 0.U
   sendmsg_cb_rd.io.enable := 1.U
 
   recvmsg_cb_wr.io.enable := 1.U
+  recvmsg_cb_wr.io.abort  := 0.U
   recvmsg_cb_rd.io.enable := 1.U
 
   delegate.io.sendmsg_ram_write_desc        <> sendmsg_cb_wr.io.ram_write_desc

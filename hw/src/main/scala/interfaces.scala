@@ -54,7 +54,7 @@ class ram_write_data_t extends Bundle {
   val data = UInt(512.W)
   val keep = UInt(64.W)
   val last = UInt(1.W)
-  val id   = UInt(8.W)
+  val id   = UInt(1.W)
   val dest = UInt(8.W)
   val user = UInt(1.W)
 }

@@ -21,7 +21,7 @@ class dma_client_axis_source extends BlackBox(
       "AXIS_USER_WIDTH" -> 1,
       "LEN_WIDTH" -> 64,
       "TAG_WIDTH" -> 8
-  )) {
+  )) with HasBlackBoxResource {
 
   // TODO should parameterize ram interfaces
   val io = IO(new Bundle {
@@ -36,6 +36,7 @@ class dma_client_axis_source extends BlackBox(
 
     val enable = Input(UInt(1.W))
   })
+  addResource("/verilog_libs/pcie/dma_client_axis_source.v")
 }
 
 class dma_client_axis_sink extends BlackBox(
@@ -56,7 +57,7 @@ class dma_client_axis_sink extends BlackBox(
       "AXIS_USER_WIDTH" -> 1,
       "LEN_WIDTH" -> 64,
       "TAG_WIDTH" -> 8
-  )) {
+  )) with HasBlackBoxResource {
 
   // TODO should parameterize ram interfaces
   val io = IO(new Bundle {
@@ -70,7 +71,9 @@ class dma_client_axis_sink extends BlackBox(
     val ram_wr = new ram_wr_t
 
     val enable = Input(UInt(1.W))
-  })
+    val abort  = Input(UInt(1.W))
+ })
+  addResource("/verilog_libs/pcie/dma_client_axis_sink.v")
 }
 
 class srpt_queue (qtype: String) extends BlackBox (
@@ -162,7 +165,7 @@ class dma_psdpram extends BlackBox(
       "SEG_BE_WIDTH" -> 64,
       "SEG_ADDR_WIDTH" -> 11,
       "PIPELINE" -> 2
-  )) {
+  )) with HasBlackBoxResource {
 
   // TODO should parameterize ram interfaces
   val io = IO(new Bundle {
@@ -172,6 +175,7 @@ class dma_psdpram extends BlackBox(
     val ram_wr = Flipped(new ram_wr_t)
     val ram_rd = Flipped(new ram_rd_t)
   })
+  addResource("/verilog_libs/pcie/dma_psdpram.v")
 }
 
 /* axi2axis_rtl - converts AXI requests into AXI stream requests

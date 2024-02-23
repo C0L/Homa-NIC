@@ -22,6 +22,11 @@ THE SOFTWARE.
 
 */
 
+/* verilator lint_off PINMISSING */
+/* verilator lint_off WIDTHEXPAND */
+/* verilator lint_off WIDTHTRUNC */
+/* verilator lint_off CASEINCOMPLETE */
+
 // Language: Verilog 2001
 
 `resetall

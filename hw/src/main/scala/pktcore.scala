@@ -9,13 +9,6 @@ import chisel3.util._
 // the writes based on the number of incoming data as provided by the
 // segment length
 
-
-
-/////// TODO
-
-/////// THE PAYLOAD OFFSET RELIES ON DATA SEG FIELD ONLY SET IN CTOR!!!?!!!!!!!!
-
-
 /* pp_egress_stages - combine the egress (out to network) packet
  * processing stages. This involves a lookup to find the data
  * associated with the outgoing RPC (addresses, ports, etc), get the
@@ -210,9 +203,15 @@ class pp_egress_payload extends Module {
 
   io.ram_read_desc.bits := 0.U.asTypeOf(new ram_read_desc_t)
 
-  // Construct a read descriptor for this piece of data
+
+  // TODO should clean this up, 16384 is one message cache size. This can be computed in packet fac?
+  // TODO This should only be on first one
+  // io.ram_read_desc.valid         := packet_reg_0.io.deq.fire && (packet_reg_0.io.deq.frame == 0.U)
+  // io.ram_read_desc.bits.ram_addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining)
+  // io.ram_read_desc.bits.len      := packet_reg_0.io.data.data.seg_len
+
+
   io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
-  // TODO should clean this up, 16384 is one message cache size
   io.ram_read_desc.bits.ram_addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining) + packet_reg_0.io.deq.bits.payloadOffset()
   io.ram_read_desc.bits.len      := 64.U // Get from PayloadBytes
 

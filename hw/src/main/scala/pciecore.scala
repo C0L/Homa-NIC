@@ -41,7 +41,8 @@ class pcie_core extends Module {
   val pcie_user_reset       = IO(Output(Bool()))
 
   val pcie_core             = Module(new pcie_rtl)
-  val dma_client_read       = Module(new dma_client_axis_source)
+  val dma_client_read       = Module(new psdpram_rd)
+  // val dma_client_read       = Module(new dma_client_axis_source)
   val dma_client_write      = Module(new dma_client_axis_sink)
   val h2c_psdpram           = Module(new dma_psdpram)
   val c2h_psdpram           = Module(new dma_psdpram)
@@ -57,8 +58,8 @@ class pcie_core extends Module {
   dma_write_desc <> pcie_core.io.dma_write_desc
   dma_write_desc_status <> pcie_core.io.dma_write_desc_status
 
-  dma_client_read.io.clk  := pcie_core.io.pcie_user_clk
-  dma_client_read.io.rst  := pcie_core.io.pcie_user_reset 
+  // dma_client_read.io.clk  := pcie_core.io.pcie_user_clk
+  // dma_client_read.io.rst  := pcie_core.io.pcie_user_reset 
 
   dma_client_write.io.clk := pcie_core.io.pcie_user_clk
   dma_client_write.io.rst := pcie_core.io.pcie_user_reset
@@ -85,16 +86,19 @@ class pcie_core extends Module {
   c2h_psdpram.io.ram_rd <> pcie_core.io.ram_rd
 
   dma_client_read.io.ram_read_desc        <> ram_read_desc 
-  dma_client_read.io.ram_read_desc_status <> ram_read_desc_status
+  // dma_client_read.io.ram_read_desc_status <> ram_read_desc_status
   dma_client_read.io.ram_read_data        <> ram_read_data
-  dma_client_read.io.enable := 1.U(1.W)
+  // dma_client_read.io.enable := 1.U(1.W)
 
   dma_client_read.io.ram_rd <> h2c_psdpram.io.ram_rd
+
+  ram_read_desc_status := DontCare
 
   dma_client_write.io.ram_write_desc        <> ram_write_desc
   dma_client_write.io.ram_write_data        <> ram_write_data
   dma_client_write.io.ram_write_desc_status <> ram_write_desc_status
   dma_client_write.io.enable := 1.U(1.W)
+  dma_client_write.io.abort := 0.U(1.W)
 
   dma_client_write.io.ram_wr <> c2h_psdpram.io.ram_wr
 
@@ -102,6 +106,9 @@ class pcie_core extends Module {
 
   val h2c_psdpram_wr_ila = Module(new ILA(Flipped(new ram_wr_t)))
   h2c_psdpram_wr_ila.io.ila_data := pcie_core.io.ram_wr
+
+  val h2c_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t)))
+  h2c_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd
 
   val c2h_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t)))
   c2h_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd
