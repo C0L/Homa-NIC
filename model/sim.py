@@ -1,7 +1,7 @@
 '''
 Minimal PIFO vs Mutable vs Idealized SRPT Test Cases
 
-PIFO: We consider a single PIFO queue. The queue is arbitarily large. Two operations are defined on the queue: enqueue, dequeue/modify. An enqueue operation can insert a new entry to any slot within the PIFO. A dequeue/modify operation can only remove or modify the element at the head of the queue. We assume an ideal case that enqueue and dequeue/modify operations can both be performed in a single timestep, and that they can be performed simultaneously. 
+PIFO: We consider a single PIFO queue. The queue is arbitarily large. Two operations are defined on the queue: enqueue, dequeue/modify head. An enqueue operation can insert a new entry to any slot within the PIFO. A dequeue/modify operation can only remove or modify the element at the head of the queue. We assume an ideal case that enqueue and dequeue/modify operations can both be performed in a single timestep, and that they can be performed simultaneously. 
 
 Alongside the PIFO exists a space for entries that are inelegible for scheduling. We assume this is arbitrarily large, and a single entry can be read and written simultaneously in a single timestep. 
 
@@ -12,29 +12,31 @@ The PIFO observes the following enqueue/dequeue/modify rules:
 4) If an entry at the head of the PIFO is inactive, the entry is dequeued and inserted into the off-queue space.
 
 
-Mutable: We consider a single mutable queue. The queue is arbitarily large. Three operations are defined on the queue: enqueue, dequeue/modify. An enqueue operation can insert a new entry to the head of the queue. A dequeue/modify operation can only remove or modify the element at the head of the queue. We assume an ideal case that enqueue, dequeue/modify operations can be performed in a single timestep, and that they can be performed simultaneously.
+Mutable Queue: We consider a single mutable queue. The queue is arbitarily large. Two operations are defined on the queue: enqueue, dequeue/modify head. An enqueue operation can insert a new entry to the head of the queue. A dequeue/modify operation can only remove or modify the element at the head of the queue. We assume an ideal case that enqueue, dequeue/modify operations can be performed in a single timestep, and that they can be performed simultaneously.
 
-At the conclusion of each timestep half of the entries in the queue will compare themselves and decided whether they should swap with their neighbor.  This alternates between the even half comparing against .... their lower neighbor
-
-and the odd half. 
-
-TODO ..... 
-
-half of the entries in the queue compares itself with its neighbor based on the following rules:
-- If the neghbor closer to the head in the queue has a better strict priority then swap positions.
+At the conclusion of each timestep half of the entries in the queue will compare themselves to their immediate neighbor and decided whether they should swap positions based on their comparative priority. The half of entries performing this comparison will alternate between the even and odd entries each timestep. The entries will swap based on the following rules:
+- If the neighbor further from the head in the queue has a better strict priority then swap positions.
+- If the neighbor further from the head in the queue has equal strict priority and better SRPT priority, then swap positions.
+- TODO mention modification -- this is a property of the queue
 
 The mutable queue observes the following enqueue/dequeue/modify rules:
-1) If a new entry arrives, and it is active, then it is enqueued to the mutable queue.
-2) If a new entry arrives, and it is inactive, it is enqueued 
+1) If a new entry arrives, and it is active, then it is enqueued to the mutable queue with an active priority.
+2) If a new entry arrives, and it is inactive, then it is enqueued to the mutable queue with an inactive priority.
+3) If an entry later becomes active, an update message is enqueued to percolate upwards and communicate the change.
+3) If an entry later becomes inactive, an update message is enqueued to percolate upwards and communicate the change.
+4) If the entry at the head of the mutable queue is active, one packet is sent and the entry is updated to relfect that change. If the entry is empty as a result, then it is dequeued from the mutable queue.
 
+Idealized Queue: The idealized queue will implement SRPT among its active entries, be unbounded in size, and always reflect the currently activity of any given entry. 
 
-Workload:
+Workloads:
+1) Everything is active the entire time: A set of entries (send message requests) arrive to each of the queues in a single timestep. All of these entries are active and their state will remain unchanged.
+2) Active during insert -> inactive after insert: A set of entries (send message requests) arrive to each of the queues in a single timestep. All of these entries are curently active. At some point during the lifetime of these entries, an entry that was once active now becomes inactive.
+3) Inactive during insert -> active after insert: A set of entries (send message requests) arrive to each of the queues in a single timestep. Some of these entries are inactive. At some point these entries become active.
 
-- Everything is active the entire time
-- A job goes from active during insert to inactive after insert
-- A job goes from inactive on insert to active after insert
-
-Three cases? with an example set of values? 
+Distrbutions:
+- Reduced: There are only a handful (5-10) initial entries. An update can change the state of 1-2 of these at once. In workload 1) all of these entries begin and remain active. In workload 2) all of these entries are active at insertion, and will be completly added to each queue. At this point the simulation begins and each timestep gives some propability of an entry becoming inactive. Once an entry becomes inacitve, it will NOT later become active and be reinserted. In workload 3) the entries will be added to the queue based on the predefined method for active/inactive entries. Each timestep will have a probability of activating one deactivated entry. 
+- "Realistic": There are 50-100 initial entries. An activation can change the state of 5-10 of these at once. 
+- Pathalogical: There are 500-1000 initial entries. An activation can change the state of 50-100 of these at once.
 
 
 Evaluation:
@@ -42,18 +44,23 @@ Number of dry fires
 Cycles spent reinserting
 Total number of cycles
 Inaccuracies?
-SRPTness?
-
 '''
 
-# PIFO waits until it gets to the front and dry fires
-# 
 
-# The time between when a set of jobs arrives and when a job is activated? Do we let the queue stabalize?
 
-# Make the simplifying assumption that a stable state is reached?
 
-# "Workloads"
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
