@@ -7,9 +7,9 @@ import chisel3.util._
 
 class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   val io = IO(new Bundle {
-    val search = Decoupled(UInt(KEY_WIDTH.W)) 
-    val result = Decoupled(UInt(VALUE_WIDTH.W))
-    val insert = Decoupled(new CAMEntry(KEY_WIDTH, VALUE_WIDTH))
+    val search = Flipped(Decoupled(new CAMEntry(KEY_WIDTH, VALUE_WIDTH)))
+    val result = Decoupled(new CAMEntry(KEY_WIDTH, VALUE_WIDTH))
+    val insert = Flipped(Decoupled(new CAMEntry(KEY_WIDTH, VALUE_WIDTH)))
   })
 
   // TODO also need to search on output of insertion queues
@@ -40,18 +40,31 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   cam_2_insert.io.enq.valid := false.B
   cam_3_insert.io.enq.valid := false.B
 
+  cam_1_insert.io.enq.bits := 0.U.asTypeOf(new CAMEntry(KEY_WIDTH, VALUE_WIDTH))
+  cam_2_insert.io.enq.bits := 0.U.asTypeOf(new CAMEntry(KEY_WIDTH, VALUE_WIDTH))
+  cam_3_insert.io.enq.bits := 0.U.asTypeOf(new CAMEntry(KEY_WIDTH, VALUE_WIDTH))
+
+  cam_1_insert.io.enq.ready := DontCare
+  cam_2_insert.io.enq.ready := DontCare
+  cam_3_insert.io.enq.ready := DontCare
+
+  cam_0_insert.io.deq.ready := DontCare
+  cam_1_insert.io.deq.ready := DontCare
+  cam_2_insert.io.deq.ready := DontCare
+  cam_3_insert.io.deq.ready := DontCare
+
   // Initiate insert write commands
   cam_0.writePorts(0).address := cam_0_insert.io.deq.bits.hash()
-  cam_0.writePorts(0).data    := cam_0_insert.io.deq.bits.value
+  cam_0.writePorts(0).data    := cam_0_insert.io.deq.bits
   cam_0.writePorts(0).enable  := cam_0_insert.io.deq.valid
   cam_1.writePorts(0).address := cam_1_insert.io.deq.bits.hash()
-  cam_1.writePorts(0).data    := cam_1_insert.io.deq.bits.value
+  cam_1.writePorts(0).data    := cam_1_insert.io.deq.bits
   cam_1.writePorts(0).enable  := cam_1_insert.io.deq.valid
   cam_2.writePorts(0).address := cam_2_insert.io.deq.bits.hash()
-  cam_2.writePorts(0).data    := cam_2_insert.io.deq.bits.value
+  cam_2.writePorts(0).data    := cam_2_insert.io.deq.bits
   cam_2.writePorts(0).enable  := cam_2_insert.io.deq.valid
   cam_3.writePorts(0).address := cam_3_insert.io.deq.bits.hash()
-  cam_3.writePorts(0).data    := cam_3_insert.io.deq.bits.value
+  cam_3.writePorts(0).data    := cam_3_insert.io.deq.bits
   cam_3.writePorts(0).enable  := cam_3_insert.io.deq.valid
 
   // Initiate insert read commands
@@ -89,14 +102,24 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   val cam_2_search = Module(new Queue(new CAMEntry(KEY_WIDTH, VALUE_WIDTH), 1, true, false))
   val cam_3_search = Module(new Queue(new CAMEntry(KEY_WIDTH, VALUE_WIDTH), 1, true, false))
 
-  cam_0_search.io.enq.bits := io.search.bits
-  cam_0_search.io.enq.valid    := io.search.valid
-  cam_1_search.io.enq.bits := io.search.bits
-  cam_1_search.io.enq.valid    := io.search.valid
-  cam_2_search.io.enq.bits := io.search.bits
-  cam_2_search.io.enq.valid    := io.search.valid
-  cam_3_search.io.enq.bits := io.search.bits
-  cam_3_search.io.enq.valid    := io.search.valid
+  cam_0_search.io.enq.bits  := io.search.bits
+  cam_0_search.io.enq.valid := io.search.valid
+  cam_1_search.io.enq.bits  := io.search.bits
+  cam_1_search.io.enq.valid := io.search.valid
+  cam_2_search.io.enq.bits  := io.search.bits
+  cam_2_search.io.enq.valid := io.search.valid
+  cam_3_search.io.enq.bits  := io.search.bits
+  cam_3_search.io.enq.valid := io.search.valid
+
+  cam_0_search.io.deq.ready := DontCare
+  cam_1_search.io.deq.ready := DontCare
+  cam_2_search.io.deq.ready := DontCare
+  cam_3_search.io.deq.ready := DontCare
+
+  cam_0_search.io.deq.ready := DontCare
+  cam_1_search.io.deq.ready := DontCare
+  cam_2_search.io.deq.ready := DontCare
+  cam_3_search.io.deq.ready := DontCare
 
   io.search.ready          := true.B // TODO always the case?
 
@@ -115,27 +138,19 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   val cam_search_key     = RegNext(cam_0_search.io.deq.bits.key)
 
   io.result.valid := false.B
-  io.result.bits  := 0.U
+  io.result.bits  := 0.U.asTypeOf(new CAMEntry(KEY_WIDTH, VALUE_WIDTH))
 
   // When the data for a search is read out
   when (cam_search_pending) {
-    // Check if we got a hit 
-    switch (cam_search_key) {
-      is (cam_0.readPorts(1).data.key) {
-        io.result.bits := cam_0.readPorts(1).data.value
-      }
-
-      is (cam_1.readPorts(1).data.key) {
-        io.result.bits := cam_0.readPorts(1).data.value
-      }
-
-      is (cam_2.readPorts(1).data.key) {
-        io.result.bits := cam_0.readPorts(1).data.value
-      }
-
-      is (cam_3.readPorts(1).data.key) {
-        io.result.bits := cam_0.readPorts(1).data.value
-      }
+    // Check if we got a hit
+    when (cam_search_key === cam_0.readPorts(1).data.key) {
+      io.result.bits := cam_0.readPorts(1).data
+    }.elsewhen (cam_search_key === cam_1.readPorts(1).data.key) {
+      io.result.bits := cam_1.readPorts(1).data
+    }.elsewhen (cam_search_key === cam_2.readPorts(1).data.key) {
+      io.result.bits := cam_2.readPorts(1).data
+    }.elsewhen (cam_search_key === cam_3.readPorts(1).data.key) {
+      io.result.bits := cam_3.readPorts(1).data
     }
     io.result.valid := true.B
   }

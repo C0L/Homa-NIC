@@ -405,11 +405,10 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
   val set   = UInt(1.W)
 
   def hash(): UInt = {
-    val result = UInt(32.W)
+    val result = Wire(UInt(14.W))
 
-    for (i <- 0 to KEY_WIDTH/8) {
-      result := result ^ key((i + 1) * 32, i * 32)
-    }
+    val vec = key.asTypeOf(Vec(KEY_WIDTH/14, UInt(14.W)))
+    result := vec.reduce(_ ^ _)
 
     result
   }
