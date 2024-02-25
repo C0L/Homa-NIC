@@ -621,7 +621,7 @@ class pp_egress_xmit_test extends AnyFreeSpec {
 
       dut.io.packet_in.bits.payload.poke("hdeadbeef".U)
       dut.io.packet_in.bits.data.data.seg_len.poke(1386.U) 
-      dut.io.packet_in.bits.frame_off.poke((22*64).U) // TODO eventually this will be based on seg length
+      dut.io.packet_in.bits.frame_off.poke((23*64).U) // TODO eventually this will be based on seg length
       dut.io.egress.tready.poke(true.B)
 
       dut.clock.step()

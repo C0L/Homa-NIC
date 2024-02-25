@@ -431,7 +431,7 @@ class pp_ingress_dtor extends Module {
     }
 
     when (io.ingress.tlast.get) {
-      processed := 0.U
+      processed := 0.U 
     }.otherwise {
       processed := processed + 64.U
     }

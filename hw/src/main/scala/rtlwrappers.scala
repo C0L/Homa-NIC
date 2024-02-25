@@ -123,7 +123,7 @@ class fetch_queue extends Module {
   dma_read.cache_id       := fetch_queue_raw_out.dbuff_id // TODO bad name 
   dma_read.message_size   := fetch_queue_raw_out.granted
   dma_read.read_len       := 256.U // TODO placeholder
-  dma_read.dest_ram_addr  := fetch_queue_raw_out.dbuffered
+  dma_read.dest_ram_addr  := (16384.U * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
   dma_read.port           := 1.U // TODO placeholder
 
   io.dequeue.bits         := dma_read
@@ -140,7 +140,6 @@ class SendmsgQueue extends Module {
   })
 
   val send_queue_raw = Module(new srpt_queue("sendmsg"))
-
 
   val sendmsg_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
   sendmsg_out_ila.io.ila_data := send_queue_raw.io.m_axis
