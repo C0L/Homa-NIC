@@ -310,8 +310,6 @@ class PacketFactory extends Bundle {
       bytes := 64.U
     }
 
-    val offset = Wire(UInt(32.W))
-
     val truncbytes = Wire(UInt(32.W))
     truncbytes := bytes
 
@@ -399,4 +397,20 @@ class HomaAck extends Bundle {
   val id    = UInt(64.W)
   val sport = UInt(16.W)
   val dport = UInt(16.W)
+}
+
+class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
+  val key   = UInt(KEY_WIDTH.W)
+  val value = UInt(VALUE_WIDTH.W)
+  val set   = UInt(1.W)
+
+  def hash(): UInt = {
+    val result = UInt(32.W)
+
+    for (i <- 0 to KEY_WIDTH/8) {
+      result := result ^ key((i + 1) * 32, i * 32)
+    }
+
+    result
+  }
 }
