@@ -404,12 +404,19 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
   val value = UInt(VALUE_WIDTH.W)
   val set   = UInt(1.W)
 
+
+  // TODO need a different function for each table!!!!!
+  // TODO Murmur3 is probably better here
   def hash(): UInt = {
     val result = Wire(UInt(14.W))
 
+    // TODO 
+    // while (c = *str++)
+            // hash = ((hash << 5) + hash) + c; 
+
     val vec = key.asTypeOf(Vec(KEY_WIDTH/14, UInt(14.W)))
     result := vec.reduce(_ ^ _)
-
+    printf("%d\n", result)
     result
   }
 }

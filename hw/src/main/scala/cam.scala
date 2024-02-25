@@ -94,7 +94,6 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
     cam_3_insert.io.enq.valid := true.B
   }
 
-
   /***** Search Logic *****/
   // CAMEntry ready to be inserted into respective sub-table
   val cam_0_search = Module(new Queue(new CAMEntry(KEY_WIDTH, VALUE_WIDTH), 1, true, false))
