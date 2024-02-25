@@ -52,7 +52,7 @@ class h2c_dma extends Module {
   io.dbuff_notif_o.bits.dbuff_id   := pending_read.cache_id
   io.dbuff_notif_o.bits.remaining  := 0.U
   val notif_offset = Wire(UInt(20.W))
-  notif_offset := pending_read.message_size - pending_read.dest_ram_addr 
+  notif_offset := pending_read.message_size - (pending_read.dest_ram_addr - (16384.U * pending_read.cache_id)) // TODO not great
   when (notif_offset < 256.U) {
     io.dbuff_notif_o.bits.dbuffered  := 0.U
   }.otherwise {

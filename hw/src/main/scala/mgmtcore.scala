@@ -160,6 +160,9 @@ class mgmt_core extends Module {
   // val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
   // axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
+  val dbuff_in_ila = Module(new ILA(new QueueEntry))
+  dbuff_in_ila.io.ila_data := h2c_dma.io.dbuff_notif_o.bits
+
   // val sendmsg_in_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // sendmsg_in_ila.io.ila_data := delegate.io.sendmsg_o
 
