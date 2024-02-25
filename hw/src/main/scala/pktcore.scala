@@ -53,6 +53,10 @@ class pp_egress_stages extends Module {
   pp_payload.io.ram_read_desc_status <> io.payload_ram_read_desc_status
   pp_payload.io.ram_read_data        <> io.payload_ram_read_data
 
+
+  val pp_egress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  pp_egress_ila.io.ila_data := io.egress
+
   // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // pp_egress_trigger_ila.io.ila_data := io.trigger
 
@@ -152,9 +156,10 @@ class pp_egress_dupe extends Module {
    * Only remove the element from the first stage if we have sent all
    * the frames and receiver is ready
    */
-  packet_reg_0.io.deq.ready      := packet_reg_1.io.enq.ready && (frame_off >= (1386 - 64).U) // TODO temp
-  packet_reg_1.io.enq.valid      := packet_reg_0.io.deq.valid
-  packet_reg_1.io.enq.bits       := packet_reg_0.io.deq.bits
+  // TODO Move some of this logic out
+  packet_reg_0.io.deq.ready          := packet_reg_1.io.enq.ready && (frame_off >= (1500 - 64).U) // TODO temp this only works for max sized packets
+  packet_reg_1.io.enq.valid          := packet_reg_0.io.deq.valid
+  packet_reg_1.io.enq.bits           := packet_reg_0.io.deq.bits
   packet_reg_1.io.enq.bits.frame_off := frame_off
 
   /* When a new frame is accepted then reset frame offset When a new

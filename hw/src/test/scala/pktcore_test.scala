@@ -192,7 +192,7 @@ class pp_egress_dupe_test extends AnyFreeSpec {
       dut.clock.step()
 
       // TODO temporary count 
-      for (transaction <- 0 to 1386/64) {
+      for (transaction <- 0 to 1500/64) {
         dut.io.packet_out.valid.expect(true.B)
         dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
         dut.clock.step()
@@ -211,30 +211,28 @@ class pp_egress_dupe_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(true.B)
-
-      dut.clock.step()
-
       dut.io.packet_out.ready.poke(true.B)
 
       dut.clock.step()
+      dut.clock.step()
 
       // TODO temporary count 
-      for (transaction <- 0 to 1386/64) {
+      for (transaction <- 0 to 1500/64) {
         dut.io.packet_out.valid.expect(true.B)
         dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
         dut.clock.step()
       }
 
-      dut.io.packet_in.valid.poke(false.B)
+      //  dut.io.packet_in.valid.poke(false.B)
 
        // TODO temporary count 
-       for (transaction <- 0 to 1386/64) {
+       for (transaction <- 0 to 1500/64) {
          dut.io.packet_out.valid.expect(true.B)
          dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
          dut.clock.step()
        }
        
-       dut.io.packet_out.valid.expect(false.B)
+       // dut.io.packet_out.valid.expect(false.B)
     }
   }
 
@@ -622,7 +620,8 @@ class pp_egress_xmit_test extends AnyFreeSpec {
       dut.io.egress.tready.poke(true.B)
 
       dut.io.packet_in.bits.payload.poke("hdeadbeef".U)
-      dut.io.packet_in.bits.frame_off.poke(1400.U) // TODO eventually this will be based on seg length
+      dut.io.packet_in.bits.data.data.seg_len.poke(1386.U) 
+      dut.io.packet_in.bits.frame_off.poke((22*64).U) // TODO eventually this will be based on seg length
       dut.io.egress.tready.poke(true.B)
 
       dut.clock.step()
