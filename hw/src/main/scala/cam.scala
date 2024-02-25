@@ -8,7 +8,7 @@ import chisel3.util._
 class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   val io = IO(new Bundle {
     val search = Decoupled(UInt(KEY_WIDTH.W)) 
-    val result = Decoupled(UInt(KEY_WIDTH.W))
+    val result = Decoupled(UInt(VALUE_WIDTH.W))
     val insert = Decoupled(new CAMEntry(KEY_WIDTH, VALUE_WIDTH))
   })
 
