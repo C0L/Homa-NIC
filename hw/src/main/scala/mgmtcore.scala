@@ -157,14 +157,14 @@ class mgmt_core extends Module {
 
 
   /* DEBUGGING ILAS */
-  val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
-  axi2axis_ila.io.ila_data := axi2axis.io.m_axis
+  // val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
+  // axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
-  val sendmsg_in_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  sendmsg_in_ila.io.ila_data := delegate.io.sendmsg_o
+  // val sendmsg_in_ila = Module(new ILA(Decoupled(new QueueEntry)))
+  // sendmsg_in_ila.io.ila_data := delegate.io.sendmsg_o
 
-  val sendmsg_out_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
+  // val sendmsg_out_ila = Module(new ILA(Decoupled(new QueueEntry)))
+  // sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
 
   // val axi_ila = Module(new ILA(new axi(512, 26, true, 8, true, 4, true, 4)))
   // axi_ila.io.ila_data := io.s_axi
@@ -175,8 +175,8 @@ class mgmt_core extends Module {
   // val fetch_in_ila = Module(new ILA(new QueueEntry))
   // fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
 
-  val fetch_out_ila = Module(new ILA(new dma_read_t))
-  fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
+  // val fetch_out_ila = Module(new ILA(new dma_read_t))
+  // fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
 
   // val dma_meta_w_ila = Module(new ILA(new dma_write_t))
   // dma_meta_w_ila.io.ila_data := delegate.io.dma_w_req_o.bits

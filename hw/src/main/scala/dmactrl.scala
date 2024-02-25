@@ -51,7 +51,14 @@ class h2c_dma extends Module {
   io.dbuff_notif_o.bits.rpc_id     := 0.U
   io.dbuff_notif_o.bits.dbuff_id   := pending_read.cache_id
   io.dbuff_notif_o.bits.remaining  := 0.U
-  io.dbuff_notif_o.bits.dbuffered  := pending_read.message_size - pending_read.dest_ram_addr - 256.U(20.W)
+  val notif_offset = Wire(UInt(20.W))
+  notif_offset := pending_read.message_size - pending_read.dest_ram_addr 
+  when (notif_offset < 256.U) {
+    io.dbuff_notif_o.bits.dbuffered  := 0.U
+  }.otherwise {
+    io.dbuff_notif_o.bits.dbuffered  := notif_offset - 256.U
+  }
+
   io.dbuff_notif_o.bits.granted    := 0.U
   io.dbuff_notif_o.bits.priority   := queue_priority.DBUFF_UPDATE.asUInt
 
@@ -112,7 +119,7 @@ class c2h_dma extends Module {
   dma_write.pcie_addr := ram_write_req_queue.io.deq.bits.pcie_write_addr
   dma_write.ram_sel   := 0.U
   dma_write.ram_addr  := ram_head
-  dma_write.len       := 64.U
+  dma_write.len       := ram_write_req_queue.io.deq.bits.length 
   dma_write.tag       := tag
   io.dma_write_desc.bits := dma_write
 

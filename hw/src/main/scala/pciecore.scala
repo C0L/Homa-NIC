@@ -104,13 +104,13 @@ class pcie_core extends Module {
 
   /* DEBUGGING ILAS */
 
-  val h2c_psdpram_wr_ila = Module(new ILA(Flipped(new ram_wr_t)))
-  h2c_psdpram_wr_ila.io.ila_data := pcie_core.io.ram_wr
+  // val h2c_psdpram_wr_ila = Module(new ILA(Flipped(new ram_wr_t)))
+  // h2c_psdpram_wr_ila.io.ila_data := pcie_core.io.ram_wr
 
-  val h2c_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t)))
-  h2c_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd
+  // val h2c_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t)))
+  // h2c_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd
 
-  val c2h_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t)))
-  c2h_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd
+  // val c2h_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t)))
+  // c2h_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd
 }
 

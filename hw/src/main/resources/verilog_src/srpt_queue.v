@@ -160,7 +160,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
 
    assign head_active = (queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE);
-   assign fetch_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE;
+   assign fetch_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE; // TODO unused??
 
    integer entry;
 
@@ -169,7 +169,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
       if (TYPE == "sendmsg") begin
 	 ripe = sendq_granted & sendq_dbuffered & head_active;
       end else if (TYPE == "fetch") begin
-	 ripe = head_active & !fetch_empty;
+	 ripe = head_active;
       end
       
       // The condition in which we accept a new element to include in the queue
@@ -240,23 +240,26 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	             end
 	  	  end // else: !if(queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE)
 	       end // if (dequeue_ready)
-	    end // if (dequeue_ready)
+	    end 
+	    // else if (!queue_ready) begin // TODO why bad?
+	    //    if (queue_swap_polarity == 1'b0) begin // TODO this is pretty lazy?  Should be fine if we flow control the outgoing rate
+	    // 	  // Assumes that write does not keep data around
+	    // 	  for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
+	    // 	     queue[entry] <= queue_swap_even[entry];
+	    // 	  end
+	    // 	  queue_swap_polarity <= 1'b1;
+	    //    end else begin
+	    // 	  for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
+	    // 	     queue[entry] <= queue_swap_odd[entry+1];
+	    // 	  end
+	    // 	  queue_swap_polarity <= 1'b0; // TODO problem
+	    //    end // else: !if(queue_swap_polarity == 1'b0)
+	    // end // if (!queue_ready)
 	    
 	    m_axis_tvalid <= dequeue_ready;
 	    m_axis_tdata  <= queue_head;
-	 end else if (queue_swap_polarity == 1'b0) begin
-	    // Assumes that write does not keep data around
-	    for (entry = 0; entry < MAX_RPCS; entry=entry+1) begin
-	       queue[entry] <= queue_swap_even[entry];
-	    end
-	    queue_swap_polarity <= 1'b1;
-	 end else begin
-	    for (entry = 1; entry < MAX_RPCS-2; entry=entry+1) begin
-	       queue[entry] <= queue_swap_odd[entry+1];
-	    end
-	    queue_swap_polarity <= 1'b0;
-	 end // else: !if(queue_swap_polarity == 1'b0)
-      end // if (!dequeue_ready)
+	 end // if (!dequeue_ready)
+      end
    end 
 
 endmodule // srpt_queue

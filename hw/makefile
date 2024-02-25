@@ -33,6 +33,9 @@ COSIM = 2
 
 ############ Bitstream  Gen ############
 
+chisel: clean
+	sbt run
+
 homa: 
 	$(VIVADO) -mode batch -source tcl/compile.tcl
 
@@ -75,17 +78,19 @@ data_lint:  srpt_data_queue.lint
 	$(LINTER) $^
 
 clean:
-	rm -f vitis_hls.log
-	rm -rf homa
-	rm -rf xsim.dir
-	rm -f *.log
-	rm -f *.jou
-	rm -f *.log
-	rm -f xelab*
-	rm -f xvlog*
-	rm -f *.wdb
-	rm -rf srpt_grant_pkts
-	rm -rf srpt_data_pkts
-	rm *.str
-	rm traces/*
+	rm -f gen/*.sv
+	rm -f gen/*.tcl
+	# rm -f vitis_hls.log
+	# rm -rf homa
+	# rm -rf xsim.dir
+	# rm -f *.log
+	# rm -f *.jou
+	# rm -f *.log
+	# rm -f xelab*
+	# rm -f xvlog*
+	# rm -f *.wdb
+	# rm -rf srpt_grant_pkts
+	# rm -rf srpt_data_pkts
+	# rm *.str
+	# rm traces/*
 

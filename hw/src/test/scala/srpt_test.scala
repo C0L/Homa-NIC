@@ -68,6 +68,13 @@ class SendmsgQueueTest extends AnyFreeSpec {
       dut.io.enqueue.valid.poke(false.B)
 
       dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
 
       dut.io.enqueue.valid.poke(true.B)
       dut.io.enqueue.bits.priority.poke(2.U)
@@ -313,12 +320,25 @@ class SendmsgQueueTest extends AnyFreeSpec {
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
 
       dut.io.enqueue.valid.poke(true.B)
       dut.io.enqueue.bits.priority.poke(5.U)
       dut.io.enqueue.bits.granted.poke(0.U)
       dut.io.enqueue.bits.dbuffered.poke(0.U)
-      dut.io.enqueue.bits.remaining.poke(2000.U)
+      dut.io.enqueue.bits.remaining.poke(5000.U)
       dut.io.enqueue.bits.dbuff_id.poke(2.U)
       dut.io.enqueue.bits.rpc_id.poke(2.U)
 
@@ -329,13 +349,13 @@ class SendmsgQueueTest extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.dequeue.ready.poke(true.B)
-      dut.io.dequeue.bits.remaining.expect(2000.U)
+      dut.io.dequeue.bits.remaining.expect(5000.U)
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()
 
       dut.io.dequeue.ready.poke(true.B)
-      dut.io.dequeue.bits.remaining.expect((2000 - 1386).U)
+      dut.io.dequeue.bits.remaining.expect((5000 - 1386).U)
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()
