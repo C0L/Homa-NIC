@@ -164,16 +164,36 @@ class SendmsgQueue extends Module {
   io.dequeue.bits                 := raw_out
 }
 
-class dma_psdpram extends BlackBox(
-  Map("SIZE" -> 262144,
+/* SegmentedRAM - interface over black box for automatic clock and
+ * reset inference.
+ *   SIZE - Number of bytes of storage
+ */
+class SegmentedRAM (SIZE: Int) extends Module {
+  val io = IO(new Bundle {
+    val ram_wr = Flipped(new ram_wr_t)
+    val ram_rd = Flipped(new ram_rd_t)
+  })
+
+  val psdpram = Module(new dma_psdpram(SIZE))
+
+  psdpram.io.clk := clock
+  psdpram.io.rst := reset.asUInt
+
+  psdpram.io.ram_wr <> io.ram_wr
+  psdpram.io.ram_rd <> io.ram_rd
+}
+
+/* dma_psdpram - blackbox for segmented memory RTL library
+ *   SIZE - Number of bytes of storage
+ */
+class dma_psdpram (SIZE: Int) extends BlackBox(
+  Map("SIZE" -> SIZE,
       "SEG_COUNT" -> 2,
       "SEG_DATA_WIDTH" -> 512,
       "SEG_BE_WIDTH" -> 64,
       "SEG_ADDR_WIDTH" -> 11,
       "PIPELINE" -> 2
   )) with HasBlackBoxResource {
-
-  // TODO should parameterize ram interfaces
   val io = IO(new Bundle {
     val clk = Input(Clock())
     val rst = Input(UInt(1.W))

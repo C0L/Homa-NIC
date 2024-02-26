@@ -12,7 +12,7 @@ import chisel3.util._
  *     Address 0  + (port * 4096) -> sendmsg
  *     Address 64 + (port * 4096) -> recvmsg 
  */
-class delegate extends Module {
+class Delegate extends Module {
   val io = IO(new Bundle {
     val function_i  = Flipped(new axis(512, false, 0, true, 32, false, 0, false)) // 512 bit blocks from user
     val sendmsg_o   = Decoupled(new QueueEntry) // Output to sendmsg priority queue

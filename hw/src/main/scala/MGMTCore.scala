@@ -10,7 +10,7 @@ import chisel3.util._
  * core in pcie to store host map buffers, or the priority queues
  * which schedule operations.
  */
-class mgmt_core extends Module {
+class MGMTCore extends Module {
   val io = IO(new Bundle {
     val s_axi = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
 
@@ -28,21 +28,21 @@ class mgmt_core extends Module {
   })
 
   val axi2axis       = Module(new axi2axis) // Convert incoming AXI requests to AXIS
-  val delegate       = Module(new delegate) // Decide where those requests should be placed
+  val delegate       = Module(new Delegate) // Decide where those requests should be placed
 
-  val addr_map       = Module(new addr_map) // Map read and write requests to DMA address
-  val h2c_dma        = Module(new h2c_dma)  // Manage dma reads 
-  val c2h_dma        = Module(new c2h_dma)  // Manage dma writes
+  val addr_map       = Module(new AddressMap) // Map read and write requests to DMA address
+  val h2c_dma        = Module(new H2CDMA)  // Manage dma reads 
+  val c2h_dma        = Module(new C2HDMA)  // Manage dma writes
 
-  val fetch_queue    = Module(new fetch_queue)    // Fetch the next best chunk of data
+  val fetch_queue    = Module(new FetchQueue)    // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new SendmsgQueue)  // Send the next best message
 
-  val sendmsg_cb     = Module(new dma_psdpram)
-  val recvmsg_cb     = Module(new dma_psdpram)
-  val sendmsg_cb_wr  = Module(new dma_client_axis_sink)
-  val sendmsg_cb_rd  = Module(new dma_client_axis_source)
-  val recvmsg_cb_wr  = Module(new dma_client_axis_sink)
-  val recvmsg_cb_rd  = Module(new dma_client_axis_source)
+  val sendmsg_cb     = Module(new SegmentedRAM(262144)) // Memory for sendmsg control blocks
+  val recvmsg_cb     = Module(new SegmentedRAM(262144)) // Memory for recvmsg control blocks
+  val sendmsg_cb_wr  = Module(new dma_client_axis_sink) // Interface to write sendmsg cbs
+  val sendmsg_cb_rd  = Module(new dma_client_axis_source) // Inter
+  val recvmsg_cb_wr  = Module(new dma_client_axis_sink) //
+  val recvmsg_cb_rd  = Module(new dma_client_axis_source) //
 
   // TODO this should be seperated out
 
@@ -68,12 +68,6 @@ class mgmt_core extends Module {
   pp_egress.io.egress  <> pp_ingress.io.ingress
 
   // TODO should be able to handle this with a small wrapper + implicit clk/reset
-
-  sendmsg_cb.io.clk := clock
-  sendmsg_cb.io.rst := reset.asUInt
-
-  recvmsg_cb.io.clk := clock
-  recvmsg_cb.io.rst := reset.asUInt
 
   sendmsg_cb_wr.io.clk := clock
   sendmsg_cb_wr.io.rst := reset.asUInt
@@ -112,7 +106,6 @@ class mgmt_core extends Module {
   addr_map.io.dma_map_i    <> delegate.io.dma_map_o
   addr_map.io.dma_w_meta_i <> delegate.io.dma_w_req_o
   addr_map.io.dma_r_req_i  <> fetch_queue.io.dequeue
-
 
   addr_map.io.dma_r_req_o  <> h2c_dma.io.dma_r_req
 

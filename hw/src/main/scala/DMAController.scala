@@ -7,7 +7,7 @@ import chisel3.util._
 /* h2c_dma - Generates tag identifers to store read requests as they
  * are outstanding in the pcie engine.
  */
-class h2c_dma extends Module {
+class H2CDMA extends Module {
   val io = IO(new Bundle {
     val dma_r_req       = Flipped(Decoupled(new dma_read_t)) // New DMA read requests
     val dma_read_desc   = Decoupled(new dma_read_desc_t) // Descriptors to pcie to init request
@@ -77,7 +77,7 @@ class h2c_dma extends Module {
  * BRAM will complete before the pcie core has fetched that same data
  * from the BRAM. I think this is generally a safe assumption.
  */
-class c2h_dma extends Module {
+class C2HDMA extends Module {
   val io = IO(new Bundle {
     val dma_write_req         = Flipped(Decoupled(new dma_write_t)) // New DMA write requests
     val ram_write_data        = Decoupled(new RamWrite) // Data to write to BRAM
@@ -90,7 +90,7 @@ class c2h_dma extends Module {
   val ram_head = RegInit(0.U(14.W))
 
   // Add a register stage to improve timing
-  val ram_write_req_queue = Module(new Queue(new dma_write_t, 1, true, true))
+  val ram_write_req_queue = Module(new Queue(new dma_write_t, 1, true, false)) // TODO just changed this
   ram_write_req_queue.io.enq <> io.dma_write_req
 
   // Dequeue validity determines validity to all receivers
@@ -100,7 +100,7 @@ class c2h_dma extends Module {
   // All receivers need to be ready for a dequeue transaction
   ram_write_req_queue.io.deq.ready := io.ram_write_data.ready && io.dma_write_desc.ready
 
-  // Construct the ram write request at the circular buffer
+  // Construct the ram write request at the circular buffer head
   io.ram_write_data.bits.addr := ram_head
   io.ram_write_data.bits.len  := ram_write_req_queue.io.deq.bits.length
   io.ram_write_data.bits.data := ram_write_req_queue.io.deq.bits.data
@@ -126,10 +126,10 @@ class c2h_dma extends Module {
   io.dma_write_desc_status.valid := DontCare
 }
 
-/* addr_map - performs DMA address translations for read and write
+/* AddressMap - performs DMA address translations for read and write
  * requests before they are passed the pcie core.
  */
-class addr_map extends Module {
+class AddressMap extends Module {
   val io = IO(new Bundle {
     val dma_map_i    = Flipped(Decoupled(new dma_map_t))   // New DMA address translations
     val dma_w_meta_i = Flipped(Decoupled(new dma_write_t)) // Requests to metadata DMA buffer

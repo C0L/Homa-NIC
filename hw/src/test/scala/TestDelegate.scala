@@ -6,10 +6,10 @@ import chisel3.simulator.EphemeralSimulator._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
-class delegate_test extends AnyFreeSpec {
+class TestDelegate extends AnyFreeSpec {
 
-  "delegate_test: testing dma map" in {
-    simulate(new delegate) { dut =>
+  "TestDelagate: testing dma map" in {
+    simulate(new Delegate) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -38,8 +38,8 @@ class delegate_test extends AnyFreeSpec {
     }
   }
 
-  "delegate_test: testing virtualization" in {
-    simulate(new delegate) { dut =>
+  "TestDelegate: testing virtualization" in {
+    simulate(new Delegate) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -78,8 +78,8 @@ class delegate_test extends AnyFreeSpec {
   }
 
 
-  "delegate_test: testing sendmsg" in {
-    simulate(new delegate) { dut =>
+  "TestDelegate: testing sendmsg" in {
+    simulate(new Delegate) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()

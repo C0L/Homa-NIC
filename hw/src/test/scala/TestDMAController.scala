@@ -6,10 +6,10 @@ import chisel3.simulator.EphemeralSimulator._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
-class h2c_dma_test extends AnyFreeSpec {
+class TestH2CDMA extends AnyFreeSpec {
 
-  "h2c_dma_test: testing dma_read_req_i -> pcie_read_cmd_o -> pcie_read_status_i -> dbuff_notif_o flow and tag memory" in {
-    simulate(new h2c_dma) { dut =>
+  "H2CDMA: testing dma_read_req_i -> pcie_read_cmd_o -> pcie_read_status_i -> dbuff_notif_o flow and tag memory" in {
+    simulate(new H2CDMA) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -80,10 +80,10 @@ class h2c_dma_test extends AnyFreeSpec {
 }
 
 
-class c2h_dma_test extends AnyFreeSpec {
+class TestC2HDMA extends AnyFreeSpec {
 
-  "c2h_dma_test: testing dma write request triggers RAM write" in {
-    simulate(new c2h_dma) { dut =>
+  "TestC2HDMA: testing dma write request triggers RAM write" in {
+    simulate(new C2HDMA) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -133,10 +133,10 @@ class c2h_dma_test extends AnyFreeSpec {
 //  }
 }
 
-class addr_map_test extends AnyFreeSpec {
+class TestAddressMap extends AnyFreeSpec {
 
-  "addr_map_test: testing that dma read and writes are augmented with correct host offset" in {
-    simulate(new addr_map) { dut =>
+  "TestAdressMap: testing that dma read and writes are augmented with correct host offset" in {
+    simulate(new AddressMap) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()

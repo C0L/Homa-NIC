@@ -66,8 +66,8 @@ class pp_egress_stages extends Module {
   // val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
-  // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
+  val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
 
   // val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
@@ -217,7 +217,7 @@ class pp_egress_payload extends Module {
 
   io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
   io.ram_read_desc.bits.ram_addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining) + packet_reg_0.io.deq.bits.payloadOffset()
-  io.ram_read_desc.bits.len      := 64.U // Get from PayloadBytes
+  io.ram_read_desc.bits.len      := 64.U // Get from PayloadBytes TODO, maybe unimplemented 
 
   /*
    * Tie delay queue to stage 1
@@ -236,8 +236,8 @@ class pp_egress_payload extends Module {
   packet_reg_1.io.enq.bits.payload := io.ram_read_data.bits.data
 }
 
-/* pp_egress_ctor - takes an input packet factory and computes and
- * fills the packet header fields based on control block data
+/* pp_egress_ctor - takes an input packet factory and computes/fills
+ * the packet header fields based on control block data
  */
 class pp_egress_ctor extends Module {
   val io = IO(new Bundle {
@@ -358,8 +358,8 @@ class pp_ingress_stages extends Module {
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
 
-  // val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
-  // pp_ingress_ila.io.ila_data := io.ingress
+  val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  pp_ingress_ila.io.ila_data := io.ingress
 
   // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out

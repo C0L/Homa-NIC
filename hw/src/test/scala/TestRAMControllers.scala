@@ -20,7 +20,7 @@ class simple_ram extends Module {
       val ram_write_desc_status = Decoupled(new ram_write_desc_status_t)
   })
 
-  val sendmsg_cb     = Module(new dma_psdpram)
+  val sendmsg_cb     = Module(new dma_psdpram(262144))
   val sendmsg_cb_wr  = Module(new dma_client_axis_sink)
   val sendmsg_cb_rd  = Module(new psdpram_rd)
 
@@ -188,7 +188,7 @@ class simple_wr extends Module {
       val ram_write_cmd = Flipped(Decoupled(new RamWrite))
   })
 
-  val ram = Module(new dma_psdpram)
+  val ram = Module(new dma_psdpram(262144))
   val wr  = Module(new psdpram_wr)
   val rd  = Module(new psdpram_rd)
 

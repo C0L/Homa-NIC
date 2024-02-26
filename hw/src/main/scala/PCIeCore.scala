@@ -41,8 +41,8 @@ class pcie_core extends Module {
   val pcie_core             = Module(new pcie_rtl)
   val dma_client_read       = Module(new psdpram_rd)
   val dma_client_write      = Module(new psdpram_wr)
-  val h2c_psdpram           = Module(new dma_psdpram)
-  val c2h_psdpram           = Module(new dma_psdpram)
+  val h2c_psdpram           = Module(new dma_psdpram(262144))
+  val c2h_psdpram           = Module(new dma_psdpram(262144))
 
   m_axi <> pcie_core.io.m_axi
 
