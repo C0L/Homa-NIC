@@ -54,10 +54,10 @@ class CAMTest extends AnyFreeSpec {
       dut.reset.poke(false.B)
       dut.clock.step()
 
-      val tvs = Array.fill(200)(0)
-      val rnd = new scala.util.Random(99)
+      val tvs = Array.fill(5000)(0)
+      val rnd = new scala.util.Random(9)
 
-      for (i <- 0 to 200-1) {
+      for (i <- 0 to 5000-1) {
         val next = rnd.nextInt(294967296)
         println("NEXT RAND", next)
         tvs(i) = next

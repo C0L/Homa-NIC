@@ -13,11 +13,14 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   })
 
   when (io.insert.valid) {
-    printf("insert hash %d\n", io.insert.bits.hash())
+    printf("insert hash %d\n", io.insert.bits.hash(0))
+    printf("insert hash %d\n", io.insert.bits.hash(1))
+    printf("insert hash %d\n", io.insert.bits.hash(2))
+    printf("insert hash %d\n", io.insert.bits.hash(3))
   }
 
   when (io.search.valid) {
-    printf("search hash %d\n", io.search.bits.hash())
+    printf("search hash %d\n", io.search.bits.hash(0))
   }
 
 
@@ -63,27 +66,27 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   cam_3_insert.io.deq.ready := true.B 
 
   // Initiate insert write commands
-  cam_0.writePorts(0).address := RegNext(cam_0_insert.io.deq.bits.hash())
+  cam_0.writePorts(0).address := RegNext(cam_0_insert.io.deq.bits.hash(0))
   cam_0.writePorts(0).data    := RegNext(cam_0_insert.io.deq.bits)
   cam_0.writePorts(0).enable  := RegNext(cam_0_insert.io.deq.valid)
-  cam_1.writePorts(0).address := RegNext(cam_1_insert.io.deq.bits.hash())
+  cam_1.writePorts(0).address := RegNext(cam_1_insert.io.deq.bits.hash(1))
   cam_1.writePorts(0).data    := RegNext(cam_1_insert.io.deq.bits)
   cam_1.writePorts(0).enable  := RegNext(cam_1_insert.io.deq.valid)
-  cam_2.writePorts(0).address := RegNext(cam_2_insert.io.deq.bits.hash())
+  cam_2.writePorts(0).address := RegNext(cam_2_insert.io.deq.bits.hash(2))
   cam_2.writePorts(0).data    := RegNext(cam_2_insert.io.deq.bits)
   cam_2.writePorts(0).enable  := RegNext(cam_2_insert.io.deq.valid)
-  cam_3.writePorts(0).address := RegNext(cam_3_insert.io.deq.bits.hash())
+  cam_3.writePorts(0).address := RegNext(cam_3_insert.io.deq.bits.hash(3))
   cam_3.writePorts(0).data    := RegNext(cam_3_insert.io.deq.bits)
   cam_3.writePorts(0).enable  := RegNext(cam_3_insert.io.deq.valid)
 
   // Initiate insert read commands
-  cam_0.readPorts(0).address := cam_0_insert.io.deq.bits.hash()
+  cam_0.readPorts(0).address := cam_0_insert.io.deq.bits.hash(0)
   cam_0.readPorts(0).enable  := cam_0_insert.io.deq.valid
-  cam_1.readPorts(0).address := cam_1_insert.io.deq.bits.hash()
+  cam_1.readPorts(0).address := cam_1_insert.io.deq.bits.hash(1)
   cam_1.readPorts(0).enable  := cam_1_insert.io.deq.valid
-  cam_2.readPorts(0).address := cam_2_insert.io.deq.bits.hash()
+  cam_2.readPorts(0).address := cam_2_insert.io.deq.bits.hash(2)
   cam_2.readPorts(0).enable  := cam_2_insert.io.deq.valid
-  cam_3.readPorts(0).address := cam_3_insert.io.deq.bits.hash()
+  cam_3.readPorts(0).address := cam_3_insert.io.deq.bits.hash(3)
   cam_3.readPorts(0).enable  := cam_3_insert.io.deq.valid
 
   // If the insertion read completed, and a valid value came out,
@@ -131,29 +134,29 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   io.search.ready := true.B // TODO always the case?
 
   // Initiate search read command
-  cam_0.readPorts(1).address := cam_0_search.io.deq.bits.hash()
+  cam_0.readPorts(1).address := cam_0_search.io.deq.bits.hash(0)
   cam_0.readPorts(1).enable  := cam_0_search.io.deq.valid
-  cam_1.readPorts(1).address := cam_1_search.io.deq.bits.hash()
+  cam_1.readPorts(1).address := cam_1_search.io.deq.bits.hash(1)
   cam_1.readPorts(1).enable  := cam_1_search.io.deq.valid
-  cam_2.readPorts(1).address := cam_2_search.io.deq.bits.hash()
+  cam_2.readPorts(1).address := cam_2_search.io.deq.bits.hash(2)
   cam_2.readPorts(1).enable  := cam_2_search.io.deq.valid
-  cam_3.readPorts(1).address := cam_3_search.io.deq.bits.hash()
+  cam_3.readPorts(1).address := cam_3_search.io.deq.bits.hash(3)
   cam_3.readPorts(1).enable  := cam_3_search.io.deq.valid
 
   when (cam_0_search.io.deq.valid && cam_0_search.io.deq.bits.tag === "hdeadbeef".U) {
-    printf("cam 0: %d\n", cam_0_search.io.deq.bits.hash())
+    printf("cam 0: %d\n", cam_0_search.io.deq.bits.hash(0))
   }
 
   when (cam_1_search.io.deq.valid && cam_1_search.io.deq.bits.tag === "hdeadbeef".U) {
-    printf("cam 1: %d\n", cam_1_search.io.deq.bits.hash())
+    printf("cam 1: %d\n", cam_1_search.io.deq.bits.hash(1))
   }
 
   when (cam_2_search.io.deq.valid && cam_2_search.io.deq.bits.tag === "hdeadbeef".U) {
-    printf("cam 2: %d\n", cam_2_search.io.deq.bits.hash())
+    printf("cam 2: %d\n", cam_2_search.io.deq.bits.hash(2))
   }
 
   when (cam_3_search.io.deq.valid && cam_3_search.io.deq.bits.tag === "hdeadbeef".U) {
-    printf("cam 3: %d\n", cam_3_search.io.deq.bits.hash())
+    printf("cam 3: %d\n", cam_3_search.io.deq.bits.hash(3))
   }
 
   // All searches happen together, so only save data on one of them

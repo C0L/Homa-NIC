@@ -405,14 +405,18 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
   val set   = UInt(1.W)
   val tag   = UInt(32.W)
 
+  val seeds = List("h7BF6BF21", "h9FA91FE9", "hD0C8FBDF", "hE6D0851C")
+
   // TODO need a different function for each table!!!!!
   // TODO Murmur3 is probably better here
-  def hash(): UInt = {
-    val result = Wire(UInt(14.W))
+  def hash(TABLE: Int): UInt = {
+    val result = Wire(UInt(32.W))
 
-    val vec = key.asTypeOf(Vec(KEY_WIDTH/8, UInt(8.W)))
-    result := vec.foldRight(0.U(14.W))((hash: UInt, byte: UInt) => (hash << 5) + hash + byte)
 
-    result
+    val vec = key.asTypeOf(Vec(KEY_WIDTH/32, UInt(32.W)))
+
+    result := vec.reduce(_ + _)
+
+    result ^ seeds(TABLE).U
   }
 }
