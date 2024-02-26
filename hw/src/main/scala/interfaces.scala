@@ -44,6 +44,13 @@ class ram_read_desc_status_t extends Bundle {
  val error = UInt(4.W)
 }
 
+
+class RamWrite extends Bundle {
+  val addr = UInt(18.W)
+  val len  = UInt(8.W)
+  val data = UInt(512.W)
+}
+
 class ram_write_desc_t extends Bundle {
   val ram_addr = UInt(18.W)
   val len      = UInt(64.W)

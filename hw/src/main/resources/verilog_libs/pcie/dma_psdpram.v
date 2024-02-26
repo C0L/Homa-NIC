@@ -29,8 +29,8 @@ THE SOFTWARE.
 /* verilator lint_off WIDTHTRUNC */
 /* verilator lint_off CASEINCOMPLETE */
 
+
 `resetall
-`timescale 1ns / 1ps
 `default_nettype none
 
 /*
