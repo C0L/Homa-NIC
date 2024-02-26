@@ -83,7 +83,7 @@ class dma_read_t extends Bundle {
   val cache_id       = UInt(10.W)
   val message_size   = UInt(20.W)
   val read_len       = UInt(12.W)
-  val dest_ram_addr  = UInt(20.W)
+  val dest_ram_addr  = UInt(18.W)
   val port           = UInt(16.W)
 }
 
@@ -403,20 +403,16 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
   val key   = UInt(KEY_WIDTH.W)
   val value = UInt(VALUE_WIDTH.W)
   val set   = UInt(1.W)
-
+  val tag   = UInt(32.W)
 
   // TODO need a different function for each table!!!!!
   // TODO Murmur3 is probably better here
   def hash(): UInt = {
     val result = Wire(UInt(14.W))
 
-    // TODO 
-    // while (c = *str++)
-            // hash = ((hash << 5) + hash) + c; 
+    val vec = key.asTypeOf(Vec(KEY_WIDTH/8, UInt(8.W)))
+    result := vec.foldRight(0.U(14.W))((hash: UInt, byte: UInt) => (hash << 5) + hash + byte)
 
-    val vec = key.asTypeOf(Vec(KEY_WIDTH/14, UInt(14.W)))
-    result := vec.reduce(_ ^ _)
-    printf("%d\n", result)
     result
   }
 }
