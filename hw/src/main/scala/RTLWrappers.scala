@@ -92,7 +92,7 @@ class srpt_queue (qtype: String) extends BlackBox (
   addResource("/verilog_src/srpt_queue.v")
 }
 
-class fetch_queue extends Module {
+class FetchQueue extends Module {
   val io = IO(new Bundle {
     val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary

@@ -44,7 +44,6 @@ class ram_read_desc_status_t extends Bundle {
  val error = UInt(4.W)
 }
 
-
 class RamWrite extends Bundle {
   val addr = UInt(18.W)
   val len  = UInt(8.W)
@@ -418,7 +417,6 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
   // TODO Murmur3 is probably better here
   def hash(TABLE: Int): UInt = {
     val result = Wire(UInt(32.W))
-
 
     val vec = key.asTypeOf(Vec(KEY_WIDTH/32, UInt(32.W)))
 
