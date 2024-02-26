@@ -53,7 +53,7 @@ class psdpram_rd extends Module {
   // Element is no longer pending when we trasfer from RAM to output reg
   pending.io.deq.ready := out_latch.io.enq.fire
 
-  val shift_bytes  = Wire(UInt(9.W))
+  val shift_bits   = Wire(UInt(9.W))
   val ordered_data = Wire(UInt(1024.W))
   ordered_data := 0.U
 
@@ -66,12 +66,10 @@ class psdpram_rd extends Module {
     ordered_data := io.ram_rd.resp_data
   }
 
-  shift_bytes := pending.io.deq.bits.ram_addr(5,0) * 8.U
-
-  // printf("%d\n", (ordered_data >> shift_bytes)(511,0))
+  shift_bits := pending.io.deq.bits.ram_addr(5,0) * 8.U
 
   out_latch.io.enq.bits      := 0.U.asTypeOf(new ram_read_data_t)
-  out_latch.io.enq.bits.data := (ordered_data >> shift_bytes)(511,0)
+  out_latch.io.enq.bits.data := (ordered_data >> shift_bits)(511,0)
   // printf("%d\n", out_latch.io.enq.bits.data)
   out_latch.io.enq.valid     := io.ram_rd.resp_valid.andR
 
@@ -113,31 +111,21 @@ class psdpram_wr extends Module {
   io.ram_wr.cmd_ready := DontCare // ignore this for now?
   io.ram_wr.done  := DontCare // ignore this for now?
 
-  val shift_bytes  = Wire(UInt(9.W))
+  val shift_bits = Wire(UInt(9.W))
   val ordered_data = Wire(UInt(1024.W))
   ordered_data := 0.U
-
-  shift_bytes := in_latch.io.deq.bits.addr(5,0) * 8.U
+  shift_bits := in_latch.io.deq.bits.addr(5,0) * 8.U
 
   val extended = Wire(UInt(1024.W))
-  extended := in_latch.io.deq.bits.data.asTypeOf(UInt(1024.W)) << shift_bytes
-
+  val be       = Wire(UInt(128.W))
+  extended := in_latch.io.deq.bits.data.asTypeOf(UInt(1024.W)) << shift_bits
+  be       := ("hffffffffffffffffffffffffffffffff".U >> (128.U - in_latch.io.deq.bits.len)) << in_latch.io.deq.bits.addr(5,0) 
+                    
   when (in_latch.io.deq.bits.addr(6)) {
-    // If we wrap around, put lower bytes in high order bits of high frame, and upper bytes bytes in low order bytes of low frame
     io.ram_wr.cmd_data := Cat(extended(511,0), extended(1023,512))
-    // io.ram_wr.cmd_data := Cat(extended(511,0), extended(1023,512))
+    io.ram_wr.cmd_be   := Cat(be(63,0), be(127,64))
   }.otherwise {
     io.ram_wr.cmd_data := extended
+    io.ram_wr.cmd_be   := be
   }
-
-  // TODO use the length field
-
-  // TODO 
-  io.ram_wr.cmd_be := "hffffffffffffffffffffffffffffffff".U
-
-  // Maybe use ram_write keep bits?
-
-  // TODO set the cmd_be
-  // Create a number of f's based on the size of the write
-  // out_latch.io.enq.bits.data := (ordered_data >> shift_bytes)(511,0)
 }

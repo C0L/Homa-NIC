@@ -151,16 +151,10 @@ class unaligned_read_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.poke(false.B)
-      // dut.io.ram_read_desc.valid.poke(true.B)
-      // dut.io.ram_read_desc.bits.ram_addr.poke(32.U)
-      // dut.io.ram_read_desc.bits.len.poke(64.U)
-
 
       dut.clock.step()
       dut.clock.step()
       dut.clock.step()
-      // dut.clock.step()
-      // dut.clock.step()
 
       println("valid data out")
       dut.io.ram_read_data.valid.expect(true.B)
@@ -232,11 +226,11 @@ class unaligned_write_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      // dut.io.ram_write_cmd.ready.expect(true.B)
-      // dut.io.ram_write_cmd.valid.poke(true.B)
-      // dut.io.ram_write_cmd.bits.addr.poke(96.U)
-      // dut.io.ram_write_cmd.bits.data.poke("h22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222".U(512.W))
-      // dut.io.ram_write_cmd.bits.len.poke(64.U)
+      dut.io.ram_write_cmd.ready.expect(true.B)
+      dut.io.ram_write_cmd.valid.poke(true.B)
+      dut.io.ram_write_cmd.bits.addr.poke(96.U)
+      dut.io.ram_write_cmd.bits.data.poke("h22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222".U(512.W))
+      dut.io.ram_write_cmd.bits.len.poke(64.U)
 
       dut.clock.step()
 
@@ -244,11 +238,11 @@ class unaligned_write_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      // dut.io.ram_write_cmd.ready.expect(true.B)
-      // dut.io.ram_write_cmd.valid.poke(true.B)
-      // dut.io.ram_write_cmd.bits.addr.poke(160.U)
-      // dut.io.ram_write_cmd.bits.data.poke("h33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333".U(512.W))
-      // dut.io.ram_write_cmd.bits.len.poke(64.U)
+      dut.io.ram_write_cmd.ready.expect(true.B)
+      dut.io.ram_write_cmd.valid.poke(true.B)
+      dut.io.ram_write_cmd.bits.addr.poke(160.U)
+      dut.io.ram_write_cmd.bits.data.poke("h33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333".U(512.W))
+      dut.io.ram_write_cmd.bits.len.poke(64.U)
 
       dut.clock.step()
 
@@ -282,12 +276,11 @@ class unaligned_write_test extends AnyFreeSpec {
       dut.clock.step()
       dut.clock.step()
 
-      // dut.io.ram_read_data.valid.expect(true.B)
-      // dut.io.ram_read_data.ready.poke(true.B)
-      // dut.io.ram_read_data.bits.data.expect("h22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222".U)
+      dut.io.ram_read_data.valid.expect(true.B)
+      dut.io.ram_read_data.ready.poke(true.B)
+      dut.io.ram_read_data.bits.data.expect("h22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222".U)
 
       dut.clock.step()
-
     }
   }
 }
