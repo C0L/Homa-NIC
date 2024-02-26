@@ -100,6 +100,7 @@ class c2h_dma extends Module {
   // All receivers need to be ready for a dequeue transaction
   ram_write_req_queue.io.deq.ready := io.ram_write_data.ready && io.dma_write_desc.ready
 
+  // Construct the ram write request at the circular buffer
   io.ram_write_data.bits.addr := ram_head
   io.ram_write_data.bits.len  := ram_write_req_queue.io.deq.bits.length
   io.ram_write_data.bits.data := ram_write_req_queue.io.deq.bits.data
