@@ -80,9 +80,7 @@ class h2c_dma extends Module {
 class c2h_dma extends Module {
   val io = IO(new Bundle {
     val dma_write_req         = Flipped(Decoupled(new dma_write_t)) // New DMA write requests
-    val ram_write_desc        = Decoupled(new ram_write_desc_t) // Request to write data to BRAM
-    val ram_write_data        = Decoupled(new ram_write_data_t) // Data to write to BRAM
-    val ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t)) // Status from BRAM write
+    val ram_write_data        = Decoupled(new RamWrite) // Data to write to BRAM
     val dma_write_desc        = Decoupled(new dma_write_desc_t) // Request for DMA write from BRAM
     val dma_write_desc_status = Flipped(Decoupled(new dma_write_desc_status_t)) // Response status of DMA write
   })
@@ -96,23 +94,15 @@ class c2h_dma extends Module {
   ram_write_req_queue.io.enq <> io.dma_write_req
 
   // Dequeue validity determines validity to all receivers
-  io.ram_write_desc.valid := ram_write_req_queue.io.deq.valid
   io.ram_write_data.valid := ram_write_req_queue.io.deq.valid
   io.dma_write_desc.valid := ram_write_req_queue.io.deq.valid
 
   // All receivers need to be ready for a dequeue transaction
-  ram_write_req_queue.io.deq.ready := io.ram_write_desc.ready && io.ram_write_data.ready && io.dma_write_desc.ready
+  ram_write_req_queue.io.deq.ready := io.ram_write_data.ready && io.dma_write_desc.ready
 
-  // Construct a write to BRAM at the circular buffer head
-  io.ram_write_desc.bits.ram_addr  := ram_head
-  io.ram_write_desc.bits.len       := ram_write_req_queue.io.deq.bits.length
-  io.ram_write_desc.bits.tag       := tag
-
-  // Format data to write to BRAM
-  io.ram_write_data.bits      := 0.U.asTypeOf(new ram_write_data_t)
+  io.ram_write_data.bits.addr := ram_head
+  io.ram_write_data.bits.len  := ram_write_req_queue.io.deq.bits.length
   io.ram_write_data.bits.data := ram_write_req_queue.io.deq.bits.data
-  io.ram_write_data.bits.last := 1.U
-  io.ram_write_data.bits.keep := ("hFFFFFFFFFFFFFFFF".U >> (64.U - ram_write_req_queue.io.deq.bits.length))
 
   // Construct a DMA write request to read from specified place in BRAM
   val dma_write = Wire(new dma_write_desc_t)
@@ -130,10 +120,6 @@ class c2h_dma extends Module {
   }
 
   // TODO unused
-  io.ram_write_desc_status.ready := true.B
-  io.ram_write_desc_status.bits  := DontCare 
-  io.ram_write_desc_status.valid := DontCare
-
   io.dma_write_desc_status.ready := true.B
   io.dma_write_desc_status.bits  := DontCare 
   io.dma_write_desc_status.valid := DontCare

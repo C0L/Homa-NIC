@@ -90,9 +90,7 @@ class c2h_dma_test extends AnyFreeSpec {
       dut.reset.poke(false.B)
       dut.clock.step()
 
-      dut.io.ram_write_desc.ready.poke(true.B)
       dut.io.ram_write_data.ready.poke(true.B)
-      dut.io.ram_write_desc_status.valid.poke(false.B)
 
       dut.io.dma_write_desc.ready.poke(true.B)
       dut.io.dma_write_desc_status.valid.poke(false.B)
@@ -103,7 +101,6 @@ class c2h_dma_test extends AnyFreeSpec {
       dut.io.dma_write_req.bits.length.poke(64.U)
       dut.io.dma_write_req.bits.port.poke(1.U)
 
-      dut.io.ram_write_desc.valid.expect(true.B)
       dut.io.ram_write_data.valid.expect(true.B)
 
       dut.io.dma_write_req.valid.poke(false.B)

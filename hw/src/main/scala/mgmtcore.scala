@@ -18,9 +18,7 @@ class mgmt_core extends Module {
     val ram_read_desc_status  = Flipped(Decoupled(new ram_read_desc_status_t))
     val ram_read_data         = Flipped(Decoupled(new ram_read_data_t))
 
-    val ram_write_desc        = Decoupled(new ram_write_desc_t)
-    val ram_write_data        = Decoupled(new ram_write_data_t)
-    val ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))
+    val ram_write_data        = Decoupled(new RamWrite)
 
     val dma_read_desc         = Decoupled(new dma_read_desc_t)
     val dma_read_desc_status  = Flipped(Decoupled(new dma_read_desc_status_t))
@@ -121,9 +119,7 @@ class mgmt_core extends Module {
   h2c_dma.io.dma_read_desc   <> io.dma_read_desc
   h2c_dma.io.dma_read_status <> io.dma_read_desc_status
 
-  c2h_dma.io.ram_write_desc        <> io.ram_write_desc
   c2h_dma.io.ram_write_data        <> io.ram_write_data
-  c2h_dma.io.ram_write_desc_status <> io.ram_write_desc_status
 
   io.dma_write_desc                <> c2h_dma.io.dma_write_desc
 
