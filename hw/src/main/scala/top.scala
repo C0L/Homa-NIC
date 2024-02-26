@@ -76,13 +76,6 @@ class top extends RawModule {
   ram_read_desc_cc.io.m_axis_aclk    := pcie.pcie_user_clk
   ram_read_desc_cc.io.m_axis         <> pcie.ram_read_desc
 
-  // core.io.ram_write_desc              <> ram_write_desc_cc.io.s_axis
-  // ram_write_desc_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
-  // ram_write_desc_cc.io.s_axis_aclk    := mainClk.io.clk_out1
-  // ram_write_desc_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
-  // ram_write_desc_cc.io.m_axis_aclk    := pcie.pcie_user_clk
-  // ram_write_desc_cc.io.m_axis         <> pcie.ram_write_desc
-
   core.io.ram_write_data              <> ram_write_data_cc.io.s_axis
   ram_write_data_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
   ram_write_data_cc.io.s_axis_aclk    := mainClk.io.clk_out1
@@ -127,15 +120,6 @@ class top extends RawModule {
   ram_read_data_cc.io.m_axis_aclk    := mainClk.io.clk_out1
   ram_read_data_cc.io.m_axis         <> core.io.ram_read_data
 
-
-  // pcie.ram_write_desc_status                 <> ram_write_desc_status_cc.io.s_axis
-  // ram_write_desc_status_cc.io.s_axis_aresetn := !pcie.pcie_user_reset
-  // ram_write_desc_status_cc.io.s_axis_aclk    := pcie.pcie_user_clk
-  // ram_write_desc_status_cc.io.m_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
-  // ram_write_desc_status_cc.io.m_axis_aclk    := mainClk.io.clk_out1
-  // ram_write_desc_status_cc.io.m_axis         <> core.io.ram_write_desc_status
-
-
   pcie.dma_read_desc_status                 <> dma_read_desc_status_cc.io.s_axis
   dma_read_desc_status_cc.io.s_axis_aresetn := !pcie.pcie_user_reset
   dma_read_desc_status_cc.io.s_axis_aclk    := pcie.pcie_user_clk
@@ -164,8 +148,9 @@ class top extends RawModule {
  withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) {
    val ram_read_desc_ila  = Module(new ILA(new ram_read_desc_t))
    ram_read_desc_ila.io.ila_data := core.io.ram_read_desc.bits
-//  val ram_write_desc_ila = Module(new ILA(new ram_write_desc_t))
-//  ram_write_desc_ila.io.ila_data := core.io.ram_write_desc.bits
+
+   val ram_write_data_ila = Module(new ILA(new RamWrite))
+   ram_write_data_ila.io.ila_data := core.io.ram_write_data.bits
   //val ram_write_data_ila = Module(new ILA(new ram_write_data_t))
   //ram_write_data_ila.io.ila_data := core.io.ram_write_data.bits
 //  val dma_read_desc_ila  = Module(new ILA(new dma_read_desc_t))

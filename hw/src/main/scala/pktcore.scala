@@ -518,14 +518,6 @@ class pp_ingress_lookup extends Module {
 class pp_ingress_payload extends Module {
   val io = IO(new Bundle {
     val dma_w_data = Decoupled(new dma_write_t) // 64 byte DMA write requests
-    // val ram_write_req = IO(Flipped(Decoupled(new RamWriteReq)))
-
-    // val ram_write_desc        = IO(Flipped(Decoupled(new ram_write_desc_t)))
-    // val ram_write_data        = IO(Flipped(Decoupled(new ram_write_data_t)))
-    // val ram_write_desc_status = IO(Decoupled(new ram_write_desc_status_t))
-
-    // val dma_write_desc        = IO(Flipped(Decoupled(new dma_write_desc_t)))
-    // val dma_write_desc_status = IO(Decoupled(new dma_write_desc_status_t))
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory with data to write
     // val packet_out = Decoupled(new PacketFactory) TODO next stage
@@ -548,13 +540,12 @@ class pp_ingress_payload extends Module {
 
   io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
   io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload
-  io.dma_w_data.bits.length          := 64.U
-  // packet_reg_0.io.deq.bits.payloadBytes() // TODO maybe 0 byte read is bad??
+  io.dma_w_data.bits.length          := packet_reg_0.io.deq.bits.payloadBytes() 
   io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
 
   // TODO can we make these offsets properties of the type?
   // TODO sloppy
-  when (packet_reg_0.io.deq.bits.frame_off >= 0.U) {
+  when (packet_reg_0.io.deq.bits.frame_off > 0.U) {
     io.dma_w_data.valid  := packet_reg_0.io.deq.valid
   }.otherwise {
     io.dma_w_data.valid  := false.B

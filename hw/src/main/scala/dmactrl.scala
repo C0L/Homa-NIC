@@ -106,11 +106,11 @@ class c2h_dma extends Module {
 
   // Construct a DMA write request to read from specified place in BRAM
   val dma_write = Wire(new dma_write_desc_t)
-  dma_write.pcie_addr := ram_write_req_queue.io.deq.bits.pcie_write_addr
-  dma_write.ram_sel   := 0.U
-  dma_write.ram_addr  := ram_head
-  dma_write.len       := ram_write_req_queue.io.deq.bits.length 
-  dma_write.tag       := tag
+  dma_write.pcie_addr    := ram_write_req_queue.io.deq.bits.pcie_write_addr
+  dma_write.ram_sel      := 0.U
+  dma_write.ram_addr     := ram_head
+  dma_write.len          := ram_write_req_queue.io.deq.bits.length 
+  dma_write.tag          := tag
   io.dma_write_desc.bits := dma_write
 
   // When a dequeue transaction occurs, move to the next tag and ram head
