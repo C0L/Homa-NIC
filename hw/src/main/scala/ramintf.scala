@@ -120,13 +120,14 @@ class psdpram_wr extends Module {
   shift_bytes := in_latch.io.deq.bits.addr(5,0) * 8.U
 
   val extended = Wire(UInt(1024.W))
-  extended := in_latch.io.deq.bits.data
+  extended := in_latch.io.deq.bits.data.asTypeOf(UInt(1024.W)) << shift_bytes
 
   when (in_latch.io.deq.bits.addr(6)) {
     // If we wrap around, put lower bytes in high order bits of high frame, and upper bytes bytes in low order bytes of low frame
     io.ram_wr.cmd_data := Cat(extended(511,0), extended(1023,512))
+    // io.ram_wr.cmd_data := Cat(extended(511,0), extended(1023,512))
   }.otherwise {
-    io.ram_wr.cmd_data := extended << shift_bytes
+    io.ram_wr.cmd_data := extended
   }
 
   // TODO use the length field
