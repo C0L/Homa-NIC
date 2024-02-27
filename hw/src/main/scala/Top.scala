@@ -7,7 +7,7 @@ import chisel3.util._
 /* top - entry point to the design. Composes the pcie hierarchy and
  * core user logic together.
  */
-class top extends RawModule {
+class Top extends RawModule {
   /* pcie lanes */ 
   val pcie_rx_p     = IO(Input(UInt(16.W)))
   val pcie_rx_n     = IO(Input(UInt(16.W)))
@@ -153,8 +153,8 @@ class top extends RawModule {
   //ram_write_data_ila.io.ila_data := core.io.ram_write_data.bits
 //  val dma_read_desc_ila  = Module(new ILA(new dma_read_desc_t))
 //  dma_read_desc_ila.io.ila_data := core.io.dma_read_desc.bits
-//  val dma_write_desc_ila = Module(new ILA(new dma_write_desc_t))
-//  dma_write_desc_ila.io.ila_data := core.io.dma_write_desc.bits
+   val dma_write_desc_ila = Module(new ILA(new dma_write_desc_t))
+   dma_write_desc_ila.io.ila_data := core.io.dma_write_desc.bits
 
   // val ram_read_desc_status_ila  = Module(new ILA(new ram_read_desc_status_t))
   // ram_read_desc_status_ila.io.ila_data := core.io.ram_read_desc_status.bits
@@ -162,7 +162,7 @@ class top extends RawModule {
   ram_read_data_ila.io.ila_data := core.io.ram_read_data.bits
  // val ram_write_desc_status_ila = Module(new ILA(new ram_write_desc_status_t))
   //ram_write_desc_status_ila.io.ila_data := core.io.ram_write_desc_status.bits
-  // val dma_read_desc_status_ila  = Module(new ILA(new dma_read_desc_status_t))
+   // val dma_read_desc_status_ila  = Module(new ILA(new dma_read_desc_status_t))
   // dma_read_desc_status_ila.io.ila_data := core.io.dma_read_desc_status.bits
   // val dma_write_desc_status_ila = Module(new ILA(new dma_write_desc_status_t))
   // dma_write_desc_status_ila.io.ila_data := core.io.dma_write_desc_status.bits
@@ -173,7 +173,7 @@ class top extends RawModule {
  */
 object Main extends App {
   ChiselStage.emitSystemVerilogFile(
-    new top,
+    new Top,
     Array("--split-verilog", "--target-dir", "gen"),
     Array("--disable-all-randomization", "--strip-debug-info"),
   )

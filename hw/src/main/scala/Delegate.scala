@@ -20,9 +20,9 @@ class Delegate extends Module {
     val dma_w_req_o = Decoupled(new dma_write_t)   // Output to pcie write
     val dma_map_o   = Decoupled(new dma_map_t)     // Output to add new DMA map
 
-    val sendmsg_ram_write_desc        = Decoupled(new ram_write_desc_t) // Descriptor to write to RAM
-    val sendmsg_ram_write_data        = Decoupled(new ram_write_data_t) // Data to write to RAM
-    val sendmsg_ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))   // Result of RAM write
+    // val sendmsg_ram_write_desc        = Decoupled(new ram_write_desc_t) // Descriptor to write to RAM
+    val sendmsg_ram_write_data        = Decoupled(new RAMWrite) // Data to write to RAM
+    // val sendmsg_ram_write_desc_status = Flipped(Decoupled(new ram_write_desc_status_t))   // Result of RAM write
 
     val recvmsg_ram_write_desc        = Decoupled(new ram_write_desc_t) // Descriptor to write to RAM
     val recvmsg_ram_write_data        = Decoupled(new ram_write_data_t) // Data to write to RAM
@@ -110,13 +110,16 @@ class Delegate extends Module {
 
            msghdr_send.id := send_id
 
-           io.sendmsg_ram_write_data.bits.data     := msghdr_send.asUInt
-           io.sendmsg_ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)
-           io.sendmsg_ram_write_data.bits.last     := 1.U
+           // io.sendmsg_ram_write_data.bits.data     := msghdr_send.asUInt
+           // io.sendmsg_ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)
+           // io.sendmsg_ram_write_data.bits.last     := 1.U
 
-           io.sendmsg_ram_write_desc.bits.ram_addr := 64.U * send_id
-           io.sendmsg_ram_write_desc.bits.len      := 64.U
-           io.sendmsg_ram_write_desc.bits.tag      := send_id
+           // io.sendmsg_ram_write_desc.bits.ram_addr := 64.U * send_id
+           // io.sendmsg_ram_write_desc.bits.len      := 64.U
+           // io.sendmsg_ram_write_desc.bits.tag      := send_id
+           io.sendmsg_ram_write_data.bits.addr := 64.U * send_id
+           io.sendmsg_ram_write_data.bits.len  := 64.U
+           io.sendmsg_ram_write_data.bits.data     := msghdr_send.asUInt
 
            // Construct a new meta data writeback request with the newly assigned ID
            dma_w_req_queue.io.enq.bits.pcie_write_addr := 64.U * msghdr_send.ret 

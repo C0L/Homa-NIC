@@ -39,10 +39,10 @@ class pcie_core extends Module {
   val pcie_user_reset       = IO(Output(Bool()))
 
   val pcie_core             = Module(new pcie_rtl)
-  val dma_client_read       = Module(new psdpram_rd)
-  val dma_client_write      = Module(new psdpram_wr)
-  val h2c_psdpram           = Module(new dma_psdpram(262144))
-  val c2h_psdpram           = Module(new dma_psdpram(262144))
+  val dma_client_read       = Module(new SegmentedRAMRead)
+  val dma_client_write      = Module(new SegmentedRAMWrite)
+  val h2c_psdpram           = Module(new SegmentedRAM(262144))
+  val c2h_psdpram           = Module(new SegmentedRAM(262144))
 
   m_axi <> pcie_core.io.m_axi
 
@@ -54,12 +54,6 @@ class pcie_core extends Module {
 
   dma_write_desc <> pcie_core.io.dma_write_desc
   dma_write_desc_status <> pcie_core.io.dma_write_desc_status
-
-  h2c_psdpram.io.clk := pcie_core.io.pcie_user_clk
-  h2c_psdpram.io.rst := pcie_core.io.pcie_user_reset
-
-  c2h_psdpram.io.clk := pcie_core.io.pcie_user_clk
-  c2h_psdpram.io.rst := pcie_core.io.pcie_user_reset
 
   // Off chip pcie lanes, clock, and reset
   pcie_core.io.pcie_rx_p     <> pcie_rx_p
@@ -76,15 +70,15 @@ class pcie_core extends Module {
   // pcie_core reads from segmented ram to write to DMA
   c2h_psdpram.io.ram_rd <> pcie_core.io.ram_rd
 
-  dma_client_read.io.ram_read_desc        <> ram_read_desc 
-  dma_client_read.io.ram_read_data        <> ram_read_data
+  dma_client_read.io.ram_read_desc <> ram_read_desc 
+  dma_client_read.io.ram_read_data <> ram_read_data
 
   dma_client_read.io.ram_rd <> h2c_psdpram.io.ram_rd
 
   ram_read_desc_status := DontCare
 
   dma_client_write.io.ram_write_cmd <> ram_write_data
-  dma_client_write.io.ram_wr         <> c2h_psdpram.io.ram_wr
+  dma_client_write.io.ram_wr        <> c2h_psdpram.io.ram_wr
 
   /* DEBUGGING ILAS */
 

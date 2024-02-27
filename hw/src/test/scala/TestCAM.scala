@@ -47,6 +47,30 @@ class CAMTest extends AnyFreeSpec {
     }
   }
 
+  "TestCAM: search for an item that doesnt exist" in {
+    simulate(new CAM(32,32)) { dut =>
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.search.bits.key.poke("hffff".U)
+      dut.io.search.valid.poke(true.B)
+
+      dut.clock.step()
+
+      dut.io.search.valid.poke(false.B)
+
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+      dut.clock.step()
+
+      dut.io.result.valid.expect(true.B)
+    }
+  }
+
   "cam test: stress" in {
     simulate(new CAM(32,32)) { dut =>
       dut.reset.poke(true.B)

@@ -20,12 +20,9 @@ class simple_ram extends Module {
       val ram_write_desc_status = Decoupled(new ram_write_desc_status_t)
   })
 
-  val sendmsg_cb     = Module(new dma_psdpram(262144))
+  val sendmsg_cb     = Module(new SegmentedRAM(262144))
   val sendmsg_cb_wr  = Module(new dma_client_axis_sink)
-  val sendmsg_cb_rd  = Module(new psdpram_rd)
-
-  sendmsg_cb.io.clk := clock
-  sendmsg_cb.io.rst := reset.asUInt
+  val sendmsg_cb_rd  = Module(new SegmentedRAMRead)
 
   sendmsg_cb_wr.io.clk := clock
   sendmsg_cb_wr.io.rst := reset.asUInt
@@ -182,18 +179,15 @@ class unaligned_read_test extends AnyFreeSpec {
 
 class simple_wr extends Module {
   val io = IO(new Bundle {
-      val ram_read_desc         = Flipped(Decoupled(new ram_read_desc_t))
-      val ram_read_data         = Decoupled(new ram_read_data_t)
+      val ram_read_desc = Flipped(Decoupled(new ram_read_desc_t))
+      val ram_read_data = Decoupled(new ram_read_data_t)
 
       val ram_write_cmd = Flipped(Decoupled(new RamWrite))
   })
 
-  val ram = Module(new dma_psdpram(262144))
-  val wr  = Module(new psdpram_wr)
-  val rd  = Module(new psdpram_rd)
-
-  ram.io.clk := clock
-  ram.io.rst := reset.asUInt
+  val ram = Module(new SegmentedRAM(262144))
+  val wr  = Module(new SegmentedRAMWrite)
+  val rd  = Module(new SegmentedRAMRead)
 
   ram.io.ram_wr <> wr.io.ram_wr
   ram.io.ram_rd <> rd.io.ram_rd

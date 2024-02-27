@@ -779,14 +779,27 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
 
       dut.clock.step()
 
+      dut.io.packet_out.ready.poke(true.B)
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.ram_read_desc.valid.expect(true.B)
+
+      dut.clock.step()
+
       dut.io.packet_in.valid.poke(false.B)
       dut.io.ram_read_desc.valid.expect(true.B)
       dut.io.ram_read_data.valid.poke(true.B)
 
       dut.clock.step()
+
+      dut.io.packet_out.valid.expect(true.B)
+      dut.io.ram_read_data.valid.poke(true.B)
+
       dut.clock.step()
 
       dut.io.packet_out.valid.expect(true.B)
+      dut.io.ram_read_data.valid.poke(false.B)
+
+
     }
   }
 

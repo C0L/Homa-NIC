@@ -39,17 +39,16 @@ class MGMTCore extends Module {
 
   val sendmsg_cb     = Module(new SegmentedRAM(262144)) // Memory for sendmsg control blocks
   val recvmsg_cb     = Module(new SegmentedRAM(262144)) // Memory for recvmsg control blocks
-  val sendmsg_cb_wr  = Module(new dma_client_axis_sink) // Interface to write sendmsg cbs
-  val sendmsg_cb_rd  = Module(new dma_client_axis_source) // Inter
-  val recvmsg_cb_wr  = Module(new dma_client_axis_sink) //
-  val recvmsg_cb_rd  = Module(new dma_client_axis_source) //
+  val sendmsg_cb_wr  = Module(new SegmentedRAMWrite)    // Interface to write sendmsg cbs
+  val sendmsg_cb_rd  = Module(new SegmentedRAMRead)     // 
+  val recvmsg_cb_wr  = Module(new SegmentedRAMWrite)    //
+  val recvmsg_cb_rd  = Module(new SegmentedRAMRead)     //
 
   // TODO this should be seperated out
 
   val pp_ingress = Module(new pp_ingress_stages)
 
   pp_ingress.io.cb_ram_read_desc        <> recvmsg_cb_rd.io.ram_read_desc
-  pp_ingress.io.cb_ram_read_desc_status <> recvmsg_cb_rd.io.ram_read_desc_status
   pp_ingress.io.cb_ram_read_data        <> recvmsg_cb_rd.io.ram_read_data
 
   addr_map.io.dma_w_data_i <> pp_ingress.io.dma_w_data
@@ -57,7 +56,6 @@ class MGMTCore extends Module {
   val pp_egress  = Module(new pp_egress_stages)
 
   pp_egress.io.cb_ram_read_desc        <> sendmsg_cb_rd.io.ram_read_desc
-  pp_egress.io.cb_ram_read_desc_status <> sendmsg_cb_rd.io.ram_read_desc_status
   pp_egress.io.cb_ram_read_data        <> sendmsg_cb_rd.io.ram_read_data
 
   pp_egress.io.payload_ram_read_desc        <> io.ram_read_desc
@@ -69,31 +67,11 @@ class MGMTCore extends Module {
 
   // TODO should be able to handle this with a small wrapper + implicit clk/reset
 
-  sendmsg_cb_wr.io.clk := clock
-  sendmsg_cb_wr.io.rst := reset.asUInt
-
-  sendmsg_cb_rd.io.clk := clock
-  sendmsg_cb_rd.io.rst := reset.asUInt
-
   sendmsg_cb.io.ram_wr <> sendmsg_cb_wr.io.ram_wr
   sendmsg_cb.io.ram_rd <> sendmsg_cb_rd.io.ram_rd
 
-  recvmsg_cb_wr.io.clk := clock
-  recvmsg_cb_wr.io.rst := reset.asUInt
-
-  recvmsg_cb_rd.io.clk := clock
-  recvmsg_cb_rd.io.rst := reset.asUInt
-
   recvmsg_cb.io.ram_wr <> recvmsg_cb_wr.io.ram_wr
   recvmsg_cb.io.ram_rd <> recvmsg_cb_rd.io.ram_rd
-
-  sendmsg_cb_wr.io.enable := 1.U
-  sendmsg_cb_wr.io.abort  := 0.U
-  sendmsg_cb_rd.io.enable := 1.U
-
-  recvmsg_cb_wr.io.enable := 1.U
-  recvmsg_cb_wr.io.abort  := 0.U
-  recvmsg_cb_rd.io.enable := 1.U
 
   delegate.io.sendmsg_ram_write_desc        <> sendmsg_cb_wr.io.ram_write_desc
   delegate.io.sendmsg_ram_write_desc_status <> sendmsg_cb_wr.io.ram_write_desc_status
@@ -112,9 +90,9 @@ class MGMTCore extends Module {
   h2c_dma.io.dma_read_desc   <> io.dma_read_desc
   h2c_dma.io.dma_read_status <> io.dma_read_desc_status
 
-  c2h_dma.io.ram_write_data        <> io.ram_write_data
+  c2h_dma.io.ram_write_data  <> io.ram_write_data
 
-  io.dma_write_desc                <> c2h_dma.io.dma_write_desc
+  io.dma_write_desc          <> c2h_dma.io.dma_write_desc
 
   c2h_dma.io.dma_write_desc_status <> io.dma_write_desc_status
   c2h_dma.io.dma_write_req         <> addr_map.io.dma_w_req_o
@@ -149,8 +127,8 @@ class MGMTCore extends Module {
   // val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
   // axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
-  // val dbuff_in_ila = Module(new ILA(new QueueEntry))
-  // dbuff_in_ila.io.ila_data := h2c_dma.io.dbuff_notif_o.bits
+  val dbuff_in_ila = Module(new ILA(new QueueEntry))
+  dbuff_in_ila.io.ila_data := h2c_dma.io.dbuff_notif_o.bits
 
   // val sendmsg_in_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // sendmsg_in_ila.io.ila_data := delegate.io.sendmsg_o

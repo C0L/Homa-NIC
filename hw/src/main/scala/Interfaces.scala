@@ -44,7 +44,7 @@ class ram_read_desc_status_t extends Bundle {
  val error = UInt(4.W)
 }
 
-class RamWrite extends Bundle {
+class RAMWrite extends Bundle {
   val addr = UInt(18.W)
   val len  = UInt(8.W)
   val data = UInt(512.W)
@@ -292,6 +292,12 @@ class PacketFactory extends Bundle {
     }
 
     frame
+  }
+
+  def packetBytes(): UInt = {
+    val packet_len = Wire(UInt(32.W))
+    packet_len := data.data.seg_len + HDR_BYTES.U
+    packet_len
   }
 
   def lastFrame(): UInt = {

@@ -21,7 +21,6 @@ class pp_egress_stages extends Module {
     val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet
 
     val cb_ram_read_desc         = Decoupled(new ram_read_desc_t) // Read descriptors for sendmsg control blocks
-    val cb_ram_read_desc_status  = Flipped(Decoupled(new ram_read_desc_status_t)) // Result of read descriptor 
     val cb_ram_read_data         = Flipped(Decoupled(new ram_read_data_t)) // Control block returned from read
 
     val payload_ram_read_desc        = Decoupled(new ram_read_desc_t) // Read descriptors for packet payload data
@@ -45,7 +44,6 @@ class pp_egress_stages extends Module {
 
   // Hook control block core up to the control block RAM
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
-  pp_lookup.io.ram_read_desc_status <> io.cb_ram_read_desc_status
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
   // Hook payload core up to the payload RAM managed by fetch queue
@@ -53,9 +51,8 @@ class pp_egress_stages extends Module {
   pp_payload.io.ram_read_desc_status <> io.payload_ram_read_desc_status
   pp_payload.io.ram_read_data        <> io.payload_ram_read_data
 
-
-  val pp_egress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
-  pp_egress_ila.io.ila_data := io.egress
+  // val pp_egress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  // pp_egress_ila.io.ila_data := io.egress
 
   // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // pp_egress_trigger_ila.io.ila_data := io.trigger
@@ -66,8 +63,8 @@ class pp_egress_stages extends Module {
   // val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
-  val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
+  // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
 
   // val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
@@ -79,17 +76,11 @@ class pp_egress_stages extends Module {
 class pp_egress_lookup extends Module {
   val io = IO(new Bundle {
     val ram_read_desc         = Decoupled(new ram_read_desc_t) // Read descriptors for sendmsg control blocks
-    val ram_read_desc_status  = Flipped(Decoupled(new ram_read_desc_status_t)) // Result of read descriptor
     val ram_read_data         = Flipped(Decoupled(new ram_read_data_t)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new QueueEntry)) // Output from sendmsg queue
     val packet_out = Decoupled(new PacketFactory) // Packet factory associated with this queue output 
   })
-
-  // Discard status result
-  io.ram_read_desc_status       := DontCare
-  io.ram_read_desc_status.ready := true.B
-
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new QueueEntry, 1, true, false))
@@ -157,7 +148,8 @@ class pp_egress_dupe extends Module {
    * the frames and receiver is ready
    */
   // TODO Move some of this logic out
-  packet_reg_0.io.deq.ready          := packet_reg_1.io.enq.ready && (frame_off >= (1500 - 64).U) // TODO temp this only works for max sized packets
+
+  packet_reg_0.io.deq.ready          := packet_reg_1.io.enq.ready && (frame_off >= (packet_reg_0.io.deq.bits.packetBytes() - 64.U))
   packet_reg_1.io.enq.valid          := packet_reg_0.io.deq.valid
   packet_reg_1.io.enq.bits           := packet_reg_0.io.deq.bits
   packet_reg_1.io.enq.bits.frame_off := frame_off
@@ -331,7 +323,6 @@ class pp_egress_xmit extends Module {
 class pp_ingress_stages extends Module {
   val io = IO(new Bundle {
     val cb_ram_read_desc        = Decoupled(new ram_read_desc_t) // Read descriptors for recvmsg control blocks
-    val cb_ram_read_desc_status = Flipped(Decoupled(new ram_read_desc_status_t)) // Status response to read desc
     val cb_ram_read_data        = Flipped(Decoupled(new ram_read_data_t)) // Data read from descriptor request
 
     val ingress    = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
@@ -342,6 +333,13 @@ class pp_ingress_stages extends Module {
   val pp_map     = Module(new pp_ingress_map) // Map the unique local ID associated with packet
   val pp_lookup  = Module(new pp_ingress_lookup) // Lookup the associated data of that local ID
   val pp_payload = Module(new pp_ingress_payload) // Send the data from that packet factory over DMA
+
+
+  val lookup_desc_ila = Module(new ILA(new ram_read_desc_t))
+  lookup_desc_ila.io.ila_data := io.cb_ram_read_desc.bits
+
+  val lookup_data_ila = Module(new ILA(new ram_read_data_t))
+  lookup_data_ila.io.ila_data := io.cb_ram_read_data.bits
 
   // Link all the units together
   pp_dtor.io.ingress      <> io.ingress
@@ -354,12 +352,11 @@ class pp_ingress_stages extends Module {
 
   // Connect control block lookup descriptors
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
-  pp_lookup.io.ram_read_desc_status <> io.cb_ram_read_desc_status
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
 
-  val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
-  pp_ingress_ila.io.ila_data := io.ingress
+  // val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  // pp_ingress_ila.io.ila_data := io.ingress
 
   // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
@@ -369,7 +366,6 @@ class pp_ingress_stages extends Module {
 
   val pp_payload_ila = Module(new ILA(Decoupled(new dma_write_t)))
   pp_payload_ila.io.ila_data := pp_payload.io.dma_w_data
-
 }
 
 /* pp_ingress_dtor - take 64 byte chunks from off the network and
@@ -384,7 +380,7 @@ class pp_ingress_dtor extends Module {
 
   val processed = RegInit(0.U(32.W)) // Number of bytes we have received so far for this packet
   val pkt       = Reg(new PacketFactory) // Packet factory we are building as data arrives
-  val pktvalid  = RegInit(false.B) // Whether the packet factory should process to the next stage
+  val pktvalid  = RegInit(false.B) // Whether the packet factory should progress to the next stage
 
   // The output to the next stage is a registed packet factory and registered valid signal
   io.packet_out.valid := pktvalid
@@ -414,10 +410,11 @@ class pp_ingress_dtor extends Module {
    */
 
   // TODO can some of this be moved into packet factory?
-  when (io.ingress.tvalid && io.ingress.tready) {
+  when ((pktvalid === false.B || io.packet_out.ready === 1.U) && io.ingress.tvalid) {
     when (processed === 0.U) {
       pkt := Cat(io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 512).W)).asTypeOf(new PacketFactory)
       pkt.frame_off := processed
+      pktvalid := false.B
     }.elsewhen (processed === 64.U) {
       // We know that packet_out was ready so this will send data
       pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 1024).W)).asTypeOf(new PacketFactory)
@@ -435,7 +432,7 @@ class pp_ingress_dtor extends Module {
     }.otherwise {
       processed := processed + 64.U
     }
-  }.otherwise {
+  }.elsewhen (io.packet_out.fire) {
     pktvalid := false.B
   }
 }
@@ -459,17 +456,11 @@ class pp_ingress_map extends Module {
 class pp_ingress_lookup extends Module {
   val io = IO(new Bundle {
     val ram_read_desc        = Decoupled(new ram_read_desc_t) // Read descriptors for recvmsg control blocks
-    val ram_read_desc_status = Flipped(Decoupled(new ram_read_desc_status_t)) // Status from read desciptor
     val ram_read_data        = Flipped(Decoupled(new ram_read_data_t)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Packet factory input 
     val packet_out = Decoupled(new PacketFactory) // Packet factory output with control block added
   })
-
-  // Discard status result
-  io.ram_read_desc_status       := DontCare
-  io.ram_read_desc_status.ready := true.B
-
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
@@ -501,11 +492,12 @@ class pp_ingress_lookup extends Module {
    * We are ready if there are no more chunks to dequeue
    */
   pending.io.deq.ready      := packet_reg_1.io.enq.ready && io.ram_read_data.valid
-  packet_reg_1.io.enq.valid := pending.io.deq.valid && io.ram_read_data.valid
+  io.ram_read_data.ready    := packet_reg_1.io.enq.ready
+  packet_reg_1.io.enq.valid := io.ram_read_data.valid
+  // packet_reg_1.io.enq.valid := pending.io.deq.valid && io.ram_read_data.valid
 
   // If the RAM read has data there is always data in queue. That will
   // be emptied when the downstream is availible
-  io.ram_read_data.ready := packet_reg_1.io.enq.ready
 
   packet_reg_1.io.enq.bits    := pending.io.deq.bits
   packet_reg_1.io.enq.bits.cb := io.ram_read_data.bits.data.asTypeOf(new msghdr_t)
@@ -522,6 +514,7 @@ class pp_ingress_payload extends Module {
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory with data to write
     // val packet_out = Decoupled(new PacketFactory) TODO next stage
   })
+
 
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
 

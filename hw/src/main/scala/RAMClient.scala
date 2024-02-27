@@ -9,12 +9,12 @@ import chisel3.util._
 // TODO need to more carefully test the flow control
 // TODO this assumes the "even" and "odd" channels always act together
 
-/* psdpram_rd - simplisitc fixed width read interface to psdram
+/* SegmentedRAMRead - simplisitc fixed width read interface to psdram
  * module. This assumes the corresponding segmented memory is
  * parameterized with a 512 bit segmented size, 2 segments, and 11 bit
  * address per segment.
  */
-class psdpram_rd extends Module {
+class SegmentedRAMRead extends Module {
   val io = IO(new Bundle {
     val ram_read_desc = Flipped(Decoupled(new ram_read_desc_t)) // Requests to read data from RAM
     val ram_read_data = Decoupled(new ram_read_data_t) // Returned result from RAM
@@ -29,8 +29,8 @@ class psdpram_rd extends Module {
    * result is valid (ram_rd.resp_valid), the out_latch latches on the
    * result, which is connected to the output port.
    */
-  val in_latch = Module(new Queue(new ram_read_desc_t, 1, true, false))
-  val pending = Module(new Queue(new ram_read_desc_t, 6, true, false)) 
+  val in_latch  = Module(new Queue(new ram_read_desc_t, 1, true, false))
+  val pending   = Module(new Queue(new ram_read_desc_t, 6, true, false)) 
   val out_latch = Module(new Queue(new ram_read_data_t, 1, true, false))
   in_latch.io.enq <> io.ram_read_desc
 
@@ -88,12 +88,12 @@ class psdpram_rd extends Module {
 }
 
 
-/* psdpram_wr - simplisitc fixed width write interface to psdram
+/* SegmentedRAMWrite - simplisitc fixed width write interface to psdram
  * module. This assumes the corresponding segmented memory is
  * parameterized with a 512 bit segmented size, 2 segments, and 11 bit
  * address per segment.
  */
-class psdpram_wr extends Module {
+class SegmentedRAMWrite extends Module {
   val io = IO(new Bundle {
     val ram_write_cmd  = Flipped(Decoupled(new RamWrite))
     val ram_wr         = new ram_wr_t
