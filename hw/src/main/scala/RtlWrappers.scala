@@ -26,7 +26,7 @@ class srpt_queue (qtype: String) extends BlackBox (
 
 class FetchQueue extends Module {
   val io = IO(new Bundle {
-    val CACHE_BLOCK_SIZE = Input(UInt(16.W))
+    val fetchSize = Input(UInt(16.W))
     val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
     val dequeue = Decoupled(new dma_read_t)
@@ -37,7 +37,7 @@ class FetchQueue extends Module {
   fetch_queue_raw.io.clk := clock
   fetch_queue_raw.io.rst := reset.asUInt
 
-  fetch_queue_raw.io.CACHE_BLOCK_SIZE <> io.CACHE_BLOCK_SIZE
+  fetch_queue_raw.io.CACHE_BLOCK_SIZE <> io.fetchSize
 
   // val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
   // fetch_out_ila.io.ila_data := fetch_queue_raw.io.m_axis
@@ -57,8 +57,8 @@ class FetchQueue extends Module {
   dma_read.pcie_read_addr := fetch_queue_raw_out.dbuffered
   dma_read.cache_id       := fetch_queue_raw_out.dbuff_id // TODO bad name 
   dma_read.message_size   := fetch_queue_raw_out.granted
-  dma_read.read_len       := 256.U // TODO placeholder
-  dma_read.dest_ram_addr  := (16384.U * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
+  dma_read.read_len       := io.fetchSize
+  dma_read.dest_ram_addr  := (CACHE.line_size * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
   dma_read.port           := 1.U // TODO placeholder
 
   io.dequeue.bits         := dma_read
@@ -69,7 +69,7 @@ class FetchQueue extends Module {
 
 class SendmsgQueue extends Module {
   val io = IO(new Bundle {
-    val CACHE_BLOCK_SIZE = Input(UInt(16.W))
+    val fetchSize = Input(UInt(16.W))
 
     val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
@@ -78,7 +78,7 @@ class SendmsgQueue extends Module {
 
   val send_queue_raw = Module(new srpt_queue("sendmsg"))
 
-  send_queue_raw.io.CACHE_BLOCK_SIZE <> io.CACHE_BLOCK_SIZE
+  send_queue_raw.io.CACHE_BLOCK_SIZE <> io.fetchSize
 
   // val sendmsg_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
   // sendmsg_out_ila.io.ila_data := send_queue_raw.io.m_axis

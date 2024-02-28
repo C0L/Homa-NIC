@@ -451,13 +451,13 @@ class PPingressMap extends Module {
   io.packet_in <> io.packet_out 
 }
 
-/* pp_ingress_lookup - Look up the associated recv control block with
+/* PPingressLookup - Look up the associated recv control block with
  * this local ID to know where to direct packet data.
  */
 class PPingressLookup extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc        = Decoupled(new RAMReadReq) // Read descriptors for recvmsg control blocks
-    val ram_read_data        = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
+    val ram_read_desc = Decoupled(new RAMReadReq) // Read descriptors for recvmsg control blocks
+    val ram_read_data = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Packet factory input 
     val packet_out = Decoupled(new PacketFactory) // Packet factory output with control block added
@@ -510,6 +510,8 @@ class PPingressLookup extends Module {
  */
 class PPingressPayload extends Module {
   val io = IO(new Bundle {
+    val dynamicConfiguration = Input(new DynamicConfiguration)
+
     val dma_w_data = Decoupled(new dma_write_t) // 64 byte DMA write requests
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory with data to write
   })
@@ -524,8 +526,17 @@ class PPingressPayload extends Module {
 
   // Write data at un-aligned offset in RAM
   // Keep count of bufferd bytes
-  // When we exceed 256, or end of packet, send write TLP 
+  // When we exceed 256, or end of packet, send write TLP
 
+  // TODO do we need a RAM mux??
+
+  // val writeBuffed = RegInit(0.U(16.W))
+  // Dispatch the RAM write always
+  // when (/* last chunk */ || buffered + /* TODO next payload */ <= dynamicConfiguration.writeBufferSize) {
+  //   // Dispatch the DMA write
+  // }.otherwise {
+  // reset buffered
+  //}
 
   /* Packet frames arrive LSB (bit 512) -> MSB (bit 0). So, when we
    * extract the payload it starts at bit 512. This is no issue if we
@@ -534,11 +545,16 @@ class PPingressPayload extends Module {
    * payload chunk) is byte zero of our write request
    */
   io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
-  io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload >> (512.U - (packet_reg_0.io.deq.bits.payloadBytes() * 8.U))
+
+  when (packet_reg_0.io.deq.bits.frame_off === 64.U) {
+    io.dma_w_data.bits.data := packet_reg_0.io.deq.bits.payload >> (512 - (18 * 8)).U // TODO hackey
+  }.otherwise {
+    io.dma_w_data.bits.data := packet_reg_0.io.deq.bits.payload
+  }
+
   io.dma_w_data.bits.length          := packet_reg_0.io.deq.bits.payloadBytes()  // Number of payload bytes in this frame
   io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport    // TODO unsafe
 
-  // TODO can we make these offsets properties of the type?
   // TODO sloppy
   when (packet_reg_0.io.deq.bits.frame_off > 0.U) {
     io.dma_w_data.valid  := packet_reg_0.io.deq.valid

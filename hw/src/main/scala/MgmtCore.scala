@@ -43,8 +43,8 @@ class MGMTCore extends Module {
   val recvmsg_cb_wr  = Module(new SegmentedRAMWrite)    //
   val recvmsg_cb_rd  = Module(new SegmentedRAMRead)     //
 
-  fetch_queue.io.CACHE_BLOCK_SIZE   := delegate.io.dynamicConfiguration.fetchSize
-  sendmsg_queue.io.CACHE_BLOCK_SIZE := delegate.io.dynamicConfiguration.fetchSize
+  fetch_queue.io.fetchSize   := delegate.io.dynamicConfiguration.fetchSize
+  sendmsg_queue.io.fetchSize := delegate.io.dynamicConfiguration.fetchSize
 
   h2c_dma.io.dynamicConfiguration := delegate.io.dynamicConfiguration
 
