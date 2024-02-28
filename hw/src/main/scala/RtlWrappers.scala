@@ -15,6 +15,8 @@ class srpt_queue (qtype: String) extends BlackBox (
     val clk = Input(Clock())
     val rst = Input(UInt(1.W))
 
+    val CACHE_BLOCK_SIZE = Input(UInt(16.U)),
+
     val s_axis = Flipped(new axis(89, false, 0, false, 0, false, 0, false))
     val m_axis = new axis(89, false, 0, false, 0, false, 0, false)
   })
@@ -24,6 +26,7 @@ class srpt_queue (qtype: String) extends BlackBox (
 
 class FetchQueue extends Module {
   val io = IO(new Bundle {
+    val CACHE_BLOCK_SIZE = Input(UInt(16.U)),
     val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
     val dequeue = Decoupled(new dma_read_t)
@@ -33,6 +36,8 @@ class FetchQueue extends Module {
 
   fetch_queue_raw.io.clk := clock
   fetch_queue_raw.io.rst := reset.asUInt
+
+  fetch_queue_raw.CACHE_BLOCK_SIZE <> io.CACHE_BLOCK_SIZE
 
   // val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
   // fetch_out_ila.io.ila_data := fetch_queue_raw.io.m_axis

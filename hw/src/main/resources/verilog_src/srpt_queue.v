@@ -16,7 +16,7 @@
 `define QUEUE_ENTRY_PRIORITY  88:86 // Deprioritize inactive messages
 
 `define HOMA_PAYLOAD_SIZE 20'h56a
-`define CACHE_BLOCK_SIZE 256 
+// `define CACHE_BLOCK_SIZE 256 
 
 `define CACHE_SIZE 131072
 
@@ -85,8 +85,10 @@
  */
 module srpt_queue #(parameter MAX_RPCS = 64,
 		    parameter TYPE = "sendmsg")
-   (input clk, rst, 
-    
+   (input clk, rst,
+
+    input [16-1:0]                     CACHE_BLOCK_SIZE,
+
     input			       s_axis_tvalid,
     output reg			       s_axis_tready,
     input [`QUEUE_ENTRY_SIZE-1:0]      s_axis_tdata,
@@ -105,10 +107,8 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 
    wire				       sendq_granted;
    wire				       sendq_dbuffered;
-   // wire				       sendq_empty;
 
    wire				       head_active;
-   wire				       fetch_empty;
 
    reg				       ripe;
 
@@ -160,7 +160,6 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
 
    assign head_active = (queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE);
-   assign fetch_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE; // TODO unused??
 
    integer entry;
 
@@ -227,7 +226,6 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	       end else if (TYPE == "fetch") begin // if (TYPE == "sendmsg")
 	  	  // Did we just request the last block for this message
 	  	  if (queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE) begin
-	  	     // $display("wipe!! %x", queue[1]);
 	             queue[0]                        <= queue[1];
 	             queue[1][`QUEUE_ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
 	  	  end else begin
