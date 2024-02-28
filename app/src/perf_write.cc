@@ -10,6 +10,9 @@
 #include <sys/ioctl.h>
 #include <immintrin.h>
 
+#include <chrono>
+#include <thread>
+
 #include "time_trace.h"
 #include "nic_utils.h"
 
@@ -49,8 +52,7 @@ int main() {
     }
 
     uint32_t retoff = 0; // Lte 12 bits used
-    uint32_t size   = 16000; // Lte 20 bits used
-    // uint32_t size   = 100000; // Lte 20 bits used
+    uint32_t size   = 10000; // Lte 20 bits used
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
     msghdr_send_in.sport     = 0x1;
@@ -60,8 +62,8 @@ int main() {
     msghdr_send_in.cc        = 0;
     msghdr_send_in.metadata  = (size << 12) | retoff;
 
-    char * poll = ((char *) c2h_msgbuff_map) + 128;
-    // char * poll = ((char *) c2h_metadata_map) + ((retoff) * 64) + 10;
+    // char * poll = ((char *) c2h_msgbuff_map) + 128;
+    char * poll = ((char *) c2h_metadata_map) + ((retoff) * 64) + 10;
     *poll = 0;
 
     char thread_name[50];
@@ -80,8 +82,10 @@ int main() {
 	*poll = 0;
     } 
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
     printf("Data buffer out\n");
-    for (int i = 0; i < 16; ++i) {
+    for (int i = 0; i < 32; ++i) {
     	printf("Chunk %d: ", i);
     	for (int j = 0; j < 64; ++j) printf("%02hhX", *(((unsigned char *) c2h_msgbuff_map) + j + (i*64)));
     	printf("\n");
