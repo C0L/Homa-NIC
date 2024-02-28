@@ -20,10 +20,10 @@ class Delegate extends Module {
     val dma_w_req_o = Decoupled(new dma_write_t)   // Output to pcie write
     val dma_map_o   = Decoupled(new dma_map_t)     // Output to add new DMA map
 
-    val sendmsg_ram_write_data        = Decoupled(new RAMWriteReq) // Data to write to RAM
-    val recvmsg_ram_write_data        = Decoupled(new RAMWriteReq) // Data to write to RAM
+    val sendmsg_ram_write_data = Decoupled(new RAMWriteReq) // Data to write to RAM
+    val recvmsg_ram_write_data = Decoupled(new RAMWriteReq) // Data to write to RAM
 
-    val dyanmicConfiguration = Output(new DynamicConfiguration)
+    val dynamicConfiguration = Output(new DynamicConfiguration)
   })
 
   val dynamicConfiguration = RegInit(0.U.asTypeOf(new DynamicConfiguration))
@@ -97,7 +97,8 @@ class Delegate extends Module {
         }
 
         is (64.U) {
-          dynamicConfiguration := functon_queue.io.deq.bits.data.asTypeOf(new DynamicConfiguration)
+          function_queue.io.deq.ready := true.B
+          dynamicConfiguration        := function_queue.io.deq.bits.data.asTypeOf(new DynamicConfiguration)
         }
       }
     } otherwise {
@@ -109,13 +110,6 @@ class Delegate extends Module {
 
            msghdr_send.id := send_id
 
-           // io.sendmsg_ram_write_data.bits.data     := msghdr_send.asUInt
-           // io.sendmsg_ram_write_data.bits.keep     := ("hffffffffffffffffffff".U)
-           // io.sendmsg_ram_write_data.bits.last     := 1.U
-
-           // io.sendmsg_ram_write_desc.bits.ram_addr := 64.U * send_id
-           // io.sendmsg_ram_write_desc.bits.len      := 64.U
-           // io.sendmsg_ram_write_desc.bits.tag      := send_id
            io.sendmsg_ram_write_data.bits.addr := 64.U * send_id
            io.sendmsg_ram_write_data.bits.len  := 64.U
            io.sendmsg_ram_write_data.bits.data := msghdr_send.asUInt

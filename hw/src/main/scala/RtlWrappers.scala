@@ -15,7 +15,7 @@ class srpt_queue (qtype: String) extends BlackBox (
     val clk = Input(Clock())
     val rst = Input(UInt(1.W))
 
-    val CACHE_BLOCK_SIZE = Input(UInt(16.U)),
+    val CACHE_BLOCK_SIZE = Input(UInt(16.W))
 
     val s_axis = Flipped(new axis(89, false, 0, false, 0, false, 0, false))
     val m_axis = new axis(89, false, 0, false, 0, false, 0, false)
@@ -26,7 +26,7 @@ class srpt_queue (qtype: String) extends BlackBox (
 
 class FetchQueue extends Module {
   val io = IO(new Bundle {
-    val CACHE_BLOCK_SIZE = Input(UInt(16.U)),
+    val CACHE_BLOCK_SIZE = Input(UInt(16.W))
     val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
     val dequeue = Decoupled(new dma_read_t)
@@ -37,7 +37,7 @@ class FetchQueue extends Module {
   fetch_queue_raw.io.clk := clock
   fetch_queue_raw.io.rst := reset.asUInt
 
-  fetch_queue_raw.CACHE_BLOCK_SIZE <> io.CACHE_BLOCK_SIZE
+  fetch_queue_raw.io.CACHE_BLOCK_SIZE <> io.CACHE_BLOCK_SIZE
 
   // val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
   // fetch_out_ila.io.ila_data := fetch_queue_raw.io.m_axis
@@ -69,12 +69,16 @@ class FetchQueue extends Module {
 
 class SendmsgQueue extends Module {
   val io = IO(new Bundle {
+    val CACHE_BLOCK_SIZE = Input(UInt(16.W))
+
     val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
     val dequeue = Decoupled(new QueueEntry)
   })
 
   val send_queue_raw = Module(new srpt_queue("sendmsg"))
+
+  send_queue_raw.io.CACHE_BLOCK_SIZE <> io.CACHE_BLOCK_SIZE
 
   // val sendmsg_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
   // sendmsg_out_ila.io.ila_data := send_queue_raw.io.m_axis

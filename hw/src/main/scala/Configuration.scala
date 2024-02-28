@@ -15,7 +15,7 @@ class DynamicConfiguration extends Bundle {
  */
 object CACHE {
   val line_size = 16384.U
-  val lines = 
+  // val lines = number of dbuffs
 }
 
 

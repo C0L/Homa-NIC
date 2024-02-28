@@ -13,6 +13,8 @@ class H2CDMA extends Module {
     val dma_read_desc   = Decoupled(new dma_read_desc_t) // Descriptors to pcie to init request
     val dma_read_status = Flipped(Decoupled(new dma_read_desc_status_t)) // Status of read
     val dbuff_notif_o   = Decoupled(new QueueEntry) // Alert the fetch queue of data arrival
+
+    val dynamicConfiguration = Input(new DynamicConfiguration)
   })
 
   /* Read requests are stored in a memory while they are pending
@@ -53,10 +55,10 @@ class H2CDMA extends Module {
   io.dbuff_notif_o.bits.remaining  := 0.U
   val notif_offset = Wire(UInt(20.W))
   notif_offset := pending_read.message_size - (pending_read.dest_ram_addr - (16384.U * pending_read.cache_id)) // TODO not great
-  when (notif_offset < 256.U) {
+  when (notif_offset < io.dynamicConfiguration.fetchSize) {
     io.dbuff_notif_o.bits.dbuffered  := 0.U
   }.otherwise {
-    io.dbuff_notif_o.bits.dbuffered  := notif_offset - 256.U
+    io.dbuff_notif_o.bits.dbuffered  := notif_offset - io.dynamicConfiguration.fetchSize
   }
 
   io.dbuff_notif_o.bits.granted    := 0.U

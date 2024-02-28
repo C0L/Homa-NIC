@@ -454,7 +454,7 @@ class PPingressMap extends Module {
 /* pp_ingress_lookup - Look up the associated recv control block with
  * this local ID to know where to direct packet data.
  */
-class pp_ingress_lookup extends Module {
+class PPingressLookup extends Module {
   val io = IO(new Bundle {
     val ram_read_desc        = Decoupled(new RAMReadReq) // Read descriptors for recvmsg control blocks
     val ram_read_data        = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read

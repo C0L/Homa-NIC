@@ -19,8 +19,8 @@ class MGMTCore extends Module {
 
     val payloadRamWriteReq = Decoupled(new RAMWriteReq)
 
-    val dma_read_desc         = Decoupled(new dma_read_desc_t)
-    val dma_read_desc_status  = Flipped(Decoupled(new dma_read_desc_status_t))
+    val dma_read_desc        = Decoupled(new dma_read_desc_t)
+    val dma_read_desc_status = Flipped(Decoupled(new dma_read_desc_status_t))
 
     val dma_write_desc        = Decoupled(new dma_write_desc_t)
     val dma_write_desc_status = Flipped(Decoupled(new dma_write_desc_status_t))
@@ -43,8 +43,10 @@ class MGMTCore extends Module {
   val recvmsg_cb_wr  = Module(new SegmentedRAMWrite)    //
   val recvmsg_cb_rd  = Module(new SegmentedRAMRead)     //
 
-  fetch_queue.CACHE_BLOCK_SIZE   := delegate.io.dynamicConfiguration.fetchSize
-  sendmsg_queue.CACHE_BLOCK_SIZE := delegate.io.dynamicConfiguration.fetchSize 
+  fetch_queue.io.CACHE_BLOCK_SIZE   := delegate.io.dynamicConfiguration.fetchSize
+  sendmsg_queue.io.CACHE_BLOCK_SIZE := delegate.io.dynamicConfiguration.fetchSize
+
+  h2c_dma.io.dynamicConfiguration := delegate.io.dynamicConfiguration
 
   val pp_ingress = Module(new PPingressStages)
 
