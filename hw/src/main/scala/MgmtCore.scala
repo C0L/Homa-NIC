@@ -30,8 +30,8 @@ class MGMTCore extends Module {
   val delegate       = Module(new Delegate) // Decide where those requests should be placed
 
   val addr_map       = Module(new AddressMap) // Map read and write requests to DMA address
-  val h2c_dma        = Module(new H2CDMA)  // Manage dma reads 
-  val c2h_dma        = Module(new C2HDMA)  // Manage dma writes
+  val h2c_dma        = Module(new H2cDMA)  // Manage dma reads 
+  val c2h_dma        = Module(new C2hDMA)  // Manage dma writes
 
   val fetch_queue    = Module(new FetchQueue)    // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new SendmsgQueue)  // Send the next best message

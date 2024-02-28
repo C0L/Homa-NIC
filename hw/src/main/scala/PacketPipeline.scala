@@ -215,8 +215,8 @@ class PPegressPayload extends Module {
    * NOTE: This assumes the ram read core is always ready
    */
   io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
-  io.ram_read_desc.bits.addr := packet_reg_0.io.deq.bits.payloadBytes()
-  io.ram_read_desc.bits.len  := 64.U 
+  io.ram_read_desc.bits.addr := finalOffset
+  io.ram_read_desc.bits.len  := packet_reg_0.io.deq.bits.payloadBytes()
 
   /*
    * Tie delay queue to stage 1

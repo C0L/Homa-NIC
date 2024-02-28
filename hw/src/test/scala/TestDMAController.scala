@@ -9,7 +9,7 @@ import org.scalatest.matchers.must.Matchers
 class TestH2CDMA extends AnyFreeSpec {
 
   "H2CDMA: testing dma_read_req_i -> pcie_read_cmd_o -> pcie_read_status_i -> dbuff_notif_o flow and tag memory" in {
-    simulate(new H2CDMA) { dut =>
+    simulate(new H2cDMA) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -83,7 +83,7 @@ class TestH2CDMA extends AnyFreeSpec {
 
 class TestC2HDMA extends AnyFreeSpec {
   "TestC2HDMA: testing dma write request triggers RAM write" in {
-    simulate(new C2HDMA) { dut =>
+    simulate(new C2hDMA) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)

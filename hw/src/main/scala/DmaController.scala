@@ -4,10 +4,10 @@ import chisel3._
 import circt.stage.ChiselStage
 import chisel3.util._
 
-/* h2c_dma - Generates tag identifers to store read requests as they
+/* H2cDMA- Generates tag identifers to store read requests as they
  * are outstanding in the pcie engine.
  */
-class H2CDMA extends Module {
+class H2cDMA extends Module {
   val io = IO(new Bundle {
     val dma_r_req       = Flipped(Decoupled(new dma_read_t)) // New DMA read requests
     val dma_read_desc   = Decoupled(new dma_read_desc_t) // Descriptors to pcie to init request
@@ -72,14 +72,14 @@ class H2CDMA extends Module {
   }
 }
 
-/* c2h_dma - state machine which transforms input write requests into
+/* C2hDMA- state machine which transforms input write requests into
  * writes to ram and after receipt of completion writes to pcie.
  *
  * WARNING: This makes the assumption that the write request to the
  * BRAM will complete before the pcie core has fetched that same data
  * from the BRAM. I think this is generally a safe assumption.
  */
-class C2HDMA extends Module {
+class C2hDMA extends Module {
   val io = IO(new Bundle {
     val dma_write_req         = Flipped(Decoupled(new dma_write_t)) // New DMA write requests
     val ram_write_data        = Decoupled(new RAMWriteReq) // Data to write to BRAM

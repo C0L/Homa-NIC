@@ -1,3 +1,5 @@
+/* verilator lint_off WIDTHEXPAND */
+
 `timescale 1ns / 1ps
 
 `define SRPT_INVALIDATE   3'b000
@@ -225,18 +227,18 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	  	  end
 	       end else if (TYPE == "fetch") begin // if (TYPE == "sendmsg")
 	  	  // Did we just request the last block for this message
-	  	  if (queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE) begin
+	  	  if (queue_head[`QUEUE_ENTRY_REMAINING] <= CACHE_BLOCK_SIZE) begin
 	             queue[0]                        <= queue[1];
 	             queue[1][`QUEUE_ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
 	  	  end else begin
-	             // queue[0][`QUEUE_ENTRY_GRANTED]   <= queue[0][`QUEUE_ENTRY_GRANTED]   + `CACHE_BLOCK_SIZE;
-	             queue[0][`QUEUE_ENTRY_REMAINING] <= queue[0][`QUEUE_ENTRY_REMAINING] - `CACHE_BLOCK_SIZE;
-	             queue[0][`QUEUE_ENTRY_DBUFFERED] <= queue[0][`QUEUE_ENTRY_DBUFFERED] + `CACHE_BLOCK_SIZE;
+	             // queue[0][`QUEUE_ENTRY_GRANTED]   <= queue[0][`QUEUE_ENTRY_GRANTED]   + CACHE_BLOCK_SIZE;
+	             queue[0][`QUEUE_ENTRY_REMAINING] <= queue[0][`QUEUE_ENTRY_REMAINING] - CACHE_BLOCK_SIZE;
+	             queue[0][`QUEUE_ENTRY_DBUFFERED] <= queue[0][`QUEUE_ENTRY_DBUFFERED] + CACHE_BLOCK_SIZE;
 	             // TODO could also swap here?
-	             if (queue[0][`QUEUE_ENTRY_DBUFFERED] >= `CACHE_SIZE - `CACHE_BLOCK_SIZE) begin
+	             if (queue[0][`QUEUE_ENTRY_DBUFFERED] >= `CACHE_SIZE - CACHE_BLOCK_SIZE) begin
 	        	queue[0][`QUEUE_ENTRY_PRIORITY] <= `SRPT_BLOCKED;
 	             end
-	  	  end // else: !if(queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE)
+	  	  end // else: !if(queue_head[`QUEUE_ENTRY_REMAINING] <= CACHE_BLOCK_SIZE)
 	       end // if (dequeue_ready)
 	    end 
 	    // else if (!queue_ready) begin // TODO why bad?

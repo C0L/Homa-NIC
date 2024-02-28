@@ -10,9 +10,9 @@ import circt.stage.ChiselStage
 import chisel3.util.Decoupled
 import chisel3.util._
 
-class pp_egress_lookup_test extends AnyFreeSpec {
-  "pp_lookup_test: packet input triggers RAM read request" in {
-    simulate(new pp_egress_lookup) { dut =>
+class TestPPegressLookup extends AnyFreeSpec {
+  "packet input triggers RAM read request" in {
+    simulate(new PPegressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -27,8 +27,8 @@ class pp_egress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: RAM read response triggers next stage" in {
-    simulate(new pp_egress_lookup) { dut =>
+  "RAM read response triggers next stage" in {
+    simulate(new PPegressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -51,8 +51,8 @@ class pp_egress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: lack of RAM read response blocks next stage" in {
-    simulate(new pp_egress_lookup) { dut =>
+  "lack of RAM read response blocks next stage" in {
+    simulate(new PPegressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -75,8 +75,8 @@ class pp_egress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: test address out" in {
-    simulate(new pp_egress_lookup) { dut =>
+  "test address out" in {
+    simulate(new PPegressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -93,8 +93,8 @@ class pp_egress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: test data out" in {
-    simulate(new pp_egress_lookup) { dut =>
+  "test data out" in {
+    simulate(new PPegressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -120,8 +120,8 @@ class pp_egress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: test multiple ram reads" in {
-    simulate(new pp_egress_lookup) { dut =>
+  "test multiple ram reads" in {
+    simulate(new PPegressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -172,9 +172,9 @@ class pp_egress_lookup_test extends AnyFreeSpec {
   }
 }
 
-class pp_egress_dupe_test extends AnyFreeSpec {
-  "pp_dupe_test: testing packet duplication" in {
-    simulate(new pp_egress_dupe) { dut =>
+class TestPPegressDupe extends AnyFreeSpec {
+  "testing packet duplication" in {
+    simulate(new PPegressDupe) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -193,7 +193,6 @@ class pp_egress_dupe_test extends AnyFreeSpec {
 
       // TODO temporary count
       for (transaction <- 0 to 1500/64) {
-        println("transaction")
         dut.io.packet_out.valid.expect(true.B)
         dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
         dut.clock.step()
@@ -203,8 +202,8 @@ class pp_egress_dupe_test extends AnyFreeSpec {
     }
   }
 
-  "pp_dupe_test: testing pipelined packet duplication" in {
-    simulate(new pp_egress_dupe) { dut =>
+  "testing pipelined packet duplication" in {
+    simulate(new PPegressDupe) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -241,9 +240,9 @@ class pp_egress_dupe_test extends AnyFreeSpec {
 }
 
 
-class pp_egress_payload_test extends AnyFreeSpec {
-  "pp_payload_test: packet input triggers RAM read request" in {
-    simulate(new pp_egress_payload) { dut =>
+class TestPPegressPayload extends AnyFreeSpec {
+  "packet input triggers RAM read request" in {
+    simulate(new PPegressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -258,8 +257,8 @@ class pp_egress_payload_test extends AnyFreeSpec {
     }
   }
 
-  "pp_payload_test: RAM read response triggers next stage" in {
-    simulate(new pp_egress_payload) { dut =>
+  "RAM read response triggers next stage" in {
+    simulate(new PPegressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -282,8 +281,8 @@ class pp_egress_payload_test extends AnyFreeSpec {
     }
   }
 
-  "pp_payload_test: lack of RAM read response blocks next stage" in {
-    simulate(new pp_egress_payload) { dut =>
+  "lack of RAM read response blocks next stage" in {
+    simulate(new PPegressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -306,8 +305,8 @@ class pp_egress_payload_test extends AnyFreeSpec {
     }
   }
 
-  "pp_payload_test: test address out" in {
-    simulate(new pp_egress_payload) { dut =>
+  "test address out" in {
+    simulate(new PPegressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -327,8 +326,8 @@ class pp_egress_payload_test extends AnyFreeSpec {
     }
   }
 
-  "pp_payload_test: test sequenece of addresses out" in {
-    simulate(new pp_egress_payload) { dut =>
+  "test sequenece of addresses out" in {
+    simulate(new PPegressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -389,8 +388,8 @@ class pp_egress_payload_test extends AnyFreeSpec {
     }
   }
 
-  "pp_payload_test: test data out" in {
-    simulate(new pp_egress_payload) { dut =>
+  "test data out" in {
+    simulate(new PPegressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -416,8 +415,8 @@ class pp_egress_payload_test extends AnyFreeSpec {
     }
   }
 
-  "pp_payload_test: test multiple ram reads" in {
-    simulate(new pp_egress_payload) { dut =>
+  "test multiple ram reads" in {
+    simulate(new PPegressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -465,9 +464,9 @@ class pp_egress_payload_test extends AnyFreeSpec {
 }
 
 
-class pp_egress_ctor_test extends AnyFreeSpec {
-  "pp_ctor_test: data in gives data out" in {
-    simulate(new pp_egress_ctor) { dut =>
+class TestPPegressCtor extends AnyFreeSpec {
+  "data in gives data out" in {
+    simulate(new PPegressCtor) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -486,8 +485,8 @@ class pp_egress_ctor_test extends AnyFreeSpec {
     }
   }
 
-  "pp_ctor_test: fully pipelined" in {
-    simulate(new pp_egress_ctor) { dut =>
+  "fully pipelined" in {
+    simulate(new PPegressCtor) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -514,9 +513,9 @@ class pp_egress_ctor_test extends AnyFreeSpec {
 }
 
 
-class pp_egress_xmit_test extends AnyFreeSpec {
-  "pp_xmit_test: data in gives data out" in {
-    simulate(new pp_egress_xmit) { dut =>
+class TestPPegressXmit extends AnyFreeSpec {
+  "data in gives data out" in {
+    simulate(new PPegressXmit) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -537,15 +536,15 @@ class pp_egress_xmit_test extends AnyFreeSpec {
   //     val egress  = new axis(512, false, 0, false, 0, true, 64, true)
   //   })
 
-  //   val dut = Module(new pp_egress_xmit)
+  //   val dut = Module(new PPegressXmit)
   //   dut.io.packet_in.bits  := io.packet_in.bits.asTypeOf(new PacketFactory)
   //   dut.io.packet_in.valid := io.packet_in.valid
   //   io.packet_in.ready     := dut.io.packet_in.ready
   //   dut.io.egress          <> io.egress
   // }
 
-  "pp_xmit_test: first 64 bytes out" in {
-    simulate(new pp_egress_xmit) { dut =>
+  "first 64 bytes out" in {
+    simulate(new PPegressXmit) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -566,8 +565,8 @@ class pp_egress_xmit_test extends AnyFreeSpec {
     }
   }
 
-  "pp_xmit_test: first 128 bytes out" in {
-    simulate(new pp_egress_xmit) { dut =>
+  "first 128 bytes out" in {
+    simulate(new PPegressXmit) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -588,13 +587,13 @@ class pp_egress_xmit_test extends AnyFreeSpec {
     }
   }
 
-  "pp_xmit_test: payload out" in {
-    simulate(new pp_egress_xmit) { dut =>
+  "payload out" in {
+    simulate(new PPegressXmit) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
       dut.clock.step()
-
+ 
       dut.io.packet_in.valid.poke(true.B)
       dut.io.egress.tready.poke(true.B)
 
@@ -610,8 +609,8 @@ class pp_egress_xmit_test extends AnyFreeSpec {
     }
   }
 
-  "pp_xmit_test: testing tlast assertion" in {
-    simulate(new pp_egress_xmit) { dut =>
+  "testing tlast assertion" in {
+    simulate(new PPegressXmit) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -635,10 +634,10 @@ class pp_egress_xmit_test extends AnyFreeSpec {
 }
 
 
-class pp_ingress_dtor_test extends AnyFreeSpec {
+class TestPPegressDtor extends AnyFreeSpec {
 
-  "pp_dtor_test: data in gives data out" in {
-    simulate(new pp_ingress_dtor) { dut =>
+  "data in gives data out" in {
+    simulate(new PPingressDtor) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -659,8 +658,8 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
     }
   }
 
-  "pp_dtor_test: testing first block packet header reconstruction" in {
-    simulate(new pp_ingress_dtor) { dut =>
+  "testing first block packet header reconstruction" in {
+    simulate(new PPingressDtor) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -685,8 +684,8 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
     }
   }
 
-  "pp_dtor_test: testing second block packet header reconstruction" in {
-    simulate(new pp_ingress_dtor) { dut =>
+  "testing second block packet header reconstruction" in {
+    simulate(new PPingressDtor) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -713,9 +712,8 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
     }
   }
 
-
-  "pp_dtor_test: testing payload" in {
-    simulate(new pp_ingress_dtor) { dut =>
+  "testing payload" in {
+    simulate(new PPingressDtor) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -750,9 +748,9 @@ class pp_ingress_dtor_test extends AnyFreeSpec {
   }
 }
 
-class pp_ingress_lookup_test extends AnyFreeSpec {
-  "pp_lookup_test: packet input triggers RAM read request" in {
-    simulate(new pp_ingress_lookup) { dut =>
+class TestPPingressLookup extends AnyFreeSpec {
+  "packet input triggers RAM read request" in {
+    simulate(new PPingressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -767,8 +765,8 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: RAM read response triggers next stage" in {
-    simulate(new pp_ingress_lookup) { dut =>
+  "RAM read response triggers next stage" in {
+    simulate(new PPingressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -804,8 +802,8 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: lack of RAM read response blocks next stage" in {
-    simulate(new pp_ingress_lookup) { dut =>
+  "lack of RAM read response blocks next stage" in {
+    simulate(new PPingressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -828,8 +826,8 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: test address out" in {
-    simulate(new pp_ingress_lookup) { dut =>
+  "test address out" in {
+    simulate(new PPingressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -846,8 +844,8 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: test data out" in {
-    simulate(new pp_ingress_lookup) { dut =>
+  "test data out" in {
+    simulate(new PPingressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -873,8 +871,8 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
     }
   }
 
-  "pp_lookup_test: test multiple ram reads" in {
-    simulate(new pp_ingress_lookup) { dut =>
+  "test multiple ram reads" in {
+    simulate(new PPingressLookup) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -925,10 +923,9 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
   }
 }
 
-
-class pp_ingress_payload_test extends AnyFreeSpec {
-  "pp_payload_test: data in gives data out" in {
-    simulate(new pp_ingress_payload) { dut =>
+class TestPPingressPayload extends AnyFreeSpec {
+  "data in gives data out" in {
+    simulate(new PPingressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -944,8 +941,8 @@ class pp_ingress_payload_test extends AnyFreeSpec {
     }
   }
 
-  "pp_payload_test: pcie write addr" in {
-    simulate(new pp_ingress_payload) { dut =>
+  "pcie write addr" in {
+    simulate(new PPingressPayload) { dut =>
 
       dut.reset.poke(true.B)
       dut.clock.step()
