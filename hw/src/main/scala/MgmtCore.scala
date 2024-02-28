@@ -43,6 +43,9 @@ class MGMTCore extends Module {
   val recvmsg_cb_wr  = Module(new SegmentedRAMWrite)    //
   val recvmsg_cb_rd  = Module(new SegmentedRAMRead)     //
 
+  fetch_queue.CACHE_BLOCK_SIZE   := delegate.io.dynamicConfiguration.fetchSize
+  sendmsg_queue.CACHE_BLOCK_SIZE := delegate.io.dynamicConfiguration.fetchSize 
+
   val pp_ingress = Module(new PPingressStages)
 
   pp_ingress.io.cb_ram_read_desc <> recvmsg_cb_rd.io.ramReadReq

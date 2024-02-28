@@ -22,7 +22,13 @@ class Delegate extends Module {
 
     val sendmsg_ram_write_data        = Decoupled(new RAMWriteReq) // Data to write to RAM
     val recvmsg_ram_write_data        = Decoupled(new RAMWriteReq) // Data to write to RAM
+
+    val dyanmicConfiguration = Output(new DynamicConfiguration)
   })
+
+  val dynamicConfiguration = RegInit(0.U.asTypeOf(new DynamicConfiguration))
+
+  io.dynamicConfiguration := dynamicConfiguration
 
   // By default all output streams are 0 initialized
   io.dma_map_o.bits   := 0.U.asTypeOf(new dma_map_t)
@@ -83,9 +89,17 @@ class Delegate extends Module {
   when(function_queue.io.deq.valid) {
     // Are we talking to the kernel (raw address 0) or a user (port * 4096)
     when (user_id === 0.U) {
-      function_queue.io.deq.ready := io.dma_map_o.ready
-      io.dma_map_o.bits           := function_queue.io.deq.bits.data.asTypeOf(new dma_map_t)
-      io.dma_map_o.valid          := function_queue.io.deq.valid
+      switch (user_func) {
+        is (0.U) {
+          function_queue.io.deq.ready := io.dma_map_o.ready
+          io.dma_map_o.bits           := function_queue.io.deq.bits.data.asTypeOf(new dma_map_t)
+          io.dma_map_o.valid          := function_queue.io.deq.valid
+        }
+
+        is (64.U) {
+          dynamicConfiguration := functon_queue.io.deq.bits.data.asTypeOf(new DynamicConfiguration)
+        }
+      }
     } otherwise {
       // User bits specify the function of this 512 bit block for a particular port
        switch (user_func) {
