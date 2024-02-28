@@ -98,7 +98,6 @@ class Top extends RawModule {
 
   /* Clock Convert pcie (250MHz) -> core (200MHz) */
   val ram_read_data_cc         = Module(new AXISClockConverter(new RAMReadResp))
-  // val ram_write_desc_status_cc = Module(new AXISClockConverter(new ram_write_desc_status_t))
   val dma_read_desc_status_cc  = Module(new AXISClockConverter(new dma_read_desc_status_t))
   val dma_write_desc_status_cc = Module(new AXISClockConverter(new dma_write_desc_status_t))
 

@@ -21,29 +21,6 @@ class dma_write_desc_t extends Bundle {
   val tag       = UInt(8.W)
 }
 
-// class ram_read_desc_t extends Bundle {
-//  val ram_addr = UInt(18.W)
-//  val len      = UInt(64.W)
-//  val tag      = UInt(8.W)
-//  val id       = UInt(1.W)
-//  val dest     = UInt(8.W)
-//  val user     = UInt(1.W)
-// }
-
-// class ram_read_data_t extends Bundle {
-//  val data = UInt(512.W)
-//  val keep = UInt(64.W)
-//  val last = UInt(1.W)
-//  val id   = UInt(1.W)
-//  val dest = UInt(8.W)
-//  val user = UInt(1.W)
-// }
-
-// class ram_read_desc_status_t extends Bundle {
-//  val tag   = UInt(8.W)
-//  val error = UInt(4.W)
-// }
-
 class RAMReadReq extends Bundle {
   val addr = UInt(18.W)
   val len  = UInt(8.W)
@@ -271,6 +248,7 @@ object HOMA {
 
 // TODO make this parmeterizable
 // TODO this only generates on chunk
+// TODO this name is not great as it goes from being a packet factory to a frame factory
 class PacketFactory extends Bundle {
   val eth       = new EthHeader
   val ipv6      = new IPV6Header
@@ -303,12 +281,19 @@ class PacketFactory extends Bundle {
     frame
   }
 
+  /* packetBytes - The total number of bytes in the packet
+   * corressponding to this packet factory.
+   */
   def packetBytes(): UInt = {
     val packet_len = Wire(UInt(32.W))
     packet_len := data.data.seg_len + HDR_BYTES.U
     packet_len
   }
 
+
+  /* lastFrame - bit indicating whether this packet factory generate
+   * the last frame in a packet.
+   */
   def lastFrame(): UInt = {
     val last = Wire(UInt(1.W))
     // If the next 64 bytes from frame offset exceeds the size then set last signal
@@ -320,6 +305,9 @@ class PacketFactory extends Bundle {
     last
   }
 
+  /* payloadBytes - The number of bytes (0-64) which this packet
+   * factory carries.
+   */
   def payloadBytes(): UInt = {
     val bytes = Wire(UInt(32.W))
 
@@ -340,6 +328,9 @@ class PacketFactory extends Bundle {
     truncbytes
   }
 
+  /* payloadOffset - Offset of the 0-64 Bytes of payload of this packet
+   * factory within a single PacketFrameFactory
+   */
   def payloadOffset(): UInt = {
     val offset = Wire(UInt(32.W))
 
@@ -356,6 +347,9 @@ class PacketFactory extends Bundle {
     offset
   }
 
+  /* keepBytes - Generate a corresponding keep signal for the ethernet
+   * core identifying the size of the frame passed to it.
+   */
   def keepBytes(): UInt = {
     val keep = Wire(UInt(64.W))
     // If the next 64 bytes from frame offset exceeds the size then set last signal
@@ -432,11 +426,9 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
   // TODO Murmur3 is probably better here
   def hash(TABLE: Int): UInt = {
     val result = Wire(UInt(32.W))
-
     val vec = key.asTypeOf(Vec(KEY_WIDTH/32, UInt(32.W)))
 
     result := vec.reduce(_ + _)
-
     result ^ seeds(TABLE).U
   }
 }

@@ -9,7 +9,9 @@ import chisel3.util._
 // TODO no flow control
 // TODO a lot of this logic can be decomposed into a cuckoo table class
 
-/* CAM - content addressable memory module based on cuckoo hashing techniques. This design uses 4 tables with 4 hash functions (on assigned to each). 
+/* CAM - content addressable memory module based on cuckoo hashing
+ * techniques. This design uses 4 tables with 4 hash functions (on
+ * assigned to each).
  */
 class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   val io = IO(new Bundle {

@@ -43,16 +43,14 @@ class MGMTCore extends Module {
   val recvmsg_cb_wr  = Module(new SegmentedRAMWrite)    //
   val recvmsg_cb_rd  = Module(new SegmentedRAMRead)     //
 
-  // TODO this should be seperated out
-
-  val pp_ingress = Module(new pp_ingress_stages)
+  val pp_ingress = Module(new PPingressStages)
 
   pp_ingress.io.cb_ram_read_desc <> recvmsg_cb_rd.io.ramReadReq
   pp_ingress.io.cb_ram_read_data <> recvmsg_cb_rd.io.ramReadResp
 
   addr_map.io.dma_w_data_i <> pp_ingress.io.dma_w_data
 
-  val pp_egress  = Module(new pp_egress_stages)
+  val pp_egress  = Module(new PPegressStages)
 
   pp_egress.io.cb_ram_read_desc <> sendmsg_cb_rd.io.ramReadReq
   pp_egress.io.cb_ram_read_data <> sendmsg_cb_rd.io.ramReadResp
