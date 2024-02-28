@@ -89,7 +89,7 @@ class pp_egress_lookup_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect((100*64).U)
+      dut.io.ram_read_desc.bits.addr.expect((100*64).U)
     }
   }
 
@@ -138,7 +138,7 @@ class pp_egress_lookup_test extends AnyFreeSpec {
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_in.bits.rpc_id.poke(100.U)
 
-      dut.io.ram_read_desc.bits.ram_addr.expect((99*64).U)
+      dut.io.ram_read_desc.bits.addr.expect((99*64).U)
       dut.io.ram_read_desc.valid.expect(true.B)
 
       dut.io.packet_out.valid.expect(false.B)
@@ -150,7 +150,7 @@ class pp_egress_lookup_test extends AnyFreeSpec {
       dut.io.ram_read_data.valid.poke(true.B)
       dut.io.ram_read_data.bits.data.poke("hdeadbeef".U)
 
-      dut.io.ram_read_desc.bits.ram_addr.expect((100*64).U)
+      dut.io.ram_read_desc.bits.addr.expect((100*64).U)
       dut.io.ram_read_desc.valid.expect(true.B)
 
       dut.io.packet_out.valid.expect(false.B)
@@ -171,7 +171,6 @@ class pp_egress_lookup_test extends AnyFreeSpec {
     }
   }
 }
-
 
 class pp_egress_dupe_test extends AnyFreeSpec {
   "pp_dupe_test: testing packet duplication" in {
@@ -322,7 +321,7 @@ class pp_egress_payload_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect((3*16384 + 100 - 90 + 0).U)
+      dut.io.ram_read_desc.bits.addr.expect((3*16384 + 100 - 90 + 0).U)
     }
   }
 
@@ -345,7 +344,7 @@ class pp_egress_payload_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect(0.U)
+      dut.io.ram_read_desc.bits.addr.expect(0.U)
 
       dut.clock.step()
 
@@ -358,7 +357,7 @@ class pp_egress_payload_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect(0.U)
+      dut.io.ram_read_desc.bits.addr.expect(0.U)
 
       dut.clock.step()
 
@@ -371,7 +370,7 @@ class pp_egress_payload_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect(18.U)
+      dut.io.ram_read_desc.bits.addr.expect(18.U)
 
       dut.clock.step()
 
@@ -384,7 +383,7 @@ class pp_egress_payload_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect(82.U)
+      dut.io.ram_read_desc.bits.addr.expect(82.U)
     }
   }
 
@@ -841,7 +840,7 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
-      dut.io.ram_read_desc.bits.ram_addr.expect((100*64).U)
+      dut.io.ram_read_desc.bits.addr.expect((100*64).U)
     }
   }
 
@@ -890,7 +889,7 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_in.bits.cb.id.poke(100.U)
 
-      dut.io.ram_read_desc.bits.ram_addr.expect((99*64).U)
+      dut.io.ram_read_desc.bits.addr.expect((99*64).U)
       dut.io.ram_read_desc.valid.expect(true.B)
 
       dut.io.packet_out.valid.expect(false.B)
@@ -902,7 +901,7 @@ class pp_ingress_lookup_test extends AnyFreeSpec {
       dut.io.ram_read_data.valid.poke(true.B)
       dut.io.ram_read_data.bits.data.poke("hdeadbeef".U)
 
-      dut.io.ram_read_desc.bits.ram_addr.expect((100*64).U)
+      dut.io.ram_read_desc.bits.addr.expect((100*64).U)
       dut.io.ram_read_desc.valid.expect(true.B)
 
       dut.io.packet_out.valid.expect(false.B)

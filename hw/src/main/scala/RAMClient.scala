@@ -16,8 +16,8 @@ import chisel3.util._
  */
 class SegmentedRAMRead extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc = Flipped(Decoupled(new ram_read_desc_t)) // Requests to read data from RAM
-    val ram_read_data = Decoupled(new ram_read_data_t) // Returned result from RAM
+    val ramReadReq  = Flipped(Decoupled(new RAMReadReq)) // Requests to read data from RAM
+    val ramReadResp = Decoupled(new RAMReadResp) // Returned result from RAM
     val ram_rd        = new ram_rd_t // Interface from client (this) to RAM module
   })
 
@@ -29,10 +29,10 @@ class SegmentedRAMRead extends Module {
    * result is valid (ram_rd.resp_valid), the out_latch latches on the
    * result, which is connected to the output port.
    */
-  val in_latch  = Module(new Queue(new ram_read_desc_t, 1, true, false))
-  val pending   = Module(new Queue(new ram_read_desc_t, 6, true, false)) 
-  val out_latch = Module(new Queue(new ram_read_data_t, 1, true, false))
-  in_latch.io.enq <> io.ram_read_desc
+  val in_latch  = Module(new Queue(new RAMReadReq, 1, true, false))
+  val pending   = Module(new Queue(new RAMReadReq, 6, true, false)) 
+  val out_latch = Module(new Queue(new RAMReadResp, 1, true, false))
+  in_latch.io.enq <> io.ramReadReq
 
   // A read requests moves from in_latch to pending when the read request is fired to RAM
   pending.io.enq.bits  := in_latch.io.deq.bits
@@ -54,8 +54,8 @@ class SegmentedRAMRead extends Module {
   val odd_addr  = Wire(UInt(11.W))
 
   // Get word offset and shift even addr if wrap around 
-  even_addr := (in_latch.io.deq.bits.ram_addr >> 7) + in_latch.io.deq.bits.ram_addr(6)
-  odd_addr  := in_latch.io.deq.bits.ram_addr >> 7
+  even_addr := (in_latch.io.deq.bits.addr >> 7) + in_latch.io.deq.bits.addr(6)
+  odd_addr  := in_latch.io.deq.bits.addr >> 7
 
   // Combine the even and odd address and ready into a single signal
   io.ram_rd.cmd_addr   := Cat(odd_addr, even_addr)
@@ -68,7 +68,7 @@ class SegmentedRAMRead extends Module {
   val ordered_data = Wire(UInt(1024.W))
   ordered_data := 0.U
 
-  when (pending.io.deq.bits.ram_addr(6)) {
+  when (pending.io.deq.bits.addr(6)) {
     ordered_data := Cat(io.ram_rd.resp_data(511,0), io.ram_rd.resp_data(1023,512))
   }.otherwise {
     ordered_data := io.ram_rd.resp_data
@@ -77,14 +77,14 @@ class SegmentedRAMRead extends Module {
   // Determine how much we need to shift the output data to gather the 64 byte request with LSB at offset 0
   val shift_bits   = Wire(UInt(9.W))
 
-  shift_bits := pending.io.deq.bits.ram_addr(5,0) * 8.U
+  shift_bits := pending.io.deq.bits.addr(5,0) * 8.U
 
-  out_latch.io.enq.bits      := 0.U.asTypeOf(new ram_read_data_t)
+  out_latch.io.enq.bits      := 0.U.asTypeOf(new RAMReadResp)
   out_latch.io.enq.bits.data := (ordered_data >> shift_bits)(511,0)
   out_latch.io.enq.valid     := io.ram_rd.resp_valid.andR
 
   // Connect output latch to the IO output 
-  out_latch.io.deq <> io.ram_read_data
+  out_latch.io.deq <> io.ramReadResp
 }
 
 
@@ -95,15 +95,15 @@ class SegmentedRAMRead extends Module {
  */
 class SegmentedRAMWrite extends Module {
   val io = IO(new Bundle {
-    val ram_write_cmd  = Flipped(Decoupled(new RamWrite))
-    val ram_wr         = new ram_wr_t
+    val ramWriteReq = Flipped(Decoupled(new RAMWriteReq))
+    val ram_wr      = new ram_wr_t
   })
 
   // Buffer for write requests going to RAM
-  val in_latch = Module(new Queue(new RamWrite, 1, true, false))
+  val in_latch = Module(new Queue(new RAMWriteReq, 1, true, false))
 
   // Write commands get added to the in latch before reaching RAM interface
-  in_latch.io.enq <> io.ram_write_cmd
+  in_latch.io.enq <> io.ramWriteReq
 
   /* A latched write is dequeued when both channels of RAM core are
    * ready to receive and so both channels of the ram_wr.cmd_valid
@@ -111,7 +111,6 @@ class SegmentedRAMWrite extends Module {
    */
   in_latch.io.deq.ready := io.ram_wr.cmd_ready.andR
   io.ram_wr.cmd_valid   := Fill(2, in_latch.io.deq.valid)
-
 
   /* The segmented memory RAM has even and odd segments, which are
    * word addressed rather than the byte addressing of the input. If

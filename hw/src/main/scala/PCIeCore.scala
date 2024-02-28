@@ -21,11 +21,10 @@ class pcie_core extends Module {
   val pcie_refclk_n         = IO(Input(Clock()))
   val pcie_reset_n          = IO(Input(Reset()))
 
-  val ram_read_desc         = IO(Flipped(Decoupled(new ram_read_desc_t)))
-  val ram_read_desc_status  = IO(Decoupled(new ram_read_desc_status_t))
-  val ram_read_data         = IO(Decoupled(new ram_read_data_t))
+  val ram_read_desc         = IO(Flipped(Decoupled(new RAMReadReq)))
+  val ram_read_data         = IO(Decoupled(new RAMReadResp))
 
-  val ram_write_data        = IO(Flipped(Decoupled(new RamWrite)))
+  val ram_write_data        = IO(Flipped(Decoupled(new RAMWriteReq)))
 
   val dma_read_desc         = IO(Flipped(Decoupled(new dma_read_desc_t)))
   val dma_read_desc_status  = IO(Decoupled(new dma_read_desc_status_t))
@@ -70,15 +69,13 @@ class pcie_core extends Module {
   // pcie_core reads from segmented ram to write to DMA
   c2h_psdpram.io.ram_rd <> pcie_core.io.ram_rd
 
-  dma_client_read.io.ram_read_desc <> ram_read_desc 
-  dma_client_read.io.ram_read_data <> ram_read_data
+  dma_client_read.io.ramReadReq  <> ram_read_desc 
+  dma_client_read.io.ramReadResp <> ram_read_data
 
   dma_client_read.io.ram_rd <> h2c_psdpram.io.ram_rd
 
-  ram_read_desc_status := DontCare
-
-  dma_client_write.io.ram_write_cmd <> ram_write_data
-  dma_client_write.io.ram_wr        <> c2h_psdpram.io.ram_wr
+  dma_client_write.io.ramWriteReq <> ram_write_data
+  dma_client_write.io.ram_wr      <> c2h_psdpram.io.ram_wr
 
   /* DEBUGGING ILAS */
 

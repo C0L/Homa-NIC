@@ -63,19 +63,19 @@ class Top extends RawModule {
   pcie.pcie_reset_n  := pcie_reset_n
 
   /* Clock Convert core (200MHz) -> pcie (250MHz) */
-  val ram_read_desc_cc  = Module(new AXISClockConverter(new ram_read_desc_t))
-  val ram_write_data_cc = Module(new AXISClockConverter(new RamWrite))
-  val dma_read_desc_cc  = Module(new AXISClockConverter(new dma_read_desc_t))
-  val dma_write_desc_cc = Module(new AXISClockConverter(new dma_write_desc_t))
+  val ram_read_desc_cc  = Module(new AXISClockConverter(new RAMReadReq))
+  val ram_write_data_cc = Module(new AXISClockConverter(new RAMWriteReq))
+  val dma_read_desc_cc  = Module(new AXISClockConverter(new RAMReadReq))
+  val dma_write_desc_cc = Module(new AXISClockConverter(new RAMWriteReq))
 
-  core.io.ram_read_desc              <> ram_read_desc_cc.io.s_axis
+  core.io.payloadRamReadReq          <> ram_read_desc_cc.io.s_axis
   ram_read_desc_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
   ram_read_desc_cc.io.s_axis_aclk    := mainClk.io.clk_out1
   ram_read_desc_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
   ram_read_desc_cc.io.m_axis_aclk    := pcie.pcie_user_clk
   ram_read_desc_cc.io.m_axis         <> pcie.ram_read_desc
 
-  core.io.ram_write_data              <> ram_write_data_cc.io.s_axis
+  core.io.payloadRamWriteReq          <> ram_write_data_cc.io.s_axis
   ram_write_data_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
   ram_write_data_cc.io.s_axis_aclk    := mainClk.io.clk_out1
   ram_write_data_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
@@ -98,26 +98,17 @@ class Top extends RawModule {
 
 
   /* Clock Convert pcie (250MHz) -> core (200MHz) */
-  val ram_read_desc_status_cc  = Module(new AXISClockConverter(new ram_read_desc_status_t))
-  val ram_read_data_cc         = Module(new AXISClockConverter(new ram_read_data_t))
+  val ram_read_data_cc         = Module(new AXISClockConverter(new RAMReadResp))
   // val ram_write_desc_status_cc = Module(new AXISClockConverter(new ram_write_desc_status_t))
   val dma_read_desc_status_cc  = Module(new AXISClockConverter(new dma_read_desc_status_t))
   val dma_write_desc_status_cc = Module(new AXISClockConverter(new dma_write_desc_status_t))
-
-  pcie.ram_read_desc_status                 <> ram_read_desc_status_cc.io.s_axis
-  ram_read_desc_status_cc.io.s_axis_aresetn := !pcie.pcie_user_reset
-  ram_read_desc_status_cc.io.s_axis_aclk    := pcie.pcie_user_clk
-  ram_read_desc_status_cc.io.m_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
-  ram_read_desc_status_cc.io.m_axis_aclk    := mainClk.io.clk_out1
-  ram_read_desc_status_cc.io.m_axis         <> core.io.ram_read_desc_status
-
 
   pcie.ram_read_data <> ram_read_data_cc.io.s_axis
   ram_read_data_cc.io.s_axis_aresetn := !pcie.pcie_user_reset
   ram_read_data_cc.io.s_axis_aclk    := pcie.pcie_user_clk
   ram_read_data_cc.io.m_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
   ram_read_data_cc.io.m_axis_aclk    := mainClk.io.clk_out1
-  ram_read_data_cc.io.m_axis         <> core.io.ram_read_data
+  ram_read_data_cc.io.m_axis         <> core.io.payloadRamReadResp
 
   pcie.dma_read_desc_status                 <> dma_read_desc_status_cc.io.s_axis
   dma_read_desc_status_cc.io.s_axis_aresetn := !pcie.pcie_user_reset
@@ -144,11 +135,11 @@ class Top extends RawModule {
   axi_cc.io.m_axi         <> core.io.s_axi
 
  withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) {
-   val ram_read_desc_ila  = Module(new ILA(new ram_read_desc_t))
-   ram_read_desc_ila.io.ila_data := core.io.ram_read_desc.bits
+   val ram_read_desc_ila  = Module(new ILA(new RAMReadReq))
+   ram_read_desc_ila.io.ila_data := core.io.payloadRamReadReq.bits
 
-   val ram_write_data_ila = Module(new ILA(new RamWrite))
-   ram_write_data_ila.io.ila_data := core.io.ram_write_data.bits
+   val ram_write_data_ila = Module(new ILA(new RAMWriteReq))
+   ram_write_data_ila.io.ila_data := core.io.payloadRamWriteReq.bits
   //val ram_write_data_ila = Module(new ILA(new ram_write_data_t))
   //ram_write_data_ila.io.ila_data := core.io.ram_write_data.bits
 //  val dma_read_desc_ila  = Module(new ILA(new dma_read_desc_t))
@@ -158,8 +149,8 @@ class Top extends RawModule {
 
   // val ram_read_desc_status_ila  = Module(new ILA(new ram_read_desc_status_t))
   // ram_read_desc_status_ila.io.ila_data := core.io.ram_read_desc_status.bits
-  val ram_read_data_ila         = Module(new ILA(new ram_read_data_t))
-  ram_read_data_ila.io.ila_data := core.io.ram_read_data.bits
+  val ram_read_data_ila         = Module(new ILA(new RAMReadResp))
+  ram_read_data_ila.io.ila_data := core.io.payloadRamReadResp.bits
  // val ram_write_desc_status_ila = Module(new ILA(new ram_write_desc_status_t))
   //ram_write_desc_status_ila.io.ila_data := core.io.ram_write_desc_status.bits
    // val dma_read_desc_status_ila  = Module(new ILA(new dma_read_desc_status_t))

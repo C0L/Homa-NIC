@@ -14,11 +14,10 @@ class MGMTCore extends Module {
   val io = IO(new Bundle {
     val s_axi = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
 
-    val ram_read_desc         = Decoupled(new ram_read_desc_t)
-    val ram_read_desc_status  = Flipped(Decoupled(new ram_read_desc_status_t))
-    val ram_read_data         = Flipped(Decoupled(new ram_read_data_t))
+    val payloadRamReadReq  = Decoupled(new RAMReadReq)
+    val payloadRamReadResp = Flipped(Decoupled(new RAMReadResp))
 
-    val ram_write_data        = Decoupled(new RamWrite)
+    val payloadRamWriteReq = Decoupled(new RAMWriteReq)
 
     val dma_read_desc         = Decoupled(new dma_read_desc_t)
     val dma_read_desc_status  = Flipped(Decoupled(new dma_read_desc_status_t))
@@ -48,19 +47,19 @@ class MGMTCore extends Module {
 
   val pp_ingress = Module(new pp_ingress_stages)
 
-  pp_ingress.io.cb_ram_read_desc        <> recvmsg_cb_rd.io.ram_read_desc
-  pp_ingress.io.cb_ram_read_data        <> recvmsg_cb_rd.io.ram_read_data
+  pp_ingress.io.cb_ram_read_desc <> recvmsg_cb_rd.io.ramReadReq
+  pp_ingress.io.cb_ram_read_data <> recvmsg_cb_rd.io.ramReadResp
 
   addr_map.io.dma_w_data_i <> pp_ingress.io.dma_w_data
 
   val pp_egress  = Module(new pp_egress_stages)
 
-  pp_egress.io.cb_ram_read_desc        <> sendmsg_cb_rd.io.ram_read_desc
-  pp_egress.io.cb_ram_read_data        <> sendmsg_cb_rd.io.ram_read_data
+  pp_egress.io.cb_ram_read_desc <> sendmsg_cb_rd.io.ramReadReq
+  pp_egress.io.cb_ram_read_data <> sendmsg_cb_rd.io.ramReadResp
 
-  pp_egress.io.payload_ram_read_desc        <> io.ram_read_desc
-  pp_egress.io.payload_ram_read_desc_status <> io.ram_read_desc_status
-  pp_egress.io.payload_ram_read_data        <> io.ram_read_data
+  pp_egress.io.payload_ram_read_desc        <> io.payloadRamReadReq
+  // pp_egress.io.payload_ram_read_desc_status <> io.ram_read_desc_status
+  pp_egress.io.payload_ram_read_data        <> io.payloadRamReadResp
 
   pp_egress.io.trigger <> sendmsg_queue.io.dequeue
   pp_egress.io.egress  <> pp_ingress.io.ingress
@@ -73,13 +72,8 @@ class MGMTCore extends Module {
   recvmsg_cb.io.ram_wr <> recvmsg_cb_wr.io.ram_wr
   recvmsg_cb.io.ram_rd <> recvmsg_cb_rd.io.ram_rd
 
-  delegate.io.sendmsg_ram_write_desc        <> sendmsg_cb_wr.io.ram_write_desc
-  delegate.io.sendmsg_ram_write_desc_status <> sendmsg_cb_wr.io.ram_write_desc_status
-  delegate.io.sendmsg_ram_write_data        <> sendmsg_cb_wr.io.ram_write_data
-
-  delegate.io.recvmsg_ram_write_desc        <> recvmsg_cb_wr.io.ram_write_desc
-  delegate.io.recvmsg_ram_write_desc_status <> recvmsg_cb_wr.io.ram_write_desc_status
-  delegate.io.recvmsg_ram_write_data        <> recvmsg_cb_wr.io.ram_write_data
+  delegate.io.sendmsg_ram_write_data <> sendmsg_cb_wr.io.ramWriteReq
+  delegate.io.recvmsg_ram_write_data <> recvmsg_cb_wr.io.ramWriteReq
 
   addr_map.io.dma_map_i    <> delegate.io.dma_map_o
   addr_map.io.dma_w_meta_i <> delegate.io.dma_w_req_o
@@ -90,7 +84,7 @@ class MGMTCore extends Module {
   h2c_dma.io.dma_read_desc   <> io.dma_read_desc
   h2c_dma.io.dma_read_status <> io.dma_read_desc_status
 
-  c2h_dma.io.ram_write_data  <> io.ram_write_data
+  c2h_dma.io.ram_write_data  <> io.payloadRamWriteReq
 
   io.dma_write_desc          <> c2h_dma.io.dma_write_desc
 

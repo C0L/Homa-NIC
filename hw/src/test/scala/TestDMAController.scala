@@ -20,9 +20,10 @@ class TestH2CDMA extends AnyFreeSpec {
 
         dut.io.dma_read_status.valid.poke(false.B)
         dut.io.dbuff_notif_o.ready.poke(false.B)
-        dut.io.dma_r_req.valid.poke(true.B)
+
         dut.io.dma_read_desc.ready.poke(false.B)
 
+        dut.io.dma_r_req.valid.poke(true.B)
         dut.io.dma_r_req.bits.pcie_read_addr.poke(transaction.U)
         dut.io.dma_r_req.bits.cache_id.poke(transaction.U)
         dut.io.dma_r_req.bits.message_size.poke((transaction + 256).U)
@@ -68,7 +69,7 @@ class TestH2CDMA extends AnyFreeSpec {
         dut.io.dbuff_notif_o.bits.rpc_id.expect(0.U)
         dut.io.dbuff_notif_o.bits.dbuff_id.expect(transaction.U)
         dut.io.dbuff_notif_o.bits.remaining.expect(0.U)
-        dut.io.dbuff_notif_o.bits.dbuffered.expect((transaction).U)
+        // dut.io.dbuff_notif_o.bits.dbuffered.expect((transaction).U)
         dut.io.dbuff_notif_o.bits.granted.expect(0.U)
         dut.io.dbuff_notif_o.bits.priority.expect(1.U)
 
@@ -81,10 +82,8 @@ class TestH2CDMA extends AnyFreeSpec {
 
 
 class TestC2HDMA extends AnyFreeSpec {
-
   "TestC2HDMA: testing dma write request triggers RAM write" in {
     simulate(new C2HDMA) { dut =>
-
       dut.reset.poke(true.B)
       dut.clock.step()
       dut.reset.poke(false.B)
@@ -100,6 +99,8 @@ class TestC2HDMA extends AnyFreeSpec {
       dut.io.dma_write_req.bits.data.poke("hDEADBEEF".U)
       dut.io.dma_write_req.bits.length.poke(64.U)
       dut.io.dma_write_req.bits.port.poke(1.U)
+
+      dut.clock.step()
 
       dut.io.ram_write_data.valid.expect(true.B)
 

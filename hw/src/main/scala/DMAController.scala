@@ -80,7 +80,7 @@ class H2CDMA extends Module {
 class C2HDMA extends Module {
   val io = IO(new Bundle {
     val dma_write_req         = Flipped(Decoupled(new dma_write_t)) // New DMA write requests
-    val ram_write_data        = Decoupled(new RamWrite) // Data to write to BRAM
+    val ram_write_data        = Decoupled(new RAMWriteReq) // Data to write to BRAM
     val dma_write_desc        = Decoupled(new dma_write_desc_t) // Request for DMA write from BRAM
     val dma_write_desc_status = Flipped(Decoupled(new dma_write_desc_status_t)) // Response status of DMA write
   })

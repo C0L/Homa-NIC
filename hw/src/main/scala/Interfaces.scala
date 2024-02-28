@@ -21,30 +21,39 @@ class dma_write_desc_t extends Bundle {
   val tag       = UInt(8.W)
 }
 
-class ram_read_desc_t extends Bundle {
- val ram_addr = UInt(18.W)
- val len      = UInt(64.W)
- val tag      = UInt(8.W)
- val id       = UInt(1.W)
- val dest     = UInt(8.W)
- val user     = UInt(1.W)
+// class ram_read_desc_t extends Bundle {
+//  val ram_addr = UInt(18.W)
+//  val len      = UInt(64.W)
+//  val tag      = UInt(8.W)
+//  val id       = UInt(1.W)
+//  val dest     = UInt(8.W)
+//  val user     = UInt(1.W)
+// }
+
+// class ram_read_data_t extends Bundle {
+//  val data = UInt(512.W)
+//  val keep = UInt(64.W)
+//  val last = UInt(1.W)
+//  val id   = UInt(1.W)
+//  val dest = UInt(8.W)
+//  val user = UInt(1.W)
+// }
+
+// class ram_read_desc_status_t extends Bundle {
+//  val tag   = UInt(8.W)
+//  val error = UInt(4.W)
+// }
+
+class RAMReadReq extends Bundle {
+  val addr = UInt(18.W)
+  val len  = UInt(8.W)
 }
 
-class ram_read_data_t extends Bundle {
- val data = UInt(512.W)
- val keep = UInt(64.W)
- val last = UInt(1.W)
- val id   = UInt(1.W)
- val dest = UInt(8.W)
- val user = UInt(1.W)
+class RAMReadResp extends Bundle {
+  val data = UInt(512.W)
 }
 
-class ram_read_desc_status_t extends Bundle {
- val tag   = UInt(8.W)
- val error = UInt(4.W)
-}
-
-class RAMWrite extends Bundle {
+class RAMWriteReq extends Bundle {
   val addr = UInt(18.W)
   val len  = UInt(8.W)
   val data = UInt(512.W)

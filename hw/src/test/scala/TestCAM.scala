@@ -83,7 +83,6 @@ class CAMTest extends AnyFreeSpec {
 
       for (i <- 0 to 5000-1) {
         val next = rnd.nextInt(294967296)
-        println("NEXT RAND", next)
         tvs(i) = next
         
         dut.io.insert.bits.key.poke(next.U)
@@ -103,8 +102,6 @@ class CAMTest extends AnyFreeSpec {
 
       var count = 0
       for (tv <- tvs) {
-        println(count)
-        println(tv)
         count = count + 1
         dut.clock.step()
  

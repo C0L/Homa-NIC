@@ -20,12 +20,11 @@ class pp_egress_stages extends Module {
     val trigger = Flipped(Decoupled(new QueueEntry)) // Input from sendmsg priority queue
     val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet
 
-    val cb_ram_read_desc         = Decoupled(new ram_read_desc_t) // Read descriptors for sendmsg control blocks
-    val cb_ram_read_data         = Flipped(Decoupled(new ram_read_data_t)) // Control block returned from read
+    val cb_ram_read_desc         = Decoupled(new RAMReadReq) // Read descriptors for sendmsg control blocks
+    val cb_ram_read_data         = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
 
-    val payload_ram_read_desc        = Decoupled(new ram_read_desc_t) // Read descriptors for packet payload data
-    val payload_ram_read_desc_status = Flipped(Decoupled(new ram_read_desc_status_t)) // Result of read descriptor
-    val payload_ram_read_data        = Flipped(Decoupled(new ram_read_data_t)) // Payload data returned from read
+    val payload_ram_read_desc        = Decoupled(new RAMReadReq) // Read descriptors for packet payload data
+    val payload_ram_read_data        = Flipped(Decoupled(new RAMReadResp)) // Payload data returned from read
   })
 
   val pp_lookup  = Module(new pp_egress_lookup)  // Lookup the control block
@@ -48,7 +47,6 @@ class pp_egress_stages extends Module {
 
   // Hook payload core up to the payload RAM managed by fetch queue
   pp_payload.io.ram_read_desc        <> io.payload_ram_read_desc
-  pp_payload.io.ram_read_desc_status <> io.payload_ram_read_desc_status
   pp_payload.io.ram_read_data        <> io.payload_ram_read_data
 
   // val pp_egress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
@@ -75,8 +73,8 @@ class pp_egress_stages extends Module {
  */ 
 class pp_egress_lookup extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc         = Decoupled(new ram_read_desc_t) // Read descriptors for sendmsg control blocks
-    val ram_read_data         = Flipped(Decoupled(new ram_read_data_t)) // Control block returned from read
+    val ram_read_desc         = Decoupled(new RAMReadReq) // Read descriptors for sendmsg control blocks
+    val ram_read_data         = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new QueueEntry)) // Output from sendmsg queue
     val packet_out = Decoupled(new PacketFactory) // Packet factory associated with this queue output 
@@ -95,15 +93,15 @@ class pp_egress_lookup extends Module {
    *  Tie stage 0 to delay queue
    *  Dispatch the ram read request
    */ 
-  pending.io.enq.bits            := 0.U.asTypeOf(new PacketFactory)
-  pending.io.enq.bits.trigger    := packet_reg_0.io.deq.bits
-  pending.io.enq.valid           := packet_reg_0.io.deq.valid
-  packet_reg_0.io.deq.ready      := pending.io.enq.ready
+  pending.io.enq.bits         := 0.U.asTypeOf(new PacketFactory)
+  pending.io.enq.bits.trigger := packet_reg_0.io.deq.bits
+  pending.io.enq.valid        := packet_reg_0.io.deq.valid
+  packet_reg_0.io.deq.ready   := pending.io.enq.ready
 
-  io.ram_read_desc.bits          := 0.U.asTypeOf(new ram_read_desc_t)
-  io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
-  io.ram_read_desc.bits.ram_addr := 64.U * packet_reg_0.io.deq.bits.rpc_id
-  io.ram_read_desc.bits.len      := 64.U
+  io.ram_read_desc.bits      := 0.U.asTypeOf(new RAMReadReq)
+  io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
+  io.ram_read_desc.bits.addr := 64.U * packet_reg_0.io.deq.bits.rpc_id
+  io.ram_read_desc.bits.len  := 64.U
 
   /*
    * Tie delay queue to stage 1
@@ -170,17 +168,12 @@ class pp_egress_dupe extends Module {
  */
 class pp_egress_payload extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc        = Decoupled(new ram_read_desc_t) // Read descriptors for payload data
-    val ram_read_desc_status = Flipped(Decoupled(new ram_read_desc_status_t)) // Status of read descriptor
-    val ram_read_data        = Flipped(Decoupled(new ram_read_data_t)) // Payload data returned
+    val ram_read_desc = Decoupled(new RAMReadReq) // Read descriptors for payload data
+    val ram_read_data = Flipped(Decoupled(new RAMReadResp)) // Payload data returned
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory
     val packet_out = Decoupled(new PacketFactory) // Output packet factory data with 64B of payload
   })
-
-  // Discard status result
-  io.ram_read_desc_status       := DontCare
-  io.ram_read_desc_status.ready := true.B
 
   /* Computation occurs between register stage 0 and 1
    */
@@ -198,7 +191,7 @@ class pp_egress_payload extends Module {
    */ 
   pending.io.enq <> packet_reg_0.io.deq
 
-  io.ram_read_desc.bits := 0.U.asTypeOf(new ram_read_desc_t)
+  io.ram_read_desc.bits := 0.U.asTypeOf(new RAMReadReq)
 
   // TODO should clean this up, 16384 is one message cache size. This can be computed in packet fac?
   // TODO This should only be on first one
@@ -207,9 +200,9 @@ class pp_egress_payload extends Module {
   // io.ram_read_desc.bits.len      := packet_reg_0.io.data.data.seg_len
 
 
-  io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
-  io.ram_read_desc.bits.ram_addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining) + packet_reg_0.io.deq.bits.payloadOffset()
-  io.ram_read_desc.bits.len      := 64.U // Get from PayloadBytes TODO, maybe unimplemented 
+  io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
+  io.ram_read_desc.bits.addr := (packet_reg_0.io.deq.bits.trigger.dbuff_id * 16384.U) + (packet_reg_0.io.deq.bits.cb.buff_size - packet_reg_0.io.deq.bits.trigger.remaining) + packet_reg_0.io.deq.bits.payloadOffset()
+  io.ram_read_desc.bits.len  := 64.U // Get from PayloadBytes TODO, maybe unimplemented 
 
   /*
    * Tie delay queue to stage 1
@@ -322,8 +315,8 @@ class pp_egress_xmit extends Module {
  */
 class pp_ingress_stages extends Module {
   val io = IO(new Bundle {
-    val cb_ram_read_desc        = Decoupled(new ram_read_desc_t) // Read descriptors for recvmsg control blocks
-    val cb_ram_read_data        = Flipped(Decoupled(new ram_read_data_t)) // Data read from descriptor request
+    val cb_ram_read_desc        = Decoupled(new RAMReadReq) // Read descriptors for recvmsg control blocks
+    val cb_ram_read_data        = Flipped(Decoupled(new RAMReadResp)) // Data read from descriptor request
 
     val ingress    = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
     val dma_w_data = Decoupled(new dma_write_t) // Writes to the DMA core
@@ -335,10 +328,10 @@ class pp_ingress_stages extends Module {
   val pp_payload = Module(new pp_ingress_payload) // Send the data from that packet factory over DMA
 
 
-  val lookup_desc_ila = Module(new ILA(new ram_read_desc_t))
+  val lookup_desc_ila = Module(new ILA(new RAMReadReq))
   lookup_desc_ila.io.ila_data := io.cb_ram_read_desc.bits
 
-  val lookup_data_ila = Module(new ILA(new ram_read_data_t))
+  val lookup_data_ila = Module(new ILA(new RAMReadResp))
   lookup_data_ila.io.ila_data := io.cb_ram_read_data.bits
 
   // Link all the units together
@@ -455,8 +448,8 @@ class pp_ingress_map extends Module {
  */
 class pp_ingress_lookup extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc        = Decoupled(new ram_read_desc_t) // Read descriptors for recvmsg control blocks
-    val ram_read_data        = Flipped(Decoupled(new ram_read_data_t)) // Control block returned from read
+    val ram_read_desc        = Decoupled(new RAMReadReq) // Read descriptors for recvmsg control blocks
+    val ram_read_data        = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Packet factory input 
     val packet_out = Decoupled(new PacketFactory) // Packet factory output with control block added
@@ -477,13 +470,13 @@ class pp_ingress_lookup extends Module {
    */ 
   pending.io.enq <> packet_reg_0.io.deq
 
-  io.ram_read_desc.bits          := 0.U.asTypeOf(new ram_read_desc_t)
+  io.ram_read_desc.bits     := 0.U.asTypeOf(new RAMReadReq)
 
   // Construct a read descriptor for this piece of data
-  io.ram_read_desc.valid         := packet_reg_0.io.deq.fire
+  io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
   // TODO should clean this up
-  io.ram_read_desc.bits.ram_addr := 64.U * packet_reg_0.io.deq.bits.cb.id
-  io.ram_read_desc.bits.len      := 64.U
+  io.ram_read_desc.bits.addr := 64.U * packet_reg_0.io.deq.bits.cb.id
+  io.ram_read_desc.bits.len  := 64.U
 
   /*
    * Tie delay queue to stage 1
@@ -515,7 +508,6 @@ class pp_ingress_payload extends Module {
     // val packet_out = Decoupled(new PacketFactory) TODO next stage
   })
 
-
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
 
   packet_reg_0.io.enq <> io.packet_in
@@ -531,10 +523,17 @@ class pp_ingress_payload extends Module {
   // TODO this should be handled more explicitly
   // TODO eventually mult by offset
 
+
+  /* Packet frames arrive LSB (bit 512) -> MSB (bit 0). So, when we
+   * extract the payload it starts at bit 512. This is no issue if we
+   * are wriing 64 bytes chunks, but if we are writing partial chunks
+   * we need to shift that data so that its high bit (512 - size of
+   * payload chunk) is byte zero of our write request
+   */
   io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
-  io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload
-  io.dma_w_data.bits.length          := packet_reg_0.io.deq.bits.payloadBytes() 
-  io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
+  io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload >> (64.U - packet_reg_0.io.deq.bits.payloadBytes())
+  io.dma_w_data.bits.length          := packet_reg_0.io.deq.bits.payloadBytes()  // Number of payload bytes in this frame
+  io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport    // TODO unsafe
 
   // TODO can we make these offsets properties of the type?
   // TODO sloppy
