@@ -1,4 +1,4 @@
-package gpnic 
+package gpnic
 
 import chisel3._
 import chisel3.experimental.BundleLiterals._
@@ -182,6 +182,7 @@ class pp_egress_dupe_test extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.data.data.seg_len.poke(1386.U)
 
       dut.clock.step()
 
@@ -190,8 +191,9 @@ class pp_egress_dupe_test extends AnyFreeSpec {
 
       dut.clock.step()
 
-      // TODO temporary count 
+      // TODO temporary count
       for (transaction <- 0 to 1500/64) {
+        println("transaction")
         dut.io.packet_out.valid.expect(true.B)
         dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
         dut.clock.step()
@@ -211,31 +213,31 @@ class pp_egress_dupe_test extends AnyFreeSpec {
 
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_out.ready.poke(true.B)
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.data.data.seg_len.poke(1386.U)
 
       dut.clock.step()
       dut.clock.step()
 
-      // TODO temporary count 
+      // TODO temporary count
       for (transaction <- 0 to 1500/64) {
         dut.io.packet_out.valid.expect(true.B)
         dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
         dut.clock.step()
       }
 
-      //  dut.io.packet_in.valid.poke(false.B)
-
-       // TODO temporary count 
-       for (transaction <- 0 to 1500/64) {
-         dut.io.packet_out.valid.expect(true.B)
-         dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
-         dut.clock.step()
-       }
-       
-       // dut.io.packet_out.valid.expect(false.B)
+      // TODO temporary count
+      for (transaction <- 0 to 1500/64) {
+        dut.io.packet_out.valid.expect(true.B)
+        dut.io.packet_out.bits.frame_off.expect((transaction * 64).U)
+        dut.clock.step()
+      }
+      
+      // dut.io.packet_out.valid.expect(false.B)
     }
   }
 
-   // Test short legnths and long lengths
+  // Test short legnths and long lengths
 }
 
 
@@ -532,7 +534,7 @@ class pp_egress_xmit_test extends AnyFreeSpec {
   // class xmit_test_shim extends Module {
   //   val io = IO(new Bundle {
   //     val packet_in  = Flipped(Decoupled(UInt((new PacketFactory).getWidth.W)))
-  //     val egress  = new axis(512, false, 0, false, 0, true, 64, true) 
+  //     val egress  = new axis(512, false, 0, false, 0, true, 64, true)
   //   })
 
   //   val dut = Module(new pp_egress_xmit)
@@ -619,7 +621,7 @@ class pp_egress_xmit_test extends AnyFreeSpec {
       dut.io.egress.tready.poke(true.B)
 
       dut.io.packet_in.bits.payload.poke("hdeadbeef".U)
-      dut.io.packet_in.bits.data.data.seg_len.poke(1386.U) 
+      dut.io.packet_in.bits.data.data.seg_len.poke(1386.U)
       dut.io.packet_in.bits.frame_off.poke((23*64).U) // TODO eventually this will be based on seg length
       dut.io.egress.tready.poke(true.B)
 
@@ -928,18 +930,19 @@ class pp_ingress_payload_test extends AnyFreeSpec {
   "pp_payload_test: data in gives data out" in {
     simulate(new pp_ingress_payload) { dut =>
 
-       dut.reset.poke(true.B)
-       dut.clock.step()
-       dut.reset.poke(false.B)
-       dut.clock.step()
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
 
-       dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.frame_off.poke(64.U)
+      dut.io.packet_in.valid.poke(true.B)
 
-       dut.clock.step()
+      dut.clock.step()
 
-       dut.io.dma_w_data.valid.expect(true.B)
-     }
-   }
+      dut.io.dma_w_data.valid.expect(true.B)
+    }
+  }
 
   "pp_payload_test: pcie write addr" in {
     simulate(new pp_ingress_payload) { dut =>

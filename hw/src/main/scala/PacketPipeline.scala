@@ -523,7 +523,6 @@ class pp_ingress_payload extends Module {
   // TODO this should be handled more explicitly
   // TODO eventually mult by offset
 
-
   /* Packet frames arrive LSB (bit 512) -> MSB (bit 0). So, when we
    * extract the payload it starts at bit 512. This is no issue if we
    * are wriing 64 bytes chunks, but if we are writing partial chunks
@@ -531,7 +530,7 @@ class pp_ingress_payload extends Module {
    * payload chunk) is byte zero of our write request
    */
   io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
-  io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload >> (64.U - packet_reg_0.io.deq.bits.payloadBytes())
+  io.dma_w_data.bits.data            := packet_reg_0.io.deq.bits.payload >> (512.U - (packet_reg_0.io.deq.bits.payloadBytes() * 8.U))
   io.dma_w_data.bits.length          := packet_reg_0.io.deq.bits.payloadBytes()  // Number of payload bytes in this frame
   io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport    // TODO unsafe
 

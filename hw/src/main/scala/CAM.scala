@@ -6,6 +6,8 @@ import chisel3.util.Decoupled
 import chisel3.util._
 
 // TODO need a better hash function!
+// TODO no flow control
+// TODO a lot of this logic can be decomposed into a cuckoo table class
 
 /* CAM - content addressable memory module based on cuckoo hashing techniques. This design uses 4 tables with 4 hash functions (on assigned to each). 
  */
@@ -90,7 +92,6 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   }
 
   when (cam_2_insert_pending && cam_2.readPorts(0).data.set === 1.U) {
-    // printf("cam 2 reinsert\n")
     cam_3_insert.io.enq.bits  := cam_2.readPorts(0).data
     cam_3_insert.io.enq.valid := true.B
   }
@@ -130,22 +131,6 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
   cam_3.readPorts(1).address := cam_3_search.io.deq.bits.hash(3)
   cam_3.readPorts(1).enable  := cam_3_search.io.deq.valid
 
-  when (cam_0_search.io.deq.valid && cam_0_search.io.deq.bits.tag === "hdeadbeef".U) {
-    // printf("cam 0: %d\n", cam_0_search.io.deq.bits.hash(0))
-  }
-
-  when (cam_1_search.io.deq.valid && cam_1_search.io.deq.bits.tag === "hdeadbeef".U) {
-    // printf("cam 1: %d\n", cam_1_search.io.deq.bits.hash(1))
-  }
-
-  when (cam_2_search.io.deq.valid && cam_2_search.io.deq.bits.tag === "hdeadbeef".U) {
-    // printf("cam 2: %d\n", cam_2_search.io.deq.bits.hash(2))
-  }
-
-  when (cam_3_search.io.deq.valid && cam_3_search.io.deq.bits.tag === "hdeadbeef".U) {
-    // printf("cam 3: %d\n", cam_3_search.io.deq.bits.hash(3))
-  }
-
   // All searches happen together, so only save data on one of them
   val cam_search_pending = RegNext(cam_0_search.io.deq.valid)
   val cam_search_key     = RegNext(cam_0_search.io.deq.bits.key)
@@ -155,24 +140,8 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
 
   val results = VecInit(cam_0.readPorts(1).data, cam_1.readPorts(1).data, cam_2.readPorts(1).data, cam_3.readPorts(1).data)
   when (cam_search_pending) {
-    io.result.bits  := results(results.indexWhere(a => a.key === cam_search_key))
-    io.result.valid := true.B
+    io.result.bits     := results(results.indexWhere(a => a.key === cam_search_key))
+    io.result.valid    := true.B
+    io.result.bits.set := results.exists(a => a.key === cam_search_key)
   }
-
-  // When the data for a search is read out
-  // when (cam_search_pending) {
-  //   // Check if we got a hit
-  //   when (cam_search_key === cam_0.readPorts(1).data.key) {
-  //     io.result.bits := cam_0.readPorts(1).data
-  //   }.elsewhen (cam_search_key === cam_1.readPorts(1).data.key) {
-  //     io.result.bits := cam_1.readPorts(1).data
-  //   }.elsewhen (cam_search_key === cam_2.readPorts(1).data.key) {
-  //     io.result.bits := cam_2.readPorts(1).data
-  //   }.elsewhen (cam_search_key === cam_3.readPorts(1).data.key) {
-  //     io.result.bits := cam_3.readPorts(1).data
-  //   }.otherwise {
-  //     printf("no hit")
-  //   }
-  //   io.result.valid := true.B
-  // }
 }

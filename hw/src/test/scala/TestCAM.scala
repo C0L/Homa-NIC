@@ -62,16 +62,13 @@ class CAMTest extends AnyFreeSpec {
       dut.io.search.valid.poke(false.B)
 
       dut.clock.step()
-      dut.clock.step()
-      dut.clock.step()
-      dut.clock.step()
-      dut.clock.step()
 
       dut.io.result.valid.expect(true.B)
+      dut.io.result.bits.set.expect(0.U)
     }
   }
 
-  "cam test: stress" in {
+  "TestCAM: stress" in {
     simulate(new CAM(32,32)) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -90,9 +87,7 @@ class CAMTest extends AnyFreeSpec {
         dut.io.insert.bits.set.poke(1.U)
         dut.io.insert.bits.tag.poke("hdeadbeef".U)
         dut.io.insert.valid.poke(true.B)
-        // dut.clock.step()
-        // dut.io.insert.valid.poke(false.B)
-        // dut.clock.step()
+
         dut.clock.step()
       }
 
