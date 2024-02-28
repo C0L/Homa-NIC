@@ -65,8 +65,8 @@ class Top extends RawModule {
   /* Clock Convert core (200MHz) -> pcie (250MHz) */
   val ram_read_desc_cc  = Module(new AXISClockConverter(new RAMReadReq))
   val ram_write_data_cc = Module(new AXISClockConverter(new RAMWriteReq))
-  val dma_read_desc_cc  = Module(new AXISClockConverter(new RAMReadReq))
-  val dma_write_desc_cc = Module(new AXISClockConverter(new RAMWriteReq))
+  val dma_read_desc_cc  = Module(new AXISClockConverter(new dma_read_desc_t))
+  val dma_write_desc_cc = Module(new AXISClockConverter(new dma_write_desc_t))
 
   core.io.payloadRamReadReq          <> ram_read_desc_cc.io.s_axis
   ram_read_desc_cc.io.s_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
@@ -95,7 +95,6 @@ class Top extends RawModule {
   dma_write_desc_cc.io.m_axis_aresetn := !pcie.pcie_user_reset
   dma_write_desc_cc.io.m_axis_aclk    := pcie.pcie_user_clk
   dma_write_desc_cc.io.m_axis         <> pcie.dma_write_desc
-
 
   /* Clock Convert pcie (250MHz) -> core (200MHz) */
   val ram_read_data_cc         = Module(new AXISClockConverter(new RAMReadResp))

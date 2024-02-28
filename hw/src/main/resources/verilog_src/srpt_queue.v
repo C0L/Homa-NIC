@@ -227,7 +227,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	       end else if (TYPE == "fetch") begin // if (TYPE == "sendmsg")
 	  	  // Did we just request the last block for this message
 	  	  if (queue_head[`QUEUE_ENTRY_REMAINING] <= `CACHE_BLOCK_SIZE) begin
-	  	     $display("wipe!! %x", queue[1]);
+	  	     // $display("wipe!! %x", queue[1]);
 	             queue[0]                        <= queue[1];
 	             queue[1][`QUEUE_ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
 	  	  end else begin
