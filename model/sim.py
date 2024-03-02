@@ -44,61 +44,6 @@ Number of dry fires
 Cycles spent reinserting
 Total number of cycles
 Inaccuracies?
-'''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# * Why a mutable priority queue?
-# 
-# PIFO does rate limiting on the input side before it is enqueued into the pifo. 
-# 
-# ** Bulk entry activation
-# If multiple messages from a single sender are destined for a single receiver, and that receiver is oversubscribed, the outoging messages will need to be stashed. When the receiver eventually becomes mavailible all of the blocked entries will need to be added to the priority queue to find the best choice. Adding the entries to the queue will also block unrelated messages from being added to the queue (can only add a single element per cycle)
-# 
-# ** Dequeue Dry-fires
-# If we add all of the messages destined for a single receiver while that receiver is availible, and the receiver subsequently goes unavailible, then when these messages come to the head of the queue we have a dry-fire. This is a wasted few cyles where we do not know what the best message to send is. If there were a lot of messages of this type then the delay will be significant.
-# 
-# ** Premption
-# Assume we are selectively adding messages into the priority queue based on the number of availible bytes the receiver has granted. If a receiver grants us 10 bytes and we have 3 messages for that receiver with (2,3,4) bytes we can add them all into the queue. If find that we want to send a new message with 1 byte then we want to add it to the queue, but we are going to exceed the 10 bytes granted to us. If we did not add it to the queue then we are not prempting.
-# 
-# ** Per-flow Scheduling Policies
-# 
-# PIFO is unable to update per-flow and cannot implement the anti-starvation policy of pFabric.
-# 
-# ** Weight Updates?
-# 
-# 
-# ** Multi-level PQ?
-# 
-# 
-# No change in eligibility - all jobs are eligible
-# 
-# A job goes from active during insert to inactive after insert
-# PIFO waits until it gets to the front and dry fires
-# 
-# A job goes from inactive on insert to active after insert
-
-# The time between when a set of jobs arrives and when a job is activated? Do we let the queue stabalize?
-
-# Make the simplifying assumption that a stable state is reached?
 
 # Simulation Parameters:
 #   - PCIe throughput 
@@ -114,38 +59,226 @@ Inaccuracies?
 #   - Time to completion
 #   - P99 completion time
 #   - Some measure of latency?
+'''
 
-# Questions:
-# One of our central claims is that the mutability of the relative scheduling order of arbitrary flows is valuable. There are a number of places I think this could be used but in our simulations I think we are going to begin by showing it is valuable to mutate entries in the priorty queue in response to changing flow control state and cache state. We want to compare against PIFO which does not have mutability for arbirary flows. When I simulate this I need some realistic penelty for PIFO deciding to send a packet and the data for that packet not being cached on chip, and the ineligibility of a receiver to accept the data.
+class Queue:
+    def __init__(self, fcOracle):
+        self.fcOracle = fcOracle
 
-# The cache problem is more straightforward. PIFO would effectively trigger a cache miss every time it scheduled a packet which is what the deployments of PIFOs on NICs so far have done. Our queue would trigger a cache miss only if our prefetcher system had failed to collect the data. That seems like a reasonable comparison.
+        # Entries that have been completed by the queue
+        self.complete = []
 
-# The comparison is less straight forward if the PIFO schedules a packet to be sent that is not eligible to receive data. I have not seen any work yet that considers the relationship between a PIFO scheduler and the flow control state to compare against, so if the PIFO selects a packet and we know the receiver is unable to accept, do we just send it anyway, do we block, do we defer that data till later. I am not sure what is a realistic comparison because no one has really considered this.
+        # Tried to send an ungranted packet
+        self.dryfires = 0
 
-# Better examples of needing to updating entries
-
-# Multiple messages bound for the same receiver
-# Message is desirable, becomes undesirable, flow control state changes (unrealistic)
-# Great triggering the reorderring of many outgoing messages
-# Systems that are not all or nothing (message has some percentage of the reeivers bandwidth)
-
-# Why not use the dumb 1 queue of things
-
-# Seperate implementation from the high level function of the queue(insertion and mutability)
-
-# find and jot down some dumb examples
-
-# What flow control system to implement and does that mean I need to simulate other users in the system? Or is there a way to do this more abstractly detached from the greater network context.
-
-class simulator():
-    msgbuffers = [] 
-    __init__(self, h2c_msg_):
-
-class host():
-    __init__(self): 
-
-class pifo():
+    def minAvgCompletitonTime():
+        # iterate through self.complete and record completion times
 
 
+class Entry:
+    def __init__(id, bytes):
+        self.id    = id
+        self.bytes = bytes
+
+class PIFO(Queue):
+    def __init__(fcOracle):
+        super(fcOracle)
+
+        # entries which cannot be inserted into the queue due fc state
+        self.blocked = []
+
+        # entries with packets to send
+        self.queue   = []
+
+    def enqueue(entry):
+        # If this entry has granted bytes, find its place in the queue, otherwise buffer
+        if (self.fcOracle(entry)):
+            # Find the first entry in the queue that has a byte count greater then our new entry's byte count
+            insert = next(e[0] for e in enumerate(self.queue) if e[1].bytes > entry.bytes)
+            self.queue.insert(insert, entry)
+        else:
+            self.blocked.append(entry)
+
+    def dequeue():
+        # If we are storing no entries there is no packet to send
+        if (len(self.queue)) return None
+
+        # PIFO will only pop from head of queue
+        head = self.queue[0]
+
+        '''
+        If the entry at the head is granted, send a packet. If sending
+        that packet causes the entry to be completely sent, then we
+        are done and destroy it.
+        ''' 
+        if (self.fcOracle(head) != 0):
+            # Send one packet
+            self.queue[0].bytes - 1
+
+            # Did we send the whole message?
+            if (self.queue[0].bytes == 0):
+                self.queue.pop()
+
+            return head
+        else:
+            # The entry is not granted and we will block it
+            self.queue.pop()
+            self.blocked.append(head)
+            self.dryfires++
+            return None
+
+    def tick():
+        update = [i for i,v in enumerate(a) if v > 2] 
+        # Iterate through all entries and check FC state, enqueue if needed
+        
+
+class Mutable(Queue):
+    def __init__(fcOracle):
+        super(fcOracle)
+        
+        self.queue = []
+
+    def enqueue(entry):
+        self.queue.insert(0, entry)
+
+    def dequeue():
+        # If we are storing no entries there is no packet to send
+        if (len(self.queue)) return None
+
+        # PIFO will only pop from head of queue
+        head = self.queue[0]
+
+        '''
+        If the entry at the head is granted, send a packet. If sending
+        that packet causes the entry to be completely sent, then we
+        are done and destroy it.
+        ''' 
+        if (self.fcOracle(head) != 0):
+            # Send one packet
+            self.queue[0].bytes - 1
+
+            # Did we send the whole message?
+            if (self.queue[0].bytes == 0):
+                self.queue.pop()
+
+            return head
+        else:
+            # The entry is not granted. Should only happen when there
+            # are no active messages in the entire system
+            self.dryfires++
+            return None
+
+    def tick():
+        # perform the swap operations
+        # Check if there are updates to fc state, and enqueue update signal if needed
+
+class Ideal(Queue):
+    def __init__():
+        super()
+
+        # just use a list to store the elements and always search the elements
+        self.queue = []
+
+    def enqueue(entry):
+        self.queue.append(entry)
+        
+    def dequeue():
+        # TODO can we mutate the original entry in the list from this???
+        # TODO if it is empty can we remove it easily??
+        # TODO call the oracle function to get num granted bytes and subtract that from num bytes in entry
+        ideal = max(self.queue, key=lambda entry: entr.y)
+        # Use the python specific way to locate Entry, decrement it, and return it
+        return ideal
+
+    def tick():
+        None
+
+class FcOracle:
+    def __init__(fcFunc):
+        self.fcState = {}
+        self.fcFunc = fcFunc
+
+    '''
+    Given some entry, return the number of bytes that can be send
+    '''
+    def fcOracle(entry):
+        # TODO return the number of bytes that can be sent for an entry
+
+    '''
+    Mutate the flow control sate based on fcFunc
+    '''
+    def fcUpdate():
+        # TODO mutate flow control state
+
+    '''
+    Add a new entry needing flow control managment by invoking the
+    flow control function for an initial value 
+    '''
+    def fcInclude(entry):
+        granted = self.fcFunc
+        fcState[entry.id] = granted
+        # TODO add a new entry to be flow control managed, call the fc function, and return the initial assignment
+
+class Sim:
+    def __init__(sendFunc, fcFunc):
+        # Function determining whether to send a message, the number
+        # of bytes in that message, and flow control state
+        self.sendmsg = sendFunc # TODO sample from some distribution
+
+        self.fc = fcOracle(fcFunc)
+
+        # Tested queuing strategies
+        self.queues  = [PIFO(self.fc.fcOracle), Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
+
+        # Timestep counter
+        self.time = 0
+
+        # Initial ID to assign to new entries generated by the sendmsg function
+        self.sendmsgID = 0
+
+        # Maximum number of timesteps to run experiment
+        self.maxSimTime = 10000
+
+
+    '''
+    Initiate a new request for packet transmission by the queue
+    under test based on the sendmsg function. Query the sendmsg
+    function to determine if a message should be sent, and if so, how
+    many bytes it should be for. Then, query the flow controller to
+    get the initial number of granted bytes, as well as register it
+    with the flow control system.
+    '''
+    def sendmsg():
+        bytes = self.sendmsg()
+        if (bytes != 0):
+            entry = Entry(bytes)
+            self.fc.fcInclude(entry)
+        
+
+    '''
+    Iterate through simulation steps up to the max simulation time
+    ''' 
+    def simulate():
+        for (step in range(self.maxSimTime)):
+            self.step()
+
+    '''
+    One iteration of the system includes:
+      1) 1 packet goes out
+      2) The sendmsg function is invoked
+      3) The grants function is invoked
+    For each queue
+    '''  
+    def step():
+        sendmsg = self.sendmsg()
+
+        for (queue in self.queues):
+            queue.enqueue(sendmsg)   # pass the sendmsg to the queue if it exists
+            packet = queue.dequeue() # get a packet out from the queue
+            # TODO store the sequence of packets out for post comparison
+
+    # def dumpStats():
+        # number of inaccuracies
+        # number of dry fires (no packet goes out?)
 if __name__ == '__main__':
     simulator()
