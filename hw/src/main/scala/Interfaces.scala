@@ -5,109 +5,112 @@ import circt.stage.ChiselStage
 import chisel3.util._
 import scala.collection.immutable.ListMap
 
-class dma_read_desc_t extends Bundle {
+trait FlatDecoupled {
+  val valid: UInt
+  val ready: UInt
+}
+
+class dma_read_desc_t (ports: Int) extends Bundle {
+  val pcie_addr = Output(UInt((ports * 64).W))
+  val ram_sel   = Output(UInt((ports * 2).W))
+  val ram_addr  = Output(UInt((ports * 18).W))
+  val len       = Output(UInt((ports * 16).W))
+  val tag       = Output(UInt((ports * 8).W))
+}
+
+class dma_write_desc_t (ports: Int) extends Bundle {
+  val pcie_addr = Output(UInt((ports * 64).W))
+  val ram_sel   = Output(UInt((ports * 2).W))
+  val ram_addr  = Output(UInt((ports * 18).W))
+  val len       = Output(UInt((ports * 16).W))
+  val tag       = Output(UInt((ports * 8).W))
+}
+
+class DmaWriteReq extends Bundle {
   val pcie_addr = UInt(64.W)
   val ram_sel   = UInt(2.W)
   val ram_addr  = UInt(18.W)
   val len       = UInt(16.W)
   val tag       = UInt(8.W)
+  val port      = UInt(16.W)
 }
 
-class dma_write_desc_t extends Bundle {
+class DmaReadReq extends Bundle {
   val pcie_addr = UInt(64.W)
   val ram_sel   = UInt(2.W)
   val ram_addr  = UInt(18.W)
   val len       = UInt(16.W)
   val tag       = UInt(8.W)
+  val port      = UInt(16.W)
 }
 
-class RAMReadReq extends Bundle {
+class dma_read_desc_status_t (ports: Int) extends Bundle {
+  val tag   = UInt((ports * 8).W)
+  val error = UInt((ports * 4).W)
+  val valid = Output(UInt((ports * 1).W))
+  val ready = Input(UInt((ports * 1).W))
+}
+
+class dma_write_desc_status_t (ports: Int) extends Bundle {
+  val tag   = UInt((ports * 8).W)
+  val error = UInt((ports * 4).W)
+  val valid = Output(UInt((ports * 1).W))
+  val ready = Input(UInt((ports * 1).W))
+}
+
+class RamReadReq extends Bundle {
   val addr = UInt(18.W)
   val len  = UInt(8.W)
 }
 
-class RAMReadResp extends Bundle {
+class RamReadResp extends Bundle {
   val data = UInt(512.W)
 }
 
-class RAMWriteReq extends Bundle {
+class RamWriteReq extends Bundle {
   val addr = UInt(18.W)
   val len  = UInt(8.W)
   val data = UInt(512.W)
 }
 
-class ram_write_desc_t extends Bundle {
-  val ram_addr = UInt(18.W)
-  val len      = UInt(64.W)
-  val tag      = UInt(8.W)
-}
+// class DmaRead extends Bundle {
+//   val pcie_addr    = UInt(64.W)
+//   val cache_id     = UInt(10.W)
+//   val message_size = UInt(20.W)
+//   val read_len     = UInt(12.W)
+//   val ram_addr     = UInt(18.W)
+//   val port         = UInt(16.W)
+// }
+// 
+// class DmaWrite extends Bundle {
+//   val pcie_addr = UInt(64.W)
+//   val data      = UInt(512.W)
+//   val length    = UInt(8.W)
+//   val port      = UInt(16.W)
+// }
 
-class ram_write_data_t extends Bundle {
-  val data = UInt(512.W)
-  val keep = UInt(64.W)
-  val last = UInt(1.W)
-  val id   = UInt(1.W)
-  val dest = UInt(8.W)
-  val user = UInt(1.W)
-}
-
-class ram_write_desc_status_t extends Bundle {
-  val len   = UInt(64.W)
-  val tag   = UInt(8.W)
-  val id    = UInt(1.W)
-  val dest  = UInt(8.W)
-  val user  = UInt(1.W)
-  val error = UInt(4.W)
-}
-
-class dma_read_desc_status_t extends Bundle {
-  val tag   = UInt(8.W)
-  val error = UInt(4.W)
-}
-
-class dma_write_desc_status_t extends Bundle {
-  val tag   = UInt(8.W)
-  val error = UInt(4.W)
-}
-
-class dma_read_t extends Bundle {
-  val pcie_read_addr = UInt(64.W)
-  val cache_id       = UInt(10.W)
-  val message_size   = UInt(20.W)
-  val read_len       = UInt(12.W)
-  val dest_ram_addr  = UInt(18.W)
-  val port           = UInt(16.W)
-}
-
-class dma_write_t extends Bundle {
-  val pcie_write_addr = UInt(64.W)
-  val data            = UInt(512.W)
-  val length          = UInt(8.W)
-  val port            = UInt(16.W)
-}
-
-class dma_map_t extends Bundle {
+class DmaMap extends Bundle {
   val map_type  = UInt(8.W)
   val port      = UInt(16.W)
   val pcie_addr = UInt(64.W)
 }
 
-class ram_wr_t extends Bundle {
-  val cmd_be     = Output(UInt(128.W))
-  val cmd_addr   = Output(UInt(22.W))
-  val cmd_data   = Output(UInt(1024.W))
-  val cmd_valid  = Output(UInt(2.W))
-  val cmd_ready  = Input(UInt(2.W))
-  val done       = Input(UInt(2.W))
+class ram_wr_t (ports: Int) extends Bundle {
+  val cmd_be     = Output(UInt((ports * 128).W))
+  val cmd_addr   = Output(UInt((ports * 22).W))
+  val cmd_data   = Output(UInt((ports * 1024).W))
+  val cmd_valid  = Output(UInt((ports * 2).W))
+  val cmd_ready  = Input(UInt((ports * 2).W))
+  val done       = Input(UInt((ports * 2).W))
 }
 
-class ram_rd_t extends Bundle {
-  val cmd_addr   = Output(UInt(22.W))
-  val cmd_valid  = Output(UInt(2.W))
-  val cmd_ready  = Input(UInt(2.W))
-  val resp_data  = Input(UInt(1024.W))
-  val resp_valid = Input(UInt(2.W))
-  val resp_ready = Output(UInt(2.W))
+class ram_rd_t (ports: Int) extends Bundle {
+  val cmd_addr   = Output(UInt((ports * 22).W))
+  val cmd_valid  = Output(UInt((ports * 2).W))
+  val cmd_ready  = Input(UInt((ports * 2).W))
+  val resp_data  = Input(UInt((ports * 1024).W))
+  val resp_valid = Input(UInt((ports * 2).W))
+  val resp_ready = Output(UInt((ports * 2).W))
 }
 
 // Default axi_m

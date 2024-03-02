@@ -15,42 +15,46 @@ import chisel3.util._
 class Delegate extends Module {
   val io = IO(new Bundle {
     val function_i  = Flipped(new axis(512, false, 0, true, 32, false, 0, false)) // 512 bit blocks from user
-    val sendmsg_o   = Decoupled(new QueueEntry) // Output to sendmsg priority queue
-    val fetchdata_o = Decoupled(new QueueEntry) // Output to datafetch queue
-    val dma_w_req_o = Decoupled(new dma_write_t)   // Output to pcie write
-    val dma_map_o   = Decoupled(new dma_map_t)     // Output to add new DMA map
+    val newSendmsg   = Decoupled(new QueueEntry) // Output to sendmsg priority queue
+    val newFetchdata = Decoupled(new QueueEntry) // Output to datafetch queue
+    val newDmaMap   = Decoupled(new DmaMap)     // Output to add new DMA map
 
-    val sendmsg_ram_write_data = Decoupled(new RAMWriteReq) // Data to write to RAM
-    val recvmsg_ram_write_data = Decoupled(new RAMWriteReq) // Data to write to RAM
+    val ppEgressSendmsgRamReq  = Decoupled(new RamWriteReq) // Data to write to pp egress RAM
+    val ppIngressRecvmsgRamReq = Decoupled(new RamWriteReq) // Data to write to pp ingress RAM
+
+    val c2hMetadataRamReq = Decoupled(new RamWriteReq) // Metadata to write to pcie RAM
+    val c2hMetadataDmaReq = Decoupled(new DmaWriteReq) // Data to to write to DMA from metadata RAM
 
     val dynamicConfiguration = Output(new DynamicConfiguration)
   })
 
   val dynamicConfiguration = RegInit(0.U.asTypeOf(new DynamicConfiguration))
-
   io.dynamicConfiguration := dynamicConfiguration
 
-  // By default all output streams are 0 initialized
-  io.dma_map_o.bits   := 0.U.asTypeOf(new dma_map_t)
+  io.newSendmsg.bits  := 0.U.asTypeOf(new QueueEntry)
+  io.newSendmsg.valid := false.B
 
-  // By default none of the output streams are active
-  io.dma_map_o.valid   := false.B
+  io.newFetchdata.bits  := 0.U.asTypeOf(new QueueEntry)
+  io.newFetchdata.valid := false.B
 
-  val sendmsg_queue   = Module(new Queue(new QueueEntry, 1, true, false))
-  val fetchdata_queue = Module(new Queue(new QueueEntry, 1, true, false))
-  val dma_w_req_queue = Module(new Queue(new dma_write_t, 1, true, false))
+  // By default all output streams are 0 initialized and inactive
+  io.ppEgressSendmsgRamReq.bits  := 0.U.asTypeOf(new RamWriteReq)
+  io.ppEgressSendmsgRamReq.valid := false.B
 
-  sendmsg_queue.io.deq <> io.sendmsg_o
-  fetchdata_queue.io.deq <> io.fetchdata_o
-  dma_w_req_queue.io.deq <> io.dma_w_req_o
+  io.ppIngressRecvmsgRamReq.bits  := 0.U.asTypeOf(new RamWriteReq)
+  io.ppIngressRecvmsgRamReq.valid := false.B
 
-  sendmsg_queue.io.enq.bits   := io.sendmsg_o.bits
-  fetchdata_queue.io.enq.bits := io.fetchdata_o.bits
-  dma_w_req_queue.io.enq.bits := io.dma_w_req_o.bits
+  io.c2hMetadataRamReq.bits  := 0.U.asTypeOf(new RamWriteReq)
+  io.c2hMetadataRamReq.valid := false.B
 
-  sendmsg_queue.io.enq.valid   := false.B 
-  fetchdata_queue.io.enq.valid := false.B
-  dma_w_req_queue.io.enq.valid := false.B
+  io.c2hMetadataDmaReq.bits  := 0.U.asTypeOf(new DmaWriteReq)
+  io.c2hMetadataDmaReq.valid := false.B
+
+  io.newDmaMap.bits   := 0.U.asTypeOf(new DmaMap)
+  io.newDmaMap.valid   := false.B
+
+  // We wish to onboard a new RPC as one operation
+  val batchSendmsgReady = io.c2hMetadataDmaReq.ready && io.newSendmsg.ready && io.newFetchdata.ready
 
   // Data stored in the queue
   class encaps extends Bundle {
@@ -67,12 +71,6 @@ class Delegate extends Module {
   function_queue.io.enq.bits.user := io.function_i.tuser.get
   function_queue.io.enq.valid     := io.function_i.tvalid
   io.function_i.tready            := function_queue.io.enq.ready
-
-  io.sendmsg_ram_write_data.bits  := 0.U.asTypeOf(new RAMWriteReq)
-  io.sendmsg_ram_write_data.valid := false.B
-
-  io.recvmsg_ram_write_data.bits      := 0.U.asTypeOf(new RAMWriteReq)
-  io.recvmsg_ram_write_data.valid := false.B
 
   // Be default nothing will exit our queue
   function_queue.io.deq.ready     := false.B
@@ -91,9 +89,9 @@ class Delegate extends Module {
     when (user_id === 0.U) {
       switch (user_func) {
         is (0.U) {
-          function_queue.io.deq.ready := io.dma_map_o.ready
-          io.dma_map_o.bits           := function_queue.io.deq.bits.data.asTypeOf(new dma_map_t)
-          io.dma_map_o.valid          := function_queue.io.deq.valid
+          function_queue.io.deq.ready := io.newDmaMap.ready
+          io.newDmaMap.bits           := function_queue.io.deq.bits.data.asTypeOf(new DmaMap)
+          io.newDmaMap.valid          := function_queue.io.deq.valid
         }
 
         is (64.U) {
@@ -110,42 +108,42 @@ class Delegate extends Module {
 
            msghdr_send.id := send_id
 
-           io.sendmsg_ram_write_data.bits.addr := 64.U * send_id
-           io.sendmsg_ram_write_data.bits.len  := 64.U
-           io.sendmsg_ram_write_data.bits.data := msghdr_send.asUInt
+           io.c2hMetadataRamReq.bits.addr := 64.U * send_id
+           io.c2hMetadataRamReq.bits.len  := 64.U
+           io.c2hMetadataRamReq.bits.data := msghdr_send.asUInt
 
-           // Construct a new meta data writeback request with the newly assigned ID
-           dma_w_req_queue.io.enq.bits.pcie_write_addr := 64.U * msghdr_send.ret 
-           dma_w_req_queue.io.enq.bits.data            := function_queue.io.deq.bits.data
-           dma_w_req_queue.io.enq.bits.length          := 64.U
-           dma_w_req_queue.io.enq.bits.port            := user_id
+           // Construct a new meta data write request with the newly assigned ID
+           io.c2hMetadataDmaReq.bits.pcie_addr := 64.U * msghdr_send.ret
+           io.c2hMetadataDmaReq.bits.ram_sel   := 1.U
+           io.c2hMetadataDmaReq.bits.ram_addr  := 64.U * send_id
+           io.c2hMetadataDmaReq.bits.len       := 64.U
+           io.c2hMetadataDmaReq.bits.tag       := 0.U
+           io.c2hMetadataDmaReq.bits.port      := user_id
 
            // Construct a new entry for the packet queue to send packets
-           sendmsg_queue.io.enq.bits.rpc_id    := msghdr_send.id
-           sendmsg_queue.io.enq.bits.dbuff_id  := dbuff_id;
-           sendmsg_queue.io.enq.bits.remaining := msghdr_send.buff_size
-           sendmsg_queue.io.enq.bits.dbuffered := msghdr_send.buff_size
-           sendmsg_queue.io.enq.bits.granted   := 0.U
-           sendmsg_queue.io.enq.bits.priority  := queue_priority.ACTIVE.asUInt;
+           io.newSendmsg.bits.rpc_id    := msghdr_send.id
+           io.newSendmsg.bits.dbuff_id  := dbuff_id;
+           io.newSendmsg.bits.remaining := msghdr_send.buff_size
+           io.newSendmsg.bits.dbuffered := msghdr_send.buff_size
+           io.newSendmsg.bits.granted   := 0.U
+           io.newSendmsg.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Construct a new entry for the fetch queue to fetch data
-           fetchdata_queue.io.enq.bits.rpc_id    := msghdr_send.id
-           fetchdata_queue.io.enq.bits.dbuff_id  := dbuff_id 
-           fetchdata_queue.io.enq.bits.remaining := msghdr_send.buff_size
-           fetchdata_queue.io.enq.bits.dbuffered := 0.U
-           // TODO beginning as initially granted
-           fetchdata_queue.io.enq.bits.granted   := msghdr_send.buff_size
-           fetchdata_queue.io.enq.bits.priority  := queue_priority.ACTIVE.asUInt;
+           io.newFetchdata.bits.rpc_id    := msghdr_send.id
+           io.newFetchdata.bits.dbuff_id  := dbuff_id 
+           io.newFetchdata.bits.remaining := msghdr_send.buff_size
+           io.newFetchdata.bits.dbuffered := 0.U
+           io.newFetchdata.bits.granted   := msghdr_send.buff_size // TODO begins as initially granted
+           io.newFetchdata.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Only signal that a transaction is ready to exit our queue if all recievers are ready
            // Ram core will always be ready
-           // TODO this could also block things in unintended ways, but they really should be one op
-           function_queue.io.deq.ready     := sendmsg_queue.io.enq.ready & fetchdata_queue.io.enq.ready & dma_w_req_queue.io.enq.ready
+           function_queue.io.deq.ready    := batchSendmsgReady
 
-           sendmsg_queue.io.enq.valid      := function_queue.io.deq.fire
-           fetchdata_queue.io.enq.valid    := function_queue.io.deq.fire
-           dma_w_req_queue.io.enq.valid    := function_queue.io.deq.fire
-           io.sendmsg_ram_write_data.valid := function_queue.io.deq.fire
+           io.newSendmsg.valid            := function_queue.io.deq.fire
+           io.newFetchdata.valid          := function_queue.io.deq.fire
+           io.c2hMetadataRamReq.valid     := function_queue.io.deq.fire
+           io.ppEgressSendmsgRamReq.valid := function_queue.io.deq.fire
 
            // Only when te transaction takes place we increment the send and dbuff IDs
            when (function_queue.io.deq.fire) {
@@ -158,10 +156,10 @@ class Delegate extends Module {
          is (64.U) {
            val msghdr_recv = function_queue.io.deq.bits.data.asTypeOf(new msghdr_t)
 
-           io.recvmsg_ram_write_data.bits.data := msghdr_recv.asUInt
-           io.recvmsg_ram_write_data.bits.addr := 64.U * send_id
-           io.recvmsg_ram_write_data.bits.len  := 64.U
-           io.recvmsg_ram_write_data.valid     := true.B
+           io.ppEgressSendmsgRamReq.bits.data := msghdr_recv.asUInt
+           io.ppEgressSendmsgRamReq.bits.addr := 64.U * send_id
+           io.ppEgressSendmsgRamReq.bits.len  := 64.U
+           io.ppEgressSendmsgRamReq.valid     := true.B
          }
        }
     }

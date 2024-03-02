@@ -14,11 +14,11 @@ import chisel3.util._
  * parameterized with a 512 bit segmented size, 2 segments, and 11 bit
  * address per segment.
  */
-class SegmentedRAMRead extends Module {
+class SegmentedRamRead extends Module {
   val io = IO(new Bundle {
-    val ramReadReq  = Flipped(Decoupled(new RAMReadReq)) // Requests to read data from RAM
-    val ramReadResp = Decoupled(new RAMReadResp) // Returned result from RAM
-    val ram_rd        = new ram_rd_t // Interface from client (this) to RAM module
+    val ramReadReq  = Flipped(Decoupled(new RamReadReq)) // Requests to read data from RAM
+    val ramReadResp = Decoupled(new RamReadResp) // Returned result from RAM
+    val ram_rd        = new ram_rd_t(1) // Interface from client (this) to RAM module
   })
 
   /* Read requests are latched by the in_latch. When the RAM core is
@@ -29,9 +29,9 @@ class SegmentedRAMRead extends Module {
    * result is valid (ram_rd.resp_valid), the out_latch latches on the
    * result, which is connected to the output port.
    */
-  val in_latch  = Module(new Queue(new RAMReadReq, 1, true, false))
-  val pending   = Module(new Queue(new RAMReadReq, 6, true, false)) 
-  val out_latch = Module(new Queue(new RAMReadResp, 1, true, false))
+  val in_latch  = Module(new Queue(new RamReadReq, 1, true, false))
+  val pending   = Module(new Queue(new RamReadReq, 6, true, false)) 
+  val out_latch = Module(new Queue(new RamReadResp, 1, true, false))
   in_latch.io.enq <> io.ramReadReq
 
   // A read requests moves from in_latch to pending when the read request is fired to RAM
@@ -79,7 +79,7 @@ class SegmentedRAMRead extends Module {
 
   shift_bits := pending.io.deq.bits.addr(5,0) * 8.U
 
-  out_latch.io.enq.bits      := 0.U.asTypeOf(new RAMReadResp)
+  out_latch.io.enq.bits      := 0.U.asTypeOf(new RamReadResp)
   out_latch.io.enq.bits.data := (ordered_data >> shift_bits)(511,0)
   out_latch.io.enq.valid     := io.ram_rd.resp_valid.andR
 
@@ -93,14 +93,14 @@ class SegmentedRAMRead extends Module {
  * parameterized with a 512 bit segmented size, 2 segments, and 11 bit
  * address per segment.
  */
-class SegmentedRAMWrite extends Module {
+class SegmentedRamWrite extends Module {
   val io = IO(new Bundle {
-    val ramWriteReq = Flipped(Decoupled(new RAMWriteReq))
-    val ram_wr      = new ram_wr_t
+    val ramWriteReq = Flipped(Decoupled(new RamWriteReq))
+    val ram_wr      = new ram_wr_t(1)
   })
 
   // Buffer for write requests going to RAM
-  val in_latch = Module(new Queue(new RAMWriteReq, 1, true, false))
+  val in_latch = Module(new Queue(new RamWriteReq, 1, true, false))
 
   // Write commands get added to the in latch before reaching RAM interface
   in_latch.io.enq <> io.ramWriteReq

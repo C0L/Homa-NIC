@@ -20,11 +20,11 @@ class PPegressStages extends Module {
     val trigger = Flipped(Decoupled(new QueueEntry)) // Input from sendmsg priority queue
     val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet
 
-    val cb_ram_read_desc      = Decoupled(new RAMReadReq) // Read descriptors for sendmsg control blocks
-    val cb_ram_read_data      = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
+    val cb_ram_read_desc      = Decoupled(new RamReadReq) // Read descriptors for sendmsg control blocks
+    val cb_ram_read_data      = Flipped(Decoupled(new RamReadResp)) // Control block returned from read
 
-    val payload_ram_read_desc = Decoupled(new RAMReadReq) // Read descriptors for packet payload data
-    val payload_ram_read_data = Flipped(Decoupled(new RAMReadResp)) // Payload data returned from read
+    val payload_ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for packet payload data
+    val payload_ram_read_data = Flipped(Decoupled(new RamReadResp)) // Payload data returned from read
   })
 
   val pp_lookup  = Module(new PPegressLookup)  // Lookup the control block
@@ -73,8 +73,8 @@ class PPegressStages extends Module {
  */ 
 class PPegressLookup extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc = Decoupled(new RAMReadReq) // Read descriptors for sendmsg control blocks
-    val ram_read_data = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
+    val ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for sendmsg control blocks
+    val ram_read_data = Flipped(Decoupled(new RamReadResp)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new QueueEntry)) // Output from sendmsg queue
     val packet_out = Decoupled(new PacketFactory) // Packet factory associated with this queue output 
@@ -98,7 +98,7 @@ class PPegressLookup extends Module {
   pending.io.enq.valid        := packet_reg_0.io.deq.valid
   packet_reg_0.io.deq.ready   := pending.io.enq.ready
 
-  io.ram_read_desc.bits      := 0.U.asTypeOf(new RAMReadReq)
+  io.ram_read_desc.bits      := 0.U.asTypeOf(new RamReadReq)
   io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
   io.ram_read_desc.bits.addr := 64.U * packet_reg_0.io.deq.bits.rpc_id
   io.ram_read_desc.bits.len  := 64.U
@@ -168,8 +168,8 @@ class PPegressDupe extends Module {
  */
 class PPegressPayload extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc = Decoupled(new RAMReadReq) // Read descriptors for payload data
-    val ram_read_data = Flipped(Decoupled(new RAMReadResp)) // Payload data returned
+    val ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for payload data
+    val ram_read_data = Flipped(Decoupled(new RamReadResp)) // Payload data returned
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory
     val packet_out = Decoupled(new PacketFactory) // Output packet factory data with 64B of payload
@@ -191,7 +191,7 @@ class PPegressPayload extends Module {
    */ 
   pending.io.enq <> packet_reg_0.io.deq
 
-  io.ram_read_desc.bits := 0.U.asTypeOf(new RAMReadReq)
+  io.ram_read_desc.bits := 0.U.asTypeOf(new RamReadReq)
 
   // The cache line offset for this packet is determined by the cache ID times line size
   val cacheOffset = (packet_reg_0.io.deq.bits.trigger.dbuff_id * CACHE.line_size)
@@ -325,11 +325,17 @@ class PPegressXmit extends Module {
  */
 class PPingressStages extends Module {
   val io = IO(new Bundle {
-    val cb_ram_read_desc = Decoupled(new RAMReadReq) // Read descriptors for recvmsg control blocks
-    val cb_ram_read_data = Flipped(Decoupled(new RAMReadResp)) // Data read from descriptor request
+    val dynamicConfiguration = Input(new DynamicConfiguration)
+
+    val cb_ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for recvmsg control blocks
+    val cb_ram_read_data = Flipped(Decoupled(new RamReadResp)) // Data read from descriptor request
+
+    val c2hPayloadRamReq = Decoupled(new RamWriteReq) // Data to write to BRAM
+
+    val c2hPayloadDmaReq  = Decoupled(new DmaWriteReq) // Descriptors to pcie to init request
 
     val ingress    = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
-    val dma_w_data = Decoupled(new dma_write_t) // Writes to the DMA core
+    // val dma_w_data = Decoupled(new dma_write_t) // Writes to the DMA core
   })
 
   val pp_dtor    = Module(new PPingressDtor) // Convert 64 byte network chunks into packet factories
@@ -337,10 +343,10 @@ class PPingressStages extends Module {
   val pp_lookup  = Module(new PPingressLookup) // Lookup the associated data of that local ID
   val pp_payload = Module(new PPingressPayload) // Send the data from that packet factory over DMA
 
-  val lookup_desc_ila = Module(new ILA(new RAMReadReq))
+  val lookup_desc_ila = Module(new ILA(new RamReadReq))
   lookup_desc_ila.io.ila_data := io.cb_ram_read_desc.bits
 
-  val lookup_data_ila = Module(new ILA(new RAMReadResp))
+  val lookup_data_ila = Module(new ILA(new RamReadResp))
   lookup_data_ila.io.ila_data := io.cb_ram_read_data.bits
 
   // Link all the units together
@@ -349,8 +355,13 @@ class PPingressStages extends Module {
   pp_lookup.io.packet_in  <> pp_map.io.packet_out
   pp_payload.io.packet_in <> pp_lookup.io.packet_out
 
+  pp_payload.io.dynamicConfiguration <> io.dynamicConfiguration
+  pp_payload.io.c2hPayloadDmaReq  <> io.c2hPayloadDmaReq
+  // pp_payload.io.c2hPayloadDmaStat <> io.c2hPayloadDmaStat
+  pp_payload.io.c2hPayloadRamReq <> io.c2hPayloadRamReq 
+
   // Conncet to DMA core
-  pp_payload.io.dma_w_data <> io.dma_w_data
+  // pp_payload.io.dma_w_data <> io.dma_w_data
 
   // Connect control block lookup descriptors
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
@@ -365,8 +376,8 @@ class PPingressStages extends Module {
   val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
   pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
-  val pp_payload_ila = Module(new ILA(Decoupled(new dma_write_t)))
-  pp_payload_ila.io.ila_data := pp_payload.io.dma_w_data
+  // val pp_payload_ila = Module(new ILA(Decoupled(new dma_write_t)))
+  // pp_payload_ila.io.ila_data := pp_payload.io.dma_w_data
 }
 
 /* PPingressDtor - take 64 byte chunks from off the network and
@@ -456,8 +467,8 @@ class PPingressMap extends Module {
  */
 class PPingressLookup extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc = Decoupled(new RAMReadReq) // Read descriptors for recvmsg control blocks
-    val ram_read_data = Flipped(Decoupled(new RAMReadResp)) // Control block returned from read
+    val ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for recvmsg control blocks
+    val ram_read_data = Flipped(Decoupled(new RamReadResp)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Packet factory input 
     val packet_out = Decoupled(new PacketFactory) // Packet factory output with control block added
@@ -479,7 +490,7 @@ class PPingressLookup extends Module {
    */ 
   pending.io.enq <> packet_reg_0.io.deq
 
-  io.ram_read_desc.bits     := 0.U.asTypeOf(new RAMReadReq)
+  io.ram_read_desc.bits     := 0.U.asTypeOf(new RamReadReq)
 
   // Construct a read descriptor for this piece of data
   io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
@@ -512,17 +523,59 @@ class PPingressPayload extends Module {
   val io = IO(new Bundle {
     val dynamicConfiguration = Input(new DynamicConfiguration)
 
-    val dma_w_data = Decoupled(new dma_write_t) // 64 byte DMA write requests
+    val c2hPayloadRamReq = Decoupled(new RamWriteReq) // Data to write to BRAM
+    val c2hPayloadDmaReq  = Decoupled(new DmaWriteReq) // Descriptors to pcie to init request
+
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory with data to write
   })
+
+  io.dynamicConfiguration := DontCare
 
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
 
   packet_reg_0.io.enq <> io.packet_in
 
-  val dma_w_data = Wire(new dma_write_t)
+  val dma_w_data = Wire(new DmaWriteReq)
 
-  dma_w_data := 0.U.asTypeOf(new dma_write_t)
+  dma_w_data := 0.U.asTypeOf(new DmaWriteReq)
+
+  val ram_head = RegInit(0.U(14.W))
+
+  when(packet_reg_0.io.deq.fire) {
+    ram_head := ram_head + 64.U(14.W)
+  }
+
+  // Construct the ram write request at the circular buffer head
+  io.c2hPayloadRamReq.bits.addr := ram_head
+  io.c2hPayloadRamReq.bits.len  := packet_reg_0.io.deq.bits.payloadBytes() 
+
+  when (packet_reg_0.io.deq.bits.frame_off === 64.U) {
+     io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload >> (512 - (18 * 8)).U
+  }.otherwise {
+     io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload
+  }
+
+  /* Packet frames arrive LSB (bit 512) -> MSB (bit 0). So, when we
+   * extract the payload it starts at bit 512. This is no issue if we
+   * are wriing 64 bytes chunks, but if we are writing partial chunks
+   * we need to shift that data so that its high bit (512 - size of
+   * payload chunk) is byte zero of our write request
+   */
+  io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
+  io.c2hPayloadDmaReq.bits.ram_sel  := 0.U
+  io.c2hPayloadDmaReq.bits.ram_addr := ram_head
+  io.c2hPayloadDmaReq.bits.len      := packet_reg_0.io.deq.bits.payloadBytes()  // Number of payload bytes in this frame
+  io.c2hPayloadDmaReq.bits.tag      := 0.U
+  io.c2hPayloadDmaReq.bits.port     := packet_reg_0.io.deq.bits.common.dport    // TODO unsafe
+
+  // TODO sloppy
+  when (packet_reg_0.io.deq.bits.frame_off > 0.U) {
+    io.c2hPayloadDmaReq.valid  := packet_reg_0.io.deq.valid
+    io.c2hPayloadRamReq.valid  := packet_reg_0.io.deq.valid
+  }.otherwise {
+    io.c2hPayloadDmaReq.valid  := packet_reg_0.io.deq.valid
+    io.c2hPayloadRamReq.valid  := false.B
+  }
 
   // Write data at un-aligned offset in RAM
   // Keep count of bufferd bytes
@@ -537,30 +590,6 @@ class PPingressPayload extends Module {
   // }.otherwise {
   // reset buffered
   //}
-
-  /* Packet frames arrive LSB (bit 512) -> MSB (bit 0). So, when we
-   * extract the payload it starts at bit 512. This is no issue if we
-   * are wriing 64 bytes chunks, but if we are writing partial chunks
-   * we need to shift that data so that its high bit (512 - size of
-   * payload chunk) is byte zero of our write request
-   */
-  io.dma_w_data.bits.pcie_write_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
-
-  when (packet_reg_0.io.deq.bits.frame_off === 64.U) {
-    io.dma_w_data.bits.data := packet_reg_0.io.deq.bits.payload >> (512 - (18 * 8)).U // TODO hackey
-  }.otherwise {
-    io.dma_w_data.bits.data := packet_reg_0.io.deq.bits.payload
-  }
-
-  io.dma_w_data.bits.length          := packet_reg_0.io.deq.bits.payloadBytes()  // Number of payload bytes in this frame
-  io.dma_w_data.bits.port            := packet_reg_0.io.deq.bits.common.dport    // TODO unsafe
-
-  // TODO sloppy
-  when (packet_reg_0.io.deq.bits.frame_off > 0.U) {
-    io.dma_w_data.valid  := packet_reg_0.io.deq.valid
-  }.otherwise {
-    io.dma_w_data.valid  := false.B
-  }
 
   packet_reg_0.io.deq.ready := true.B
   packet_reg_0.io.deq.bits  := DontCare

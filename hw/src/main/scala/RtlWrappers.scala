@@ -29,7 +29,7 @@ class FetchQueue extends Module {
     val fetchSize = Input(UInt(16.W))
     val enqueue = Flipped(Decoupled(new QueueEntry))
     // TODO this is temporary
-    val dequeue = Decoupled(new dma_read_t)
+    val dequeue = Decoupled(new DmaReadReq)
   })
 
   val fetch_queue_raw = Module(new srpt_queue("fetch"))
@@ -52,14 +52,17 @@ class FetchQueue extends Module {
   val fetch_queue_raw_out = Wire(new QueueEntry)
 
   fetch_queue_raw_out := fetch_queue_raw.io.m_axis.tdata.asTypeOf(new QueueEntry)
-  val dma_read = Wire(new dma_read_t)
+  val dma_read = Wire(new DmaReadReq)
 
-  dma_read.pcie_read_addr := fetch_queue_raw_out.dbuffered
-  dma_read.cache_id       := fetch_queue_raw_out.dbuff_id // TODO bad name 
-  dma_read.message_size   := fetch_queue_raw_out.granted
-  dma_read.read_len       := io.fetchSize
-  dma_read.dest_ram_addr  := (CACHE.line_size * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
-  dma_read.port           := 1.U // TODO placeholder
+  // dma_read.cache_id       := fetch_queue_raw_out.dbuff_id // TODO
+  // dma_read.message_size   := fetch_queue_raw_out.granted // TODO 
+
+  dma_read.pcie_addr := fetch_queue_raw_out.dbuffered
+  dma_read.ram_sel   := fetch_queue_raw_out.dbuffered
+  dma_read.ram_addr  := (CACHE.line_size * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
+  dma_read.len       := io.fetchSize
+  dma_read.tag       := 0.U // TODO
+  dma_read.port      := 1.U // TODO placeholder
 
   io.dequeue.bits         := dma_read
 
@@ -107,10 +110,10 @@ class SendmsgQueue extends Module {
  * reset inference.
  *   SIZE - Number of bytes of storage
  */
-class SegmentedRAM (SIZE: Int) extends Module {
+class SegmentedRam (SIZE: Int) extends Module {
   val io = IO(new Bundle {
-    val ram_wr = Flipped(new ram_wr_t)
-    val ram_rd = Flipped(new ram_rd_t)
+    val ram_wr = Flipped(new ram_wr_t(1))
+    val ram_rd = Flipped(new ram_rd_t(1))
   })
 
   val psdpram = Module(new dma_psdpram(SIZE))
@@ -137,8 +140,8 @@ class dma_psdpram (SIZE: Int) extends BlackBox(
     val clk = Input(Clock())
     val rst = Input(UInt(1.W))
 
-    val ram_wr = Flipped(new ram_wr_t)
-    val ram_rd = Flipped(new ram_rd_t)
+    val ram_wr = Flipped(new ram_wr_t(1))
+    val ram_rd = Flipped(new ram_rd_t(1))
   })
   addResource("/verilog_libs/pcie/dma_psdpram.v")
 }
@@ -207,7 +210,12 @@ class pcie_rtl extends BlackBox (
       "AXI_ID_WIDTH" -> 8,
       "PCIE_ADDR_WIDTH" -> 64,
       "LEN_WIDTH" -> 16,
-      "TAG_WIDTH" -> 8
+      "TAG_WIDTH" -> 8,
+      "PORTS" -> 2,
+      "S_TAG_WIDTH" -> 8,
+      "M_TAG_WIDTH" -> 9,
+      "S_RAM_SEL_WIDTH" -> 2,
+      "M_RAM_SEL_WIDTH" -> 3 
   )) {
 
   val io = IO(new Bundle {
@@ -224,12 +232,114 @@ class pcie_rtl extends BlackBox (
 			  
     val m_axi                 = new axi(512, 26, true, 8, true, 4, true, 4)
 
-    val dma_read_desc         = Flipped(Decoupled(new dma_read_desc_t))
-    val dma_read_desc_status  = Decoupled(new dma_read_desc_status_t)
-    val dma_write_desc        = Flipped(Decoupled(new dma_write_desc_t))
-    val dma_write_desc_status = Decoupled(new dma_write_desc_status_t)
+    val dma_read_desc         = Flipped(Decoupled(new dma_read_desc_t(2)))
+    val dma_read_desc_status  = Decoupled(new dma_read_desc_status_t(2))
+    val dma_write_desc        = Flipped(Decoupled(new dma_write_desc_t(2)))
+    val dma_write_desc_status = Decoupled(new dma_write_desc_status_t(2))
 
-    val ram_rd                = new ram_rd_t
-    val ram_wr                = new ram_wr_t
+    val ram_rd                = new ram_rd_t(2)
+    val ram_wr                = new ram_wr_t(2)
   })
+}
+
+// TODO ports should be passed down all the way to RTL core. In general the RTL core should be more parameterizable from the top level chisel
+class PCIe (PORTS: Int) extends Module {
+  val io = IO(new Bundle {
+    val pcie_rx_p       = Input(UInt(16.W))
+    val pcie_rx_n       = Input(UInt(16.W))
+    val pcie_tx_p       = Output(UInt(16.W))
+    val pcie_tx_n       = Output(UInt(16.W))
+    val pcie_refclk_p   = Input(Clock())
+    val pcie_refclk_n   = Input(Clock())
+    val pcie_reset_n    = Input(UInt(1.W))
+
+    val pcie_user_clk   = Output(Clock())
+    val pcie_user_reset = Output(UInt(1.W))
+			  
+    val m_axi        = new axi(512, 26, true, 8, true, 4, true, 4)
+
+    val dmaReadReq   = Vec(PORTS, Flipped(Decoupled(new DmaReadReq)))
+    val dmaWriteReq  = Vec(PORTS, Flipped(Decoupled(new DmaWriteReq)))
+
+    val ram_rd = Vec(PORTS, new ram_rd_t(1))
+    val ram_wr = Vec(PORTS, new ram_wr_t(1))
+  })
+
+  val pcie_core = Module(new pcie_rtl)
+
+  pcie_core.io.pcie_rx_p := io.pcie_rx_p
+  pcie_core.io.pcie_rx_n := io.pcie_rx_n
+  io.pcie_tx_p := pcie_core.io.pcie_tx_p
+  io.pcie_tx_n := pcie_core.io.pcie_tx_n
+
+  pcie_core.io.pcie_refclk_p := io.pcie_refclk_p
+  pcie_core.io.pcie_refclk_n := io.pcie_refclk_n
+  pcie_core.io.pcie_reset_n  := io.pcie_reset_n
+
+  io.pcie_user_clk   := pcie_core.io.pcie_user_clk
+  io.pcie_user_reset := pcie_core.io.pcie_user_reset
+
+  io.m_axi <> pcie_core.io.m_axi
+
+  vec2dblwidth(io.ram_rd, pcie_core.io.ram_rd)
+  vec2dblwidth(io.ram_wr, pcie_core.io.ram_wr)
+
+  def vec2dblwidth[T <: Bundle](source: Vec[T], dest: T) = {
+    // Iterate through each interface tagging it with an index
+    source.zipWithIndex.foreach { case (interface, index) =>
+      // Iterate through each bus in each interface
+      interface.elements.foreach { case (name, data) =>
+        data <> dest.elements(name).asTypeOf(Vec(PORTS, UInt(data.getWidth.W)))(index)
+      }
+    }
+
+    // Iterating through double width buses
+    dest.elements.foreach { case (name, data) =>
+      // Map to each interface
+      val inter = source.toSeq.map(interface => {
+        interface.elements(name)
+      })
+      data <> VecInit(inter).asTypeOf(chiselTypeOf(data))
+    }
+  }
+
+  io.dmaReadReq.zipWithIndex.foreach { case (interface, index) =>
+    interface.ready := pcie_core.io.dma_read_desc.ready.asTypeOf(Vec(PORTS, UInt(interface.ready.getWidth.W)))(index)
+  }
+
+  pcie_core.io.dma_read_desc.bits.elements.foreach { case (name, data) =>
+    // Map to each interface
+    val inter = io.dmaReadReq.toSeq.map(interface => {
+      interface.bits.elements(name)
+    })
+    data := VecInit(inter).asTypeOf(chiselTypeOf(data))
+  }
+
+  val readValids = io.dmaReadReq.toSeq.map(interface => {
+    interface.elements("valid")
+  })
+  pcie_core.io.dma_read_desc.valid := VecInit(readValids).asTypeOf(chiselTypeOf(pcie_core.io.dma_read_desc.valid))
+
+
+
+  io.dmaWriteReq.zipWithIndex.foreach { case (interface, index) =>
+    interface.ready := pcie_core.io.dma_write_desc.ready.asTypeOf(Vec(PORTS, UInt(interface.ready.getWidth.W)))(index)
+  }
+
+  pcie_core.io.dma_write_desc.bits.elements.foreach { case (name, data) =>
+    // Map to each interface
+    val inter = io.dmaWriteReq.toSeq.map(interface => {
+      interface.bits.elements(name)
+    })
+    data := VecInit(inter).asTypeOf(chiselTypeOf(data))
+  }
+
+  val writeValids = io.dmaWriteReq.toSeq.map(interface => {
+    interface.elements("valid")
+  })
+  pcie_core.io.dma_write_desc.valid := VecInit(writeValids).asTypeOf(chiselTypeOf(pcie_core.io.dma_write_desc.valid))
+
+
+  pcie_core.io.dma_write_desc_status := DontCare
+  pcie_core.io.dma_read_desc_status := DontCare
 }

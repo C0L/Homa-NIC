@@ -40,7 +40,7 @@ class BRAM[T <: Data](size: Int, aw: Int, gen: T, carry: T) extends Module {
   // We cannot accept more data if we are holding and it cannot progress
   val r_cmd_input_ready = (r_cmd_input_hold && r_cmd_output_ready) || !r_cmd_input_hold
 
-    // Grab the addr if a transaction occurs
+  // Grab the addr if a transaction occurs
   val r_cmd_input_addr  = RegEnable(io.r_cmd_addr, r_cmd_input_ready && io.r_cmd_valid)
 
   io.r_data_valid   := r_cmd_output_hold

@@ -80,6 +80,38 @@ class AXISClockConverter[T <: Data](gen: T) extends RawModule {
   axis_cc_raw.io.m_axis.tready  := io.m_axis.ready
 }
 
+/* AXISClockConverter - Wrapper for the AXISClockConverterRaw that
+ * converts from a chisel type to a generic AXI stream type for
+ * compatibility with the axis_clock_converter Xilinx IP.
+ */
+// class AXISClockConverterFlat[T <: FlatDecoupled](gen: T) extends RawModule {
+//   val io = IO(new Bundle {
+//     val s_axis         = Flipped(gen)
+//     val s_axis_aresetn = Input(Reset())
+//     val s_axis_aclk    = Input(Clock())
+//     val m_axis         = gen
+//     val m_axis_aresetn = Input(Reset())
+//     val m_axis_aclk    = Input(Clock())
+//   })
+// 
+//   val DATA_WIDTH = gen.getWidth
+// 
+//   val axis_cc_raw = Module(new AXISClockConverterRaw(DATA_WIDTH, false, 0, false, 0, false))
+// 
+//   axis_cc_raw.io.s_axis_aresetn := io.s_axis_aresetn
+//   axis_cc_raw.io.s_axis_aclk    := io.s_axis_aclk
+//   axis_cc_raw.io.m_axis_aresetn := io.m_axis_aresetn
+//   axis_cc_raw.io.m_axis_aclk    := io.m_axis_aclk
+// 
+//   axis_cc_raw.io.s_axis.tdata   := io.s_axis.asTypeOf(UInt(DATA_WIDTH.W))
+//   axis_cc_raw.io.s_axis.tvalid  := io.s_axis.valid
+//   io.s_axis.ready               := axis_cc_raw.io.s_axis.tready
+// 
+//   io.m_axis                     := axis_cc_raw.io.m_axis.tdata.asTypeOf(gen)
+//   io.m_axis.valid               := axis_cc_raw.io.m_axis.tvalid
+//   axis_cc_raw.io.m_axis.tready  := io.m_axis.ready
+// }
+
 /* AXIClockConverter - blackbox module for the axi_clock_converter IP.
  * The signals of this module need to match that of the Xilinx IP. A
  * corresponding tcl file is generated which is used in the build
