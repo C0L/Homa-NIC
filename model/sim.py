@@ -60,29 +60,48 @@ Inaccuracies?
 #   - P99 completion time
 #   - Some measure of latency?
 '''
+import random
+import math
+
+class Entry:
+    def __init__(self, id, payload, grant):
+        self.id      = id
+        self.payload = payload
+        self.grant   = grant
+        self.st      = 0
+        self.et      = 0
+
+    def __repr__(self):
+        return f'ID: {self.id}, Payload: {self.payload}, Grant: {self.grant}'
 
 class Queue:
-    def __init__(self, fcOracle):
-        self.fcOracle = fcOracle
-
+    def __init__(self, name):
         # Entries that have been completed by the queue
         self.complete = []
 
         # Tried to send an ungranted packet
         self.dryfires = 0
 
-    def minAvgCompletitonTime():
-        # iterate through self.complete and record completion times
+        # The name of the queue for printing purposes
+        self.name = name 
 
+    def minAvgCmplTime(self):
+        sumDir = 0
+        for entry in self.complete:
+            sumDir += (entry.et - entry.st)
 
-class Entry:
-    def __init__(id, bytes):
-        self.id    = id
-        self.bytes = bytes
+        return sumDir / len(self.complete)
+
+    def dumpStats(self):
+        print(f'Queue: {self.name} Statistics:')
+        print(f'   - Dryfires  : {self.dryfires}')
+        print(f'   - MinAvgCmpl: {self.minAvgCmpl()}')
+        # number of inaccuracies
+        # number of dry fires (no packet goes out?)
 
 class PIFO(Queue):
-    def __init__(fcOracle):
-        super(fcOracle)
+    def __init__(self, fcOracle):
+        super().__init__(fcOracle)
 
         # entries which cannot be inserted into the queue due fc state
         self.blocked = []
@@ -90,7 +109,7 @@ class PIFO(Queue):
         # entries with packets to send
         self.queue   = []
 
-    def enqueue(entry):
+    def enqueue(self, entry):
         # If this entry has granted bytes, find its place in the queue, otherwise buffer
         if (self.fcOracle(entry)):
             # Find the first entry in the queue that has a byte count greater then our new entry's byte count
@@ -99,9 +118,9 @@ class PIFO(Queue):
         else:
             self.blocked.append(entry)
 
-    def dequeue():
+    def dequeue(self):
         # If we are storing no entries there is no packet to send
-        if (len(self.queue)) return None
+        if (len(self.queue)): return None
 
         # PIFO will only pop from head of queue
         head = self.queue[0]
@@ -124,26 +143,26 @@ class PIFO(Queue):
             # The entry is not granted and we will block it
             self.queue.pop()
             self.blocked.append(head)
-            self.dryfires++
+            self.dryfires += 1
             return None
 
-    def tick():
+    def tick(self):
         update = [i for i,v in enumerate(a) if v > 2] 
         # Iterate through all entries and check FC state, enqueue if needed
         
 
 class Mutable(Queue):
-    def __init__(fcOracle):
+    def __init__(self, fcOracle):
         super(fcOracle)
-        
+
         self.queue = []
 
-    def enqueue(entry):
+    def enqueue(self, entry):
         self.queue.insert(0, entry)
 
-    def dequeue():
+    def dequeue(self):
         # If we are storing no entries there is no packet to send
-        if (len(self.queue)) return None
+        if (len(self.queue)): return None
 
         # PIFO will only pop from head of queue
         head = self.queue[0]
@@ -165,102 +184,123 @@ class Mutable(Queue):
         else:
             # The entry is not granted. Should only happen when there
             # are no active messages in the entire system
-            self.dryfires++
-            return None
+            self.dryfires += 1
 
-    def tick():
+    def tick(self):
+        None
         # perform the swap operations
         # Check if there are updates to fc state, and enqueue update signal if needed
 
 class Ideal(Queue):
-    def __init__():
-        super()
+    def __init__(self):
+        super().__init__('Ideal')
 
         # just use a list to store the elements and always search the elements
         self.queue = []
 
-    def enqueue(entry):
+    def enqueue(self, entry):
+        print(f'enqueue: {entry}')
         self.queue.append(entry)
         
-    def dequeue():
-        # TODO can we mutate the original entry in the list from this???
-        # TODO if it is empty can we remove it easily??
-        # TODO call the oracle function to get num granted bytes and subtract that from num bytes in entry
-        ideal = max(self.queue, key=lambda entry: entr.y)
-        # Use the python specific way to locate Entry, decrement it, and return it
-        return ideal
+    def dequeue(self):
+        # If we are storing no entries there is no packet to send
+        if (len(self.queue) == 0): return None
 
-    def tick():
+        # TODO cleaner to remove if empty
+        ideal = min(self.queue, key=lambda entry: math.inf if entry.grant == 0 or entry.payload == 0 else entry.payload)
+
+        # Is there actually bytes to send, otherwise empty cycle nothing to do
+        if (ideal.grant != 0 and ideal.payload != 0):
+            # print(f'dequeue: {ideal}')
+            ideal.payload -= 1
+            ideal.grant   -= 1
+            if (ideal.payload == 0):
+                self.complete.append(ideal)
+        else:
+            self.dryfires += 1
+        #     # The entry is not granted and we will block it
+        #     self.queue.pop()
+        #     self.blocked.append(head)
+        #     self.dryfires += 1
+            return None
+
+        # return ideal
+
+    def tick(self):
         None
 
-class FcOracle:
-    def __init__(fcFunc):
-        self.fcState = {}
-        self.fcFunc = fcFunc
-
-    '''
-    Given some entry, return the number of bytes that can be send
-    '''
-    def fcOracle(entry):
-        # TODO return the number of bytes that can be sent for an entry
-
-    '''
-    Mutate the flow control sate based on fcFunc
-    '''
-    def fcUpdate():
-        # TODO mutate flow control state
-
-    '''
-    Add a new entry needing flow control managment by invoking the
-    flow control function for an initial value 
-    '''
-    def fcInclude(entry):
-        granted = self.fcFunc
-        fcState[entry.id] = granted
+# class FcOracle:
+#     def __init__(self):
+#         self.fcState = {}
+# 
+#     '''
+#     Given some entry, return the number of bytes that can be send
+#     '''
+#     def fcOracle(self, entry):
+#         None
+#         # TODO return the number of bytes that can be sent for an entry
+# 
+#     '''
+#     Mutate the flow control sate based on fcFunc
+#     '''
+#     def fcUpdate():
+#         None
+#         # TODO mutate flow control state
+# 
+#     '''
+#     Add a new entry needing flow control managment by invoking the
+#     flow control function for an initial value 
+#     '''
+#     def fcInclude(self, entry):
+#         None
+        # self.fcState[entry.id] = granted
         # TODO add a new entry to be flow control managed, call the fc function, and return the initial assignment
 
 class Sim:
-    def __init__(sendFunc, fcFunc):
-        # Function determining whether to send a message, the number
-        # of bytes in that message, and flow control state
-        self.sendmsg = sendFunc # TODO sample from some distribution
-
-        self.fc = fcOracle(fcFunc)
-
+    def __init__(self):
         # Tested queuing strategies
-        self.queues  = [PIFO(self.fc.fcOracle), Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
+        self.queues  = [Ideal()] # [PIFO(self.fc.fcOracle), Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
 
         # Timestep counter
         self.time = 0
 
         # Initial ID to assign to new entries generated by the sendmsg function
-        self.sendmsgID = 0
+        self.id = 0
 
         # Maximum number of timesteps to run experiment
         self.maxSimTime = 10000
 
+        # Poisson distribution sendmsg requests
+        self.messages = [0] * self.maxSimTime
 
-    '''
-    Initiate a new request for packet transmission by the queue
-    under test based on the sendmsg function. Query the sendmsg
-    function to determine if a message should be sent, and if so, how
-    many bytes it should be for. Then, query the flow controller to
-    get the initial number of granted bytes, as well as register it
-    with the flow control system.
-    '''
-    def sendmsg():
-        bytes = self.sendmsg()
-        if (bytes != 0):
-            entry = Entry(bytes)
-            self.fc.fcInclude(entry)
-        
+        # Poisson arrival times + poisson packet sizes for outgoing messages
+        t = 0
+        for i in range(self.maxSimTime):
+            t += random.expovariate(.2)
+            if (math.floor(t) < self.maxSimTime):
+                # .1 = 1/desired mean
+                # Compute the number of units of payload
+                payload = math.floor(random.expovariate(.1))
+                granted = math.floor(random.expovariate(.1))
+
+                # Construct a new entry to pass to the queues
+                entry = Entry(self.id, payload, granted)
+
+                # Move to the next message ID
+                self.id += 1
+
+                # Insert the new entry at the poisson process arrival time
+                self.messages[math.floor(t)] = entry
+
+        print(self.messages)
 
     '''
     Iterate through simulation steps up to the max simulation time
     ''' 
-    def simulate():
-        for (step in range(self.maxSimTime)):
+    def simulate(self):
+        for t in range(self.maxSimTime):
             self.step()
+            self.time += 1
 
     '''
     One iteration of the system includes:
@@ -269,16 +309,24 @@ class Sim:
       3) The grants function is invoked
     For each queue
     '''  
-    def step():
-        sendmsg = self.sendmsg()
+    def step(self):
+        message = self.messages[self.time]
 
-        for (queue in self.queues):
-            queue.enqueue(sendmsg)   # pass the sendmsg to the queue if it exists
-            packet = queue.dequeue() # get a packet out from the queue
-            # TODO store the sequence of packets out for post comparison
+        # if (message != 0):
+        #      self.fc.fcInclude(message)
 
-    # def dumpStats():
-        # number of inaccuracies
-        # number of dry fires (no packet goes out?)
+        for queue in self.queues:
+            if (message != 0):
+                queue.enqueue(message) # pass the sendmsg to the queue if it exists
+            packet = queue.dequeue()   # get a packet out from the queue
+
+    # If both the packet size and send time are poisson it models a M/M/1 queue?
+    def dumpStats(self):
+         
+        for queue in self.queues:
+            queue.dumpStats()
+
 if __name__ == '__main__':
-    simulator()
+    sim = Sim() 
+    sim.simulate()
+    sim.dumpStats()
