@@ -60,8 +60,15 @@ Inaccuracies?
 #   - P99 completion time
 #   - Some measure of latency?
 '''
+
+
+
+# TODO is there a better policy if we know how many bytes are granted? Maybe basing purely off of payload bytes is suboptimal.
+
+
 import random
 import math
+import copy
 
 class Entry:
     def __init__(self, id, payload, grant):
@@ -79,6 +86,9 @@ class Queue:
         # Entries that have been completed by the queue
         self.complete = []
 
+        # just use a list to store the elements and always search the elements
+        self.queue = []
+
         # Tried to send an ungranted packet
         self.dryfires = 0
 
@@ -95,32 +105,27 @@ class Queue:
     def dumpStats(self):
         print(f'Queue: {self.name} Statistics:')
         print(f'   - Dryfires  : {self.dryfires}')
-        print(f'   - MinAvgCmpl: {self.minAvgCmpl()}')
-        # number of inaccuracies
-        # number of dry fires (no packet goes out?)
+        print(f'   - MinAvgCmpl: {self.minAvgCmplTime()}')
 
 class PIFO(Queue):
-    def __init__(self, fcOracle):
-        super().__init__(fcOracle)
+    def __init__(self):
+        super().__init__("PIFO")
 
         # entries which cannot be inserted into the queue due fc state
         self.blocked = []
 
-        # entries with packets to send
-        self.queue   = []
-
     def enqueue(self, entry):
         # If this entry has granted bytes, find its place in the queue, otherwise buffer
-        if (self.fcOracle(entry)):
+        if (entry.grant != 0):
             # Find the first entry in the queue that has a byte count greater then our new entry's byte count
-            insert = next(e[0] for e in enumerate(self.queue) if e[1].bytes > entry.bytes)
+            insert = next((e[0] for e in enumerate(self.queue) if e[1].payload > entry.payload), len(self.queue))
             self.queue.insert(insert, entry)
         else:
             self.blocked.append(entry)
 
-    def dequeue(self):
+    def dequeue(self, time):
         # If we are storing no entries there is no packet to send
-        if (len(self.queue)): return None
+        if (len(self.queue) == 0): return
 
         # PIFO will only pop from head of queue
         head = self.queue[0]
@@ -129,25 +134,32 @@ class PIFO(Queue):
         If the entry at the head is granted, send a packet. If sending
         that packet causes the entry to be completely sent, then we
         are done and destroy it.
-        ''' 
-        if (self.fcOracle(head) != 0):
+        '''
+        # TODO eventually need to accomidate updates
+        if (head.grant != 0):
             # Send one packet
-            self.queue[0].bytes - 1
+            head.payload -= 1
+            head.grant   -= 1
+
+            print(head)
 
             # Did we send the whole message?
-            if (self.queue[0].bytes == 0):
-                self.queue.pop()
-
-            return head
+            if (head.payload == 0):
+                head.et = time
+                self.complete.append(head)
+                self.queue.pop(0)
+            elif (head.grant == 0):
+                self.queue.pop(0)
+                
         else:
             # The entry is not granted and we will block it
-            self.queue.pop()
+            self.queue.pop(0)
             self.blocked.append(head)
             self.dryfires += 1
-            return None
 
     def tick(self):
-        update = [i for i,v in enumerate(a) if v > 2] 
+        None
+        # update = [i for i,v in enumerate(a) if v > 2] 
         # Iterate through all entries and check FC state, enqueue if needed
         
 
@@ -193,16 +205,13 @@ class Mutable(Queue):
 
 class Ideal(Queue):
     def __init__(self):
-        super().__init__('Ideal')
-
-        # just use a list to store the elements and always search the elements
-        self.queue = []
+        super().__init__( 'Ideal')
 
     def enqueue(self, entry):
-        print(f'enqueue: {entry}')
+        # print(f'enqueue: {entry}')
         self.queue.append(entry)
         
-    def dequeue(self):
+    def dequeue(self, time):
         # If we are storing no entries there is no packet to send
         if (len(self.queue) == 0): return None
 
@@ -215,51 +224,20 @@ class Ideal(Queue):
             ideal.payload -= 1
             ideal.grant   -= 1
             if (ideal.payload == 0):
+                ideal.et = time
                 self.complete.append(ideal)
         else:
             self.dryfires += 1
-        #     # The entry is not granted and we will block it
-        #     self.queue.pop()
-        #     self.blocked.append(head)
-        #     self.dryfires += 1
             return None
-
-        # return ideal
 
     def tick(self):
         None
 
-# class FcOracle:
-#     def __init__(self):
-#         self.fcState = {}
-# 
-#     '''
-#     Given some entry, return the number of bytes that can be send
-#     '''
-#     def fcOracle(self, entry):
-#         None
-#         # TODO return the number of bytes that can be sent for an entry
-# 
-#     '''
-#     Mutate the flow control sate based on fcFunc
-#     '''
-#     def fcUpdate():
-#         None
-#         # TODO mutate flow control state
-# 
-#     '''
-#     Add a new entry needing flow control managment by invoking the
-#     flow control function for an initial value 
-#     '''
-#     def fcInclude(self, entry):
-#         None
-        # self.fcState[entry.id] = granted
-        # TODO add a new entry to be flow control managed, call the fc function, and return the initial assignment
-
 class Sim:
     def __init__(self):
         # Tested queuing strategies
-        self.queues  = [Ideal()] # [PIFO(self.fc.fcOracle), Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
+        # self.queues  = [PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
+        self.queues  = [Ideal(), PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
 
         # Timestep counter
         self.time = 0
@@ -312,17 +290,17 @@ class Sim:
     def step(self):
         message = self.messages[self.time]
 
-        # if (message != 0):
-        #      self.fc.fcInclude(message)
-
         for queue in self.queues:
             if (message != 0):
-                queue.enqueue(message) # pass the sendmsg to the queue if it exists
-            packet = queue.dequeue()   # get a packet out from the queue
+                # TODO ugly
+                if (message.payload != 0):
+                    print(message.payload)
+                    message.st = self.time
+                    queue.enqueue(copy.deepcopy(message)) # pass the sendmsg to the queue if it exists
+            queue.dequeue(self.time)
 
     # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
-         
         for queue in self.queues:
             queue.dumpStats()
 
