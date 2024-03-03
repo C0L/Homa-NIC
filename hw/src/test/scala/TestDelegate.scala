@@ -26,15 +26,15 @@ class TestDelegate extends AnyFreeSpec {
 
       dut.io.function_i.tvalid.poke(false.B)
 
-      dut.io.dma_map_o.ready.poke(true.B)
-      dut.io.dma_map_o.valid.expect(true.B)
-      dut.io.dma_map_o.bits.pcie_addr.expect("hDEADBEEFDEADBEEF".U)
-      dut.io.dma_map_o.bits.port.expect("hAABB".U)
-      dut.io.dma_map_o.bits.map_type.expect(1.U)
+      dut.io.newDmaMap.ready.poke(true.B)
+      dut.io.newDmaMap.valid.expect(true.B)
+      dut.io.newDmaMap.bits.pcie_addr.expect("hDEADBEEFDEADBEEF".U)
+      dut.io.newDmaMap.bits.port.expect("hAABB".U)
+      dut.io.newDmaMap.bits.map_type.expect(1.U)
 
       dut.clock.step()
 
-      dut.io.dma_map_o.valid.expect(false.B)
+      dut.io.newDmaMap.valid.expect(false.B)
     }
   }
 
@@ -56,24 +56,30 @@ class TestDelegate extends AnyFreeSpec {
 
       dut.io.function_i.tvalid.poke(false.B)
 
-      dut.io.sendmsg_o.ready.poke(true.B)
-      dut.io.fetchdata_o.ready.poke(true.B)
-      dut.io.dma_w_req_o.ready.poke(true.B)
+      dut.io.newSendmsg.ready.poke(true.B)
+      dut.io.newFetchdata.ready.poke(true.B)
+      dut.io.ppEgressSendmsgRamReq.ready.poke(true.B)
+      dut.io.ppIngressRecvmsgRamReq.ready.poke(true.B)
+      dut.io.c2hMetadataRamReq.ready.poke(true.B)
+      dut.io.c2hMetadataDmaReq.ready.poke(true.B)
 
-      dut.io.sendmsg_o.valid.expect(true.B)
-      dut.io.fetchdata_o.valid.expect(true.B)
-      dut.io.dma_w_req_o.valid.expect(true.B)
+      dut.io.newSendmsg.valid.expect(true.B)
+      dut.io.newFetchdata.valid.expect(true.B)
+      dut.io.ppEgressSendmsgRamReq.valid.expect(true.B)
+      dut.io.c2hMetadataRamReq.valid.expect(true.B)
+      dut.io.c2hMetadataDmaReq.valid.expect(true.B)
 
       // Should check more items
-      dut.io.dma_w_req_o.bits.length.expect(64.U)
+      dut.io.ppEgressSendmsgRamReq.bits.len.expect(64.U)
 
       // TODO not currently checking the port out
 
       dut.clock.step()
 
-      dut.io.sendmsg_o.valid.expect(false.B)
-      dut.io.fetchdata_o.valid.expect(false.B)
-      dut.io.dma_w_req_o.valid.expect(false.B)
+      dut.io.newSendmsg.valid.expect(false.B)
+      dut.io.newFetchdata.valid.expect(false.B)
+      dut.io.c2hMetadataRamReq.valid.expect(false.B)
+      dut.io.c2hMetadataDmaReq.valid.expect(false.B)
     }
   }
 
@@ -96,21 +102,25 @@ class TestDelegate extends AnyFreeSpec {
 
       dut.io.function_i.tvalid.poke(false.B)
 
-      dut.io.sendmsg_o.ready.poke(true.B)
-      dut.io.fetchdata_o.ready.poke(true.B)
-      dut.io.dma_w_req_o.ready.poke(true.B)
+      dut.io.newSendmsg.ready.poke(true.B)
+      dut.io.newFetchdata.ready.poke(true.B)
+      dut.io.ppEgressSendmsgRamReq.ready.poke(true.B)
+      dut.io.c2hMetadataRamReq.ready.poke(true.B)
+      dut.io.c2hMetadataDmaReq.ready.poke(true.B)
 
-      dut.io.sendmsg_o.valid.expect(true.B)
-      dut.io.fetchdata_o.valid.expect(true.B)
-      dut.io.dma_w_req_o.valid.expect(true.B)
+      dut.io.newSendmsg.valid.expect(true.B)
+      dut.io.newFetchdata.valid.expect(true.B)
+      dut.io.c2hMetadataRamReq.valid.expect(true.B)
+      dut.io.c2hMetadataDmaReq.valid.expect(true.B)
 
       // TODO not currently checking the port out
 
       dut.clock.step()
 
-      dut.io.sendmsg_o.valid.expect(false.B)
-      dut.io.fetchdata_o.valid.expect(false.B)
-      dut.io.dma_w_req_o.valid.expect(false.B)
+      dut.io.newSendmsg.valid.expect(false.B)
+      dut.io.newFetchdata.valid.expect(false.B)
+      dut.io.c2hMetadataRamReq.valid.expect(false.B)
+      dut.io.c2hMetadataDmaReq.valid.expect(false.B)
     }
   }
 

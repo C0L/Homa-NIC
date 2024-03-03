@@ -18,7 +18,7 @@ set_property is_enabled true [get_files ./xdc/homa.xdc]
 add_files -fileset sources_1 ./src/main/resources
 add_files -fileset sources_1 ./gen
 
-set_property top top [current_fileset]
+set_property top Top [current_fileset]
 
 update_compile_order -fileset sources_1
 update_compile_order -fileset sim_1

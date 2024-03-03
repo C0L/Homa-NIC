@@ -343,11 +343,11 @@ class PPingressStages extends Module {
   val pp_lookup  = Module(new PPingressLookup) // Lookup the associated data of that local ID
   val pp_payload = Module(new PPingressPayload) // Send the data from that packet factory over DMA
 
-  val lookup_desc_ila = Module(new ILA(new RamReadReq))
-  lookup_desc_ila.io.ila_data := io.cb_ram_read_desc.bits
+  // val lookup_desc_ila = Module(new ILA(new RamReadReq))
+  // lookup_desc_ila.io.ila_data := io.cb_ram_read_desc.bits
 
-  val lookup_data_ila = Module(new ILA(new RamReadResp))
-  lookup_data_ila.io.ila_data := io.cb_ram_read_data.bits
+  // val lookup_data_ila = Module(new ILA(new RamReadResp))
+  // lookup_data_ila.io.ila_data := io.cb_ram_read_data.bits
 
   // Link all the units together
   pp_dtor.io.ingress      <> io.ingress
@@ -373,8 +373,8 @@ class PPingressStages extends Module {
   // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
 
-  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  // val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  // pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
   // val pp_payload_ila = Module(new ILA(Decoupled(new dma_write_t)))
   // pp_payload_ila.io.ila_data := pp_payload.io.dma_w_data

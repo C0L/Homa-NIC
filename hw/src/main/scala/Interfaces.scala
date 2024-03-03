@@ -44,14 +44,14 @@ class DmaReadReq extends Bundle {
   val port      = UInt(16.W)
 }
 
-class dma_read_desc_status_t (ports: Int) extends Bundle {
+class dma_read_desc_status_raw (ports: Int) extends Bundle {
   val tag   = UInt((ports * 8).W)
   val error = UInt((ports * 4).W)
   val valid = Output(UInt((ports * 1).W))
   val ready = Input(UInt((ports * 1).W))
 }
 
-class dma_write_desc_status_t (ports: Int) extends Bundle {
+class dma_write_desc_status_raw (ports: Int) extends Bundle {
   val tag   = UInt((ports * 8).W)
   val error = UInt((ports * 4).W)
   val valid = Output(UInt((ports * 1).W))

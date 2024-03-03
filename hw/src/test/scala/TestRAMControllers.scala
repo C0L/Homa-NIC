@@ -15,14 +15,14 @@ import chisel3.util._
  */
 class SimpleRAM extends Module {
   val io = IO(new Bundle {
-    val ramReadReq  = Flipped(Decoupled(new RAMReadReq))
-    val ramReadResp = Decoupled(new RAMReadResp)
-    val ramWriteReq = Flipped(Decoupled(new RAMWriteReq))
+    val ramReadReq  = Flipped(Decoupled(new RamReadReq))
+    val ramReadResp = Decoupled(new RamReadResp)
+    val ramWriteReq = Flipped(Decoupled(new RamWriteReq))
   })
 
-  val ram = Module(new SegmentedRAM(262144))
-  val wr  = Module(new SegmentedRAMWrite)
-  val rd  = Module(new SegmentedRAMRead)
+  val ram = Module(new SegmentedRam(262144))
+  val wr  = Module(new SegmentedRamWrite)
+  val rd  = Module(new SegmentedRamRead)
 
   ram.io.ram_wr <> wr.io.ram_wr
   ram.io.ram_rd <> rd.io.ram_rd

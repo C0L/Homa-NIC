@@ -154,8 +154,8 @@ class MGMTCore extends Module {
   // val fetch_in_ila = Module(new ILA(new QueueEntry))
   // fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
 
-  // val fetch_out_ila = Module(new ILA(new dma_read_t))
-  // fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
+  val fetch_out_ila = Module(new ILA(new dma_read_t))
+  fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
 
   // val dma_meta_w_ila = Module(new ILA(new dma_write_t))
   // dma_meta_w_ila.io.ila_data := delegate.io.dma_w_req_o.bits

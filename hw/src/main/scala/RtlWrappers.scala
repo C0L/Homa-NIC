@@ -162,6 +162,27 @@ class axi2axis extends BlackBox (
   })
 }
 
+
+class dma_read_desc_raw (ports: Int) extends Bundle {
+  val pcie_addr = Output(UInt((ports * 64).W))
+  val ram_sel   = Output(UInt((ports * 2).W))
+  val ram_addr  = Output(UInt((ports * 18).W))
+  val len       = Output(UInt((ports * 16).W))
+  val tag       = Output(UInt((ports * 8).W))
+  val valid     = Output(UInt((ports * 1).W))
+  val ready     = Input(UInt((ports * 1).W))
+}
+
+class dma_write_desc_raw (ports: Int) extends Bundle {
+  val pcie_addr = Output(UInt((ports * 64).W))
+  val ram_sel   = Output(UInt((ports * 2).W))
+  val ram_addr  = Output(UInt((ports * 18).W))
+  val len       = Output(UInt((ports * 16).W))
+  val tag       = Output(UInt((ports * 8).W))
+  val valid     = Output(UInt((ports * 1).W))
+  val ready     = Input(UInt((ports * 1).W))
+}
+
 /* pcie_rtl - third party IP to manage the AMD Ultrascale+ block PCIe
  */
 class pcie_rtl extends BlackBox (
@@ -232,10 +253,10 @@ class pcie_rtl extends BlackBox (
 			  
     val m_axi                 = new axi(512, 26, true, 8, true, 4, true, 4)
 
-    val dma_read_desc         = Flipped(Decoupled(new dma_read_desc_t(2)))
-    val dma_read_desc_status  = Decoupled(new dma_read_desc_status_t(2))
-    val dma_write_desc        = Flipped(Decoupled(new dma_write_desc_t(2)))
-    val dma_write_desc_status = Decoupled(new dma_write_desc_status_t(2))
+    val dma_read_desc         = Flipped(new dma_read_desc_raw(2))
+    val dma_read_desc_status  = new dma_read_desc_status_raw(2)
+    val dma_write_desc        = Flipped(new dma_write_desc_raw(2))
+    val dma_write_desc_status = new dma_write_desc_status_raw(2)
 
     val ram_rd                = new ram_rd_t(2)
     val ram_wr                = new ram_wr_t(2)
@@ -281,9 +302,6 @@ class PCIe (PORTS: Int) extends Module {
 
   io.m_axi <> pcie_core.io.m_axi
 
-  vec2dblwidth(io.ram_rd, pcie_core.io.ram_rd)
-  vec2dblwidth(io.ram_wr, pcie_core.io.ram_wr)
-
   def vec2dblwidth[T <: Bundle](source: Vec[T], dest: T) = {
     // Iterate through each interface tagging it with an index
     source.zipWithIndex.foreach { case (interface, index) =>
@@ -303,16 +321,21 @@ class PCIe (PORTS: Int) extends Module {
     }
   }
 
+  vec2dblwidth(io.ram_rd, pcie_core.io.ram_rd)
+  vec2dblwidth(io.ram_wr, pcie_core.io.ram_wr)
+
   io.dmaReadReq.zipWithIndex.foreach { case (interface, index) =>
     interface.ready := pcie_core.io.dma_read_desc.ready.asTypeOf(Vec(PORTS, UInt(interface.ready.getWidth.W)))(index)
   }
 
-  pcie_core.io.dma_read_desc.bits.elements.foreach { case (name, data) =>
-    // Map to each interface
-    val inter = io.dmaReadReq.toSeq.map(interface => {
-      interface.bits.elements(name)
-    })
-    data := VecInit(inter).asTypeOf(chiselTypeOf(data))
+  pcie_core.io.dma_read_desc.elements.foreach { case (name, data) =>
+    if (name != "valid" && name != "ready") {
+      // Map to each interface
+      val inter = io.dmaReadReq.toSeq.map(interface => {
+        interface.bits.elements(name)
+      })
+      data := VecInit(inter).asTypeOf(chiselTypeOf(data))
+    }
   }
 
   val readValids = io.dmaReadReq.toSeq.map(interface => {
@@ -326,12 +349,14 @@ class PCIe (PORTS: Int) extends Module {
     interface.ready := pcie_core.io.dma_write_desc.ready.asTypeOf(Vec(PORTS, UInt(interface.ready.getWidth.W)))(index)
   }
 
-  pcie_core.io.dma_write_desc.bits.elements.foreach { case (name, data) =>
-    // Map to each interface
-    val inter = io.dmaWriteReq.toSeq.map(interface => {
-      interface.bits.elements(name)
-    })
-    data := VecInit(inter).asTypeOf(chiselTypeOf(data))
+  pcie_core.io.dma_write_desc.elements.foreach { case (name, data) =>
+    if (name != "valid" && name != "ready") {
+      // Map to each interface
+      val inter = io.dmaWriteReq.toSeq.map(interface => {
+        interface.bits.elements(name)
+      })
+      data := VecInit(inter).asTypeOf(chiselTypeOf(data))
+    }
   }
 
   val writeValids = io.dmaWriteReq.toSeq.map(interface => {

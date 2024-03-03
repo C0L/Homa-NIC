@@ -937,7 +937,7 @@ class TestPPingressPayload extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.dma_w_data.valid.expect(true.B)
+      dut.io.c2hPayloadDmaReq.valid.expect(true.B)
     }
   }
 
@@ -955,8 +955,8 @@ class TestPPingressPayload extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.dma_w_data.bits.pcie_write_addr.expect(246.U)
-      dut.io.dma_w_data.valid.expect(true.B)
+      dut.io.c2hPayloadDmaReq.bits.pcie_addr.expect(246.U)
+      dut.io.c2hPayloadDmaReq.valid.expect(true.B)
     }
   }
 }

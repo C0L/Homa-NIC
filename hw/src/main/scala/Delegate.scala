@@ -50,8 +50,8 @@ class Delegate extends Module {
   io.c2hMetadataDmaReq.bits  := 0.U.asTypeOf(new DmaWriteReq)
   io.c2hMetadataDmaReq.valid := false.B
 
-  io.newDmaMap.bits   := 0.U.asTypeOf(new DmaMap)
-  io.newDmaMap.valid   := false.B
+  io.newDmaMap.bits  := 0.U.asTypeOf(new DmaMap)
+  io.newDmaMap.valid := false.B
 
   // We wish to onboard a new RPC as one operation
   val batchSendmsgReady = io.c2hMetadataDmaReq.ready && io.newSendmsg.ready && io.newFetchdata.ready
@@ -112,6 +112,10 @@ class Delegate extends Module {
            io.c2hMetadataRamReq.bits.len  := 64.U
            io.c2hMetadataRamReq.bits.data := msghdr_send.asUInt
 
+           io.ppEgressSendmsgRamReq.bits.addr := 64.U * send_id
+           io.ppEgressSendmsgRamReq.bits.len  := 64.U
+           io.ppEgressSendmsgRamReq.bits.data := msghdr_send.asUInt
+
            // Construct a new meta data write request with the newly assigned ID
            io.c2hMetadataDmaReq.bits.pcie_addr := 64.U * msghdr_send.ret
            io.c2hMetadataDmaReq.bits.ram_sel   := 1.U
@@ -133,7 +137,7 @@ class Delegate extends Module {
            io.newFetchdata.bits.dbuff_id  := dbuff_id 
            io.newFetchdata.bits.remaining := msghdr_send.buff_size
            io.newFetchdata.bits.dbuffered := 0.U
-           io.newFetchdata.bits.granted   := msghdr_send.buff_size // TODO begins as initially granted
+           io.newFetchdata.bits.granted   := msghdr_send.buff_size
            io.newFetchdata.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Only signal that a transaction is ready to exit our queue if all recievers are ready
@@ -143,6 +147,7 @@ class Delegate extends Module {
            io.newSendmsg.valid            := function_queue.io.deq.fire
            io.newFetchdata.valid          := function_queue.io.deq.fire
            io.c2hMetadataRamReq.valid     := function_queue.io.deq.fire
+           io.c2hMetadataDmaReq.valid     := function_queue.io.deq.fire
            io.ppEgressSendmsgRamReq.valid := function_queue.io.deq.fire
 
            // Only when te transaction takes place we increment the send and dbuff IDs
