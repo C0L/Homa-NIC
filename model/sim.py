@@ -93,6 +93,8 @@ class Queue:
         # Tried to send an ungranted packet
         self.idleCycles = 0
 
+        self.cmplTime = 0
+
         # The name of the queue for printing purposes
         self.name = name 
 
@@ -105,10 +107,10 @@ class Queue:
 
     def dumpStats(self):
         print(f'Queue: {self.name} Statistics:')
+        print(f'   - Total Cycles      : {self.cmplTime}')
         print(f'   - Idle Cycles       : {self.idleCycles}')
         print(f'   - Completed Entries : {len(self.complete)}')
         print(f'   - Avg. Cmpl. Time   : {self.avgCmplTime()}')
-
 
 class Mutable(Queue):
     def __init__(self, fcOracle):
@@ -117,11 +119,19 @@ class Mutable(Queue):
         self.queue = []
 
     def enqueue(self, entry):
-        self.queue.insert(0, entry)
+        # If this entry has granted bytes, find its place in the queue, otherwise buffer
+        if (entry.grant != 0):
+            # Find the first entry in the queue that has a byte count greater then our new entry's byte count
+            insert = next((e[0] for e in enumerate(self.queue) if e[1].payload > entry.payload), len(self.queue))
+            self.queue.insert(insert, entry)
+        else:
+            self.blocked.append(entry)
+
+
 
     def dequeue(self):
-        # If we are storing no entries there is no packet to send
-        if (len(self.queue)): return None
+        # Nothing to send
+        if (len(self.queue) == 0): return None
 
         # PIFO will only pop from head of queue
         head = self.queue[0]
@@ -130,20 +140,27 @@ class Mutable(Queue):
         If the entry at the head is granted, send a packet. If sending
         that packet causes the entry to be completely sent, then we
         are done and destroy it.
-        ''' 
-        if (self.fcOracle(head) != 0):
+        '''
+        if (head.grant != 0):
             # Send one packet
-            self.queue[0].bytes - 1
+            head.payload -= 1
+            head.grant   -= 1
 
             # Did we send the whole message?
-            if (self.queue[0].bytes == 0):
-                self.queue.pop()
+            if (head.payload == 0):
+                self.queue.pop(0)
+            elif (head.grant == 0):
+                self.queue.pop(0)
+                # TODO lower priority
+                # self.blocked.append(head)
 
-            return head
+            return head 
         else:
-            # The entry is not granted. Should only happen when there
-            # are no active messages in the entire system
-            self.dryfires += 1
+            # The entry is not granted and we will block it
+            self.queue.pop(0)
+            self.blocked.append(head)
+
+            return None
 
     def grant(self, grant):
         None
@@ -254,7 +271,8 @@ class Sim:
     def __init__(self):
         # Tested queuing strategies
         # self.queues  = [PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
-        self.queues  = [Ideal(), PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
+        self.queues         = [Ideal(), PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
+        self.completeQueues = []
 
         # Timestep counter
         self.time = 0
@@ -341,6 +359,9 @@ class Sim:
         # Simulate all of the queues for this timestep
         for queue in self.queues:
             if (len(queue.complete) == self.maxCmplMsg):
+                queue.cmplTime = self.time
+                self.queues.remove(queue)
+                self.completeQueues.append(queue)
                 continue
             self.cmpl = False
 
@@ -360,7 +381,7 @@ class Sim:
 
     # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
-        for queue in self.queues:
+        for queue in self.completeQueues:
             queue.dumpStats()
 
 if __name__ == '__main__':
@@ -375,6 +396,3 @@ if __name__ == '__main__':
 # poisson sample grant and add that to current grant
 
 # Some tests to run. Is there a better algorithm than SRPT when there are grants involved
-
-
-# How to normalize average completion time
