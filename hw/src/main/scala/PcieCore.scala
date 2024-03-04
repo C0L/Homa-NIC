@@ -30,9 +30,10 @@ class pcie_core extends Module {
 
   // TODO change these all to DmaWrite/DmaRead. Ignore all status
 
+
   // Read data from DMA into h2cPayloadRam
   val h2cPayloadDmaReq  = IO(Flipped(Decoupled(new DmaReadReq)))
-  // val h2cPayloadDmaStat = IO(Decoupled(new dma_read_desc_status_t(1)))
+  val h2cPayloadDmaStat = IO(Decoupled(new DmaReadStat))
 
   // Write data from c2hPayloadRam into DMA
   val c2hPayloadDmaReq  = IO(Flipped(Decoupled(new DmaWriteReq)))
@@ -74,7 +75,7 @@ class pcie_core extends Module {
   c2hMetadataRamReq <> c2hMetadataWr.io.ramWriteReq
 
   h2cPayloadDmaReq  <> pcie_core.io.dmaReadReq(0)
-  // h2cPayloadDmaStat <> pcie_core.io.dmaReadStat(0)
+  h2cPayloadDmaStat <> pcie_core.io.dmaReadStat(0)
 
   c2hPayloadDmaReq  <> pcie_core.io.dmaWriteReq(0)
   // c2hPayloadDmaStat <> pcie_core.io.dmaWriteStat(0)
@@ -83,7 +84,7 @@ class pcie_core extends Module {
   // c2hMetadataDmaStat <> pcie_core.io.dmaWriteStat(1)
 
   pcie_core.io.dmaReadReq(1) := DontCare
-  // pcie_core.io.dmaReadStat(1) := DontCare
+  pcie_core.io.dmaReadStat(1) := DontCare
 
   pcie_core.io.ram_wr(1) := DontCare
 
@@ -107,13 +108,13 @@ class pcie_core extends Module {
 
   /* DEBUGGING ILAS */
 
-  val h2c_psdpram_wr_ila = Module(new ILA(Flipped(new ram_wr_t(1))))
-  h2c_psdpram_wr_ila.io.ila_data := pcie_core.io.ram_wr(1)
+  val h2cPayloadRam_ila = Module(new ILA(Flipped(new ram_wr_t(1))))
+  h2cPayloadRam_ila.io.ila_data := pcie_core.io.ram_wr(0)
 
-  val h2c_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t(1))))
-  h2c_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd(1)
+  val c2hPayloadDma_ila = Module(new ILA(Flipped(new ram_rd_t(1))))
+  c2hPayloadDma_ila.io.ila_data := pcie_core.io.ram_rd(0)
 
-  val c2h_psdpram_rd_ila = Module(new ILA(Flipped(new ram_rd_t(1))))
-  c2h_psdpram_rd_ila.io.ila_data := pcie_core.io.ram_rd(1)
+  val c2hMetadataRam_ila = Module(new ILA(Flipped(new ram_rd_t(1))))
+  c2hMetadataRam_ila.io.ila_data := pcie_core.io.ram_rd(1)
 }
 

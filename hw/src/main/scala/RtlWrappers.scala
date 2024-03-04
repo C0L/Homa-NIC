@@ -24,12 +24,16 @@ class srpt_queue (qtype: String) extends BlackBox (
   addResource("/verilog_src/srpt_queue.v")
 }
 
+// TODO no flow control on DMA stat output!!!! 
+// TODO move this outside of RTL wrappers
+// TODO should move storage of message size outside?
 class FetchQueue extends Module {
   val io = IO(new Bundle {
     val fetchSize = Input(UInt(16.W))
-    val enqueue = Flipped(Decoupled(new QueueEntry))
-    // TODO this is temporary
-    val dequeue = Decoupled(new DmaReadReq)
+    val enqueue   = Flipped(Decoupled(new QueueEntry))
+    val dequeue   = Decoupled(new DmaReadReq)
+    val readcmpl  = Flipped(Decoupled(new DmaReadStat))
+    val notifout  = Decoupled(new QueueEntry)
   })
 
   val fetch_queue_raw = Module(new srpt_queue("fetch"))
@@ -37,13 +41,19 @@ class FetchQueue extends Module {
   fetch_queue_raw.io.clk := clock
   fetch_queue_raw.io.rst := reset.asUInt
 
-  fetch_queue_raw.io.CACHE_BLOCK_SIZE <> io.fetchSize
+  fetch_queue_raw.io.CACHE_BLOCK_SIZE := io.fetchSize
 
-  // val fetch_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
-  // fetch_out_ila.io.ila_data := fetch_queue_raw.io.m_axis
-
-  // val fetch_in_ila = Module(new ILA(new axis(89, false, 0, false, 0, false, 0, false)))
-  // fetch_in_ila.io.ila_data := fetch_queue_raw.io.s_axis
+  /* Read requests are stored in a memory while they are pending
+   * completion. When a status message is received indicating that the
+   * requested data has arrived we can lookup the metadata associated
+   * with that message for upating our queue state.
+   */
+  class ReqMem extends Bundle {
+    val dma   = new DmaReadReq
+    val queue = new QueueEntry
+  }
+  val tag = RegInit(0.U(8.W))
+  val tagMem  = Mem(256, new ReqMem)
 
   fetch_queue_raw.io.s_axis.tdata  := io.enqueue.bits.asTypeOf(UInt(89.W))
   io.enqueue.ready                 := fetch_queue_raw.io.s_axis.tready
@@ -54,20 +64,48 @@ class FetchQueue extends Module {
   fetch_queue_raw_out := fetch_queue_raw.io.m_axis.tdata.asTypeOf(new QueueEntry)
   val dma_read = Wire(new DmaReadReq)
 
-  // dma_read.cache_id       := fetch_queue_raw_out.dbuff_id // TODO
-  // dma_read.message_size   := fetch_queue_raw_out.granted // TODO 
-
   dma_read.pcie_addr := fetch_queue_raw_out.dbuffered
   dma_read.ram_sel   := fetch_queue_raw_out.dbuffered
   dma_read.ram_addr  := (CACHE.line_size * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
   dma_read.len       := io.fetchSize
-  dma_read.tag       := 0.U // TODO
+  dma_read.tag       := tag // TODO
   dma_read.port      := 1.U // TODO placeholder
 
-  io.dequeue.bits         := dma_read
+  io.dequeue.bits    := dma_read
 
   fetch_queue_raw.io.m_axis.tready := io.dequeue.ready
   io.dequeue.valid                 := fetch_queue_raw.io.m_axis.tvalid
+
+  io.readcmpl.ready := io.notifout.ready
+  io.notifout.valid := io.readcmpl.valid
+
+  val pendTag = tagMem.read(io.readcmpl.bits.tag)
+
+  io.notifout.bits.rpc_id     := 0.U
+  io.notifout.bits.dbuff_id   := pendTag.queue.dbuff_id
+  io.notifout.bits.remaining  := 0.U
+  val notif_offset = Wire(UInt(20.W))
+  // TODO granted is total number of bytes in fetch queue, bad naming
+  notif_offset := pendTag.queue.granted - (pendTag.dma.ram_addr - (16384.U * pendTag.queue.dbuff_id)) 
+  when (notif_offset < io.fetchSize) {
+    io.notifout.bits.dbuffered  := 0.U
+  }.otherwise {
+    io.notifout.bits.dbuffered  := notif_offset - io.fetchSize
+  }
+ 
+  io.notifout.bits.granted    := 0.U
+  io.notifout.bits.priority   := queue_priority.DBUFF_UPDATE.asUInt
+ 
+  // If a read request is lodged then we store it in the memory until completiton
+  when(io.dequeue.fire) {
+    val tagEntry = Wire(new ReqMem)
+    tagEntry.dma   := io.dequeue.bits
+    tagEntry.queue := fetch_queue_raw_out
+
+    tagMem.write(tag, tagEntry)
+
+    tag := tag + 1.U(8.W)
+  }
 }
 
 class SendmsgQueue extends Module {
@@ -163,6 +201,7 @@ class axi2axis extends BlackBox (
 }
 
 
+// TODO move me
 class dma_read_desc_raw (ports: Int) extends Bundle {
   val pcie_addr = Output(UInt((ports * 64).W))
   val ram_sel   = Output(UInt((ports * 2).W))
@@ -181,6 +220,20 @@ class dma_write_desc_raw (ports: Int) extends Bundle {
   val tag       = Output(UInt((ports * 8).W))
   val valid     = Output(UInt((ports * 1).W))
   val ready     = Input(UInt((ports * 1).W))
+}
+
+class dma_read_desc_status_raw (ports: Int) extends Bundle {
+  val tag   = UInt((ports * 8).W)
+  val error = UInt((ports * 4).W)
+  val valid = Output(UInt((ports * 1).W))
+  val ready = Input(UInt((ports * 1).W))
+}
+
+class dma_write_desc_status_raw (ports: Int) extends Bundle {
+  val tag   = UInt((ports * 8).W)
+  val error = UInt((ports * 4).W)
+  val valid = Output(UInt((ports * 1).W))
+  val ready = Input(UInt((ports * 1).W))
 }
 
 /* pcie_rtl - third party IP to manage the AMD Ultrascale+ block PCIe
@@ -280,6 +333,8 @@ class PCIe (PORTS: Int) extends Module {
     val m_axi        = new axi(512, 26, true, 8, true, 4, true, 4)
 
     val dmaReadReq   = Vec(PORTS, Flipped(Decoupled(new DmaReadReq)))
+    val dmaReadStat  = Vec(PORTS, Decoupled(new DmaReadStat))
+
     val dmaWriteReq  = Vec(PORTS, Flipped(Decoupled(new DmaWriteReq)))
 
     val ram_rd = Vec(PORTS, new ram_rd_t(1))
@@ -320,6 +375,8 @@ class PCIe (PORTS: Int) extends Module {
       data <> VecInit(inter).asTypeOf(chiselTypeOf(data))
     }
   }
+
+  // TODO functionize this
 
   vec2dblwidth(io.ram_rd, pcie_core.io.ram_rd)
   vec2dblwidth(io.ram_wr, pcie_core.io.ram_wr)
@@ -365,6 +422,29 @@ class PCIe (PORTS: Int) extends Module {
   pcie_core.io.dma_write_desc.valid := VecInit(writeValids).asTypeOf(chiselTypeOf(pcie_core.io.dma_write_desc.valid))
 
 
+
+
+
+  // Iterate through each interface tagging it with an index
+  io.dmaReadStat.zipWithIndex.foreach { case (interface, index) =>
+    // Iterate through each bus in each interface
+    interface.bits.elements.foreach { case (name, data) =>
+      if (name != "valid" && name != "ready") {
+        data := pcie_core.io.dma_read_desc_status.elements(name).asTypeOf(Vec(PORTS, UInt(data.getWidth.W)))(index)
+      }
+    }
+  }
+
+  io.dmaReadStat.zipWithIndex.foreach { case (interface, index) =>
+    interface.valid:= pcie_core.io.dma_read_desc_status.valid.asTypeOf(Vec(PORTS, UInt(interface.ready.getWidth.W)))(index)
+  }
+
+  val readStatReadys = io.dmaReadStat.toSeq.map(interface => {
+    interface.elements("ready")
+  })
+
+  pcie_core.io.dma_read_desc_status.ready := VecInit(readStatReadys).asTypeOf(chiselTypeOf(pcie_core.io.dma_read_desc_status.ready))
+
   pcie_core.io.dma_write_desc_status := DontCare
-  pcie_core.io.dma_read_desc_status := DontCare
+  // pcie_core.io.dma_read_desc_status := DontCare
 }

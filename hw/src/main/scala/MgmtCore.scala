@@ -21,7 +21,7 @@ class MGMTCore extends Module {
     val c2hMetadataRamReq = Decoupled(new RamWriteReq)
 
     val h2cPayloadDmaReq  = Decoupled(new DmaReadReq)
-    // val h2cPayloadDmaStat = Flipped(Decoupled(new dma_read_desc_status_t(1)))
+    val h2cPayloadDmaStat = Flipped(Decoupled(new DmaReadStat))
 
     val c2hPayloadDmaReq  = Decoupled(new DmaWriteReq)
     // val c2hPayloadDmaStat = Flipped(Decoupled(new dma_write_desc_status_t(1)))
@@ -34,8 +34,6 @@ class MGMTCore extends Module {
   val delegate       = Module(new Delegate) // Decide where those requests should be placed
 
   val addr_map       = Module(new AddressMap) // Map read and write requests to DMA address
-  // val h2c_dma        = Module(new H2cDMA)  // Manage dma reads 
-  // val c2h_dma        = Module(new C2hDMA)  // Manage dma writes
 
   val fetch_queue    = Module(new FetchQueue)    // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new SendmsgQueue)  // Send the next best message
@@ -105,7 +103,7 @@ class MGMTCore extends Module {
   // io.c2hPayloadDmaStat := DontCare
 
   // io.c2hPayloadDmaReq  <> c2h_dma.io.dma_write_desc
-  // io.h2cPayloadDmaStat  := DontCare
+  // io.hReq2cPayloadDmaStat  := DontCare
 
   // io.c2hMetadataDmaStat := DontCare
 
@@ -114,6 +112,8 @@ class MGMTCore extends Module {
   // fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
   // fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
   // fetch_arbiter.io.out   <> fetch_queue.io.enqueue
+
+  fetch_queue.io.readcmpl <> io.h2cPayloadDmaStat
   fetch_queue.io.enqueue <> delegate.io.newFetchdata
 
   // TODO need to throw out read requests
@@ -124,26 +124,33 @@ class MGMTCore extends Module {
   axi2axis.io.s_axi_aclk    <> clock
   axi2axis.io.s_axi_aresetn <> !reset.asBool
 
-  // TODO 
+
+  val newSendmsgQueue = Module(new Queue(new QueueEntry, 1, true, false)) // TODO just changed this
+  val newDnotifsQueue
+  = Module(new Queue(new QueueEntry, 1, true, false)) // TODO just changed this
+
+  newSendmsgQueue.io.enq <> delegate.io.newSendmsg
+  newDnotifsQueue.io.enq <> fetch_queue.io.notifout
+
   // Alternate between fetchdata and notifs to the fetch queue
-  // val sendmsg_arbiter = Module(new RRArbiter(new QueueEntry, 2))
-  // sendmsg_arbiter.io.in(0) <> delegate.io.sendmsg_o
-  //sendmsg_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
-  // sendmsg_arbiter.io.out   <> sendmsg_queue.io.enqueue
-  delegate.io.newSendmsg <> sendmsg_queue.io.enqueue
+  val sendmsg_arbiter = Module(new RRArbiter(new QueueEntry, 2))
+  sendmsg_arbiter.io.in(0) <> newSendmsgQueue.io.deq
+  sendmsg_arbiter.io.in(1) <> newDnotifsQueue.io.deq
+  sendmsg_arbiter.io.out   <> sendmsg_queue.io.enqueue
+  // delegate.io.newSendmsg <> sendmsg_queue.io.enqueue
 
   /* DEBUGGING ILAS */
   // val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
   // axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
-  // val dbuff_in_ila = Module(new ILA(new QueueEntry))
-  // dbuff_in_ila.io.ila_data := h2c_dma.io.dbuff_notif_o.bits
+  val dbuff_ila = Module(new ILA(new QueueEntry))
+  dbuff_ila.io.ila_data := newDnotifsQueue.io.deq.bits
 
   // val sendmsg_in_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  // sendmsg_in_ila.io.ila_data := delegate.io.sendmsg_o
+  // sendmsg_in_ila.io.ila_data := sendm
 
-  // val sendmsg_out_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  // sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
+  val sendmsg_out_ila = Module(new ILA(Decoupled(new QueueEntry)))
+  sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
 
   // val axi_ila = Module(new ILA(new axi(512, 26, true, 8, true, 4, true, 4)))
   // axi_ila.io.ila_data := io.s_axi
@@ -154,8 +161,11 @@ class MGMTCore extends Module {
   // val fetch_in_ila = Module(new ILA(new QueueEntry))
   // fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
 
-  val fetch_out_ila = Module(new ILA(new dma_read_t))
+  val fetch_out_ila = Module(new ILA(new DmaReadReq))
   fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
+
+  val dyncfg_ila = Module(new ILA(new DynamicConfiguration))
+  dyncfg_ila.io.ila_data := delegate.io.dynamicConfiguration
 
   // val dma_meta_w_ila = Module(new ILA(new dma_write_t))
   // dma_meta_w_ila.io.ila_data := delegate.io.dma_w_req_o.bits

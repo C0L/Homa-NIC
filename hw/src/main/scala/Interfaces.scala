@@ -44,18 +44,14 @@ class DmaReadReq extends Bundle {
   val port      = UInt(16.W)
 }
 
-class dma_read_desc_status_raw (ports: Int) extends Bundle {
-  val tag   = UInt((ports * 8).W)
-  val error = UInt((ports * 4).W)
-  val valid = Output(UInt((ports * 1).W))
-  val ready = Input(UInt((ports * 1).W))
+class DmaReadStat extends Bundle {
+  val tag   = UInt(8.W)
+  val error = UInt(4.W)
 }
 
-class dma_write_desc_status_raw (ports: Int) extends Bundle {
-  val tag   = UInt((ports * 8).W)
-  val error = UInt((ports * 4).W)
-  val valid = Output(UInt((ports * 1).W))
-  val ready = Input(UInt((ports * 1).W))
+class DmaWriteStat extends Bundle {
+  val tag   = UInt(8.W)
+  val error = UInt(4.W)
 }
 
 class RamReadReq extends Bundle {
@@ -72,22 +68,6 @@ class RamWriteReq extends Bundle {
   val len  = UInt(8.W)
   val data = UInt(512.W)
 }
-
-// class DmaRead extends Bundle {
-//   val pcie_addr    = UInt(64.W)
-//   val cache_id     = UInt(10.W)
-//   val message_size = UInt(20.W)
-//   val read_len     = UInt(12.W)
-//   val ram_addr     = UInt(18.W)
-//   val port         = UInt(16.W)
-// }
-// 
-// class DmaWrite extends Bundle {
-//   val pcie_addr = UInt(64.W)
-//   val data      = UInt(512.W)
-//   val length    = UInt(8.W)
-//   val port      = UInt(16.W)
-// }
 
 class DmaMap extends Bundle {
   val map_type  = UInt(8.W)

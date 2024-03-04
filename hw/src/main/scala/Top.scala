@@ -93,6 +93,7 @@ class Top extends RawModule {
   core2pcie(core.io.c2hMetadataDmaReq, pcie.c2hMetadataDmaReq)
 
   pcie2core(pcie.h2cPayloadRamResp, core.io.h2cPayloadRamResp)
+  pcie2core(pcie.h2cPayloadDmaStat, core.io.h2cPayloadDmaStat)
 
   /* Clock Convert pcie (250MHz) -> core (200MHz) */
 
@@ -117,6 +118,9 @@ class Top extends RawModule {
 
    val h2cPayloadDmaReq_ila = Module(new ILA(new DmaWriteReq))
    h2cPayloadDmaReq_ila.io.ila_data := core.io.h2cPayloadDmaReq.bits
+
+   val h2cPayloadDmaStat_ila = Module(new ILA(new DmaReadStat))
+   h2cPayloadDmaStat_ila.io.ila_data := core.io.h2cPayloadDmaStat.bits
 
    val c2hPayloadDmaReq_ila = Module(new ILA(new DmaWriteReq))
    c2hPayloadDmaReq_ila.io.ila_data := core.io.c2hPayloadDmaReq.bits
