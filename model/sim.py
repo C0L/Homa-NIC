@@ -71,12 +71,13 @@ import math
 import copy
 
 class Entry:
-    def __init__(self, id, payload, grant):
+    def __init__(self, id, payload, grant, st=0):
         self.id      = id
         self.payload = payload
         self.grant   = grant
-        self.st      = 0
+        self.st      = st
         self.et      = 0
+        self.ugrant  = 0
 
     def __repr__(self):
         return f'ID: {self.id}, Payload: {self.payload}, Grant: {self.grant}'
@@ -90,12 +91,12 @@ class Queue:
         self.queue = []
 
         # Tried to send an ungranted packet
-        self.dryfires = 0
+        self.idleCycles = 0
 
         # The name of the queue for printing purposes
         self.name = name 
 
-    def minAvgCmplTime(self):
+    def avgCmplTime(self):
         sumDir = 0
         for entry in self.complete:
             sumDir += (entry.et - entry.st)
@@ -104,64 +105,10 @@ class Queue:
 
     def dumpStats(self):
         print(f'Queue: {self.name} Statistics:')
-        print(f'   - Dryfires  : {self.dryfires}')
-        print(f'   - MinAvgCmpl: {self.minAvgCmplTime()}')
+        print(f'   - Idle Cycles       : {self.idleCycles}')
+        print(f'   - Completed Entries : {len(self.complete)}')
+        print(f'   - Avg. Cmpl. Time   : {self.avgCmplTime()}')
 
-class PIFO(Queue):
-    def __init__(self):
-        super().__init__("PIFO")
-
-        # entries which cannot be inserted into the queue due fc state
-        self.blocked = []
-
-    def enqueue(self, entry):
-        # If this entry has granted bytes, find its place in the queue, otherwise buffer
-        if (entry.grant != 0):
-            # Find the first entry in the queue that has a byte count greater then our new entry's byte count
-            insert = next((e[0] for e in enumerate(self.queue) if e[1].payload > entry.payload), len(self.queue))
-            self.queue.insert(insert, entry)
-        else:
-            self.blocked.append(entry)
-
-    def dequeue(self, time):
-        # If we are storing no entries there is no packet to send
-        if (len(self.queue) == 0): return
-
-        # PIFO will only pop from head of queue
-        head = self.queue[0]
-
-        '''
-        If the entry at the head is granted, send a packet. If sending
-        that packet causes the entry to be completely sent, then we
-        are done and destroy it.
-        '''
-        # TODO eventually need to accomidate updates
-        if (head.grant != 0):
-            # Send one packet
-            head.payload -= 1
-            head.grant   -= 1
-
-            print(head)
-
-            # Did we send the whole message?
-            if (head.payload == 0):
-                head.et = time
-                self.complete.append(head)
-                self.queue.pop(0)
-            elif (head.grant == 0):
-                self.queue.pop(0)
-                
-        else:
-            # The entry is not granted and we will block it
-            self.queue.pop(0)
-            self.blocked.append(head)
-            self.dryfires += 1
-
-    def tick(self):
-        None
-        # update = [i for i,v in enumerate(a) if v > 2] 
-        # Iterate through all entries and check FC state, enqueue if needed
-        
 
 class Mutable(Queue):
     def __init__(self, fcOracle):
@@ -198,10 +145,75 @@ class Mutable(Queue):
             # are no active messages in the entire system
             self.dryfires += 1
 
-    def tick(self):
+    def grant(self, grant):
         None
         # perform the swap operations
         # Check if there are updates to fc state, and enqueue update signal if needed
+
+class PIFO(Queue):
+    def __init__(self):
+        super().__init__("PIFO")
+
+        # entries which cannot be inserted into the queue due fc state
+        self.blocked = []
+
+    def enqueue(self, entry):
+        # If this entry has granted bytes, find its place in the queue, otherwise buffer
+        if (entry.grant != 0):
+            # Find the first entry in the queue that has a byte count greater then our new entry's byte count
+            insert = next((e[0] for e in enumerate(self.queue) if e[1].payload > entry.payload), len(self.queue))
+            self.queue.insert(insert, entry)
+        else:
+            self.blocked.append(entry)
+
+    def dequeue(self):
+        # Nothing to send
+        if (len(self.queue) == 0): return None
+
+        # PIFO will only pop from head of queue
+        head = self.queue[0]
+
+        '''
+        If the entry at the head is granted, send a packet. If sending
+        that packet causes the entry to be completely sent, then we
+        are done and destroy it.
+        '''
+        if (head.grant != 0):
+            # Send one packet
+            head.payload -= 1
+            head.grant   -= 1
+
+            # Did we send the whole message?
+            if (head.payload == 0):
+                self.queue.pop(0)
+            elif (head.grant == 0):
+                self.queue.pop(0)
+                self.blocked.append(head)
+
+            return head 
+        else:
+            # The entry is not granted and we will block it
+            self.queue.pop(0)
+            self.blocked.append(head)
+
+            return None
+
+    def grant(self, grant):
+        loc = next((e[1] for e in enumerate(self.blocked) if e[1].id == grant.id), None)
+
+        if loc != None:
+            loc.grant += grant.grant
+            self.enqueue(loc)
+            self.blocked.remove(loc)
+
+        # this is fine because when the entry gets to the head of the queue it can access this data immediately
+        loc = next((e[1] for e in enumerate(self.queue) if e[1].id == grant.id), None)
+
+        if loc != None:
+            loc.grant += grant.grant
+
+    def tick(self):
+        None
 
 class Ideal(Queue):
     def __init__(self):
@@ -211,24 +223,29 @@ class Ideal(Queue):
         # print(f'enqueue: {entry}')
         self.queue.append(entry)
         
-    def dequeue(self, time):
+    def dequeue(self):
         # If we are storing no entries there is no packet to send
         if (len(self.queue) == 0): return None
 
         # TODO cleaner to remove if empty
         ideal = min(self.queue, key=lambda entry: math.inf if entry.grant == 0 or entry.payload == 0 else entry.payload)
-
-        # Is there actually bytes to send, otherwise empty cycle nothing to do
+        # Are there actually bytes to send, otherwise empty cycle nothing to do
         if (ideal.grant != 0 and ideal.payload != 0):
-            # print(f'dequeue: {ideal}')
             ideal.payload -= 1
             ideal.grant   -= 1
+
             if (ideal.payload == 0):
-                ideal.et = time
-                self.complete.append(ideal)
+                self.queue.remove(ideal)
+
+            return ideal
         else:
-            self.dryfires += 1
             return None
+
+    def grant(self, grant):
+        loc = next((e[1] for e in enumerate(self.queue) if e[1].id == grant.id), None)
+
+        if loc != None:
+            loc.grant += grant.grant
 
     def tick(self):
         None
@@ -245,38 +262,60 @@ class Sim:
         # Initial ID to assign to new entries generated by the sendmsg function
         self.id = 0
 
-        # Maximum number of timesteps to run experiment
-        self.maxSimTime = 10000
+        self.cmpl = False
 
-        # Poisson distribution sendmsg requests
-        self.messages = [0] * self.maxSimTime
+        self.msgGen   = self.messagesGenerator()
+        self.grantGen = self.grantsGenerator()
 
+        self.nextMsg   = next(self.msgGen)
+        self.nextGrant = next(self.grantGen)
+
+        # Number of messages to complete
+        self.maxCmplMsg = 1000 
+
+    def grantsGenerator(self):
+        # Poisson arrival times + poisson grant increments
+        t = 0
+        while(1):
+            t += random.expovariate(.2)
+            # .1 = 1/desired mean
+            # Compute the number of units of payload
+            increment = math.floor(random.expovariate(.1))
+
+            # Construct a new entry to pass to the queues
+            # Select from one of the IDs that has already been added to the queues
+            # TODO this could increment an entry that is already complete, or was fully granted already
+            # TODO is this OK to self time?
+            entry = Entry(random.randint(0, self.time), 0, increment, math.floor(t))
+
+            # Insert the new entry at the poisson process arrival time
+            # self.grants[math.floor(t)] = entry
+            
+            yield entry
+
+
+    def messagesGenerator(self):
         # Poisson arrival times + poisson packet sizes for outgoing messages
         t = 0
-        for i in range(self.maxSimTime):
-            t += random.expovariate(.2)
-            if (math.floor(t) < self.maxSimTime):
-                # .1 = 1/desired mean
-                # Compute the number of units of payload
-                payload = math.floor(random.expovariate(.1))
-                granted = math.floor(random.expovariate(.1))
-
-                # Construct a new entry to pass to the queues
-                entry = Entry(self.id, payload, granted)
-
-                # Move to the next message ID
-                self.id += 1
-
-                # Insert the new entry at the poisson process arrival time
-                self.messages[math.floor(t)] = entry
-
-        print(self.messages)
+        while(1):
+            t += random.expovariate(.1)
+            # .1 = 1/desired mean
+            # Compute the number of units of payload
+            payload = math.floor(random.expovariate(.1))
+            granted = math.floor(random.expovariate(.1))
+            
+            # Construct a new entry to pass to the queues
+            entry = Entry(self.id, payload, granted, math.floor(t))
+            
+            # Move to the next message ID
+            self.id += 1
+            yield entry
 
     '''
     Iterate through simulation steps up to the max simulation time
     ''' 
     def simulate(self):
-        for t in range(self.maxSimTime):
+        while(not self.cmpl):
             self.step()
             self.time += 1
 
@@ -288,16 +327,36 @@ class Sim:
     For each queue
     '''  
     def step(self):
-        message = self.messages[self.time]
+        # Select 
 
+        # find the first entry in the future for messages and grants
+        # TODO these cannot be more than 1 per cycle
+        if (self.nextMsg.st < self.time):
+            self.nextMsg  = next(self.msgGen)
+        
+        if (self.nextGrant.st < self.time):
+            self.nextGrant = next(self.grantGen)
+
+        self.cmpl = True
+        # Simulate all of the queues for this timestep
         for queue in self.queues:
-            if (message != 0):
-                # TODO ugly
-                if (message.payload != 0):
-                    print(message.payload)
-                    message.st = self.time
-                    queue.enqueue(copy.deepcopy(message)) # pass the sendmsg to the queue if it exists
-            queue.dequeue(self.time)
+            if (len(queue.complete) == self.maxCmplMsg):
+                continue
+            self.cmpl = False
+
+            if (self.nextMsg.st == self.time and self.nextMsg.payload != 0):
+                queue.enqueue(copy.deepcopy(self.nextMsg)) # pass the sendmsg to the queue if it exists
+
+            msgout = queue.dequeue()
+
+            if (msgout == None):
+                queue.idleCycles += 1
+            elif (msgout.payload == 0):
+                msgout.et = self.time
+                queue.complete.append(msgout)
+
+            if (self.nextGrant.st == self.time):
+                queue.grant(copy.deepcopy(self.nextGrant))
 
     # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
@@ -308,3 +367,14 @@ if __name__ == '__main__':
     sim = Sim() 
     sim.simulate()
     sim.dumpStats()
+
+# TODO also measure starvation
+# What is the approach for grants? Current sending packets for a non fully granted message is pointless
+# Poisson process incoming grants
+# Randomly pick a message that has been enqueued st payload > grant
+# poisson sample grant and add that to current grant
+
+# Some tests to run. Is there a better algorithm than SRPT when there are grants involved
+
+
+# How to normalize average completion time
