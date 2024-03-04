@@ -10,7 +10,7 @@ import chisel3.util._
  * core in pcie to store host map buffers, or the priority queues
  * which schedule operations.
  */
-class MGMTCore extends Module {
+class MgmtCore extends Module {
   val io = IO(new Bundle {
     val s_axi = Flipped(new axi(512, 26, true, 8, true, 4, true, 4))
 

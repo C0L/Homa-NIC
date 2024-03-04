@@ -1,7 +1,6 @@
 package gpnic
 
 import chisel3._
-import circt.stage.ChiselStage
 import chisel3.util._
 
 /* pcie_core - Groups pcie logic. The address map stores DMA
@@ -27,9 +26,6 @@ class pcie_core extends Module {
   // Write data from h2cPayloadRam into DMA
   val c2hPayloadRamReq = IO(Flipped(Decoupled(new RamWriteReq))) // Write payload data to RAM
   val c2hMetadataRamReq = IO(Flipped(Decoupled(new RamWriteReq))) // Write metadata data to RAM
-
-  // TODO change these all to DmaWrite/DmaRead. Ignore all status
-
 
   // Read data from DMA into h2cPayloadRam
   val h2cPayloadDmaReq  = IO(Flipped(Decoupled(new DmaReadReq)))

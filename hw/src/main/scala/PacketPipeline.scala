@@ -373,8 +373,8 @@ class PPingressStages extends Module {
   // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
 
-  // val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  // pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
   // val pp_payload_ila = Module(new ILA(Decoupled(new dma_write_t)))
   // pp_payload_ila.io.ila_data := pp_payload.io.dma_w_data
@@ -568,12 +568,12 @@ class PPingressPayload extends Module {
   io.c2hPayloadDmaReq.bits.tag      := 0.U
   io.c2hPayloadDmaReq.bits.port     := packet_reg_0.io.deq.bits.common.dport    // TODO unsafe
 
-  // TODO sloppy
-  when (packet_reg_0.io.deq.bits.frame_off > 0.U) {
+  // TODO sloppy and unsafe
+  when (packet_reg_0.io.deq.valid && packet_reg_0.io.deq.bits.frame_off > 0.U) {
     io.c2hPayloadDmaReq.valid  := packet_reg_0.io.deq.valid
     io.c2hPayloadRamReq.valid  := packet_reg_0.io.deq.valid
   }.otherwise {
-    io.c2hPayloadDmaReq.valid  := packet_reg_0.io.deq.valid
+    io.c2hPayloadDmaReq.valid  := false.B
     io.c2hPayloadRamReq.valid  := false.B
   }
 

@@ -52,6 +52,7 @@ class FetchQueue extends Module {
     val dma   = new DmaReadReq
     val queue = new QueueEntry
   }
+
   val tag = RegInit(0.U(8.W))
   val tagMem  = Mem(256, new ReqMem)
 
@@ -65,7 +66,7 @@ class FetchQueue extends Module {
   val dma_read = Wire(new DmaReadReq)
 
   dma_read.pcie_addr := fetch_queue_raw_out.dbuffered
-  dma_read.ram_sel   := fetch_queue_raw_out.dbuffered
+  dma_read.ram_sel   := 0.U
   dma_read.ram_addr  := (CACHE.line_size * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
   dma_read.len       := io.fetchSize
   dma_read.tag       := tag // TODO
