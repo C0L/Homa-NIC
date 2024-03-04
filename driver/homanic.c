@@ -48,17 +48,18 @@ dma_addr_t c2h_metadata_dma_handle;
 // TODO this will just cycle around and eventually reallocate ports
 uint16_t ports = 1;
 
-struct log_entry_t {
-    uint8_t  dma_w_req_log;
-    uint8_t  dma_w_stat_log;
-    uint8_t  dma_r_req_log;
-    uint8_t  dma_r_resp_log;
-    uint8_t  dma_r_stat_log;
-    uint8_t  h2c_pkt_log;
-    uint8_t  c2h_pkt_log;
-    uint8_t  dbuff_notif_log;
-    char     pad[52];
-    uint32_t timer;
+struct cfg_t {
+    uint32_t unused0; // 4
+    char unused1[16]; // 16
+    char unused2[16]; // 16
+    uint16_t unused3; // 2
+    uint16_t unused4; // 2
+    uint32_t unused5; // 4
+    uint32_t unused6; // 4
+    uint64_t unused8; // 8
+    uint32_t unused9; // 4
+    uint16_t writeBufferSize; // 2
+    uint16_t fetchRequestSize; // 2
 }__attribute__((packed));
 
 struct port_to_phys_t {
@@ -68,17 +69,14 @@ struct port_to_phys_t {
     char     pad[53];
 }__attribute__((packed));
 
-struct log_control_t {
-    uint8_t state;
-    char    pad[64];
-}__attribute__((packed));
+struct cfg_t cfg __attribute__((aligned(64)));
 
 struct port_to_phys_t h2c_port_to_msgbuff __attribute__((aligned(64)));
 struct port_to_phys_t c2h_port_to_msgbuff __attribute__((aligned(64)));
 struct port_to_phys_t c2h_port_to_metadata __attribute__((aligned(64)));
 
-struct log_control_t log_control __attribute__((aligned(64)));
-struct log_entry_t log_entry __attribute__((aligned(64)));
+// struct log_control_t log_control __attribute__((aligned(64)));
+// struct log_entry_t log_entry __attribute__((aligned(64)));
 
 extern char _binary_firmware_start[];
 extern char _binary_firmware_end[];
@@ -506,6 +504,10 @@ int homanic_init(void) {
     cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_C2H_MSGBUFF),  1);
 
     io_regs = ioremap_wc(BAR_0, 0xA0000);
+
+    cfg.fetchRequestSize = 256;
+
+    iomov64B((void*) io_regs + 64, (void *) &cfg);
 
     // init_eth();
 

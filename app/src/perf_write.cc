@@ -52,7 +52,8 @@ int main() {
     }
 
     uint32_t retoff = 0; // Lte 12 bits used
-    uint32_t size   = 10000; // Lte 20 bits used
+	// uint32_t size   = 128; // Lte 20 bits used
+	uint32_t size   = 16384; // Lte 20 bits used
     memset(msghdr_send_in.saddr, 0xF, 16);
     memset(msghdr_send_in.daddr, 0xA, 16); 
     msghdr_send_in.sport     = 0x1;
