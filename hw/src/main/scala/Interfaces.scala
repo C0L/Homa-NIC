@@ -5,11 +5,6 @@ import circt.stage.ChiselStage
 import chisel3.util._
 import scala.collection.immutable.ListMap
 
-trait FlatDecoupled {
-  val valid: UInt
-  val ready: UInt
-}
-
 class dma_read_desc_t (ports: Int) extends Bundle {
   val pcie_addr = Output(UInt((ports * 64).W))
   val ram_sel   = Output(UInt((ports * 2).W))
@@ -234,19 +229,13 @@ object HOMA {
 // TODO this name is not great as it goes from being a packet factory to a frame factory
 class PacketFactory extends Bundle {
   val eth       = new EthHeader
-  val ipv6      = new IPV6Header
+  val ipv6      = new Ipv6Header
   val common    = new HomaCommonHeader
   val data      = new HomaDataHeader
   val payload   = UInt(512.W)
   val cb        = new msghdr_t
   val trigger   = new QueueEntry
   val frame_off = UInt(32.W)
-
-  val ETH_BYTES    = eth.getWidth / 8
-  val IPV6_BYTES   = ipv6.getWidth / 8
-  val COMMON_BYTES = common.getWidth / 8
-  val DATA_BYTES   = data.getWidth / 8
-  val HDR_BYTES    = ETH_BYTES + IPV6_BYTES + COMMON_BYTES + DATA_BYTES
 
   def wireFrame(): UInt = {
     val frame = Wire(UInt(512.W))
@@ -269,7 +258,7 @@ class PacketFactory extends Bundle {
    */
   def packetBytes(): UInt = {
     val packet_len = Wire(UInt(32.W))
-    packet_len := data.data.seg_len + HDR_BYTES.U
+    packet_len := data.data.seg_len + NetworkCfg.headerBytes.U
     packet_len
   }
 
@@ -280,7 +269,7 @@ class PacketFactory extends Bundle {
   def lastFrame(): UInt = {
     val last = Wire(UInt(1.W))
     // If the next 64 bytes from frame offset exceeds the size then set last signal
-    when (frame_off + 64.U > HDR_BYTES.U + data.data.seg_len) {
+    when (frame_off + 64.U > NetworkCfg.headerBytes.U + data.data.seg_len) {
       last := 1.U
     }.otherwise {
       last := 0.U
@@ -297,7 +286,7 @@ class PacketFactory extends Bundle {
     when (frame_off === 0.U) {
       bytes := 0.U
     }.elsewhen (frame_off === 64.U) {
-      bytes := (128 - HDR_BYTES).U
+      bytes := (128 - NetworkCfg.headerBytes).U
     }.otherwise {
       bytes := 64.U
     }
@@ -325,7 +314,7 @@ class PacketFactory extends Bundle {
     when (frame_off <= 64.U) {
       offset := 0.U
     }.otherwise {
-      offset := frame_off - HDR_BYTES.U
+      offset := frame_off - NetworkCfg.headerBytes.U
     }
     offset
   }
@@ -336,8 +325,8 @@ class PacketFactory extends Bundle {
   def keepBytes(): UInt = {
     val keep = Wire(UInt(64.W))
     // If the next 64 bytes from frame offset exceeds the size then set last signal
-    when (frame_off + 64.U > HDR_BYTES.U + data.data.seg_len) {
-      keep := ("hffffffffffffffff".U(64.W) << (frame_off + 64.U - (HDR_BYTES.U + data.data.seg_len))(5,0))
+    when (frame_off + 64.U > NetworkCfg.headerBytes.U + data.data.seg_len) {
+      keep := ("hffffffffffffffff".U(64.W) << (frame_off + 64.U - (NetworkCfg.headerBytes.U + data.data.seg_len))(5,0))
     }.otherwise {
       keep := "hffffffffffffffff".U(64.W)
     }
@@ -347,12 +336,12 @@ class PacketFactory extends Bundle {
 }
 
 class EthHeader extends Bundle {
-  val mac_dest    = UInt(36.W)
-  val mac_src     = UInt(36.W)
+  val mac_dest    = UInt(48.W)
+  val mac_src     = UInt(48.W)
   val ethertype   = UInt(16.W)
 }
 
-class IPV6Header extends Bundle {
+class Ipv6Header extends Bundle {
   val version     = UInt(4.W)  
   val traffic     = UInt(8.W)  
   val flow        = UInt(20.W) 
@@ -366,8 +355,8 @@ class IPV6Header extends Bundle {
 class HomaCommonHeader extends Bundle {
   val sport     = UInt(16.W)
   val dport     = UInt(16.W)
-  val unused0   = UInt(48.W)
-  val unused1   = UInt(8.W) 
+  val unused1   = UInt(32.W)
+  val unused2   = UInt(32.W) 
   val doff      = UInt(8.W) 
   val homatype  = UInt(8.W)
   val unused3   = UInt(16.W)

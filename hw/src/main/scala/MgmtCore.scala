@@ -45,8 +45,6 @@ class MgmtCore extends Module {
   val recvmsg_cb_wr  = Module(new SegmentedRamWrite)    //
   val recvmsg_cb_rd  = Module(new SegmentedRamRead)     //
 
-// TODO connect MetadataRamReq
-
   delegate.io.c2hMetadataRamReq <> io.c2hMetadataRamReq
 
   fetch_queue.io.fetchSize   := delegate.io.dynamicConfiguration.fetchRequestSize
@@ -89,29 +87,11 @@ class MgmtCore extends Module {
   addr_map.io.dmaMap              <> delegate.io.newDmaMap
   addr_map.io.c2hMetadataDmaReqIn <> delegate.io.c2hMetadataDmaReq
   addr_map.io.c2hPayloadDmaReqIn  <> pp_ingress.io.c2hPayloadDmaReq
-  addr_map.io.h2cPayloadDmaReqIn  <> fetch_queue.io.dequeue // TODO needs to come from a core implementing dbuffers
+  addr_map.io.h2cPayloadDmaReqIn  <> fetch_queue.io.dequeue 
 
   addr_map.io.c2hMetadataDmaReqOut <> io.c2hMetadataDmaReq
   addr_map.io.c2hPayloadDmaReqOut  <> io.c2hPayloadDmaReq
   addr_map.io.h2cPayloadDmaReqOut  <> io.h2cPayloadDmaReq
-
-  // c2h_dma.io.ram_write_data        <> io.payloadRamWriteReq
-  // c2h_dma.io.dma_write_desc_status <> io.c2hPayloadDmaStat 
-  // c2h_dma.io.dma_write_req         <> addr_map.io.dma_w_req_o
-
-  // io.c2hPayloadDmaReq  <> c2h_dma.io.dma_write_desc
-  // io.c2hPayloadDmaStat := DontCare
-
-  // io.c2hPayloadDmaReq  <> c2h_dma.io.dma_write_desc
-  // io.hReq2cPayloadDmaStat  := DontCare
-
-  // io.c2hMetadataDmaStat := DontCare
-
-  // TODO These are updates from the outgoing packet queue
-  // val fetch_arbiter = Module(new RRArbiter(new QueueEntry, 2))
-  // fetch_arbiter.io.in(0) <> delegate.io.fetchdata_o
-  // fetch_arbiter.io.in(1) <> h2c_dma.io.dbuff_notif_o
-  // fetch_arbiter.io.out   <> fetch_queue.io.enqueue
 
   fetch_queue.io.readcmpl <> io.h2cPayloadDmaStat
   fetch_queue.io.enqueue <> delegate.io.newFetchdata
@@ -125,9 +105,8 @@ class MgmtCore extends Module {
   axi2axis.io.s_axi_aresetn <> !reset.asBool
 
 
-  val newSendmsgQueue = Module(new Queue(new QueueEntry, 1, true, false)) // TODO just changed this
-  val newDnotifsQueue
-  = Module(new Queue(new QueueEntry, 1, true, false)) // TODO just changed this
+  val newSendmsgQueue = Module(new Queue(new QueueEntry, 1, true, false)) 
+  val newDnotifsQueue = Module(new Queue(new QueueEntry, 1, true, false))
 
   newSendmsgQueue.io.enq <> delegate.io.newSendmsg
   newDnotifsQueue.io.enq <> fetch_queue.io.notifout

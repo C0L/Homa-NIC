@@ -10,8 +10,8 @@ import circt.stage.ChiselStage
 import chisel3.util.Decoupled
 import chisel3.util._
 
-class SendmsgQueueTest extends AnyFreeSpec {
-  "sendmsg_queue: single entry, single packet out, fully granted, fully dbuffered" in {
+class TestSendmsgQueue extends AnyFreeSpec {
+  "single entry, single packet out, fully granted, fully dbuffered" in {
     simulate(new SendmsgQueue) { dut =>
 
       dut.reset.poke(true.B)
@@ -44,7 +44,7 @@ class SendmsgQueueTest extends AnyFreeSpec {
     }
   }
 
-  "sendmsg_queue: single entry, single packet out, ungranted, fully dbuffered" in {
+  "single entry, single packet out, ungranted, fully dbuffered" in {
     simulate(new SendmsgQueue) { dut =>
 
       dut.reset.poke(true.B)
@@ -96,7 +96,7 @@ class SendmsgQueueTest extends AnyFreeSpec {
   }
 
 
-  "sendmsg_queue: single entry, single packet out, fully granted, undbuffered" in {
+  "single entry, single packet out, fully granted, undbuffered" in {
     simulate(new SendmsgQueue) { dut =>
 
       dut.reset.poke(true.B)
@@ -140,7 +140,7 @@ class SendmsgQueueTest extends AnyFreeSpec {
     }
   }
 
-  "sendmsg_queue: single entry, multiple packets out, fully granted, fully dbuffered" in {
+  "single entry, multiple packets out, fully granted, fully dbuffered" in {
     simulate(new SendmsgQueue) { dut =>
 
       dut.reset.poke(true.B)
@@ -163,9 +163,9 @@ class SendmsgQueueTest extends AnyFreeSpec {
 
       dut.io.enqueue.valid.poke(false.B)
 
-      for (count <- 0 to 10000/1386) {
+      for (count <- 0 to 10000/NetworkCfg.payloadBytes) {
         dut.clock.step()
-        dut.io.dequeue.bits.remaining.expect((10000 - (count * 1386)).U)
+        dut.io.dequeue.bits.remaining.expect((10000 - (count * NetworkCfg.payloadBytes)).U)
         dut.io.dequeue.valid.expect(true.B)
       }
 
@@ -175,7 +175,7 @@ class SendmsgQueueTest extends AnyFreeSpec {
   }
 
 
-  "sendmsg_queue: two entries, single packets out, fully granted, fully dbuffered" in {
+  "two entries, single packets out, fully granted, fully dbuffered" in {
     simulate(new SendmsgQueue) { dut =>
 
       dut.reset.poke(true.B)
@@ -221,7 +221,7 @@ class SendmsgQueueTest extends AnyFreeSpec {
   }
 
 
-  "sendmsg_queue: two entries, multiple packets out, fully granted, fully dbuffered" in {
+  "two entries, multiple packets out, fully granted, fully dbuffered" in {
     simulate(new SendmsgQueue) { dut =>
 
       dut.reset.poke(true.B)
@@ -262,7 +262,7 @@ class SendmsgQueueTest extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.dequeue.ready.poke(true.B)
-      dut.io.dequeue.bits.remaining.expect((2000 - 1386).U)
+      dut.io.dequeue.bits.remaining.expect((2000 - NetworkCfg.payloadBytes).U)
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()
@@ -271,12 +271,12 @@ class SendmsgQueueTest extends AnyFreeSpec {
       dut.io.dequeue.valid.expect(true.B)
       dut.clock.step()
 
-      dut.io.dequeue.bits.remaining.expect((5000-1386).U)
+      dut.io.dequeue.bits.remaining.expect((5000-NetworkCfg.payloadBytes).U)
       dut.io.dequeue.valid.expect(true.B)
     }
   }
 
-  "sendmsg_queue: two entries, multiple sequential packets out, fully granted, fully dbuffered" in {
+  "two entries, multiple sequential packets out, fully granted, fully dbuffered" in {
     simulate(new SendmsgQueue) { dut =>
 
       dut.reset.poke(true.B)
@@ -306,17 +306,17 @@ class SendmsgQueueTest extends AnyFreeSpec {
 
       dut.clock.step()
 
-      dut.io.dequeue.bits.remaining.expect((5000-1386).U)
+      dut.io.dequeue.bits.remaining.expect((5000-NetworkCfg.payloadBytes).U)
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()
 
-      dut.io.dequeue.bits.remaining.expect((5000-1386-1386).U)
+      dut.io.dequeue.bits.remaining.expect((5000-NetworkCfg.payloadBytes-NetworkCfg.payloadBytes).U)
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()
 
-      dut.io.dequeue.bits.remaining.expect((5000-1386-1386-1386).U)
+      dut.io.dequeue.bits.remaining.expect((5000-NetworkCfg.payloadBytes-NetworkCfg.payloadBytes-NetworkCfg.payloadBytes).U)
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()
@@ -355,7 +355,7 @@ class SendmsgQueueTest extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.dequeue.ready.poke(true.B)
-      dut.io.dequeue.bits.remaining.expect((5000 - 1386).U)
+      dut.io.dequeue.bits.remaining.expect((5000 - NetworkCfg.payloadBytes).U)
       dut.io.dequeue.valid.expect(true.B)
 
       dut.clock.step()

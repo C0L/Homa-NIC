@@ -7,8 +7,10 @@ import chisel3.util._
  * implementation. This name must match that of the Verilog.
  */
 class srpt_queue (qtype: String) extends BlackBox (
-    Map("MAX_RPCS" -> 64,
-      "TYPE" -> qtype,
+  Map("CACHE_SIZE" -> CacheCfg.lineSize,
+    "PAYLOAD_SIZE" -> NetworkCfg.payloadBytes,
+    "MAX_RPCS" -> 64,
+    "TYPE" -> qtype,
   )) with HasBlackBoxResource {
 
   val io = IO(new Bundle {
@@ -67,7 +69,7 @@ class FetchQueue extends Module {
 
   dma_read.pcie_addr := fetch_queue_raw_out.dbuffered
   dma_read.ram_sel   := 0.U
-  dma_read.ram_addr  := (CACHE.line_size * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
+  dma_read.ram_addr  := (CacheCfg.lineSize.U * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
   dma_read.len       := io.fetchSize
   dma_read.tag       := tag // TODO
   dma_read.port      := 1.U // TODO placeholder

@@ -9,15 +9,16 @@ import chisel3.util._
  * address determines both the destination user and the desired
  * functionality. Currently that functionality is:
  *     Address 0                  -> New DMA Map
+ *     Address 0 + 64             -> Config
  *     Address 0  + (port * 4096) -> sendmsg
  *     Address 64 + (port * 4096) -> recvmsg 
  */
 class Delegate extends Module {
   val io = IO(new Bundle {
-    val function_i  = Flipped(new axis(512, false, 0, true, 32, false, 0, false)) // 512 bit blocks from user
+    val function_i   = Flipped(new axis(512, false, 0, true, 32, false, 0, false)) // 512 bit blocks from user
     val newSendmsg   = Decoupled(new QueueEntry) // Output to sendmsg priority queue
     val newFetchdata = Decoupled(new QueueEntry) // Output to datafetch queue
-    val newDmaMap   = Decoupled(new DmaMap)     // Output to add new DMA map
+    val newDmaMap    = Decoupled(new DmaMap)     // Output to add new DMA map
 
     val ppEgressSendmsgRamReq  = Decoupled(new RamWriteReq) // Data to write to pp egress RAM
     val ppIngressRecvmsgRamReq = Decoupled(new RamWriteReq) // Data to write to pp ingress RAM
@@ -118,7 +119,7 @@ class Delegate extends Module {
 
            // Construct a new meta data write request with the newly assigned ID
            io.c2hMetadataDmaReq.bits.pcie_addr := 64.U * msghdr_send.ret
-           io.c2hMetadataDmaReq.bits.ram_sel   := 1.U
+           io.c2hMetadataDmaReq.bits.ram_sel   := 0.U
            io.c2hMetadataDmaReq.bits.ram_addr  := 64.U * send_id
            io.c2hMetadataDmaReq.bits.len       := 64.U
            io.c2hMetadataDmaReq.bits.tag       := 0.U

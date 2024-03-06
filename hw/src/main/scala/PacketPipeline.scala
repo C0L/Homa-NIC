@@ -55,11 +55,11 @@ class PPegressStages extends Module {
   // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // pp_egress_trigger_ila.io.ila_data := io.trigger
 
-  // val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  // pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
-  // val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
-  // pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
+  val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
   // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
@@ -194,7 +194,7 @@ class PPegressPayload extends Module {
   io.ram_read_desc.bits := 0.U.asTypeOf(new RamReadReq)
 
   // The cache line offset for this packet is determined by the cache ID times line size
-  val cacheOffset = (packet_reg_0.io.deq.bits.trigger.dbuff_id * CACHE.line_size)
+  val cacheOffset = (packet_reg_0.io.deq.bits.trigger.dbuff_id * CacheCfg.lineSize.U)
 
   /* The offset of the data segment for this packet
    * NOTE: The cache is a circular buffer within individual cache lines
@@ -209,7 +209,7 @@ class PPegressPayload extends Module {
    * circular buffer so we take the payload offset modulo the size of
    * the cache line.
    */
-  val finalOffset = cacheOffset + ((segmentOffset + payloadOffset) % CACHE.line_size)
+  val finalOffset = cacheOffset + ((segmentOffset + payloadOffset) % CacheCfg.lineSize.U)
 
   /* The ram read operation is dispatched when the packet factory moves from initial register stage to pending. 
    * NOTE: This assumes the ram read core is always ready
@@ -254,8 +254,8 @@ class PPegressCtor extends Module {
    */
   val seg_len = Wire(UInt(32.W))
 
-  when (packet_reg_0.io.deq.bits.trigger.remaining > 1386.U) {
-    seg_len := 1386.U
+  when (packet_reg_0.io.deq.bits.trigger.remaining > NetworkCfg.payloadBytes.U) {
+    seg_len := NetworkCfg.payloadBytes.U
   }.otherwise {
     seg_len := packet_reg_0.io.deq.bits.trigger.remaining
   }
@@ -288,11 +288,11 @@ class PPegressCtor extends Module {
   packet_reg_1.io.enq.bits.common.checksum  := 0.U // TODO 
   packet_reg_1.io.enq.bits.common.sender_id := packet_reg_0.io.deq.bits.cb.id
 
-  packet_reg_1.io.enq.bits.data.data.offset      := offset
-  packet_reg_1.io.enq.bits.data.data.seg_len     := seg_len
-  packet_reg_1.io.enq.bits.data.data.ack.id      := 0.U
-  packet_reg_1.io.enq.bits.data.data.ack.sport   := 0.U
-  packet_reg_1.io.enq.bits.data.data.ack.dport   := 0.U
+  packet_reg_1.io.enq.bits.data.data.offset    := offset
+  packet_reg_1.io.enq.bits.data.data.seg_len   := seg_len
+  packet_reg_1.io.enq.bits.data.data.ack.id    := 0.U
+  packet_reg_1.io.enq.bits.data.data.ack.sport := 0.U
+  packet_reg_1.io.enq.bits.data.data.ack.dport := 0.U
 }
 
 /* PPegressXmit - Generate 64 byte chunks for the ethernet core from
@@ -367,17 +367,14 @@ class PPingressStages extends Module {
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
-  // val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
-  // pp_ingress_ila.io.ila_data := io.ingress
+  val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  pp_ingress_ila.io.ila_data := io.ingress
 
   // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFactory)))
   // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
 
   val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
   pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
-
-  // val pp_payload_ila = Module(new ILA(Decoupled(new dma_write_t)))
-  // pp_payload_ila.io.ila_data := pp_payload.io.dma_w_data
 }
 
 /* PPingressDtor - take 64 byte chunks from off the network and
@@ -430,6 +427,7 @@ class PPingressDtor extends Module {
     }.elsewhen (processed === 64.U) {
       // We know that packet_out was ready so this will send data
       pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 1024).W)).asTypeOf(new PacketFactory)
+
       pkt.frame_off := processed
       pktvalid  := true.B
     }.otherwise {
@@ -474,6 +472,8 @@ class PPingressLookup extends Module {
     val packet_out = Decoupled(new PacketFactory) // Packet factory output with control block added
   })
 
+  // println((io.packet_in.bits.eth.getWidth + io.packet_in.bits.ipv6.getWidth + io.packet_in.bits.common.getWidth + io.packet_in.bits.data.getWidth)/8);
+
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
@@ -494,7 +494,7 @@ class PPingressLookup extends Module {
 
   // Construct a read descriptor for this piece of data
   io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
-  io.ram_read_desc.bits.addr := 64.U * packet_reg_0.io.deq.bits.cb.id
+  io.ram_read_desc.bits.addr := 64.U * packet_reg_0.io.deq.bits.cb.id // TODO this is not defined!
   io.ram_read_desc.bits.len  := 64.U
 
   /*
@@ -529,31 +529,37 @@ class PPingressPayload extends Module {
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory with data to write
   })
 
-  io.dynamicConfiguration := DontCare
-
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
 
   packet_reg_0.io.enq <> io.packet_in
 
-  val dma_w_data = Wire(new DmaWriteReq)
+  /* The RAM core is always ready = True, so we only perform
+   * a transaction when there is valid data in queue and
+   * the DAM core is ready to accept a request
+   */
+  packet_reg_0.io.deq.ready := io.c2hPayloadDmaReq.ready
 
-  dma_w_data := 0.U.asTypeOf(new DmaWriteReq)
+  io.c2hPayloadRamReq.bits  := 0.U.asTypeOf((new RamWriteReq))
+  io.c2hPayloadRamReq.valid := false.B
 
-  val ram_head = RegInit(0.U(14.W))
+  io.c2hPayloadDmaReq.bits  := 0.U.asTypeOf((new DmaWriteReq))
+  io.c2hPayloadDmaReq.valid := false.B
 
-  when(packet_reg_0.io.deq.fire) {
-    ram_head := ram_head + 64.U(14.W)
-  }
+  // !! TODO maybe need to realign on 64 byte boundaries!!!!
 
-  // Construct the ram write request at the circular buffer head
-  io.c2hPayloadRamReq.bits.addr := ram_head
-  io.c2hPayloadRamReq.bits.len  := packet_reg_0.io.deq.bits.payloadBytes() 
+  /* Two events trigger a DMA write request
+   *   1) Last framt of packet
+   *   2) Reach io.dynamicConfiguration.writeBuffer offset
+   */
+  val ramHead       = RegInit(0.U(16.W))
+  val buffBytesReg  = RegInit(0.U(16.W))
+  val buffBytesCurr = Wire(UInt(16.W))
 
-  when (packet_reg_0.io.deq.bits.frame_off === 64.U) {
-     io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload >> (512 - (18 * 8)).U
-  }.otherwise {
-     io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload
-  }
+  buffBytesCurr := buffBytesReg + packet_reg_0.io.deq.bits.payloadBytes()
+
+  // Always write the current payload data to RAM at the RAM head
+  io.c2hPayloadRamReq.bits.addr := ramHead
+  io.c2hPayloadRamReq.bits.len  := packet_reg_0.io.deq.bits.payloadBytes()
 
   /* Packet frames arrive LSB (bit 512) -> MSB (bit 0). So, when we
    * extract the payload it starts at bit 512. This is no issue if we
@@ -561,35 +567,42 @@ class PPingressPayload extends Module {
    * we need to shift that data so that its high bit (512 - size of
    * payload chunk) is byte zero of our write request
    */
-  io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset()).asTypeOf(UInt(64.W))
-  io.c2hPayloadDmaReq.bits.ram_sel  := 0.U
-  io.c2hPayloadDmaReq.bits.ram_addr := ram_head
-  io.c2hPayloadDmaReq.bits.len      := packet_reg_0.io.deq.bits.payloadBytes()  // Number of payload bytes in this frame
-  io.c2hPayloadDmaReq.bits.tag      := 0.U
-  io.c2hPayloadDmaReq.bits.port     := packet_reg_0.io.deq.bits.common.dport    // TODO unsafe
 
-  // TODO sloppy and unsafe
-  when (packet_reg_0.io.deq.valid && packet_reg_0.io.deq.bits.frame_off > 0.U) {
-    io.c2hPayloadDmaReq.valid  := packet_reg_0.io.deq.valid
-    io.c2hPayloadRamReq.valid  := packet_reg_0.io.deq.valid
-  }.otherwise {
-    io.c2hPayloadDmaReq.valid  := false.B
-    io.c2hPayloadRamReq.valid  := false.B
+  // TODO can this be made more generic
+  // The first frame is pure header data
+  when (packet_reg_0.io.deq.bits.frame_off =/= 0.U) {
+    // Always issue a RAM write request if possible
+    io.c2hPayloadRamReq.valid     := packet_reg_0.io.deq.valid
+    // TODO may need to precompute this
+    io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload >> (512.U - (packet_reg_0.io.deq.bits.payloadBytes() * 8.U))
   }
 
-  // Write data at un-aligned offset in RAM
-  // Keep count of bufferd bytes
-  // When we exceed 256, or end of packet, send write TLP
+  // When the RAM request is eventually made, we can increment the RAM pointer offset 
+  when(packet_reg_0.io.deq.fire) {
 
-  // TODO do we need a RAM mux??
+    // TODO how does this handle wrapping around the size of the RAM!?!?!?!
+    ramHead := ramHead + packet_reg_0.io.deq.bits.payloadBytes()
+  }
 
-  // val writeBuffed = RegInit(0.U(16.W))
-  // Dispatch the RAM write always
-  // when (/* last chunk */ || buffered + /* TODO next payload */ <= dynamicConfiguration.writeBufferSize) {
-  //   // Dispatch the DMA write
-  // }.otherwise {
-  // reset buffered
-  //}
+  val buffAddr = Wire(UInt(16.W))
+  buffAddr := ramHead - buffBytesCurr
+
+  io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset() - buffBytesCurr).asTypeOf(UInt(64.W))
+  io.c2hPayloadDmaReq.bits.ram_sel   := 0.U
+  io.c2hPayloadDmaReq.bits.ram_addr  := buffAddr
+  io.c2hPayloadDmaReq.bits.len       := buffBytesCurr
+  io.c2hPayloadDmaReq.bits.tag       := 0.U
+  io.c2hPayloadDmaReq.bits.port      := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
+
+  // Will this frame cause us to reach our write buffer limit?
+  when (buffBytesCurr >= io.dynamicConfiguration.writeBufferSize || packet_reg_0.io.deq.bits.lastFrame() === 1.U) {
+    io.c2hPayloadDmaReq.valid := packet_reg_0.io.deq.valid
+    // TODO There is possible DMA write pushback
+  }
+
+  when(packet_reg_0.io.deq.fire) {
+    buffBytesReg := 0.U
+  }
 
   packet_reg_0.io.deq.ready := true.B
   packet_reg_0.io.deq.bits  := DontCare

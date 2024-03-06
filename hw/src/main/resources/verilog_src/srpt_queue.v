@@ -17,10 +17,10 @@
 `define QUEUE_ENTRY_GRANTED   85:66 // Number of bytes granted
 `define QUEUE_ENTRY_PRIORITY  88:86 // Deprioritize inactive messages
 
-`define HOMA_PAYLOAD_SIZE 20'h56a
+// `define HOMA_PAYLOAD_SIZE 20'h56a
 // `define CACHE_BLOCK_SIZE 256 
 
-`define CACHE_SIZE 131072
+// `define CACHE_SIZE 131072
 
 /**
  * srpt_data_pkts() - Determines which data packet should be transmit
@@ -85,11 +85,14 @@
  *  
  * TODO use a LAST bit to handle when notifications are sent?
  */
-module srpt_queue #(parameter MAX_RPCS = 64,
+module srpt_queue #(parameter CACHE_SIZE = 256,
+		    parameter PAYLOAD_SIZE = 1386,
+		    parameter MAX_RPCS = 64,
 		    parameter TYPE = "sendmsg")
    (input clk, rst,
 
-    input [16-1:0]                     CACHE_BLOCK_SIZE,
+    // TODO FIXME
+    input [16-1:0]		       CACHE_BLOCK_SIZE,
 
     input			       s_axis_tvalid,
     output reg			       s_axis_tready,
@@ -155,7 +158,7 @@ module srpt_queue #(parameter MAX_RPCS = 64,
    assign sendq_granted   = (queue_head[`QUEUE_ENTRY_GRANTED] + 1 <= queue_head[`QUEUE_ENTRY_REMAINING])
      | (queue_head[`QUEUE_ENTRY_GRANTED] == 0);
    
-   assign sendq_dbuffered = (queue_head[`QUEUE_ENTRY_DBUFFERED] + `HOMA_PAYLOAD_SIZE <= queue_head[`QUEUE_ENTRY_REMAINING]) 
+   assign sendq_dbuffered = (queue_head[`QUEUE_ENTRY_DBUFFERED] + PAYLOAD_SIZE <= queue_head[`QUEUE_ENTRY_REMAINING]) 
      | (queue_head[`QUEUE_ENTRY_DBUFFERED] == 0);
    // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] == 0;
    
@@ -219,11 +222,11 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	 if (!m_axis_tvalid || m_axis_tready) begin
 	    if (dequeue_ready) begin
 	       if (TYPE == "sendmsg") begin
-	  	  if (queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE) begin
+	  	  if (queue_head[`QUEUE_ENTRY_REMAINING] <= PAYLOAD_SIZE) begin
 	             queue[0] <= queue[1];
 	             queue[1][`QUEUE_ENTRY_PRIORITY]  <= `SRPT_INVALIDATE;
 	  	  end else begin
-	             queue[0][`QUEUE_ENTRY_REMAINING] <= queue_head[`QUEUE_ENTRY_REMAINING] - `HOMA_PAYLOAD_SIZE;
+	             queue[0][`QUEUE_ENTRY_REMAINING] <= queue_head[`QUEUE_ENTRY_REMAINING] - PAYLOAD_SIZE;
 	  	  end
 	       end else if (TYPE == "fetch") begin // if (TYPE == "sendmsg")
 	  	  // Did we just request the last block for this message
@@ -231,11 +234,11 @@ module srpt_queue #(parameter MAX_RPCS = 64,
 	             queue[0]                        <= queue[1];
 	             queue[1][`QUEUE_ENTRY_PRIORITY] <= `SRPT_INVALIDATE;
 	  	  end else begin
-	             // queue[0][`QUEUE_ENTRY_GRANTED]   <= queue[0][`QUEUE_ENTRY_GRANTED]   + CACHE_BLOCK_SIZE;
 	             queue[0][`QUEUE_ENTRY_REMAINING] <= queue[0][`QUEUE_ENTRY_REMAINING] - CACHE_BLOCK_SIZE;
 	             queue[0][`QUEUE_ENTRY_DBUFFERED] <= queue[0][`QUEUE_ENTRY_DBUFFERED] + CACHE_BLOCK_SIZE;
+		     
 	             // TODO could also swap here?
-	             if (queue[0][`QUEUE_ENTRY_DBUFFERED] >= `CACHE_SIZE - CACHE_BLOCK_SIZE) begin
+	             if (queue[0][`QUEUE_ENTRY_DBUFFERED] >= CACHE_SIZE - CACHE_BLOCK_SIZE) begin
 	        	queue[0][`QUEUE_ENTRY_PRIORITY] <= `SRPT_BLOCKED;
 	             end
 	  	  end // else: !if(queue_head[`QUEUE_ENTRY_REMAINING] <= CACHE_BLOCK_SIZE)
