@@ -11,7 +11,7 @@ import chisel3.util.Decoupled
 import chisel3.util._
 import scala.math.pow
 
-class CAMTest extends AnyFreeSpec {
+class TestCAM extends AnyFreeSpec {
   "cam test: single cam insertion and read" in {
     simulate(new CAM(32,32)) { dut =>
       dut.reset.poke(true.B)
@@ -47,7 +47,7 @@ class CAMTest extends AnyFreeSpec {
     }
   }
 
-  "TestCAM: search for an item that doesnt exist" in {
+  "search for an item that doesnt exist" in {
     simulate(new CAM(32,32)) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -68,7 +68,7 @@ class CAMTest extends AnyFreeSpec {
     }
   }
 
-  "TestCAM: stress" in {
+  "stress" in {
     simulate(new CAM(32,32)) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()

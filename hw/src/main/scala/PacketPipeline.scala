@@ -548,12 +548,14 @@ class PPingressPayload extends Module {
   // !! TODO maybe need to realign on 64 byte boundaries!!!!
 
   /* Two events trigger a DMA write request
-   *   1) Last framt of packet
+   *   1) Last frame of packet
    *   2) Reach io.dynamicConfiguration.writeBuffer offset
    */
   val ramHead       = RegInit(0.U(16.W))
   val buffBytesReg  = RegInit(0.U(16.W))
   val buffBytesCurr = Wire(UInt(16.W))
+
+  // printf("bbreg: %d, %d\n", buffBytesReg, buffBytesCurr)
 
   buffBytesCurr := buffBytesReg + packet_reg_0.io.deq.bits.payloadBytes()
 
@@ -579,15 +581,17 @@ class PPingressPayload extends Module {
 
   // When the RAM request is eventually made, we can increment the RAM pointer offset 
   when(packet_reg_0.io.deq.fire) {
-
     // TODO how does this handle wrapping around the size of the RAM!?!?!?!
     ramHead := ramHead + packet_reg_0.io.deq.bits.payloadBytes()
+    buffBytesReg := buffBytesReg + packet_reg_0.io.deq.bits.payloadBytes()
+
+    // printf("RAM DISPATCH: %d\n", buffBytesReg)
   }
 
   val buffAddr = Wire(UInt(16.W))
   buffAddr := ramHead - buffBytesCurr
 
-  io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset() - buffBytesCurr).asTypeOf(UInt(64.W))
+  io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset() - buffBytesReg).asTypeOf(UInt(64.W))
   io.c2hPayloadDmaReq.bits.ram_sel   := 0.U
   io.c2hPayloadDmaReq.bits.ram_addr  := buffAddr
   io.c2hPayloadDmaReq.bits.len       := buffBytesCurr
@@ -596,12 +600,13 @@ class PPingressPayload extends Module {
 
   // Will this frame cause us to reach our write buffer limit?
   when (buffBytesCurr >= io.dynamicConfiguration.writeBufferSize || packet_reg_0.io.deq.bits.lastFrame() === 1.U) {
+      // printf("DMA DISPATCH\n\n")
     io.c2hPayloadDmaReq.valid := packet_reg_0.io.deq.valid
-    // TODO There is possible DMA write pushback
-  }
 
-  when(packet_reg_0.io.deq.fire) {
-    buffBytesReg := 0.U
+    when(packet_reg_0.io.deq.fire) {
+      // printf("DMA DISPATCH\n\n")
+      buffBytesReg := 0.U
+    }
   }
 
   packet_reg_0.io.deq.ready := true.B
