@@ -63,6 +63,10 @@ Inaccuracies?
 
 
 
+# TODO TODO TODO do grants open up a receiver or an individual message???
+
+
+
 # TODO is there a better policy if we know how many bytes are granted? Maybe basing purely off of payload bytes is suboptimal.
 
 
@@ -71,13 +75,15 @@ import math
 import copy
 
 class Entry:
-    def __init__(self, id, payload, grant, st=0):
-        self.id      = id
+    def __init__(self, id, payload, grant, st=0, priority=0):
+        self.id = id
         self.payload = payload
-        self.grant   = grant
-        self.st      = st
-        self.et      = 0
-        self.ugrant  = 0
+        self.grant = grant
+        self.st = st
+        self.et = 0
+        self.ugrant = 0
+        self.origPayload = payload
+        self.priority = priority
 
     def __repr__(self):
         return f'ID: {self.id}, Payload: {self.payload}, Grant: {self.grant}'
@@ -93,10 +99,22 @@ class Queue:
         # Tried to send an ungranted packet
         self.idleCycles = 0
 
+        # Number of bytes sent
+        self.totalBytes = 0
+
         self.cmplTime = 0
 
         # The name of the queue for printing purposes
-        self.name = name 
+        self.name = name
+
+    def cmplBytes(self):
+        sum = 0
+        for entry in self.complete:
+            sum += entry.origPayload
+        return sum
+
+    def msgThroughput(self):
+        return len(self.complete) / self.cmplTime
 
     def avgCmplTime(self):
         sumDir = 0
@@ -108,32 +126,33 @@ class Queue:
     def dumpStats(self):
         print(f'Queue: {self.name} Statistics:')
         print(f'   - Total Cycles      : {self.cmplTime}')
+        print(f'   - Total Bytes       : {self.totalBytes}')
         print(f'   - Idle Cycles       : {self.idleCycles}')
         print(f'   - Completed Entries : {len(self.complete)}')
+        print(f'   - Cmpl Bytes Sent   : {self.cmplBytes()}')
         print(f'   - Avg. Cmpl. Time   : {self.avgCmplTime()}')
+        print(f'   - Msg / Unit Time   : {self.msgThroughput()}')
 
+# !!!!! TODO  should reoder every cycle regardless of ops
 class Mutable(Queue):
-    def __init__(self, fcOracle):
-        super(fcOracle)
-
-        self.queue = []
+    def __init__(self):
+        super().__init__("Mutable")
 
     def enqueue(self, entry):
-        # If this entry has granted bytes, find its place in the queue, otherwise buffer
-        if (entry.grant != 0):
-            # Find the first entry in the queue that has a byte count greater then our new entry's byte count
-            insert = next((e[0] for e in enumerate(self.queue) if e[1].payload > entry.payload), len(self.queue))
-            self.queue.insert(insert, entry)
+        if (entry.grant == 0):
+            entry.priority = 1
+            self.queue.insert(0, entry)
         else:
-            self.blocked.append(entry)
-
-
+            entry.priority = 0
+            self.queue.insert(0, entry)
+                
+        self.order()
 
     def dequeue(self):
         # Nothing to send
         if (len(self.queue) == 0): return None
 
-        # PIFO will only pop from head of queue
+        # Will only pop from head of queue
         head = self.queue[0]
 
         '''
@@ -150,22 +169,54 @@ class Mutable(Queue):
             if (head.payload == 0):
                 self.queue.pop(0)
             elif (head.grant == 0):
-                self.queue.pop(0)
-                # TODO lower priority
-                # self.blocked.append(head)
+                head.priority = 1
 
+            self.order()
             return head 
         else:
-            # The entry is not granted and we will block it
-            self.queue.pop(0)
-            self.blocked.append(head)
-
+            self.order()
+            # There can be no possible active entries in the queue
             return None
 
     def grant(self, grant):
-        None
-        # perform the swap operations
-        # Check if there are updates to fc state, and enqueue update signal if needed
+        grant.priority = 2
+        self.queue.insert(0, grant)
+        self.order()
+
+    def order(self):
+        # swap (0,1) (2,3) (4,5) (6,7) 
+        for even in range(int(len(self.queue)/2)):
+            low  = self.queue[even]
+            high = self.queue[even+1]
+
+            if (low.priority > high.priority):
+                # Is this a grant
+                if (low.priority == 2 and low.id == high.id):
+                    high.grant += low.grant
+                    high.priority = 0
+                self.queue[even+1] = low
+                self.queue[even]   = high
+            elif (low.priority == high.priority and low.payload > high.payload):
+                self.queue[even+1] = low
+                self.queue[even]   = high
+
+        # swap (1,2) (3,4) (5,6) (7,8)
+        for odd in range(int((len(self.queue)-1)/2)):
+            low  = self.queue[odd+1]
+            high = self.queue[odd+2]
+
+            if (low.priority > high.priority):
+                # Is this a grant
+                if (low.priority == 2 and low.id == high.id):
+                    print("NOTIF")
+                    high.grant += low.grant
+                    high.priority = 0
+                self.queue[odd+2] = low
+                self.queue[odd+1] = high
+            elif (low.priority == high.priority and low.payload > high.payload):
+                self.queue[odd+2] = low
+                self.queue[odd+1] = high
+ 
 
 class PIFO(Queue):
     def __init__(self):
@@ -229,9 +280,6 @@ class PIFO(Queue):
         if loc != None:
             loc.grant += grant.grant
 
-    def tick(self):
-        None
-
 class Ideal(Queue):
     def __init__(self):
         super().__init__( 'Ideal')
@@ -264,14 +312,13 @@ class Ideal(Queue):
         if loc != None:
             loc.grant += grant.grant
 
-    def tick(self):
-        None
-
+# TODO FIFO comparison
+        
 class Sim:
     def __init__(self):
         # Tested queuing strategies
         # self.queues  = [PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
-        self.queues         = [Ideal(), PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
+        self.queues         = [Ideal(), PIFO(), Mutable()] 
         self.completeQueues = []
 
         # Timestep counter
@@ -289,7 +336,8 @@ class Sim:
         self.nextGrant = next(self.grantGen)
 
         # Number of messages to complete
-        self.maxCmplMsg = 1000 
+        # self.maxCmplMsg = 2
+        self.maxCmplMsg = 1000
 
     def grantsGenerator(self):
         # Poisson arrival times + poisson grant increments
@@ -356,13 +404,17 @@ class Sim:
             self.nextGrant = next(self.grantGen)
 
         self.cmpl = True
+
         # Simulate all of the queues for this timestep
         for queue in self.queues:
             if (len(queue.complete) == self.maxCmplMsg):
-                queue.cmplTime = self.time
-                self.queues.remove(queue)
-                self.completeQueues.append(queue)
+                if (queue.cmplTime == 0):
+                    queue.cmplTime = self.time
+
+                # print(f'COMPLETE QUEUE: {queue.name}')
+
                 continue
+
             self.cmpl = False
 
             if (self.nextMsg.st == self.time and self.nextMsg.payload != 0):
@@ -370,18 +422,22 @@ class Sim:
 
             msgout = queue.dequeue()
 
+            if (msgout != None):
+                queue.totalBytes += 1
+
             if (msgout == None):
                 queue.idleCycles += 1
             elif (msgout.payload == 0):
                 msgout.et = self.time
                 queue.complete.append(msgout)
+                print("COMPLETE")
 
             if (self.nextGrant.st == self.time):
                 queue.grant(copy.deepcopy(self.nextGrant))
 
     # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
-        for queue in self.completeQueues:
+        for queue in self.queues:
             queue.dumpStats()
 
 if __name__ == '__main__':
@@ -396,3 +452,6 @@ if __name__ == '__main__':
 # poisson sample grant and add that to current grant
 
 # Some tests to run. Is there a better algorithm than SRPT when there are grants involved
+
+
+# You can get much better Average completion time by ignoring messages that are not immediately granted
