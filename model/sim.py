@@ -86,7 +86,7 @@ class Entry:
         self.priority = priority
 
     def __repr__(self):
-        return f'ID: {self.id}, Payload: {self.payload}, Grant: {self.grant}'
+        return f'ID: {self.id}, Payload: {self.payload}, Grant: {self.grant}, Priority: {self.priority}'
 
 class Queue:
     def __init__(self, name):
@@ -145,7 +145,8 @@ class Mutable(Queue):
         else:
             entry.priority = 0
             self.queue.insert(0, entry)
-                
+
+        # print(f'Enqueue: {entry}')
         self.order()
 
     def dequeue(self):
@@ -160,7 +161,7 @@ class Mutable(Queue):
         that packet causes the entry to be completely sent, then we
         are done and destroy it.
         '''
-        if (head.grant != 0):
+        if (head.priority == 0):
             # Send one packet
             head.payload -= 1
             head.grant   -= 1
@@ -184,6 +185,9 @@ class Mutable(Queue):
         self.order()
 
     def order(self):
+        if (len(self.queue) != 0 and self.queue[-1].priority == 2):
+            self.queue.pop(-1)
+
         # swap (0,1) (2,3) (4,5) (6,7) 
         for even in range(int(len(self.queue)/2)):
             low  = self.queue[even]
@@ -192,6 +196,7 @@ class Mutable(Queue):
             if (low.priority > high.priority):
                 # Is this a grant
                 if (low.priority == 2 and low.id == high.id):
+                    # print("REACTIVE")
                     high.grant += low.grant
                     high.priority = 0
                 self.queue[even+1] = low
@@ -208,7 +213,7 @@ class Mutable(Queue):
             if (low.priority > high.priority):
                 # Is this a grant
                 if (low.priority == 2 and low.id == high.id):
-                    print("NOTIF")
+                    # print("REACTIVE")
                     high.grant += low.grant
                     high.priority = 0
                 self.queue[odd+2] = low
@@ -267,6 +272,12 @@ class PIFO(Queue):
             return None
 
     def grant(self, grant):
+        # this is fine because when the entry gets to the head of the queue it can access this data immediately
+        loc = next((e[1] for e in enumerate(self.queue) if e[1].id == grant.id), None)
+
+        if loc != None:
+            loc.grant += grant.grant
+
         loc = next((e[1] for e in enumerate(self.blocked) if e[1].id == grant.id), None)
 
         if loc != None:
@@ -274,12 +285,7 @@ class PIFO(Queue):
             self.enqueue(loc)
             self.blocked.remove(loc)
 
-        # this is fine because when the entry gets to the head of the queue it can access this data immediately
-        loc = next((e[1] for e in enumerate(self.queue) if e[1].id == grant.id), None)
-
-        if loc != None:
-            loc.grant += grant.grant
-
+        
 class Ideal(Queue):
     def __init__(self):
         super().__init__( 'Ideal')
@@ -317,7 +323,6 @@ class Ideal(Queue):
 class Sim:
     def __init__(self):
         # Tested queuing strategies
-        # self.queues  = [PIFO()] # Ideal(self.fc.fcOracle), Mutable(self.fc.fcOracle)]
         self.queues         = [Ideal(), PIFO(), Mutable()] 
         self.completeQueues = []
 
@@ -393,10 +398,6 @@ class Sim:
     For each queue
     '''  
     def step(self):
-        # Select 
-
-        # find the first entry in the future for messages and grants
-        # TODO these cannot be more than 1 per cycle
         if (self.nextMsg.st < self.time):
             self.nextMsg  = next(self.msgGen)
         
@@ -411,14 +412,17 @@ class Sim:
                 if (queue.cmplTime == 0):
                     queue.cmplTime = self.time
 
-                # print(f'COMPLETE QUEUE: {queue.name}')
-
                 continue
 
             self.cmpl = False
 
+            if (self.nextGrant.st == self.time):
+                if (self.nextGrant.grant != 0):
+                    queue.grant(copy.deepcopy(self.nextGrant))
+
             if (self.nextMsg.st == self.time and self.nextMsg.payload != 0):
-                queue.enqueue(copy.deepcopy(self.nextMsg)) # pass the sendmsg to the queue if it exists
+                # pass the sendmsg to the queue if it exists
+                queue.enqueue(copy.deepcopy(self.nextMsg)) 
 
             msgout = queue.dequeue()
 
@@ -430,10 +434,7 @@ class Sim:
             elif (msgout.payload == 0):
                 msgout.et = self.time
                 queue.complete.append(msgout)
-                print("COMPLETE")
-
-            if (self.nextGrant.st == self.time):
-                queue.grant(copy.deepcopy(self.nextGrant))
+                 #print(f'Complete {len(queue.complete)}')
 
     # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
