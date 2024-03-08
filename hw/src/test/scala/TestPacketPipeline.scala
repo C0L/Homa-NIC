@@ -927,7 +927,80 @@ class TestPPingressPayload extends AnyFreeSpec {
     }
   }
 
-  "pcie write addr" in {
+  "pcie write addr 64 write buffer" in {
+    simulate(new PPingressPayload) { dut =>
+
+      dut.reset.poke(true.B)
+      dut.clock.step()
+      dut.reset.poke(false.B)
+      dut.clock.step()
+
+      dut.io.dynamicConfiguration.writeBufferSize.poke(64.U)
+
+      // TODO check RAM out and DMA out
+      dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_in.bits.data.data.seg_len.poke(1500.U)
+      dut.io.packet_in.bits.data.data.offset.poke(0.U)
+      dut.io.packet_in.bits.frame_off.poke(0.U)
+
+      dut.clock.step()
+
+      dut.io.packet_in.bits.frame_off.poke(64.U)
+      dut.io.c2hPayloadRamReq.valid.expect(false.B)
+      dut.io.c2hPayloadDmaReq.valid.expect(false.B)
+
+      dut.clock.step()
+
+      dut.io.packet_in.bits.frame_off.poke(128.U)
+      dut.io.c2hPayloadRamReq.valid.expect(true.B)
+      dut.io.c2hPayloadDmaReq.valid.expect(false.B)
+
+      dut.clock.step()
+
+      dut.io.c2hPayloadRamReq.valid.expect(true.B)
+      dut.io.c2hPayloadDmaReq.valid.expect(true.B)
+      dut.io.c2hPayloadDmaReq.bits.pcie_addr.expect(0.U)
+      dut.io.c2hPayloadDmaReq.bits.ram_addr.expect(0.U)
+
+
+      // dut.io.packet_in.bits.frame_off.poke(196.U)
+      // dut.io.c2hPayloadRamReq.valid.expect(true.B)
+      // dut.io.c2hPayloadDmaReq.valid.expect(false.B)
+
+      // dut.clock.step()
+
+      // dut.io.packet_in.bits.frame_off.poke(256.U)
+      // dut.io.c2hPayloadRamReq.valid.expect(true.B)
+      // dut.io.c2hPayloadDmaReq.valid.expect(false.B)
+
+      // dut.clock.step()
+
+      // dut.io.packet_in.bits.frame_off.poke(320.U)
+      // dut.io.c2hPayloadRamReq.valid.expect(true.B)
+      // dut.io.c2hPayloadDmaReq.valid.expect(false.B)
+
+      // dut.clock.step()
+
+      // dut.io.c2hPayloadRamReq.valid.expect(true.B)
+      // dut.io.c2hPayloadDmaReq.valid.expect(true.B)
+      // dut.io.c2hPayloadDmaReq.bits.pcie_addr.expect(0.U)
+
+      // dut.clock.step()
+
+      // dut.io.packet_in.bits.frame_off.poke(64.U)
+
+      // dut.io.dynamicConfiguration.writeBufferSize.poke(8.U)
+
+      // dut.io.packet_in.bits.data.data.offset.poke(80.U)
+
+      // dut.clock.step()
+
+      // dut.io.c2hPayloadRamReq.valid.expect(true.B)
+      // dut.io.c2hPayloadDmaReq.valid.expect(true.B)
+    }
+  }
+
+  "pcie write addr 256 write buffer" in {
     simulate(new PPingressPayload) { dut =>
 
       dut.reset.poke(true.B)
@@ -991,7 +1064,6 @@ class TestPPingressPayload extends AnyFreeSpec {
 
       dut.io.c2hPayloadRamReq.valid.expect(true.B)
       dut.io.c2hPayloadDmaReq.valid.expect(true.B)
-
     }
   }
 }

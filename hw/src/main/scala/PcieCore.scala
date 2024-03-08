@@ -28,15 +28,15 @@ class pcie_core extends Module {
   val c2hMetadataRamReq = IO(Flipped(Decoupled(new RamWriteReq))) // Write metadata data to RAM
 
   // Read data from DMA into h2cPayloadRam
-  val h2cPayloadDmaReq  = IO(Flipped(Decoupled(new DmaReadReq)))
+  val h2cPayloadDmaReq  = IO(Flipped(Decoupled(new DmaReq)))
   val h2cPayloadDmaStat = IO(Decoupled(new DmaReadStat))
 
   // Write data from c2hPayloadRam into DMA
-  val c2hPayloadDmaReq  = IO(Flipped(Decoupled(new DmaWriteReq)))
+  val c2hPayloadDmaReq  = IO(Flipped(Decoupled(new DmaReq)))
   // val c2hPayloadDmaStat = IO(Decoupled(new dma_write_desc_status_t(1)))
 
   // Write data from c2hMetadataRam into DMA
-  val c2hMetadataDmaReq  = IO(Flipped(Decoupled(new DmaWriteReq)))
+  val c2hMetadataDmaReq  = IO(Flipped(Decoupled(new DmaReq)))
   // val c2hMetadataDmaStat = IO(Decoupled(new dma_write_desc_status_t(1)))
 
   val m_axi                 = IO(new axi(512, 26, true, 8, true, 4, true, 4))

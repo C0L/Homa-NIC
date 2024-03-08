@@ -26,6 +26,7 @@ class srpt_queue (qtype: String) extends BlackBox (
   addResource("/verilog_src/srpt_queue.v")
 }
 
+// TODO should have flow control on data fetch priority queue output 
 // TODO no flow control on DMA stat output!!!! 
 // TODO move this outside of RTL wrappers
 // TODO should move storage of message size outside?
@@ -33,7 +34,7 @@ class FetchQueue extends Module {
   val io = IO(new Bundle {
     val fetchSize = Input(UInt(16.W))
     val enqueue   = Flipped(Decoupled(new QueueEntry))
-    val dequeue   = Decoupled(new DmaReadReq)
+    val dequeue   = Decoupled(new DmaReq)
     val readcmpl  = Flipped(Decoupled(new DmaReadStat))
     val notifout  = Decoupled(new QueueEntry)
   })
@@ -51,11 +52,11 @@ class FetchQueue extends Module {
    * with that message for upating our queue state.
    */
   class ReqMem extends Bundle {
-    val dma   = new DmaReadReq
+    val dma   = new DmaReq
     val queue = new QueueEntry
   }
 
-  val tag = RegInit(0.U(8.W))
+  val tag     = RegInit(0.U(8.W))
   val tagMem  = Mem(256, new ReqMem)
 
   fetch_queue_raw.io.s_axis.tdata  := io.enqueue.bits.asTypeOf(UInt(89.W))
@@ -65,13 +66,13 @@ class FetchQueue extends Module {
   val fetch_queue_raw_out = Wire(new QueueEntry)
 
   fetch_queue_raw_out := fetch_queue_raw.io.m_axis.tdata.asTypeOf(new QueueEntry)
-  val dma_read = Wire(new DmaReadReq)
+  val dma_read = Wire(new DmaReq)
 
   dma_read.pcie_addr := fetch_queue_raw_out.dbuffered
   dma_read.ram_sel   := 0.U
   dma_read.ram_addr  := (CacheCfg.lineSize.U * fetch_queue_raw_out.dbuff_id) + fetch_queue_raw_out.dbuffered
   dma_read.len       := io.fetchSize
-  dma_read.tag       := tag // TODO
+  dma_read.tag       := tag 
   dma_read.port      := 1.U // TODO placeholder
 
   io.dequeue.bits    := dma_read
@@ -89,7 +90,7 @@ class FetchQueue extends Module {
   io.notifout.bits.remaining  := 0.U
   val notif_offset = Wire(UInt(20.W))
   // TODO granted is total number of bytes in fetch queue, bad naming
-  notif_offset := pendTag.queue.granted - (pendTag.dma.ram_addr - (16384.U * pendTag.queue.dbuff_id)) 
+  notif_offset := pendTag.queue.granted - (pendTag.dma.ram_addr - (CacheCfg.lineSize.U * pendTag.queue.dbuff_id)) 
   when (notif_offset < io.fetchSize) {
     io.notifout.bits.dbuffered  := 0.U
   }.otherwise {
@@ -335,10 +336,10 @@ class PCIe (PORTS: Int) extends Module {
 			  
     val m_axi        = new axi(512, 26, true, 8, true, 4, true, 4)
 
-    val dmaReadReq   = Vec(PORTS, Flipped(Decoupled(new DmaReadReq)))
+    val dmaReadReq   = Vec(PORTS, Flipped(Decoupled(new DmaReq)))
     val dmaReadStat  = Vec(PORTS, Decoupled(new DmaReadStat))
 
-    val dmaWriteReq  = Vec(PORTS, Flipped(Decoupled(new DmaWriteReq)))
+    val dmaWriteReq  = Vec(PORTS, Flipped(Decoupled(new DmaReq)))
 
     val ram_rd = Vec(PORTS, new ram_rd_t(1))
     val ram_wr = Vec(PORTS, new ram_wr_t(1))
@@ -450,4 +451,9 @@ class PCIe (PORTS: Int) extends Module {
 
   pcie_core.io.dma_write_desc_status := DontCare
   // pcie_core.io.dma_read_desc_status := DontCare
+
+
+
+  val h2cDmaReadReq_ila = Module(new ILA(Flipped(new dma_read_desc_raw(2))))
+  h2cDmaReadReq_ila.io.ila_data := pcie_core.io.dma_read_desc
 }

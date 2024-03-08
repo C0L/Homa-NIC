@@ -332,7 +332,7 @@ class PPingressStages extends Module {
 
     val c2hPayloadRamReq = Decoupled(new RamWriteReq) // Data to write to BRAM
 
-    val c2hPayloadDmaReq  = Decoupled(new DmaWriteReq) // Descriptors to pcie to init request
+    val c2hPayloadDmaReq  = Decoupled(new DmaReq) // Descriptors to pcie to init request
 
     val ingress    = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
     // val dma_w_data = Decoupled(new dma_write_t) // Writes to the DMA core
@@ -524,7 +524,7 @@ class PPingressPayload extends Module {
     val dynamicConfiguration = Input(new DynamicConfiguration)
 
     val c2hPayloadRamReq = Decoupled(new RamWriteReq) // Data to write to BRAM
-    val c2hPayloadDmaReq  = Decoupled(new DmaWriteReq) // Descriptors to pcie to init request
+    val c2hPayloadDmaReq  = Decoupled(new DmaReq) // Descriptors to pcie to init request
 
     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory with data to write
   })
@@ -542,7 +542,7 @@ class PPingressPayload extends Module {
   io.c2hPayloadRamReq.bits  := 0.U.asTypeOf((new RamWriteReq))
   io.c2hPayloadRamReq.valid := false.B
 
-  io.c2hPayloadDmaReq.bits  := 0.U.asTypeOf((new DmaWriteReq))
+  io.c2hPayloadDmaReq.bits  := 0.U.asTypeOf((new DmaReq))
   io.c2hPayloadDmaReq.valid := false.B
 
   // !! TODO maybe need to realign on 64 byte boundaries!!!!
@@ -584,12 +584,10 @@ class PPingressPayload extends Module {
     // TODO how does this handle wrapping around the size of the RAM!?!?!?!
     ramHead := ramHead + packet_reg_0.io.deq.bits.payloadBytes()
     buffBytesReg := buffBytesReg + packet_reg_0.io.deq.bits.payloadBytes()
-
-    // printf("RAM DISPATCH: %d\n", buffBytesReg)
   }
 
   val buffAddr = Wire(UInt(16.W))
-  buffAddr := ramHead - buffBytesCurr
+  buffAddr := ramHead - buffBytesReg
 
   io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset() - buffBytesReg).asTypeOf(UInt(64.W))
   io.c2hPayloadDmaReq.bits.ram_sel   := 0.U
@@ -600,11 +598,9 @@ class PPingressPayload extends Module {
 
   // Will this frame cause us to reach our write buffer limit?
   when (buffBytesCurr >= io.dynamicConfiguration.writeBufferSize || packet_reg_0.io.deq.bits.lastFrame() === 1.U) {
-      // printf("DMA DISPATCH\n\n")
     io.c2hPayloadDmaReq.valid := packet_reg_0.io.deq.valid
 
     when(packet_reg_0.io.deq.fire) {
-      // printf("DMA DISPATCH\n\n")
       buffBytesReg := 0.U
     }
   }

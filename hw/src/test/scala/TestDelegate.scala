@@ -8,7 +8,7 @@ import org.scalatest.matchers.must.Matchers
 
 class TestDelegate extends AnyFreeSpec {
 
-  "TestDelagate: testing dma map" in {
+  "testing dma map" in {
     simulate(new Delegate) { dut =>
 
       dut.reset.poke(true.B)
@@ -38,7 +38,7 @@ class TestDelegate extends AnyFreeSpec {
     }
   }
 
-  "TestDelegate: testing virtualization" in {
+  "testing virtualization" in {
     simulate(new Delegate) { dut =>
 
       dut.reset.poke(true.B)
@@ -84,7 +84,7 @@ class TestDelegate extends AnyFreeSpec {
   }
 
 
-  "TestDelegate: testing sendmsg" in {
+  "testing sendmsg" in {
     simulate(new Delegate) { dut =>
 
       dut.reset.poke(true.B)
@@ -125,6 +125,6 @@ class TestDelegate extends AnyFreeSpec {
   }
 
 
- "delegate_test: ID assignment" in {
- }
+ // "delegate_test: ID assignment" in {
+ // }
 }

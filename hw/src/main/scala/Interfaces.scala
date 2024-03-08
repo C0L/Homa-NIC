@@ -21,16 +21,7 @@ class dma_write_desc_t (ports: Int) extends Bundle {
   val tag       = Output(UInt((ports * 8).W))
 }
 
-class DmaWriteReq extends Bundle {
-  val pcie_addr = UInt(64.W)
-  val ram_sel   = UInt(2.W)
-  val ram_addr  = UInt(18.W)
-  val len       = UInt(16.W)
-  val tag       = UInt(8.W)
-  val port      = UInt(16.W)
-}
-
-class DmaReadReq extends Bundle {
+class DmaReq extends Bundle {
   val pcie_addr = UInt(64.W)
   val ram_sel   = UInt(2.W)
   val ram_addr  = UInt(18.W)

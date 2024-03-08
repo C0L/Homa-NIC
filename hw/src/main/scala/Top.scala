@@ -116,16 +116,16 @@ class Top extends RawModule {
    val c2hMetadataRamReq_ila = Module(new ILA(new RamWriteReq))
    c2hMetadataRamReq_ila.io.ila_data := core.io.c2hMetadataRamReq.bits
 
-   val h2cPayloadDmaReq_ila = Module(new ILA(new DmaWriteReq))
+   val h2cPayloadDmaReq_ila = Module(new ILA(new DmaReq))
    h2cPayloadDmaReq_ila.io.ila_data := core.io.h2cPayloadDmaReq.bits
 
    val h2cPayloadDmaStat_ila = Module(new ILA(new DmaReadStat))
    h2cPayloadDmaStat_ila.io.ila_data := core.io.h2cPayloadDmaStat.bits
 
-   val c2hPayloadDmaReq_ila = Module(new ILA(new DmaWriteReq))
+   val c2hPayloadDmaReq_ila = Module(new ILA(new DmaReq))
    c2hPayloadDmaReq_ila.io.ila_data := core.io.c2hPayloadDmaReq.bits
 
-   val c2hMetadataDmaReq_ila = Module(new ILA(new DmaWriteReq))
+   val c2hMetadataDmaReq_ila = Module(new ILA(new DmaReq))
    c2hMetadataDmaReq_ila.io.ila_data := core.io.c2hMetadataDmaReq.bits
  }
 }

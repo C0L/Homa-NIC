@@ -85,7 +85,7 @@
  *  
  * TODO use a LAST bit to handle when notifications are sent?
  */
-module srpt_queue #(parameter CACHE_SIZE = 256,
+module srpt_queue #(parameter CACHE_SIZE = 131072,
 		    parameter PAYLOAD_SIZE = 1386,
 		    parameter MAX_RPCS = 64,
 		    parameter TYPE = "sendmsg")

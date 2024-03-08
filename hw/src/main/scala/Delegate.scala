@@ -24,7 +24,7 @@ class Delegate extends Module {
     val ppIngressRecvmsgRamReq = Decoupled(new RamWriteReq) // Data to write to pp ingress RAM
 
     val c2hMetadataRamReq = Decoupled(new RamWriteReq) // Metadata to write to pcie RAM
-    val c2hMetadataDmaReq = Decoupled(new DmaWriteReq) // Data to to write to DMA from metadata RAM
+    val c2hMetadataDmaReq = Decoupled(new DmaReq) // Data to to write to DMA from metadata RAM
 
     val dynamicConfiguration = Output(new DynamicConfiguration)
   })
@@ -48,7 +48,7 @@ class Delegate extends Module {
   io.c2hMetadataRamReq.bits  := 0.U.asTypeOf(new RamWriteReq)
   io.c2hMetadataRamReq.valid := false.B
 
-  io.c2hMetadataDmaReq.bits  := 0.U.asTypeOf(new DmaWriteReq)
+  io.c2hMetadataDmaReq.bits  := 0.U.asTypeOf(new DmaReq)
   io.c2hMetadataDmaReq.valid := false.B
 
   io.newDmaMap.bits  := 0.U.asTypeOf(new DmaMap)

@@ -20,13 +20,13 @@ class MgmtCore extends Module {
     val c2hPayloadRamReq  = Decoupled(new RamWriteReq)
     val c2hMetadataRamReq = Decoupled(new RamWriteReq)
 
-    val h2cPayloadDmaReq  = Decoupled(new DmaReadReq)
+    val h2cPayloadDmaReq  = Decoupled(new DmaReq)
     val h2cPayloadDmaStat = Flipped(Decoupled(new DmaReadStat))
 
-    val c2hPayloadDmaReq  = Decoupled(new DmaWriteReq)
+    val c2hPayloadDmaReq  = Decoupled(new DmaReq)
     // val c2hPayloadDmaStat = Flipped(Decoupled(new dma_write_desc_status_t(1)))
 
-    val c2hMetadataDmaReq  = Decoupled(new DmaWriteReq)
+    val c2hMetadataDmaReq  = Decoupled(new DmaReq)
     // val c2hMetadataDmaStat = Flipped(Decoupled(new dma_write_desc_status_t(1)))
   })
 
@@ -60,7 +60,7 @@ class MgmtCore extends Module {
   pp_ingress.io.cb_ram_read_data <> recvmsg_cb_rd.io.ramReadResp
 
   pp_ingress.io.c2hPayloadRamReq <> io.c2hPayloadRamReq 
-  pp_ingress.io.c2hPayloadDmaReq <> addr_map.io.c2hPayloadDmaReqIn
+  // pp_ingress.io.c2hPayloadDmaReq <> addr_map.io.c2hPayloadDmaReqIn
 
   val pp_egress  = Module(new PPegressStages)
 
@@ -84,14 +84,14 @@ class MgmtCore extends Module {
   delegate.io.ppEgressSendmsgRamReq  <> sendmsg_cb_wr.io.ramWriteReq
   delegate.io.ppIngressRecvmsgRamReq <> recvmsg_cb_wr.io.ramWriteReq
 
-  addr_map.io.dmaMap              <> delegate.io.newDmaMap
-  addr_map.io.c2hMetadataDmaReqIn <> delegate.io.c2hMetadataDmaReq
-  addr_map.io.c2hPayloadDmaReqIn  <> pp_ingress.io.c2hPayloadDmaReq
-  addr_map.io.h2cPayloadDmaReqIn  <> fetch_queue.io.dequeue 
+  addr_map.io.dmaMap        <> delegate.io.newDmaMap
+  addr_map.io.mappableIn(2) <> delegate.io.c2hMetadataDmaReq
+  addr_map.io.mappableIn(1) <> pp_ingress.io.c2hPayloadDmaReq
+  addr_map.io.mappableIn(0) <> fetch_queue.io.dequeue 
 
-  addr_map.io.c2hMetadataDmaReqOut <> io.c2hMetadataDmaReq
-  addr_map.io.c2hPayloadDmaReqOut  <> io.c2hPayloadDmaReq
-  addr_map.io.h2cPayloadDmaReqOut  <> io.h2cPayloadDmaReq
+  addr_map.io.mappableOut(2) <> io.c2hMetadataDmaReq
+  addr_map.io.mappableOut(1) <> io.c2hPayloadDmaReq
+  addr_map.io.mappableOut(0) <> io.h2cPayloadDmaReq
 
   fetch_queue.io.readcmpl <> io.h2cPayloadDmaStat
   fetch_queue.io.enqueue <> delegate.io.newFetchdata
@@ -140,8 +140,14 @@ class MgmtCore extends Module {
   // val fetch_in_ila = Module(new ILA(new QueueEntry))
   // fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
 
-  val fetch_out_ila = Module(new ILA(new DmaReadReq))
+  val fetch_out_ila = Module(new ILA(new DmaReq))
   fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
+
+  val c2h_addr_map_out_ila = Module(new ILA(new DmaReq))
+  c2h_addr_map_out_ila.io.ila_data := addr_map.io.mappableOut(1).bits
+
+  val h2c_addr_map_out_ila = Module(new ILA(new DmaReq))
+  h2c_addr_map_out_ila.io.ila_data := addr_map.io.mappableOut(0).bits
 
   val dyncfg_ila = Module(new ILA(new DynamicConfiguration))
   dyncfg_ila.io.ila_data := delegate.io.dynamicConfiguration
