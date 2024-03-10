@@ -4,12 +4,30 @@ This repository contains a work in progress hardware implementation of the Homa 
 Currently the only supported platform is the AMD Alveo U250 FPGA.
 
 ## Project Structure
-### `driver/`:
-### `app/`:
-### `hw/`:
-#### `src/`
-##### `main/`
-##### `test/`
+```bash
+.
+├── app # Example user applications and performance benchmarks
+│   ├── lib # Library code for timing measurement and NIC interface
+│   ├── parse # Scripts to parse timing measurement output
+│   └── src # Application sources
+├── driver # Linux kernel driver for MMIO/DMA setup
+├── firmware # Experimental code for on-chip RISCV processor  
+├── hw # Hardware design sources
+│   ├── gen  # Output directory for chisel project
+│   ├── src  
+│   │   ├── main
+│   │   │   ├── resources
+│   │   │   │   ├── verilog_libs # Verilog libraries 
+│   │   │   │   │   ├── axi2axis # https://github.com/ZipCPU/wb2axip/
+│   │   │   │   │   └── pcie     # https://github.com/alexforencich/verilog-pcie
+│   │   │   │   └── verilog_src  # Verilog source code
+│   │   │   └── scala # Scala/Chisel source code
+│   │   └── test 
+│   │       └── scala # Scala/Chisel test benches
+│   ├── tcl # Vivado compilation flow
+│   └── xdc # Constrants for Alveo U250
+└── model # Python simulation for different priority queue strategies
+```
 
 ## Software Flow
 ### Dependencies
