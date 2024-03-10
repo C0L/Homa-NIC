@@ -29,24 +29,54 @@ Currently the only supported platform is the AMD Alveo U250 FPGA.
 └── model # Python simulation for different priority queue strategies
 ```
 
-## Software Flow
-### Dependencies
-- Linux Kernel 4.15
-### Kernel Module
-#### Build
+## Application Programming Interface
+
+## Kernel Module
+**Only tested under Linux 4.15.**
+
+The kernel module (`homanic.c`) is responsible for:
+1) Performing PCIe and ethernet core initialization steps
+2) Loading NIC configuration parameters
+3) Creating character devices for user applications to open()/mmap()
+4) Allocating unique IDs to identify NIC users
+5) Mapping unique memory pages for MMIO and DMA access for users
+5) Onboarding DMA address translations to the NIC when a device is opened
+6) Cleaning up user IDs and memory mappings on close()
+
+After loading the module, it should have instantiated four character devices:
+```bash
+ls /dev/homa_nic_*
+/dev/homa_nic_c2h_metadata # Card-to-host metadata buffers (sendmsg/recvmsg responses)
+/dev/homa_nic_c2h_msgbuff  # Card-to-host message buffers (recvmsg message data)
+/dev/homa_nic_h2c_metadata # Host-to-card metadata buffers (sendmsg/recvmsg requests)
+/dev/homa_nic_h2c_msgbuff  # Host-to-card message buffers (sendmsg message data)
+```
+
+To interact with the NIC, the user application can then open and mmap a character device as follows:
+```
+int h2c_metadata_fd = open("/dev/homa_nic_h2c_metadata", O_RDWR|O_SYNC);
+char * h2c_metadata_map = (char *) mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_metadata_fd, 0);
+```
+The API is defined in more depth above.
+
+### Building the Module
 ```
 cd driver
 make
 ```
-#### Install
+
+### Loading the Module
 ```
 sudo insmod homanic.ko
 ```
 
-### Remove
+### Removing the Module
 ```
 sudo rmmod homanic.ko
 ```
+
+## Hardware Flow
+Tested with Vivado 2023.2, sbt..., chisel...,
 
 ### Applications
 #### Build
@@ -61,9 +91,6 @@ Stresses the NIC with 64B echo requests, 64B device register reads, 64B packet l
 ```
 make parse
 ```
-
-## HW-Dev Dependencies
-- Vivado 2023.2
 
 ## Contact
 drewes@cs.stanford.edu

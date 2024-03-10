@@ -220,38 +220,16 @@ int dev_major = 0;
 //      // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
 // }
 
-void c2h_new_metadata(struct port_to_phys_t * port_to_phys) {
+void onboard_dma_map(struct port_to_phys_t * port_to_phys) {
     iomov64B((void*) io_regs, (void*) port_to_phys);
-    // *((uint64_t*) (io_regs + 0x60000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
-}
-
-void h2c_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iomov64B((void*) io_regs, (void*) port_to_phys);
-    // *((uint64_t*) (io_regs + 0x80000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
-    // iomov64B((void*) io_regs + 128, (void*) port_to_phys);
-}
-
-void c2h_new_msgbuff(struct port_to_phys_t * port_to_phys) {
-    iomov64B((void*) io_regs, (void*) port_to_phys);
-    // *((uint64_t*) (io_regs + 0x70000 + (8 * port_to_phys->port))) = port_to_phys->phys_addr;
-    // iomov64B((void*) io_regs + 192, (void*) port_to_phys);
 }
 
 int homanic_open(struct inode * inode, struct file * file) {
-    // TODO eventually insert these values into an array indexed by the port
-    // TODO this will allow for recovery when the mmap is called.
-    // TODO How does the port reach the mmap invocation though?
-
-    // printk(KERN_ALERT "PORT TO PHYS %llx\n", (uint64_t) &h2c_port_to_msgbuff);
-
     memset(&h2c_port_to_msgbuff, 0xffffffff, 64);
     memset(&c2h_port_to_msgbuff, 0xffffffff, 64);
     memset(&c2h_port_to_metadata, 0xffffffff, 64);
 
     pr_alert("homanic_open");
-
-    // pr_alert("axis address:%llx\n", (uint64_t) axi_stream_regs);
-    // pr_alert("axis address:%llx\n", (uint64_t) axi_stream_write);
 
     switch(iminor(file->f_inode)) {
 	case MINOR_H2C_METADATA:
@@ -266,10 +244,9 @@ int homanic_open(struct inode * inode, struct file * file) {
 
 	    c2h_port_to_metadata.phys_addr = ((uint64_t) c2h_metadata_dma_handle);
 	    c2h_port_to_metadata.port      = ports;
-	    //c2h_port_to_metadata.type 	   = 0xff;
 	    c2h_port_to_metadata.type 	   = 2;
 
-	    c2h_new_metadata(&c2h_port_to_metadata);
+	    onboard_dma_map(&c2h_port_to_metadata);
 
 	    break;
 	}
@@ -282,7 +259,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 	    h2c_port_to_msgbuff.port      = ports;
 	    h2c_port_to_msgbuff.type 	  = 0;
 
-	    h2c_new_msgbuff(&h2c_port_to_msgbuff);
+	    onboard_dma_map(&h2c_port_to_msgbuff);
 
 	    break;
 
@@ -294,10 +271,9 @@ int homanic_open(struct inode * inode, struct file * file) {
 
 	    c2h_port_to_msgbuff.phys_addr = ((uint64_t) c2h_msgbuff_dma_handle);
 	    c2h_port_to_msgbuff.port      = ports;
-	    // c2h_port_to_msgbuff.type      = 0xff;
 	    c2h_port_to_msgbuff.type      = 1;
 
-	    c2h_new_msgbuff(&c2h_port_to_msgbuff);
+	    onboard_dma_map(&c2h_port_to_msgbuff);
 
 	    break;
     }
