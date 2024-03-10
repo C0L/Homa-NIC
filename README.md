@@ -31,6 +31,32 @@ Currently the only supported platform is the AMD Alveo U250 FPGA.
 
 ## Application Programming Interface
 
+Each user applications are allocated four memory regions, which are used to carry out all critical path interactions with the network interface card. At a high level these are the following:
+1) Host-to-Card metadata: User applications initiating sendmsg and recvmsg requests
+2) Card-to-Host metadata: The return result from a sendmsg or recvmsg request
+3) Host-to-Card msg buff: Buffer of message data a user sends with a sendmsg request
+4) Card-to-Host msg buff: Buffer for message data a user receivers with a recvmsg request.
+
+The steps to access these memory regions are discuessed within the kernel module and application section. We deal here only with the application interface once the channel has been opened.
+
+### Host-to-Card Metadata
+Sendmsg and recvmsg requests are encoded in this structure
+```C
+struct msghdr_t {
+    uint32_t unused; 
+    char saddr[16]; // Source address
+    char daddr[16]; // Destination address
+    uint16_t sport; // Source port
+    uint16_t dport; // Desintation port
+    uint32_t buff_addr; // Offset of message buffer for send/recv
+    uint32_t metadata;  // (size << 12) | retoff  TODO 
+    uint64_t id; // zero for request, non-zero for reply
+    uint64_t cc; // Completition cookie
+}__attribute__((packed));
+```
+
+Writes to address 0 of this memory will 
+
 ## Kernel Module
 **Only tested under Linux 4.15.**
 
@@ -76,9 +102,42 @@ sudo rmmod homanic.ko
 ```
 
 ## Hardware Flow
-Tested with Vivado 2023.2, sbt..., chisel...,
+Currently the only target device is Alveo U250 FPGAs, though much of this code is general and could be retarted with some effort.
+
+The majorty of the Homa logic is implemented in Chisel, and Chisel is used to orchestrate the project as a whole. Verilog cores are wrapped as Chisel black boxes. Xilinx IP are represented with Chisel blackboxes that automatically generate the underlying tcl commands to create the respective module (more on this in related writings).
+
+The result of chisel compilation (system verilog chisel output, verilog sources for black boxes, tcl scripts for Xilinx IP module instantaiton) are contained within the `gen/` folder after the build process.
+
+The design has only been tested with Vivado 2023.2, sbt 1.9.8, Scala 2.13.12, Scala Test 3.2.16, and Chisel 7.0.0-M1.
+
+### Building RTL/Outputs
+The following steps will take the scala source, generate the system verilog result, grab the Verilog blackbox definitions, and output the tcl, all to the `gen/` folder.
+```
+cd hw
+sbt run
+```
+
+### Testing Chisel/RTL
+All tests are writen Chisel's built in peekpoketester. Even blackbox RTL cores are tested with this same system. To run the tests, execute the following: 
+```
+cd hw
+sbt test 
+```
+
+### End-to-End Build
+To generate a bitstream, execute the following:
+```
+cd hw
+make homa
+```
+
+#### Hardware Architecture
+Picture of the architecture here....
+
 
 ### Applications
+A set of example applications are provided which utilize the NIC API to demonstrate functionality, test device robustness, and test performance. 
+
 #### Build
 ```
 cd app
@@ -91,6 +150,9 @@ Stresses the NIC with 64B echo requests, 64B device register reads, 64B packet l
 ```
 make parse
 ```
+
+### Related Writings
+https://colindrewes.com/writing/chisel_xilinx_ip.html
 
 ## Contact
 drewes@cs.stanford.edu

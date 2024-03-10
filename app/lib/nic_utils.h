@@ -2,15 +2,15 @@
 #define NICUTILS_H
 
 struct msghdr_send_t {
-    uint32_t unused;  // 4 
-    char saddr[16];   // 16
-    char daddr[16];   // 16
-    uint16_t sport;   // 2
-    uint16_t dport;   // 2
-    uint32_t buff_addr; // 4
-    uint32_t metadata; // 4
-    uint64_t id; // 8
-    uint64_t cc; // 8
+    uint32_t unused;
+    char saddr[16];
+    char daddr[16];
+    uint16_t sport;
+    uint16_t dport;
+    uint32_t buff_addr;
+    uint32_t metadata;
+    uint64_t id;
+    uint64_t cc;
 }__attribute__((packed));
 
 

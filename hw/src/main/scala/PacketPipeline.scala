@@ -178,7 +178,7 @@ class PPegressPayload extends Module {
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFactory, 12, true, false))
+  val pending = Module(new Queue(new PacketFactory, 18, true, false)) // TODO cross domain crossing heavy penatly
   val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
 
   // Tie register stages to input and output 
