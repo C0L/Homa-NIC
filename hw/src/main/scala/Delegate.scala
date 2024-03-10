@@ -82,7 +82,7 @@ class Delegate extends Module {
   val user_func = function_queue.io.deq.bits.user(11,0)
 
   val send_id  = RegInit(0.asUInt(16.W))
-  val dbuff_id = RegInit(0.asUInt(6.W))
+  val dbuff_id = RegInit(0.asUInt(4.W))
 
   // Is there a valid registered transaction?
   when(function_queue.io.deq.valid) {

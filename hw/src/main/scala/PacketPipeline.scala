@@ -82,7 +82,7 @@ class PPegressLookup extends Module {
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new QueueEntry, 1, true, false))
-  val pending      = Module(new Queue(new PacketFactory, 6, true, false))
+  val pending      = Module(new Queue(new PacketFactory, 12, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
 
   // Tie register stages to input and output 
@@ -178,7 +178,7 @@ class PPegressPayload extends Module {
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFactory, 6, true, false))
+  val pending = Module(new Queue(new PacketFactory, 12, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
 
   // Tie register stages to input and output 
@@ -570,14 +570,22 @@ class PPingressPayload extends Module {
    * payload chunk) is byte zero of our write request
    */
 
-  // TODO can this be made more generic
+  // TODO can this be made more generic? Shifting should happen somewhere else maybe?
   // The first frame is pure header data
   when (packet_reg_0.io.deq.bits.frame_off =/= 0.U) {
     // Always issue a RAM write request if possible
     io.c2hPayloadRamReq.valid     := packet_reg_0.io.deq.valid
-    // TODO may need to precompute this
-    io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload >> (512.U - (packet_reg_0.io.deq.bits.payloadBytes() * 8.U))
   }
+
+  when (packet_reg_0.io.deq.bits.frame_off === 64.U) {
+    io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload >> (512.U - (packet_reg_0.io.deq.bits.payloadBytes() * 8.U))
+  }.otherwise {
+    io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload
+  }
+// TODO may need to precompute this
+    // TODO DO WE EVEN NEED TO SHIFT IF IT IS NOT THE FIRST PARTIAL FRAME?
+
+
 
   // When the RAM request is eventually made, we can increment the RAM pointer offset 
   when(packet_reg_0.io.deq.fire) {
