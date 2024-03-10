@@ -39,8 +39,9 @@ Each user applications are allocated four memory regions, which are used to carr
 
 The steps to access these memory regions are discuessed within the kernel module and application section. We deal here only with the application interface once the channel has been opened.
 
-### Host-to-Card Metadata
-Sendmsg and recvmsg requests are encoded in this structure
+### Host-to-Card and Card-to-Host Metadata
+
+Sendmsg and recvmsg requests are encoded in the following 64 byte structure. 
 ```C
 struct msghdr_t {
     uint32_t unused; 
@@ -49,13 +50,19 @@ struct msghdr_t {
     uint16_t sport; // Source port
     uint16_t dport; // Desintation port
     uint32_t buff_addr; // Offset of message buffer for send/recv
-    uint32_t metadata;  // (size << 12) | retoff  TODO 
+    uint32_t metadata;  // TODO (size << 12) | retoff   
     uint64_t id; // zero for request, non-zero for reply
     uint64_t cc; // Completition cookie
 }__attribute__((packed));
 ```
+All application communication is handled via 64 byte MMIO writes of these structures to the host-to-card metadata region, and 64 byte DMA writes to the card-to-host region by the NIC itself. The host-to-card metadata region can be thought of as a function invocation, whose return result will be placed in the card-to-host metadata region.
 
-Writes to address 0 of this memory will 
+TODO more description
+
+### Host-to-Card and Card-to-Host Message Buffer
+Currently, these are MB aligned (max Homa message size) regions of memory for message data.
+
+TODO more description
 
 ## Kernel Module
 **Only tested under Linux 4.15.**
@@ -79,9 +86,9 @@ ls /dev/homa_nic_*
 ```
 
 To interact with the NIC, the user application can then open and mmap a character device as follows:
-```
+```C
 int h2c_metadata_fd = open("/dev/homa_nic_h2c_metadata", O_RDWR|O_SYNC);
-char * h2c_metadata_map = (char *) mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_metadata_fd, 0);
+char * h2c_metadata_map = (char *) mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_metadata_fd, 0);
 ```
 The API is defined in more depth above.
 
@@ -101,8 +108,11 @@ sudo insmod homanic.ko
 sudo rmmod homanic.ko
 ```
 
+### Internals
+TODO address space layout 
+
 ## Hardware Flow
-Currently the only target device is Alveo U250 FPGAs, though much of this code is general and could be retarted with some effort.
+Currently the only target device is Alveo U250 FPGAs, though much of this code is general and could be retargeted with some effort.
 
 The majorty of the Homa logic is implemented in Chisel, and Chisel is used to orchestrate the project as a whole. Verilog cores are wrapped as Chisel black boxes. Xilinx IP are represented with Chisel blackboxes that automatically generate the underlying tcl commands to create the respective module (more on this in related writings).
 
@@ -132,7 +142,7 @@ make homa
 ```
 
 #### Hardware Architecture
-Picture of the architecture here....
+TODO: Picture of the architecture here 
 
 
 ### Applications
@@ -145,11 +155,7 @@ make apps
 ```
 
 #### Tests
-##### Perf Testing
-Stresses the NIC with 64B echo requests, 64B device register reads, 64B packet loopback.
-```
-make parse
-```
+# TODO add description 
 
 ### Related Writings
 https://colindrewes.com/writing/chisel_xilinx_ip.html
