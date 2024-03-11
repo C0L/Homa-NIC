@@ -125,12 +125,6 @@ class SendmsgQueue extends Module {
 
   send_queue_raw.io.CACHE_BLOCK_SIZE <> io.fetchSize
 
-  // val sendmsg_out_ila = Module(new ILA(Flipped(new axis(89, false, 0, false, 0, false, 0, false))))
-  // sendmsg_out_ila.io.ila_data := send_queue_raw.io.m_axis
-
-  // val sendmsg_in_ila = Module(new ILA(new axis(89, false, 0, false, 0, false, 0, false)))
-  // sendmsg_in_ila.io.ila_data  := send_queue_raw.io.s_axis
-
   send_queue_raw.io.clk := clock
   send_queue_raw.io.rst := reset.asUInt
 
@@ -321,6 +315,7 @@ class pcie_rtl extends BlackBox (
 }
 
 // TODO ports should be passed down all the way to RTL core. In general the RTL core should be more parameterizable from the top level chisel
+// TODO This is hard to read and has a lot of repetative logic
 class PCIe (PORTS: Int) extends Module {
   val io = IO(new Bundle {
     val pcie_rx_p       = Input(UInt(16.W))

@@ -18,6 +18,7 @@ class AddressMap extends Module {
   })
 
   val map = SyncReadMem(3*16384, new DmaMap)
+  // TODO really need to have three seperate maps due to limited RW channels!!!
 
   // TODO can data still get lost in this if a read request goes out then there is stall??
   // Should reg read output?

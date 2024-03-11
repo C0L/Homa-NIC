@@ -457,6 +457,11 @@ class PPingressMap extends Module {
     val packet_out = Decoupled(new PacketFactory) // Output packet factory with local ID
   })
 
+  val cam = Module(new CAM(128, 128))
+  // cam
+
+  // TODO queue temp packet result
+
   io.packet_in <> io.packet_out 
 }
 
@@ -582,10 +587,6 @@ class PPingressPayload extends Module {
   }.otherwise {
     io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload
   }
-// TODO may need to precompute this
-    // TODO DO WE EVEN NEED TO SHIFT IF IT IS NOT THE FIRST PARTIAL FRAME?
-
-
 
   // When the RAM request is eventually made, we can increment the RAM pointer offset 
   when(packet_reg_0.io.deq.fire) {

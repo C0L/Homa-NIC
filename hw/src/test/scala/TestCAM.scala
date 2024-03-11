@@ -12,7 +12,7 @@ import chisel3.util._
 import scala.math.pow
 
 class TestCAM extends AnyFreeSpec {
-  "cam test: single cam insertion and read" in {
+  "single cam insertion and read" in {
     simulate(new CAM(32,32)) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step()
@@ -22,7 +22,7 @@ class TestCAM extends AnyFreeSpec {
       dut.io.insert.bits.key.poke("hffff".U)
       dut.io.insert.bits.value.poke("haaaa".U)
       dut.io.insert.bits.set.poke(1.U)
-      dut.io.insert.bits.tag.poke("hdeadbeef".U)
+      // dut.io.insert.bits.tag.poke("hdeadbeef".U)
       dut.io.insert.valid.poke(true.B)
 
       dut.clock.step()
@@ -75,20 +75,21 @@ class TestCAM extends AnyFreeSpec {
       dut.reset.poke(false.B)
       dut.clock.step()
 
-      val tvs = Array.fill(5000)(0)
+      val tvs = Array.fill(8000)(0)
       val rnd = new scala.util.Random(9)
 
-      for (i <- 0 to 5000-1) {
+      for (i <- 0 to 8000-1) {
         val next = rnd.nextInt(294967296)
         tvs(i) = next
         
         dut.io.insert.bits.key.poke(next.U)
         dut.io.insert.bits.value.poke(next.U)
         dut.io.insert.bits.set.poke(1.U)
-        dut.io.insert.bits.tag.poke("hdeadbeef".U)
+        // dut.io.insert.bits.tag.poke("hdeadbeef".U)
         dut.io.insert.valid.poke(true.B)
 
         dut.clock.step()
+        // println(i)
       }
 
       dut.io.insert.valid.poke(false.B)
@@ -97,6 +98,7 @@ class TestCAM extends AnyFreeSpec {
 
       var count = 0
       for (tv <- tvs) {
+        // println(tv)
         count = count + 1
         dut.clock.step()
  
