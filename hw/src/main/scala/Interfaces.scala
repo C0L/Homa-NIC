@@ -391,6 +391,6 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
 
     result := vec.reduce(_ + _)
     result ^ seeds(TABLE).U
-    result % 30133.U
+    result % 1021.U
   }
 }

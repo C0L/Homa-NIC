@@ -19,7 +19,7 @@ class CAM (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Module {
     val insert = Flipped(Decoupled(new CAMEntry(KEY_WIDTH, VALUE_WIDTH)))
   })
 
-  val tables = Seq.fill(4)(SRAM(32768, new CAMEntry(KEY_WIDTH, VALUE_WIDTH), 2, 1, 0))
+  val tables = Seq.fill(4)(SRAM(1024, new CAMEntry(KEY_WIDTH, VALUE_WIDTH), 2, 1, 0))
   val insertQueues = Seq.fill(5)(Module(new Queue(new CAMEntry(KEY_WIDTH, VALUE_WIDTH), 1, true, false)))
   val searchQueues = Seq.fill(4)(Module(new Queue(new CAMEntry(KEY_WIDTH, VALUE_WIDTH), 1, true, false)))
 
