@@ -55,16 +55,16 @@ class PPegressStages extends Module {
   // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // pp_egress_trigger_ila.io.ila_data := io.trigger
 
-  val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
-  val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
-  // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
 
-  // val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  // val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   // pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
 }
 
@@ -77,13 +77,13 @@ class PPegressLookup extends Module {
     val ram_read_data = Flipped(Decoupled(new RamReadResp)) // Control block returned from read
 
     val packet_in  = Flipped(Decoupled(new QueueEntry)) // Output from sendmsg queue
-    val packet_out = Decoupled(new PacketFactory) // Packet factory associated with this queue output 
+    val packet_out = Decoupled(new PacketFrameFactory) // Packet factory associated with this queue output 
   })
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new QueueEntry, 1, true, false))
-  val pending      = Module(new Queue(new PacketFactory, 12, true, false))
-  val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+  val pending      = Module(new Queue(new PacketFrameFactory, 12, true, false))
+  val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
@@ -93,7 +93,7 @@ class PPegressLookup extends Module {
    *  Tie stage 0 to delay queue
    *  Dispatch the ram read request
    */ 
-  pending.io.enq.bits         := 0.U.asTypeOf(new PacketFactory)
+  pending.io.enq.bits         := 0.U.asTypeOf(new PacketFrameFactory)
   pending.io.enq.bits.trigger := packet_reg_0.io.deq.bits
   pending.io.enq.valid        := packet_reg_0.io.deq.valid
   packet_reg_0.io.deq.ready   := pending.io.enq.ready
@@ -125,8 +125,8 @@ class PPegressLookup extends Module {
  */
 class PPegressDupe extends Module {
   val io = IO(new Bundle {
-    val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory
-    val packet_out = Decoupled(new PacketFactory) // Output duplicated packet factories
+    val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory
+    val packet_out = Decoupled(new PacketFrameFactory) // Output duplicated packet factories
   })
 
   // Tag each duplicated packet factory out with 64 byte increments
@@ -134,8 +134,8 @@ class PPegressDupe extends Module {
 
   /* Computation occurs between register stage 0 and 1
    */
-  val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+  val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
+  val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
@@ -171,15 +171,15 @@ class PPegressPayload extends Module {
     val ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for payload data
     val ram_read_data = Flipped(Decoupled(new RamReadResp)) // Payload data returned
 
-    val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory
-    val packet_out = Decoupled(new PacketFactory) // Output packet factory data with 64B of payload
+    val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory
+    val packet_out = Decoupled(new PacketFrameFactory) // Output packet factory data with 64B of payload
   })
 
   /* Computation occurs between register stage 0 and 1
    */
-  val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFactory, 18, true, false)) // TODO cross domain crossing heavy penatly
-  val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+  val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
+  val pending = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO cross domain crossing heavy penatly
+  val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
@@ -240,14 +240,14 @@ class PPegressPayload extends Module {
  */
 class PPegressCtor extends Module {
   val io = IO(new Bundle {
-     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory
-     val packet_out = Decoupled(new PacketFactory) // Output packet factory with header fields filled
+     val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory
+     val packet_out = Decoupled(new PacketFrameFactory) // Output packet factory with header fields filled
   })
 
   /* Computation occurs between register stage 0 and 1
    */
-  val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+  val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
+  val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   /* If there is more than 1 packet remaining, send 1 packet's worth
    * Otherwise send the remainder (remaining)
@@ -301,11 +301,11 @@ class PPegressCtor extends Module {
  */
 class PPegressXmit extends Module {
   val io = IO(new Bundle {
-    val packet_in  = Flipped(Decoupled(new PacketFactory))
+    val packet_in  = Flipped(Decoupled(new PacketFrameFactory))
     val egress  = new axis(512, false, 0, false, 0, true, 64, true) // Output to ethernet
   })
 
-  val packet_reg = Module(new Queue(new PacketFactory, 1, true, false))
+  val packet_reg = Module(new Queue(new PacketFrameFactory, 1, true, false))
   packet_reg.io.enq <> io.packet_in
   packet_reg.io.deq.ready := io.egress.tready
   io.egress.tvalid := packet_reg.io.deq.valid
@@ -370,10 +370,10 @@ class PPingressStages extends Module {
   val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
   pp_ingress_ila.io.ila_data := io.ingress
 
-  // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
 
-  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFactory)))
+  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 }
 
@@ -384,11 +384,11 @@ class PPingressStages extends Module {
 class PPingressDtor extends Module {
   val io = IO(new Bundle {
     val ingress    = Flipped(new axis(512, false, 0, false, 0, true, 64, true)) // Input from ethernet
-    val packet_out = Decoupled(new PacketFactory) // Constructed packet factory to the next stage
+    val packet_out = Decoupled(new PacketFrameFactory) // Constructed packet factory to the next stage
   })
 
   val processed = RegInit(0.U(32.W)) // Number of bytes we have received so far for this packet
-  val pkt       = Reg(new PacketFactory) // Packet factory we are building as data arrives
+  val pkt       = Reg(new PacketFrameFactory) // Packet factory we are building as data arrives
   val pktvalid  = RegInit(false.B) // Whether the packet factory should progress to the next stage
 
   // The output to the next stage is a registed packet factory and registered valid signal
@@ -398,7 +398,7 @@ class PPingressDtor extends Module {
   // TODO this is probably not good
   io.ingress.tready := io.packet_out.ready
 
-  val length = (new PacketFactory).getWidth
+  val length = (new PacketFrameFactory).getWidth
 
   /* State machine for parsing packets
    * If there is data from ingress (64 byte chunks coming from the
@@ -421,12 +421,12 @@ class PPingressDtor extends Module {
   // TODO can some of this be moved into packet factory?
   when ((pktvalid === false.B || io.packet_out.ready === 1.U) && io.ingress.tvalid) {
     when (processed === 0.U) {
-      pkt := Cat(io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 512).W)).asTypeOf(new PacketFactory)
+      pkt := Cat(io.ingress.tdata, 0.U(((new PacketFrameFactory).getWidth - 512).W)).asTypeOf(new PacketFrameFactory)
       pkt.frame_off := processed
       pktvalid := false.B
     }.elsewhen (processed === 64.U) {
       // We know that packet_out was ready so this will send data
-      pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFactory).getWidth - 1024).W)).asTypeOf(new PacketFactory)
+      pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFrameFactory).getWidth - 1024).W)).asTypeOf(new PacketFrameFactory)
 
       pkt.frame_off := processed
       pktvalid  := true.B
@@ -453,16 +453,66 @@ class PPingressDtor extends Module {
  */
 class PPingressMap extends Module {
   val io = IO(new Bundle {
-    val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory
-    val packet_out = Decoupled(new PacketFactory) // Output packet factory with local ID
+    val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory
+    val packet_out = Decoupled(new PacketFrameFactory) // Output packet factory with local ID
   })
 
-  val cam = Module(new CAM(128, 128))
-  // cam
+  val id = RegInit(0.U(16.W))
 
-  // TODO queue temp packet result
+  // 128 bits source address + 16 bit source port + 64 bit RPC ID
+  val cam = Module(new CAM(128 + 16 + 64, 16))
 
-  io.packet_in <> io.packet_out 
+  val searchInputReg  = Module(new Queue(new PacketFrameFactory, 1, true, false))
+  val searchPending   = Module(new Queue(new PacketFrameFactory, 6, true, false))
+  val searchOutputReg = Module(new Queue(new PacketFrameFactory, 1, true, false))
+
+  // Tie register stages to input and output 
+  searchInputReg.io.enq <> io.packet_in
+  io.packet_out         <> searchOutputReg.io.deq
+
+  /*
+   *  Tie stage 0 to delay queue
+   *  Dispatch the ram read request
+   */ 
+  searchPending.io.enq <> searchInputReg.io.deq
+
+  cam.io.search.bits.key   := Cat(searchInputReg.io.deq.bits.ipv6.saddr, searchInputReg.io.deq.bits.common.sport, searchInputReg.io.deq.bits.common.sender_id)
+  cam.io.search.bits.value := id
+  cam.io.search.bits.set   := 1.U
+  cam.io.search.valid      := searchInputReg.io.deq.fire
+
+  /*
+   * Tie delay queue to stage 1
+   * Wait for ram request to return (acts as enable signal for transaction)
+   * Dequeue if the downstream can accept and we have ram data
+   * We are ready if there are no more chunks to dequeue
+   */
+  searchPending.io.deq.ready   := searchOutputReg.io.enq.ready && cam.io.result.valid
+  cam.io.result.ready          := searchOutputReg.io.enq.ready
+  searchOutputReg.io.enq.valid := cam.io.result.valid
+  searchOutputReg.io.enq.bits  := searchPending.io.deq.bits
+
+  cam.io.insert.bits  := 0.U.asTypeOf(new CAMEntry(128 + 16 + 64, 16))
+  cam.io.insert.valid := false.B
+
+  // When the CAM lookup has completed check if the search was sucessful
+  when (searchPending.io.deq.fire) {
+    when (cam.io.result.bits.set =/= 0.U) {
+      // Fill in the ID
+      searchOutputReg.io.enq.bits.cb.id := cam.io.result.bits.value
+    }.otherwise {
+      // TODO and insert
+      // Generate the ID and increment
+      searchOutputReg.io.enq.bits.cb.id := id
+
+      cam.io.insert.bits.key   := Cat(searchPending.io.deq.bits.ipv6.saddr, searchPending.io.deq.bits.common.sport, searchPending.io.deq.bits.common.sender_id)
+      cam.io.insert.bits.value := id
+      cam.io.insert.bits.set   := 1.U
+      cam.io.insert.valid := true.B
+
+      id := id + 1.U
+    }
+  }
 }
 
 /* PPingressLookup - Look up the associated recv control block with
@@ -473,17 +523,17 @@ class PPingressLookup extends Module {
     val ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for recvmsg control blocks
     val ram_read_data = Flipped(Decoupled(new RamReadResp)) // Control block returned from read
 
-    val packet_in  = Flipped(Decoupled(new PacketFactory)) // Packet factory input 
-    val packet_out = Decoupled(new PacketFactory) // Packet factory output with control block added
+    val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Packet factory input 
+    val packet_out = Decoupled(new PacketFrameFactory) // Packet factory output with control block added
   })
 
   // println((io.packet_in.bits.eth.getWidth + io.packet_in.bits.ipv6.getWidth + io.packet_in.bits.common.getWidth + io.packet_in.bits.data.getWidth)/8);
 
   /* Computation occurs between register stage 0 and 1
    */
-  val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFactory, 6, true, false))
-  val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+  val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
+  val pending = Module(new Queue(new PacketFrameFactory, 6, true, false))
+  val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
@@ -531,10 +581,10 @@ class PPingressPayload extends Module {
     val c2hPayloadRamReq = Decoupled(new RamWriteReq) // Data to write to BRAM
     val c2hPayloadDmaReq  = Decoupled(new DmaReq) // Descriptors to pcie to init request
 
-    val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory with data to write
+    val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory with data to write
   })
 
-  val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
+  val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   packet_reg_0.io.enq <> io.packet_in
 
@@ -621,15 +671,15 @@ class PPingressPayload extends Module {
 
 // class pp_ingress_bitmap extends Module {
 //   val io = IO(new Bundle {
-//     val packet_in  = Flipped(Decoupled(new PacketFactory)) // Input packet factory 
-//     // val packet_out = Decoupled(new PacketFactory) // 
+//     val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory 
+//     // val packet_out = Decoupled(new PacketFrameFactory) // 
 //   })
 // 
 //   /* Computation occurs between register stage 0 and 1
 //    */
-//   val packet_reg_0 = Module(new Queue(new PacketFactory, 1, true, false))
-//   val pending = Module(new Queue(new PacketFactory, 6, true, false))
-//   // val packet_reg_1 = Module(new Queue(new PacketFactory, 1, true, false))
+//   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
+//   val pending = Module(new Queue(new PacketFrameFactory, 6, true, false))
+//   // val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 // 
 //   // TODO create bundle of count offset + 64 bits of map
 //   // TODO how do we know if the first packet in sequence? Can init the RAM?

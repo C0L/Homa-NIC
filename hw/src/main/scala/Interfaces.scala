@@ -218,7 +218,7 @@ object HOMA {
 // TODO make this parmeterizable
 // TODO this only generates on chunk
 // TODO this name is not great as it goes from being a packet factory to a frame factory
-class PacketFactory extends Bundle {
+class PacketFrameFactory extends Bundle {
   val eth       = new EthHeader
   val ipv6      = new Ipv6Header
   val common    = new HomaCommonHeader
@@ -381,7 +381,6 @@ class CAMEntry (KEY_WIDTH: Int, VALUE_WIDTH: Int) extends Bundle {
   val key   = UInt(KEY_WIDTH.W)
   val value = UInt(VALUE_WIDTH.W)
   val set   = UInt(1.W)
-  // val tag   = UInt(32.W)
 
   val seeds = List("h7BF6BF21", "h9FA91FE9", "hD0C8FBDF", "hE6D0851C")
 
