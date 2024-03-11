@@ -39,16 +39,20 @@ int main() {
     snprintf(thread_name, sizeof(thread_name), "main");
     time_trace::thread_buffer thread_buffer(thread_name);
 
-    char * head_poll = ((char *) c2h_msgbuff_map + 0);
-    *head_poll = 0;
+    // for (int recv = 0; recv < 4; ++recv) {
+    	volatile char * head_poll = ((volatile char *) c2h_msgbuff_map + 0);
+    	*head_poll = 0;
 
-    char * tail_poll = ((char *) c2h_msgbuff_map) + 16384;
+    	volatile char * tail_poll = ((volatile char *) c2h_msgbuff_map) + 16384 - 128;
 
-    while(*head_poll == 0);
-    tt(rdtsc(), "first", 0, 0, 0, 0);
+    	*tail_poll = 0;
 
-    while(*tail_poll == 0);
-    tt(rdtsc(), "last", 0, 0, 0, 0);
+    	while(*head_poll == 0);
+    	tt(rdtsc(), "first", 0, 0, 0, 0);
+
+    	while(*tail_poll == 0);
+    	tt(rdtsc(), "last", 0, 0, 0, 0);
+    // }
 
     time_trace::print_to_file("parse/perf_bitrate.tt");
 

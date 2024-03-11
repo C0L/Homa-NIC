@@ -39,7 +39,17 @@ int main() {
 
     char pattern[5] = "\xDE\xAD\xBE\xEF";
 
-    for (int i = 0; i < HOMA_MAX_MESSAGE_LENGTH/4; ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
+    for (int i = 0; i < (HOMA_MAX_MESSAGE_LENGTH/64)-1; ++i) {
+        memset(pattern, i+1, 4);
+    	for (int j = 0; j < 64/4; ++j) {
+        	memcpy((((char*) h2c_msgbuff_map)) + (j*4) + (i*64), pattern, 4);
+    	}
+    }
+
+
+    // char pattern[5] = "\xDE\xAD\xBE\xEF";
+
+    // for (int i = 0; i < HOMA_MAX_MESSAGE_LENGTH/4; ++i) memcpy((((char*) h2c_msgbuff_map)) + (i*4), &pattern, 4);
 
     uint32_t retoff = 0; // Lte 12 bits used
     uint32_t size   = 16384; // Lte 20 bits used

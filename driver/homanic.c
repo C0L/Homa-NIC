@@ -482,6 +482,7 @@ int homanic_init(void) {
     io_regs = ioremap_wc(BAR_0, 0xA0000);
 
     cfg.fetchRequestSize = 256;
+    cfg.writeBufferSize  = 256;
 
     iomov64B((void*) io_regs + 64, (void *) &cfg);
 
