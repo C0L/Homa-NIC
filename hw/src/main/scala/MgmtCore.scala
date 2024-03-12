@@ -24,10 +24,7 @@ class MgmtCore extends Module {
     val h2cPayloadDmaStat = Flipped(Decoupled(new DmaReadStat))
 
     val c2hPayloadDmaReq  = Decoupled(new DmaReq)
-    // val c2hPayloadDmaStat = Flipped(Decoupled(new dma_write_desc_status_t(1)))
-
     val c2hMetadataDmaReq  = Decoupled(new DmaReq)
-    // val c2hMetadataDmaStat = Flipped(Decoupled(new dma_write_desc_status_t(1)))
   })
 
   val axi2axis       = Module(new axi2axis) // Convert incoming AXI requests to AXIS
@@ -35,22 +32,20 @@ class MgmtCore extends Module {
 
   val addr_map       = Module(new AddressMap) // Map read and write requests to DMA address
 
-  val fetch_queue    = Module(new FetchQueue)    // Fetch the next best chunk of data
+  val fetch_queue    = Module(new PayloadCache)    // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new SendmsgQueue)  // Send the next best message
 
   val sendmsg_cb     = Module(new SegmentedRam(262144)) // Memory for sendmsg control blocks
   val recvmsg_cb     = Module(new SegmentedRam(262144)) // Memory for recvmsg control blocks
   val sendmsg_cb_wr  = Module(new SegmentedRamWrite)    // Interface to write sendmsg cbs
-  val sendmsg_cb_rd  = Module(new SegmentedRamRead)     // 
-  val recvmsg_cb_wr  = Module(new SegmentedRamWrite)    //
-  val recvmsg_cb_rd  = Module(new SegmentedRamRead)     //
+  val sendmsg_cb_rd  = Module(new SegmentedRamRead)     // Interface to read sendmsg cbs
+  val recvmsg_cb_wr  = Module(new SegmentedRamWrite)    // Interface to write recvmsg cbs
+  val recvmsg_cb_rd  = Module(new SegmentedRamRead)     // Interface to read recvmsg cbs
 
   delegate.io.c2hMetadataRamReq <> io.c2hMetadataRamReq
 
   fetch_queue.io.fetchSize   := delegate.io.dynamicConfiguration.fetchRequestSize
   sendmsg_queue.io.fetchSize := delegate.io.dynamicConfiguration.fetchRequestSize
-
-  // h2c_dma.io.dynamicConfiguration := delegate.io.dynamicConfiguration
 
   val pp_ingress = Module(new PPingressStages)
 
@@ -60,7 +55,6 @@ class MgmtCore extends Module {
   pp_ingress.io.cb_ram_read_data <> recvmsg_cb_rd.io.ramReadResp
 
   pp_ingress.io.c2hPayloadRamReq <> io.c2hPayloadRamReq 
-  // pp_ingress.io.c2hPayloadDmaReq <> addr_map.io.c2hPayloadDmaReqIn
 
   val pp_egress  = Module(new PPegressStages)
 
@@ -73,7 +67,7 @@ class MgmtCore extends Module {
   pp_egress.io.trigger <> sendmsg_queue.io.dequeue
   pp_egress.io.egress  <> pp_ingress.io.ingress
 
-  // TODO should be able to handle this with a small wrapper + implicit clk/reset
+  pp_egress.io.newCacheFree <> fetch_queue.io.newFree
 
   sendmsg_cb.io.ram_wr <> sendmsg_cb_wr.io.ram_wr
   sendmsg_cb.io.ram_rd <> sendmsg_cb_rd.io.ram_rd
@@ -87,14 +81,17 @@ class MgmtCore extends Module {
   addr_map.io.dmaMap        <> delegate.io.newDmaMap
   addr_map.io.mappableIn(2) <> delegate.io.c2hMetadataDmaReq
   addr_map.io.mappableIn(1) <> pp_ingress.io.c2hPayloadDmaReq
-  addr_map.io.mappableIn(0) <> fetch_queue.io.dequeue 
+  addr_map.io.mappableIn(0) <> fetch_queue.io.fetchRequest
 
   addr_map.io.mappableOut(2) <> io.c2hMetadataDmaReq
   addr_map.io.mappableOut(1) <> io.c2hPayloadDmaReq
   addr_map.io.mappableOut(0) <> io.h2cPayloadDmaReq
 
-  fetch_queue.io.readcmpl <> io.h2cPayloadDmaStat
-  fetch_queue.io.enqueue <> delegate.io.newFetchdata
+  fetch_queue.io.fetchCmpl    <> io.h2cPayloadDmaStat
+
+  val newFetchableQueue = Module(new Queue(new QueueEntry, 1, true, false))
+  newFetchableQueue.io.enq <> delegate.io.newFetchdata
+  fetch_queue.io.newFetchable <>newFetchableQueue.io.deq
 
   // TODO need to throw out read requests
   // axi2axis takes the address of an AXI write and converts it to an
@@ -104,19 +101,17 @@ class MgmtCore extends Module {
   axi2axis.io.s_axi_aclk    <> clock
   axi2axis.io.s_axi_aresetn <> !reset.asBool
 
-
   val newSendmsgQueue = Module(new Queue(new QueueEntry, 1, true, false)) 
   val newDnotifsQueue = Module(new Queue(new QueueEntry, 1, true, false))
 
   newSendmsgQueue.io.enq <> delegate.io.newSendmsg
-  newDnotifsQueue.io.enq <> fetch_queue.io.notifout
+  newDnotifsQueue.io.enq <> fetch_queue.io.fetchNotif
 
   // Alternate between fetchdata and notifs to the fetch queue
   val sendmsg_arbiter = Module(new RRArbiter(new QueueEntry, 2))
   sendmsg_arbiter.io.in(0) <> newSendmsgQueue.io.deq
   sendmsg_arbiter.io.in(1) <> newDnotifsQueue.io.deq
   sendmsg_arbiter.io.out   <> sendmsg_queue.io.enqueue
-  // delegate.io.newSendmsg <> sendmsg_queue.io.enqueue
 
   /* DEBUGGING ILAS */
   // val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
@@ -141,7 +136,7 @@ class MgmtCore extends Module {
   // fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
 
   val fetch_out_ila = Module(new ILA(new DmaReq))
-  fetch_out_ila.io.ila_data := fetch_queue.io.dequeue.bits
+  fetch_out_ila.io.ila_data := fetch_queue.io.fetchRequest.bits
 
   val c2h_addr_map_out_ila = Module(new ILA(new DmaReq))
   c2h_addr_map_out_ila.io.ila_data := addr_map.io.mappableOut(1).bits

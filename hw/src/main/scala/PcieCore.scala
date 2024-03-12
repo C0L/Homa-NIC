@@ -39,10 +39,10 @@ class pcie_core extends Module {
   val c2hMetadataDmaReq  = IO(Flipped(Decoupled(new DmaReq)))
   // val c2hMetadataDmaStat = IO(Decoupled(new dma_write_desc_status_t(1)))
 
-  val m_axi                 = IO(new axi(512, 26, true, 8, true, 4, true, 4))
+  val m_axi            = IO(new axi(512, 26, true, 8, true, 4, true, 4))
 
-  val pcie_user_clk         = IO(Output(Clock()))
-  val pcie_user_reset       = IO(Output(Bool()))
+  val pcie_user_clk    = IO(Output(Clock()))
+  val pcie_user_reset  = IO(Output(Bool()))
 
   val pcie_core = Module(new PCIe(2))
 
@@ -79,7 +79,7 @@ class pcie_core extends Module {
   c2hMetadataDmaReq  <> pcie_core.io.dmaWriteReq(1)
   // c2hMetadataDmaStat <> pcie_core.io.dmaWriteStat(1)
 
-  pcie_core.io.dmaReadReq(1) := DontCare
+  pcie_core.io.dmaReadReq(1)  := DontCare
   pcie_core.io.dmaReadStat(1) := DontCare
 
   pcie_core.io.ram_wr(1) := DontCare

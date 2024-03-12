@@ -22,6 +22,8 @@
 
 // `define CACHE_SIZE 131072
 
+// TODO INCORRECT DECREMENT ON FREE
+
 /**
  * srpt_data_pkts() - Determines which data packet should be transmit
  * next based on the number of remaining bytes to send. Packets
@@ -143,7 +145,7 @@ module srpt_queue #(parameter CACHE_SIZE = 131072,
 	     end else if (TYPE == "fetch") begin 
 	        if (low_i[`QUEUE_ENTRY_PRIORITY] == `SRPT_DBUFF_UPDATE 
 	  	   && low_i[`QUEUE_ENTRY_DBUFF_ID] == high_i[`QUEUE_ENTRY_DBUFF_ID]) begin
-	  	  low_o[`QUEUE_ENTRY_DBUFFERED] = low_o[`QUEUE_ENTRY_DBUFFERED] - 1386;
+	  	  low_o[`QUEUE_ENTRY_DBUFFERED] = low_o[`QUEUE_ENTRY_DBUFFERED] - PAYLOAD_SIZE;
 	  	  low_o[`QUEUE_ENTRY_PRIORITY]  = `SRPT_ACTIVE;
 	        end
 	     end

@@ -25,6 +25,8 @@ class PPegressStages extends Module {
 
     val payload_ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for packet payload data
     val payload_ram_read_data = Flipped(Decoupled(new RamReadResp)) // Payload data returned from read
+
+    val newCacheFree = Decoupled(UInt(10.W)) // Opens the cache window by freeing one packet chunk for buffer ID
   })
 
   val pp_lookup  = Module(new PPegressLookup)  // Lookup the control block
@@ -46,8 +48,9 @@ class PPegressStages extends Module {
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
   // Hook payload core up to the payload RAM managed by fetch queue
-  pp_payload.io.ram_read_desc        <> io.payload_ram_read_desc
-  pp_payload.io.ram_read_data        <> io.payload_ram_read_data
+  pp_payload.io.ramReadReq  <> io.payload_ram_read_desc
+  pp_payload.io.ramReadData <> io.payload_ram_read_data
+  pp_payload.io.newCacheFree <> io.newCacheFree
 
   // val pp_egress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
   // pp_egress_ila.io.ila_data := io.egress
@@ -168,11 +171,13 @@ class PPegressDupe extends Module {
  */
 class PPegressPayload extends Module {
   val io = IO(new Bundle {
-    val ram_read_desc = Decoupled(new RamReadReq) // Read descriptors for payload data
-    val ram_read_data = Flipped(Decoupled(new RamReadResp)) // Payload data returned
+    val ramReadReq  = Decoupled(new RamReadReq) // Read descriptors for payload data
+    val ramReadData = Flipped(Decoupled(new RamReadResp)) // Payload data returned
 
     val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory
     val packet_out = Decoupled(new PacketFrameFactory) // Output packet factory data with 64B of payload
+
+    val newCacheFree = Decoupled(UInt(10.W)) // Opens the cache window by freeing one packet chunk for buffer ID
   })
 
   /* Computation occurs between register stage 0 and 1
@@ -191,7 +196,11 @@ class PPegressPayload extends Module {
    */ 
   pending.io.enq <> packet_reg_0.io.deq
 
-  io.ram_read_desc.bits := 0.U.asTypeOf(new RamReadReq)
+  // TODO no flow control on this path. Frees 1 payload worth of bytes
+  io.newCacheFree.bits  := packet_reg_0.io.deq.bits.trigger.dbuff_id
+  io.newCacheFree.valid := packet_reg_0.io.deq.valid
+
+  io.ramReadReq.bits := 0.U.asTypeOf(new RamReadReq)
 
   // The cache line offset for this packet is determined by the cache ID times line size
   val cacheOffset = (packet_reg_0.io.deq.bits.trigger.dbuff_id * CacheCfg.lineSize.U)
@@ -214,9 +223,9 @@ class PPegressPayload extends Module {
   /* The ram read operation is dispatched when the packet factory moves from initial register stage to pending. 
    * NOTE: This assumes the ram read core is always ready
    */
-  io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
-  io.ram_read_desc.bits.addr := finalOffset
-  io.ram_read_desc.bits.len  := packet_reg_0.io.deq.bits.payloadBytes()
+  io.ramReadReq.valid     := packet_reg_0.io.deq.fire
+  io.ramReadReq.bits.addr := finalOffset
+  io.ramReadReq.bits.len  := packet_reg_0.io.deq.bits.payloadBytes()
 
   /*
    * Tie delay queue to stage 1
@@ -224,15 +233,15 @@ class PPegressPayload extends Module {
    * Dequeue if the downstream can accept and we have ram data
    * We are ready if there are no more chunks to dequeue
    */
-  pending.io.deq.ready      := packet_reg_1.io.enq.ready && io.ram_read_data.valid
-  packet_reg_1.io.enq.valid := pending.io.deq.valid && io.ram_read_data.valid
+  pending.io.deq.ready      := packet_reg_1.io.enq.ready && io.ramReadData.valid 
+  packet_reg_1.io.enq.valid := pending.io.deq.valid && io.ramReadData.valid
 
   // If the RAM read has data there is always data in queue. That will
   // be emptied when the downstream is availible
-  io.ram_read_data.ready := packet_reg_1.io.enq.ready
+  io.ramReadData.ready := packet_reg_1.io.enq.ready
 
   packet_reg_1.io.enq.bits         := pending.io.deq.bits
-  packet_reg_1.io.enq.bits.payload := io.ram_read_data.bits.data
+  packet_reg_1.io.enq.bits.payload := io.ramReadData.bits.data
 }
 
 /* PPegressCtor - takes an input packet factory and computes/fills
