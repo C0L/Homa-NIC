@@ -188,7 +188,7 @@ class PPegressPayload extends Module {
 
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
-  io.packet_out       <> packet_reg_1.io.deq
+  io.packet_out       <> packet_reg_1.io.deq 
 
   /*
    *  Tie stage 0 to delay queue
@@ -198,7 +198,8 @@ class PPegressPayload extends Module {
 
   // TODO no flow control on this path. Frees 1 payload worth of bytes
   io.newCacheFree.bits  := packet_reg_0.io.deq.bits.trigger.dbuff_id
-  io.newCacheFree.valid := packet_reg_0.io.deq.valid
+  // io.newCacheFree.valid := packet_reg_0.io.deq.valid && packet_reg_0.io.deq.bits.lastFrame() === 1.U
+  io.newCacheFree.valid := false.B // TODO
 
   io.ramReadReq.bits := 0.U.asTypeOf(new RamReadReq)
 
@@ -466,62 +467,65 @@ class PPingressMap extends Module {
     val packet_out = Decoupled(new PacketFrameFactory) // Output packet factory with local ID
   })
 
-  val id = RegInit(0.U(16.W))
+  io.packet_in <> io.packet_out
+
+  // TODO temp
+  // val id = RegInit(0.U(16.W))
 
   // 128 bits source address + 16 bit source port + 64 bit RPC ID
-  val cam = Module(new CAM(128 + 16 + 64, 16))
+  // val cam = Module(new CAM(128 + 16 + 64, 16))
 
-  val searchInputReg  = Module(new Queue(new PacketFrameFactory, 1, true, false))
-  val searchPending   = Module(new Queue(new PacketFrameFactory, 6, true, false))
-  val searchOutputReg = Module(new Queue(new PacketFrameFactory, 1, true, false))
+  // val searchInputReg  = Module(new Queue(new PacketFrameFactory, 1, true, false))
+  // val searchPending   = Module(new Queue(new PacketFrameFactory, 6, true, false))
+  // val searchOutputReg = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
-  // Tie register stages to input and output 
-  searchInputReg.io.enq <> io.packet_in
-  io.packet_out         <> searchOutputReg.io.deq
+  // // Tie register stages to input and output 
+  // searchInputReg.io.enq <> io.packet_in
+  // io.packet_out         <> searchOutputReg.io.deq
 
-  /*
-   *  Tie stage 0 to delay queue
-   *  Dispatch the ram read request
-   */ 
-  searchPending.io.enq <> searchInputReg.io.deq
+  // /*
+  //  *  Tie stage 0 to delay queue
+  //  *  Dispatch the ram read request
+  //  */ 
+  // searchPending.io.enq <> searchInputReg.io.deq
 
-  cam.io.search.bits.key   := Cat(searchInputReg.io.deq.bits.ipv6.saddr, searchInputReg.io.deq.bits.common.sport, searchInputReg.io.deq.bits.common.sender_id)
-  cam.io.search.bits.value := id
-  cam.io.search.bits.set   := 1.U
-  cam.io.search.valid      := searchInputReg.io.deq.fire
+  // cam.io.search.bits.key   := Cat(searchInputReg.io.deq.bits.ipv6.saddr, searchInputReg.io.deq.bits.common.sport, searchInputReg.io.deq.bits.common.sender_id)
+  // cam.io.search.bits.value := id
+  // cam.io.search.bits.set   := 1.U
+  // cam.io.search.valid      := searchInputReg.io.deq.fire
 
-  /*
-   * Tie delay queue to stage 1
-   * Wait for ram request to return (acts as enable signal for transaction)
-   * Dequeue if the downstream can accept and we have ram data
-   * We are ready if there are no more chunks to dequeue
-   */
-  searchPending.io.deq.ready   := searchOutputReg.io.enq.ready && cam.io.result.valid
-  cam.io.result.ready          := searchOutputReg.io.enq.ready
-  searchOutputReg.io.enq.valid := cam.io.result.valid
-  searchOutputReg.io.enq.bits  := searchPending.io.deq.bits
+  // /*
+  //  * Tie delay queue to stage 1
+  //  * Wait for ram request to return (acts as enable signal for transaction)
+  //  * Dequeue if the downstream can accept and we have ram data
+  //  * We are ready if there are no more chunks to dequeue
+  //  */
+  // searchPending.io.deq.ready   := searchOutputReg.io.enq.ready && cam.io.result.valid
+  // cam.io.result.ready          := searchOutputReg.io.enq.ready
+  // searchOutputReg.io.enq.valid := cam.io.result.valid
+  // searchOutputReg.io.enq.bits  := searchPending.io.deq.bits
 
-  cam.io.insert.bits  := 0.U.asTypeOf(new CAMEntry(128 + 16 + 64, 16))
-  cam.io.insert.valid := false.B
+  // cam.io.insert.bits  := 0.U.asTypeOf(new CAMEntry(128 + 16 + 64, 16))
+  // cam.io.insert.valid := false.B
 
-  // When the CAM lookup has completed check if the search was sucessful
-  when (searchPending.io.deq.fire) {
-    when (cam.io.result.bits.set =/= 0.U) {
-      // Fill in the ID
-      searchOutputReg.io.enq.bits.cb.id := cam.io.result.bits.value
-    }.otherwise {
-      // TODO and insert
-      // Generate the ID and increment
-      searchOutputReg.io.enq.bits.cb.id := id
+  // // When the CAM lookup has completed check if the search was sucessful
+  // when (searchPending.io.deq.fire) {
+  //   when (cam.io.result.bits.set =/= 0.U) {
+  //     // Fill in the ID
+  //     searchOutputReg.io.enq.bits.cb.id := cam.io.result.bits.value
+  //   }.otherwise {
+  //     // TODO and insert
+  //     // Generate the ID and increment
+  //     searchOutputReg.io.enq.bits.cb.id := id
 
-      cam.io.insert.bits.key   := Cat(searchPending.io.deq.bits.ipv6.saddr, searchPending.io.deq.bits.common.sport, searchPending.io.deq.bits.common.sender_id)
-      cam.io.insert.bits.value := id
-      cam.io.insert.bits.set   := 1.U
-      cam.io.insert.valid := true.B
+  //     cam.io.insert.bits.key   := Cat(searchPending.io.deq.bits.ipv6.saddr, searchPending.io.deq.bits.common.sport, searchPending.io.deq.bits.common.sender_id)
+  //     cam.io.insert.bits.value := id
+  //     cam.io.insert.bits.set   := 1.U
+  //     cam.io.insert.valid := true.B
 
-      id := id + 1.U
-    }
-  }
+  //     id := id + 1.U
+  //   }
+  // }
 }
 
 /* PPingressLookup - Look up the associated recv control block with

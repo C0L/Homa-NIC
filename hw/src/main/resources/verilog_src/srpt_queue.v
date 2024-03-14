@@ -162,9 +162,6 @@ module srpt_queue #(parameter CACHE_SIZE = 131072,
    
    assign sendq_dbuffered = (queue_head[`QUEUE_ENTRY_DBUFFERED] + PAYLOAD_SIZE <= queue_head[`QUEUE_ENTRY_REMAINING]) 
      | (queue_head[`QUEUE_ENTRY_DBUFFERED] == 0);
-   // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] == 0;
-   
-   // assign sendq_empty = queue_head[`QUEUE_ENTRY_REMAINING] <= `HOMA_PAYLOAD_SIZE;
 
    assign head_active = (queue_head[`QUEUE_ENTRY_PRIORITY] == `SRPT_ACTIVE);
 
@@ -238,7 +235,8 @@ module srpt_queue #(parameter CACHE_SIZE = 131072,
 	  	  end else begin
 	             queue[0][`QUEUE_ENTRY_REMAINING] <= queue[0][`QUEUE_ENTRY_REMAINING] - CACHE_BLOCK_SIZE;
 	             queue[0][`QUEUE_ENTRY_DBUFFERED] <= queue[0][`QUEUE_ENTRY_DBUFFERED] + CACHE_BLOCK_SIZE;
-		     
+
+		     // TODO cannot use dbuffered as address on output 
 	             // TODO could also swap here?
 	             if (queue[0][`QUEUE_ENTRY_DBUFFERED] >= CACHE_SIZE - CACHE_BLOCK_SIZE) begin
 	        	queue[0][`QUEUE_ENTRY_PRIORITY] <= `SRPT_BLOCKED;

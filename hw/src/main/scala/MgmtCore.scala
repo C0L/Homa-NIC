@@ -131,10 +131,7 @@ class MgmtCore extends Module {
 
   // val dma_map_ila = Module(new ILA(new dma_map_t))
   // dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits
-
-  // val fetch_in_ila = Module(new ILA(new QueueEntry))
-  // fetch_in_ila.io.ila_data := fetch_queue.io.enqueue.bits
-
+  
   val fetch_out_ila = Module(new ILA(new DmaReq))
   fetch_out_ila.io.ila_data := fetch_queue.io.fetchRequest.bits
 

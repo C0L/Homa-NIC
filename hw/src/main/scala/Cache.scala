@@ -8,6 +8,7 @@ import chisel3.util._
 // TODO move this outside of RTL wrappers
 // TODO should move storage of message size outside?
 
+// TODO this is more of a prefetcher?
 /* PayloadCache - Responsible for prefetching packet payload data.
  * Issues DMA read requests, stores associated state while request is
  * outstanding, issues notifcations when requests are complette to the
@@ -56,8 +57,11 @@ class PayloadCache extends Module {
   val arbiter = Module(new RRArbiter(new QueueEntry, 2))
   arbiter.io.in(0) <> io.newFetchable
   arbiter.io.in(1).bits  := newFreeEntry
-  arbiter.io.in(1).valid := freeQueue.io.deq.valid // io.newFree.valid
+  arbiter.io.in(1).valid := freeQueue.io.deq.valid
   freeQueue.io.deq.ready := arbiter.io.in(1).ready
+
+  val cacheFreeILA = Module(new ILA(new QueueEntry))
+  cacheFreeILA.io.ila_data := arbiter.io.in(1).bits
 
   fetchQueueRaw.io.s_axis.tdata  := arbiter.io.out.bits.asTypeOf(UInt(89.W))
   arbiter.io.out.ready := fetchQueueRaw.io.s_axis.tready
@@ -71,7 +75,9 @@ class PayloadCache extends Module {
 
   dmaRead.pcie_addr := fetchQueueRawOut.dbuffered
   dmaRead.ram_sel   := 0.U
-  dmaRead.ram_addr  := (CacheCfg.lineSize.U * fetchQueueRawOut.dbuff_id) + fetchQueueRawOut.dbuffered
+  // TODO modulus dbuffered modulos cache size
+  // TODO dbuffered is the wrong value
+  dmaRead.ram_addr  := (CacheCfg.lineSize.U * fetchQueueRawOut.dbuff_id) + (fetchQueueRawOut.dbuffered % 16364.U)
   dmaRead.len       := io.fetchSize
   dmaRead.tag       := tag
   dmaRead.port      := 1.U // TODO placeholder

@@ -7,7 +7,7 @@ import chisel3.util._
  * implementation. This name must match that of the Verilog.
  */
 class srpt_queue (qtype: String) extends BlackBox (
-  Map("CACHE_SIZE" -> CacheCfg.lineSize,
+  Map("CACHE_SIZE" -> 1000000, // CacheCfg.lineSize,
     "PAYLOAD_SIZE" -> NetworkCfg.payloadBytes,
     "MAX_RPCS" -> 64,
     "TYPE" -> qtype,
