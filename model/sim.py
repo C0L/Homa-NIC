@@ -61,77 +61,344 @@ Inaccuracies?
 #   - Some measure of latency?
 '''
 
-
-
-# TODO TODO TODO do grants open up a receiver or an individual message???
-
-
-
-# TODO is there a better policy if we know how many bytes are granted? Maybe basing purely off of payload bytes is suboptimal.
-
-
 import random
 import math
 import copy
 
-class Entry:
-    def __init__(self, id, payload, grant, st=0, priority=0):
+# class Entry:
+#     def __init__(self, id, payloads, grant, st=0, priority=0):
+#         self.id = id
+#         self.payloads = payloads
+#         self.grant = grant
+#         self.st = st
+#         self.et = 0
+#         self.ugrant = 0
+#         self.origPayload = len(payloads)
+#         self.priority = priority
+# 
+#     def exhausted(self):
+#         return len(self.payloads) == 0
+# 
+#     def payloadSize(self):
+#         return len(self.payloads)
+# 
+#     def __repr__(self):
+#         return f'ID: {self.id}, Payload: {self.payloads}, Grant: {self.grant}, Priority: {self.priority}'
+
+# class Queue:
+#     def __init__(self, name):
+#         # Entries that have been completed by the queue
+#         self.complete = []
+# 
+#         # just use a list to store the elements and always search the elements
+#         self.queue = []
+# 
+#         # Tried to send an ungranted packet
+#         self.idleCycles = 0
+# 
+#         # Number of bytes sent
+#         self.totalBytes = 0
+# 
+#         self.cmplTime = 0
+# 
+#         # The name of the queue for printing purposes
+#         self.name = name
+# 
+#         # Payload data cache
+#         self.cache = []
+# 
+#     def cmplBytes(self):
+#         sum = 0
+#         for entry in self.complete:
+#             sum += entry.origPayload
+#         return sum
+# 
+#     def msgThroughput(self):
+#         return len(self.complete) / self.cmplTime
+# 
+#     def avgCmplTime(self):
+#         sumDir = 0
+#         for entry in self.complete:
+#             sumDir += (entry.et - entry.st)
+# 
+#         return sumDir / len(self.complete)
+# 
+#     def dumpStats(self):
+#         print(f'Queue: {self.name} Statistics:')
+#         print(f'   - Total Cycles      : {self.cmplTime}')
+#         print(f'   - Total Bytes       : {self.totalBytes}')
+#         print(f'   - Idle Cycles       : {self.idleCycles}')
+#         print(f'   - Completed Entries : {len(self.complete)}')
+#         print(f'   - Cmpl Bytes Sent   : {self.cmplBytes()}')
+#         print(f'   - Avg. Cmpl. Time   : {self.avgCmplTime()}')
+#         print(f'   - Msg / Unit Time   : {self.msgThroughput()}')
+
+
+class Message:
+    def __init__(self, id, payload):
         self.id = id
-        self.payload = payload
-        self.grant = grant
-        self.st = st
-        self.et = 0
-        self.ugrant = 0
-        self.origPayload = payload
-        self.priority = priority
+        self.payload = payloads
+        # self.grant = grant
+        # self.st = st
+        # self.et = 0
+        # self.ugrant = 0
+        # self.origPayload = len(payloads)
+        # self.priority = priority
 
-    def __repr__(self):
-        return f'ID: {self.id}, Payload: {self.payload}, Grant: {self.grant}, Priority: {self.priority}'
+    # def exhausted(self):
+    #     return len(self.payloads) == 0
 
-class Queue:
-    def __init__(self, name):
-        # Entries that have been completed by the queue
-        self.complete = []
+    # def payloadSize(self):
+    #     return len(self.payloads)
 
-        # just use a list to store the elements and always search the elements
+    # def __repr__(self):
+    #    return f'ID: {self.id}, Payload: {self.payloads}, Grant: {self.grant}, Priority: {self.priority}'
+
+class QueueEntry:
+    def __init__(self, id, priority):
+        self.id = id
+        self.priority = priority 
+
+class Sender():
+    def __init__(self, network):
+        self.network = network
+        self.priortyQueue = PriorityQueue()
+        self.generator = self.messagesGenerator()
+        self.nextMessage = next(generator)
+        self.activeMessages = []
+        self.id = 0
+
+    def cycle(self, time):
+        # Do we need to generate a new message from the poisson process?
+        if (self.nextMessage.st < time):
+            self.nextMessage = next(generator)
+
+        # If this cycle is when the new sendmsg request is ready
+        if (self.nextMessage.st == time):
+            # Initiate the sendmsg request
+            self.sendmsg(self.nextMessage)
+
+        # Take care of stuff to send out onto network
+        self.egress()
+
+        # Take care of stuff coming from network
+        self.ingress()
+
+    def sendmsg(self, message):
+        self.activeMessages.append(message)
+        queueEntry = QueueEntry(self.id)
+        self.id += 1
+
+        self.priorityQueue.enqueue(queueEntry)
+    
+    def messagesGenerator(self):
+        currPayloadID = 0
+        # Poisson arrival times + poisson packet sizes for outgoing messages
+        t = 0
+        while(1):
+            t += random.expovariate(.1)
+            # .1 = 1/desired mean
+            # Compute the number of units of payload
+            payload = math.floor(random.expovariate(.1))
+            granted = math.floor(random.expovariate(.1))
+            
+            # Construct a new entry to pass to the queues
+            message = Message(self.id, list(range(currPayloadID, currPayloadID + payload)))
+            # entry = Entry(self.id, list(range(currPayloadID, currPayloadID + payload)), granted, math.floor(t))
+            currPayloadID += payload
+            
+            # Move to the next message ID
+            self.id += 1
+            yield entry
+
+    def egress(self, message):
+        # TODO Read from head of priority queue
+        # self.network.route(message)
+        None
+    
+    def ingress(self, message):
+        # TODO These are always grants
+        None
+
+class Receiver():
+    def __init__(self, network):
+        # Number of bytes outstaning
+        self.outsanding = 0
+        self.priorityQueue = PriorityQueue()
+
+    def egress(self):
+        # TODO grants going out. Increases outstanding bytes
+        None
+
+    def ingress(self):
+        # TODO packet data arriving. Modifies outstanding bytes
+        None
+
+class Network():
+    # TODO use this to add delay over the network
+    def __init__(self, hosts):
+        self.hosts = hosts
+        self.mesh  = [[] for i in range(len(hosts)*len(hosts))]
+
+    def route(self, message):
+        mesh[message.sender + message.receiver * len(self.hosts)]
+        This should be handled by the receiver function call
+        # self.hosts[message.destination].ingress(message)
+
+class BisectedPriorityQueue():
+    def __init__(self):
+        # TODO make these configurable
+
+        # Fast on chip single-cycle priority queue
+        self.onChip  = PriorityQueue(1024, 1)
+
+        # Slow off chip multi-cycle priority queue
+        self.offChip = PriorityQueue(math.inf, 10)
+
+    def enqueue(self, entry):
+        if (!self.onChip.full()):
+            # If the onChip queue is not full insert into it
+            self.onChip.enqueue(entry)
+        elif (entry.priority < self.onChip.tail()):
+            # If the new element is better than the worst onChip
+            # Insert onChip and carry the tail
+            self.offChip.enqueue(self.onChip.tail())
+            self.onChip.enqueue(entry)
+        else:
+            # Otherwise place in offChip queue
+            self.offChip.enqueue(entry)
+
+    def dequeue(self):
+        None
+
+    def cycle(self):
+        None
+       
+class PriorityQueue():
+    def __init__(self, elements, delay):
+        # Every delay number of cycles the best value will be updated
+        
         self.queue = []
+        self.delay = delay
 
-        # Tried to send an ungranted packet
-        self.idleCycles = 0
+    def enqueue(self, entry):
+        # TODO dequeue the current best element
+        self.queue.append(entry)
+        
+    def dequeue(self):
+        # If we are storing no entries there is no packet to send
+        if (len(self.queue) == 0): return None
 
-        # Number of bytes sent
-        self.totalBytes = 0
+        # Find the highest priority elements
+        ideal = min(self.queue, key=lambda entry: entry.priority)
 
-        self.cmplTime = 0
+        # Reduce the priority as we send one packet
+        ideal.priority -= 1
 
-        # The name of the queue for printing purposes
-        self.name = name
+        if ideal.priority == -1:
+            self.queue.remove(ideal)
 
-    def cmplBytes(self):
-        sum = 0
-        for entry in self.complete:
-            sum += entry.origPayload
-        return sum
+        return ideal
 
-    def msgThroughput(self):
-        return len(self.complete) / self.cmplTime
 
-    def avgCmplTime(self):
-        sumDir = 0
-        for entry in self.complete:
-            sumDir += (entry.et - entry.st)
+# Current Goal: Create a sender object which instantiates a fast on chip queue with 1 cycle latency, and a slow queue of infinite size with X cycle latency. The sender can utilize some queueing dicipline. The sender gets sendmsg requests which causes insertion into the queue/s. The sendmsg request is destined for a particular receiver with some number of bytes.
 
-        return sumDir / len(self.complete)
+# Create a network object which takes the output of a sender and gives it to respective array of receivers. Make number of receivers configurable. Receivers practice their own SRPT.
+class Sim:
+    def __init__(self):
+        # Tested queuing strategies
+        # self.senders = Sender()
 
+        # Timestep counter
+        self.time = 0
+
+        # Initial ID to assign to new entries generated by the sendmsg function
+        self.id = 0
+
+        # self.grantGen = self.grantsGenerator()
+
+        # self.nextMsg   = next(self.msgGen)
+        # self.nextMsg   = next(self.msgGen)
+        # self.nextGrant = next(self.grantGen)
+
+        # Number of messages to complete
+        self.maxCmplMsg = 10
+
+    '''
+    Iterate through simulation steps up to the max simulation time
+    ''' 
+    def simulate(self):
+        while(not self.cmpl):
+            self.step()
+            self.time += 1
+
+    '''
+    One iteration of the system includes:
+      1) 1 packet goes out
+      2) The sendmsg function is invoked
+      3) The grants function is invoked
+    For each queue
+    '''  
+    def step(self):
+                
+        # Simulate all of the queues for this timestep
+        for queue in self.queues:
+            if (msgout != None):
+                queue.totalBytes += 1
+
+            if (msgout == None):
+                queue.idleCycles += 1
+            elif (msgout.exhausted()):
+                msgout.et = self.time
+                queue.complete.append(msgout)
+
+            queue.tick()
+
+    # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
-        print(f'Queue: {self.name} Statistics:')
-        print(f'   - Total Cycles      : {self.cmplTime}')
-        print(f'   - Total Bytes       : {self.totalBytes}')
-        print(f'   - Idle Cycles       : {self.idleCycles}')
-        print(f'   - Completed Entries : {len(self.complete)}')
-        print(f'   - Cmpl Bytes Sent   : {self.cmplBytes()}')
-        print(f'   - Avg. Cmpl. Time   : {self.avgCmplTime()}')
-        print(f'   - Msg / Unit Time   : {self.msgThroughput()}')
+        for queue in self.queues:
+            queue.dumpStats()
+
+if __name__ == '__main__':
+    sim = Sim() 
+    sim.simulate()
+    sim.dumpStats()
+
+
+# TODO also need to measure latency
+
+# TODO The probability of grants decreases as time goes on which is probably biased? Maybe should simulate the receiver as well performing their own grant scheduling?
+# TODO Keith-The World is not Poisson
+# TODO Can you get better average completion time by ignoring messages that are not completely granted? Maybe depends on the distribution of incoming grants? Maybe some other scheduling policy is desirable?
+# TODO maybe also measure starvation?
+# TODO flow control on individual substreams? Or on per message basis
+
+# TODO need concrete bulk activation/deactivation examples
+# The key question is can all scheduling decisions be made at time of enqueue
+#   Processor sharing + SRPT? Seems like a lot of long activate deactive cycles. Maybe you want to weight SRPT somehow within the SRPT queue.
+#   Multiple RPCs over a single flow. Maybe this is the norm for TCP based RPC systems? Would not want a seperate flow for each recevier. Would not want to startup a TCP connection for a new RPC
+#   Simplicity of design?
+#   Granting system?
+#   Updates to individual flows? Starvation prevention?
+#   No-reneging of windows?
+#   Active queue management?
+
+
+# Look into least slack time first
+# Curious about market-based congestion control processes
+# Outgoing messages are sorted in a queue by their "bid". Each message individually describes how to compute their bid/what they are willing to pay? Sending a packet consumes "bids" worth of tokens from that message.
+# Maybe the operator defines a system wide marginal utility for sending a messages next packet. Messages define a marginal utility for their packet being sent next. And compare against the two? SRPT can be expressed within marginal utilities. The message with the least remaining bytes has the highest marginal utility for the next packet, and so forth. Maybe the scheduling policy is marginal utility (partial derivative) which is simpler way to express scheduling?
+
+# The scheduler is responsible for computing the marginal utility and inserting them into a PIFO like queue. In the case of SRPT at least, marginal utility is a function dependent on the number of bytes remaining. This does not really do much for you I think.
+
+# Take the cost function, compute the marginal utility for each "good", time, bytes sent, etc. Could have one queue for each good. When a new message wants to be sent, compute the marginal utilities for each good, and insert them into their respective queues. Why can't PIFO just have a seperate FIFO queue that it occasionally pulls from? Push updates to other queues?
+
+# PIFO assumes that packet ranks increase monotonically within each flow
+
+# PIFO is O(n) comparisons?
+
+
+
 
 # !!!!! TODO  should reoder every cycle regardless of ops
 class Mutable(Queue):
@@ -163,11 +430,12 @@ class Mutable(Queue):
         '''
         if (head.priority == 0):
             # Send one packet
-            head.payload -= 1
+            # head.payload -= 1
+            head.payload.pop(-1)
             head.grant   -= 1
 
             # Did we send the whole message?
-            if (head.payload == 0):
+            if (head.exhausted()):
                 self.queue.pop(0)
             elif (head.grant == 0):
                 head.priority = 1
@@ -201,7 +469,7 @@ class Mutable(Queue):
                     high.priority = 0
                 self.queue[even+1] = low
                 self.queue[even]   = high
-            elif (low.priority == high.priority and low.payload > high.payload):
+            elif (low.priority == high.priority and low.payloadSize() > high.payloadSize()):
                 self.queue[even+1] = low
                 self.queue[even]   = high
 
@@ -218,9 +486,12 @@ class Mutable(Queue):
                     high.priority = 0
                 self.queue[odd+2] = low
                 self.queue[odd+1] = high
-            elif (low.priority == high.priority and low.payload > high.payload):
+            elif (low.priority == high.priority and low.payloadSize() > high.payloadSize()):
                 self.queue[odd+2] = low
                 self.queue[odd+1] = high
+
+    def tick(self):
+        self.order()
  
 
 class PIFO(Queue):
@@ -253,11 +524,12 @@ class PIFO(Queue):
         '''
         if (head.grant != 0):
             # Send one packet
-            head.payload -= 1
+            # head.payload -= 1
+            head.payload.pop(-1)
             head.grant   -= 1
 
             # Did we send the whole message?
-            if (head.payload == 0):
+            if (head.exhausted()):
                 self.queue.pop(0)
             elif (head.grant == 0):
                 self.queue.pop(0)
@@ -285,174 +557,6 @@ class PIFO(Queue):
             self.enqueue(loc)
             self.blocked.remove(loc)
 
-        
-class Ideal(Queue):
-    def __init__(self):
-        super().__init__( 'Ideal')
-
-    def enqueue(self, entry):
-        # print(f'enqueue: {entry}')
-        self.queue.append(entry)
-        
-    def dequeue(self):
-        # If we are storing no entries there is no packet to send
-        if (len(self.queue) == 0): return None
-
-        # TODO cleaner to remove if empty
-        ideal = min(self.queue, key=lambda entry: math.inf if entry.grant == 0 or entry.payload == 0 else entry.payload)
-        # Are there actually bytes to send, otherwise empty cycle nothing to do
-        if (ideal.grant != 0 and ideal.payload != 0):
-            ideal.payload -= 1
-            ideal.grant   -= 1
-
-            if (ideal.payload == 0):
-                self.queue.remove(ideal)
-
-            return ideal
-        else:
-            return None
-
-    def grant(self, grant):
-        loc = next((e[1] for e in enumerate(self.queue) if e[1].id == grant.id), None)
-
-        if loc != None:
-            loc.grant += grant.grant
-
-# TODO FIFO comparison
-        
-class Sim:
-    def __init__(self):
-        # Tested queuing strategies
-        self.queues         = [Ideal(), PIFO(), Mutable()] 
-        self.completeQueues = []
-
-        # Timestep counter
-        self.time = 0
-
-        # Initial ID to assign to new entries generated by the sendmsg function
-        self.id = 0
-
-        self.cmpl = False
-
-        self.msgGen   = self.messagesGenerator()
-        self.grantGen = self.grantsGenerator()
-
-        self.nextMsg   = next(self.msgGen)
-        self.nextGrant = next(self.grantGen)
-
-        # Number of messages to complete
-        # self.maxCmplMsg = 2
-        self.maxCmplMsg = 1000
-
-    def grantsGenerator(self):
-        # Poisson arrival times + poisson grant increments
-        t = 0
-        while(1):
-            t += random.expovariate(.2)
-            # .1 = 1/desired mean
-            # Compute the number of units of payload
-            increment = math.floor(random.expovariate(.1))
-
-            # Construct a new entry to pass to the queues
-            # Select from one of the IDs that has already been added to the queues
-            # TODO this could increment an entry that is already complete, or was fully granted already
-            # TODO is this OK to self time?
-            entry = Entry(random.randint(0, self.time), 0, increment, math.floor(t))
-
-            # Insert the new entry at the poisson process arrival time
-            # self.grants[math.floor(t)] = entry
-            
-            yield entry
-
-
-    def messagesGenerator(self):
-        # Poisson arrival times + poisson packet sizes for outgoing messages
-        t = 0
-        while(1):
-            t += random.expovariate(.1)
-            # .1 = 1/desired mean
-            # Compute the number of units of payload
-            payload = math.floor(random.expovariate(.1))
-            granted = math.floor(random.expovariate(.1))
-            
-            # Construct a new entry to pass to the queues
-            entry = Entry(self.id, payload, granted, math.floor(t))
-            
-            # Move to the next message ID
-            self.id += 1
-            yield entry
-
-    '''
-    Iterate through simulation steps up to the max simulation time
-    ''' 
-    def simulate(self):
-        while(not self.cmpl):
-            self.step()
-            self.time += 1
-
-    '''
-    One iteration of the system includes:
-      1) 1 packet goes out
-      2) The sendmsg function is invoked
-      3) The grants function is invoked
-    For each queue
-    '''  
-    def step(self):
-        if (self.nextMsg.st < self.time):
-            self.nextMsg  = next(self.msgGen)
-        
-        if (self.nextGrant.st < self.time):
-            self.nextGrant = next(self.grantGen)
-
-        self.cmpl = True
-
-        # Simulate all of the queues for this timestep
-        for queue in self.queues:
-            if (len(queue.complete) == self.maxCmplMsg):
-                if (queue.cmplTime == 0):
-                    queue.cmplTime = self.time
-
-                continue
-
-            self.cmpl = False
-
-            if (self.nextGrant.st == self.time):
-                if (self.nextGrant.grant != 0):
-                    queue.grant(copy.deepcopy(self.nextGrant))
-
-            if (self.nextMsg.st == self.time and self.nextMsg.payload != 0):
-                # pass the sendmsg to the queue if it exists
-                queue.enqueue(copy.deepcopy(self.nextMsg)) 
-
-            msgout = queue.dequeue()
-
-            if (msgout != None):
-                queue.totalBytes += 1
-
-            if (msgout == None):
-                queue.idleCycles += 1
-            elif (msgout.payload == 0):
-                msgout.et = self.time
-                queue.complete.append(msgout)
-                 #print(f'Complete {len(queue.complete)}')
-
-    # If both the packet size and send time are poisson it models a M/M/1 queue?
-    def dumpStats(self):
-        for queue in self.queues:
-            queue.dumpStats()
-
-if __name__ == '__main__':
-    sim = Sim() 
-    sim.simulate()
-    sim.dumpStats()
-
-# TODO also measure starvation
-# What is the approach for grants? Current sending packets for a non fully granted message is pointless
-# Poisson process incoming grants
-# Randomly pick a message that has been enqueued st payload > grant
-# poisson sample grant and add that to current grant
-
-# Some tests to run. Is there a better algorithm than SRPT when there are grants involved
-
-
-# You can get much better Average completion time by ignoring messages that are not immediately granted
+    def tick(self):
+        None
+ 
