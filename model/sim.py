@@ -2,25 +2,76 @@ import random
 import math
 import copy
 
+# TODO maybe these things can be collapsed into one?
 class Message:
-    def __init__(self, source, dest, id, length, payload, startTime):
-        self.source = source
-        self.dest = dest
-        self.id = id 
-        self.payload = payload
+    '''
+    Represents an outgoing message to be transmited or a message being received
+
+    ...
+
+    Attributes
+    ----------
+    source    : int 
+        ID of the sender 
+    dest      : int 
+        ID of the receiver
+    id        : int 
+        ID of this message
+    length    : int
+        Total length of this message
+    remaining : int
+        Remaining data units to send
+    ungranted: int
+        Remaining data to grant
+    startTime : int
+        Time step of this messages creation
+    
+    Methods
+    -------
+    __repr__():
+        Print out all of the attributes
+    '''
+    def __init__(self, source = 0, dest = 0, id = 0, length = 0, remaining = 0, ungranted = 0, startTime = 0):
+        """
+        Fills atrributes for message insantiation
+
+        Parameters
+        ----------
+        source    : int 
+            ID of the sender 
+        dest      : int 
+            ID of the receiver
+        id        : int 
+            ID of this message
+        length    : int
+            Total length of this message
+        remaining : int
+            Remaining data units to send
+        ungranted: int
+            Remaining data to grant
+        startTime : int
+            Time step of this messages creation
+        """
+        self.source    = source
+        self.dest      = dest
+        self.id        = id 
+        self.length    = length
+        self.remaining = remaining
+        self.ungranted = ungranted 
         self.startTime = startTime
-        self.endTime = 0
-        self.length = length
+        self.endTime   = 0
 
     def __repr__(self):
-        return f'Source: {self.source}, Dest: {self.dest}, ID: {self.id}, Start: {self.startTime}, End: {self.endTime}, Length: {self.length}, Payload: {self.payload}'
-
-class Packet:
-    # Message ID, source ID, dest ID, 
-    def __init__(self, mid, source, dest):
-        self.mid = mid
-        self.source = source
-        self.dest = dest
+        return f'''
+        Source: {self.source}
+        Dest: {self.dest}
+        ID: {self.id}
+        Length: {self.length}
+        Remaining: {self.remaining}
+        Ungranted: {self.ungranted}
+        Start: {self.startTime}
+        End: {self.endTime}
+        '''
 
 class QueueEntry:
     def __init__(self, mid, priority, cycles):
@@ -39,7 +90,10 @@ class QueueEntry:
             return True
 
 class Sender():
-    def __init__(self, id, network, numReceivers, rttData):
+    def __init__(self, id, network, numSenders, numReceivers, rttData):
+        # How many units of RTT delay in network
+        self.rttData = rttData
+
         # Mesh network for sending messages
         self.network = network
 
@@ -48,6 +102,9 @@ class Sender():
 
         # Number of receivers availible in the network
         self.numReceivers = numReceivers
+
+        # Number of senders in the network
+        self.numSenders = numSenders
 
         # ID for this sender
         self.id  = id
@@ -65,8 +122,8 @@ class Sender():
         # Messages fully transmitted
         self.completeMessages = []
 
-        # How many units of RTT delay in network
-        self.rttData = rttData
+        # Messages waiting for grant
+        self.pending = []
 
     def tick(self, time):
         # Do we need to generate a new message from the poisson process?
@@ -76,44 +133,88 @@ class Sender():
         # If this cycle is when the new sendmsg request is ready
         if (self.nextMessage.startTime == time):
             # Initiate the sendmsg request
-            self.sendmsg(self.nextMessage)
+            self.sendmsg(copy.deepcopy(self.nextMessage))
+
+        # print(self.activeMessages)
+        # TODO adding duplicates here
+        for message in self.pending:
+            if (message.ungranted < message.remaining):
+                # print(message)
+                # Construct a minimal queue entry for this message id. The payload defines the priority but can only send RTTbytes of payload initially.
+                queueEntry = QueueEntry(mid = message.id, priority = message.remaining, cycles = min(message.remaining - message.ungranted, message.remaining))
+                # activemsg = next((m for m in self.activeMessages if queueEntry.mid == m.id), None)
+                
+                self.priorityQueue.enqueue(queueEntry)
+                self.pending.remove(message)
+                # print(queueEntry.priority)
+                # print(queueEntry.validCycles)
+                # print(message == activemsg)
+                #print(activemsg)
+                # print("pending remove")
 
         # Take care of stuff to send out onto network
         self.egress(time)
 
         # Take care of stuff coming from network
-        self.ingress(time)
+        self.ingress()
 
     def sendmsg(self, message):
         # All messages initiall begin as granted (for one RTT)
         self.activeMessages.append(message)
 
         # Construct a minimal queue entry for this message id. The payload defines the priority but can only send RTTbytes of payload initially.
-        queueEntry = QueueEntry(mid = message.id, priority = message.payload, cycles = self.rttData)
+        queueEntry = QueueEntry(mid = message.id, priority = message.remaining, cycles = message.length - message.ungranted)
 
         self.priorityQueue.enqueue(queueEntry)
 
-
     def egress(self, time):
+        # Get the queue object output from the priority queue
         queue = self.priorityQueue.dequeue()
 
+        # If there is no queue object then there are no packets to send
         if queue == None:
             return
 
+        # Get the message associated with this queue entry
         message = next((m for m in self.activeMessages if queue.mid == m.id), None)
+        # print(self.activeMessages)
 
+        # Only send a packet if a message is found 
         if message != None:
-            # print(message)
+            # Construct a packet to send over the network
             self.network.write(message.dest, copy.deepcopy(message))
-            message.payload -= 1
-            if (message.payload == 0):
+
+            # We sent one packet for this message
+            message.remaining -= 1
+
+            # If this message has been completely sent, set end time,
+            # remove from active messages, add to complete messasges
+            # list
+            if (message.remaining == 0):
+                # print("REMOVE")
+                # print(message)
                 message.endTime = time
                 self.completeMessages.append(message)
                 self.activeMessages.remove(message)
+                return
+
+            if (queue.validCycles == 0):
+                self.pending.append(message)
+                return
     
-    def ingress(self, time):
-        # TODO These are always grants
-        None
+    def ingress(self):
+        # Read the next packet from the network
+        message = self.network.read(self.id)
+        if (message != None):
+            search = next((m for m in self.activeMessages if message.id == m.id), None)
+
+            if (search == None):
+                # print(message)
+                print("BAD ROUTING")
+
+            # print("UPDATE")
+            # print(search)
+            search.ungranted = message.ungranted
     
     def messageGenerator(self):
         # Poisson arrival times + poisson packet sizes for outgoing messages
@@ -122,16 +223,17 @@ class Sender():
             t += random.expovariate(.1)
             # .1 = 1/desired mean
             # Compute the number of units of payload
-            payload = math.floor(random.expovariate(.1))
+            payload = math.floor(random.expovariate(.1)) + 1 + 2 
             # granted = math.floor(random.expovariate(.1))
 
-            dest = random.randint(0, self.numReceivers)
+            dest = random.randint(self.numSenders, self.numSenders + self.numReceivers - 1)
 
             # Construct a new entry to pass to the queues
             # TODO increment payload by 1?
-            # print(1+payload)
-            message = Message(source = self.id, dest = dest, id = self.mid, length = payload + 1, payload = payload + 1, startTime = math.floor(t))
-            # print(message)
+            # TODO tame this line
+            # TODO create new message constructor
+            message = Message(source = self.id, dest = dest, id = self.mid, length = payload, remaining = payload, ungranted = payload - self.rttData, startTime = math.floor(t))
+
             self.mid += 1
             
             yield message 
@@ -177,44 +279,55 @@ class Receiver():
         # How many units of RTT delay in network
         self.rttData = rttData
 
+        self.grantableMessages = []
+
     def egress(self):
-        # TODO should check the maxoustanding here and overcommitment
+        # Get the queue object output from the priority queue
+        queue = self.priorityQueue.dequeue()
 
-        # Find the next best message to grant to
-        # queue = self.priorityQueue.dequeue()
+        # If there is no queue object then there are no packets to send
+        if queue == None:
+            return
 
-        # if queue == None:
-        #     return
+        # Get the message associated with this queue entry
+        message = next((m for m in self.grantableMessages if queue.mid == m.id), None)
 
-        # # Find the associated message
-        # message = next((m for m in self.activeMessages if queue.mid == m.id), None)
+        # Only send a packet if there are messages to grant to
+        if message != None:
+            # We sent one packet for this message
+            message.ungranted -= 1
 
-        # if message != None:
-        #     if (message.granted >= message.payload):
-        #         self.activeMessages.remove(message)
+            # Construct a grant packet to send over the network.
+            # Switch the order of source and destination for packet
+            # transmit
+            self.network.write(message.dest, copy.deepcopy(message))
 
-        #     self.network.write(message.dest, message)
- 
-        # TODO grants going out. Increases outstanding bytes
-        # pop from grant priority queue
-        # self.network.write(id)
-        None
+            print("GRANT")
+            print(message)
+
+            # Message is fully granted
+            if (message.ungranted == -1):
+                self.grantableMessages.remove(message)
 
     def ingress(self):
-        # Read the next message from the network
+        # Read the next packet from the network
         message = self.network.read(self.id)
         if (message != None):
-            # print(message)
-            if (message.length == message.payload):
-                print(message)
+            # Add an entry for granting just for the first payload received
+            if (message.length == message.remaining):
+                # If the message is already fully granted we are done
+                if (message.ungranted <= 0):
+                    return
 
-        # if (message != None):
-        #    None
-            # print(message)
-            # print("message arrived")
-        # TODO packet data arriving. Modifies outstanding bytes
-        # if (message != None):
-        #    print("arrived")
+                source = message.source
+                message.source = message.dest
+                message.dest = source
+
+                self.grantableMessages.append(message)
+
+                queueEntry = QueueEntry(mid = message.id, priority = message.ungranted, cycles = message.ungranted)
+
+                self.priorityQueue.enqueue(queueEntry)
 
     def tick(self, time):
         self.egress()
@@ -234,15 +347,19 @@ class Network():
 
     # Outgoing packets towards the network
     def write(self, dest, message):
+        # print(f'WRITE {dest}')
+        # print(self.links)
         # Add to the respective buffer the time of insertion and the message
         self.links[dest].append((self.time, message))
 
     # Incoming packets coming from the network
     def read(self, dest):
+        # print(f'READ {dest}')
+        # print(self.links)
         # Are there any pending elements on the network
         if (self.links[dest]):
-            if (self.links[dest][-1][0] + int(self.rttData/2) < self.time):
-                return self.links[dest].pop()[1]
+            if (self.links[dest][0][0] + int(self.rttData/2) < self.time):
+                return self.links[dest].pop(0)[1]
         return None
         # return self.links[dest].pop() if self.links[dest] else None
 
@@ -313,9 +430,6 @@ class PriorityQueue():
         if (status == False):
             self.queue.remove(ideal)
 
-        # if ideal.priority == -1:
-            # self.queue.remove(ideal)
-
         return ideal
 
     def empty(self):
@@ -326,8 +440,8 @@ class PriorityQueue():
 
 class Sim:
     def __init__(self):
-        self.numSenders   = 8
-        self.numReceivers = 8
+        self.numSenders   = 1
+        self.numReceivers = 1
 
         # How many units of payload for a network round trip (defines network latency)
         self.rttData = 2
@@ -335,8 +449,8 @@ class Sim:
         self.network = Network(self.numSenders + self.numReceivers, self.rttData)
 
         # Tested queuing strategies
-        self.senders   = [Sender(i, self.network, self.numReceivers, self.rttData) for i in range(self.numSenders)]
-        self.receivers = [Receiver(i, self.network, self.rttData) for i in range(self.numReceivers)]
+        self.senders   = [Sender(i, self.network, self.numSenders, self.numReceivers, self.rttData) for i in range(self.numSenders)]
+        self.receivers = [Receiver(self.numSenders + i, self.network, self.rttData) for i in range(self.numReceivers)]
 
         self.agents = self.senders + self.receivers + [self.network]
 
@@ -380,8 +494,10 @@ if __name__ == '__main__':
 # Share bandwidth between them somehow? Grant whenever need to (which should be much less bandwidth)
 # TODO restrict initial payload size to RTT bytes (store in message)....
 # TODO compute the "movement" of elements based on depth in queue
-
 # TODO also need to measure latency
+# TODO completion time should be measured by receivers
+
+
 
 # TODO The probability of grants decreases as time goes on which is probably biased? Maybe should simulate the receiver as well performing their own grant scheduling?
 # TODO Keith-The World is not Poisson
