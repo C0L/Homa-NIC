@@ -88,6 +88,13 @@ class QueueEntry:
             return False
         else:
             return True
+    
+    def __repr__(self):
+        return f'''QueueEntry:
+        - ID          : {self.mid}
+        - Priority    : {self.priority}
+        - ValidCycles : {self.validCycles}
+        '''
 
 class Sender():
     def __init__(self, id, network, numSenders, numReceivers, rttData):
@@ -135,28 +142,25 @@ class Sender():
             # Initiate the sendmsg request
             self.sendmsg(copy.deepcopy(self.nextMessage))
 
-        # print(self.activeMessages)
         # TODO adding duplicates here
         for message in self.pending:
             if (message.ungranted < message.remaining):
-                # print(message)
                 # Construct a minimal queue entry for this message id. The payload defines the priority but can only send RTTbytes of payload initially.
-                queueEntry = QueueEntry(mid = message.id, priority = message.remaining, cycles = min(message.remaining - message.ungranted, message.remaining))
-                # activemsg = next((m for m in self.activeMessages if queueEntry.mid == m.id), None)
-                
+                print("READD")
+                print(message)
+                queueEntry = QueueEntry(mid = message.id, priority = message.remaining, cycles = message.remaining - message.ungranted)
                 self.priorityQueue.enqueue(queueEntry)
                 self.pending.remove(message)
-                # print(queueEntry.priority)
-                # print(queueEntry.validCycles)
-                # print(message == activemsg)
-                #print(activemsg)
-                # print("pending remove")
+
+        self.priorityQueue.cycle()
 
         # Take care of stuff to send out onto network
         self.egress(time)
 
         # Take care of stuff coming from network
         self.ingress()
+
+
 
     def sendmsg(self, message):
         # All messages initiall begin as granted (for one RTT)
@@ -177,7 +181,6 @@ class Sender():
 
         # Get the message associated with this queue entry
         message = next((m for m in self.activeMessages if queue.mid == m.id), None)
-        # print(self.activeMessages)
 
         # Only send a packet if a message is found 
         if message != None:
@@ -191,8 +194,6 @@ class Sender():
             # remove from active messages, add to complete messasges
             # list
             if (message.remaining == 0):
-                # print("REMOVE")
-                # print(message)
                 message.endTime = time
                 self.completeMessages.append(message)
                 self.activeMessages.remove(message)
@@ -212,8 +213,9 @@ class Sender():
                 # print(message)
                 print("BAD ROUTING")
 
-            # print("UPDATE")
-            # print(search)
+            #print("UPDATE")
+            #print(search)
+            #print(message)
             search.ungranted = message.ungranted
     
     def messageGenerator(self):
@@ -302,11 +304,11 @@ class Receiver():
             # transmit
             self.network.write(message.dest, copy.deepcopy(message))
 
-            print("GRANT")
-            print(message)
+            # print("GRANT")
+            # print(message)
 
             # Message is fully granted
-            if (message.ungranted == -1):
+            if (message.ungranted == 0):
                 self.grantableMessages.remove(message)
 
     def ingress(self):
@@ -332,6 +334,8 @@ class Receiver():
     def tick(self, time):
         self.egress()
         self.ingress()
+        # TODO reneable
+        # self.priorityQueue.cycle()
 
 # Add RTT of delay in here, which will dicate the receiver grant size
 # This is just a mesh of lists for each receiver
@@ -347,8 +351,6 @@ class Network():
 
     # Outgoing packets towards the network
     def write(self, dest, message):
-        # print(f'WRITE {dest}')
-        # print(self.links)
         # Add to the respective buffer the time of insertion and the message
         self.links[dest].append((self.time, message))
 
@@ -373,23 +375,18 @@ class BisectedPriorityQueue():
         # Fast on chip single-cycle priority queue
         # self.onChip  = PriorityQueue(1024, 1)
 
-        self.onChip  = PriorityQueue(1000000, 1)
+        self.onChip  = PriorityQueue(10, 1)
 
         # Slow off chip multi-cycle priority queue
         self.offChip = PriorityQueue(math.inf, 10)
 
     def enqueue(self, entry):
-        if (not self.onChip.full()):
+        print("ENQUEUE")
+        if (not self.onChip.full() or entry.priority < self.onChip.tail()):
+            print("ADD ON CHIP")
             # If the onChip queue is not full insert into it
-            # print("ADDED TO ON CHIP QUEUE")
-            self.onChip.enqueue(entry)
-        elif (entry.priority < self.onChip.tail()):
-            # If the new element is better than the worst onChip
-            # Insert onChip and carry the tail
-            self.offChip.enqueue(self.onChip.tail())
             self.onChip.enqueue(entry)
         else:
-            print("ADDED TO OFF CHIP QUEUE")
             # Otherwise place in offChip queue
             self.offChip.enqueue(entry)
 
@@ -400,8 +397,20 @@ class BisectedPriorityQueue():
         return None
 
     def cycle(self):
+        print("cycle")
+        print(self.onChip.queue)
+        print(self.offChip.queue)
+        carryUp = self.onChip.carryUp()
+        if (carryUp != None):
+            # print("carry up")
+            self.offChip.enqueue(carryUp)
+
+        if (not self.onChip.full() and not self.offChip.empty()):
+            # print("carry down")
+            carry = self.offChip.carryDown()
+            # print(carry)
+            
         # TODO carry elements from onChip to offChip and vice versa
-        None
 
 # TODO need to impose delay
 class PriorityQueue():
@@ -424,13 +433,30 @@ class PriorityQueue():
         ideal = min(self.queue, key=lambda entry: entry.priority)
 
         # Reduce the priority as we send one packet
-        # ideal.priority -= 1
         status = ideal.update()
 
         if (status == False):
             self.queue.remove(ideal)
 
         return ideal
+
+    def carryDown(self):
+        # Find the highest priority elements
+        ideal = min(self.queue, key=lambda entry: entry.priority)
+        self.queue.remove(ideal)
+        return ideal
+
+    def carryUp(self):
+        if (len(self.queue) > self.maxElements):
+            worst = max(self.queue, key=lambda entry: entry.priority)
+            self.queue.remove(worst)
+            return worst 
+        else:
+            return None
+            
+    def tail(self):
+        worst = max(self.queue, key=lambda entry: entry.priority)
+        return worst.priority
 
     def empty(self):
         return len(self.queue) == 0
@@ -461,7 +487,7 @@ class Sim:
         self.id = 0
 
         # Number of time steps to simulate for
-        self.timeSteps = 100
+        self.timeSteps = 1000
 
     '''
     Iterate through simulation steps up to the max simulation time
