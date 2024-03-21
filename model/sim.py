@@ -97,21 +97,21 @@ class QueueEntry:
         '''
 
 class Sender():
-    def __init__(self, id, network, numSenders, numReceivers, rttData):
+    def __init__(self, id, network, cfg):
         # How many units of RTT delay in network
-        self.rttData = rttData
+        self.rttData = cfg['rttData']
 
         # Mesh network for sending messages
         self.network = network
 
         # Bisected priority queue structure
-        self.priorityQueue = BisectedPriorityQueue()
+        self.priorityQueue = BisectedPriorityQueue(cfg)
 
         # Number of receivers availible in the network
-        self.numReceivers = numReceivers
+        self.numReceivers = cfg['numReceivers']
 
         # Number of senders in the network
-        self.numSenders = numSenders
+        self.numSenders = cfg['numSenders']
 
         # ID for this sender
         self.id  = id
@@ -120,7 +120,7 @@ class Sender():
         self.mid = 0
 
         # Generator for payloads and sizes
-        self.generator = self.messageGenerator()
+        self.generator = self.messageGenerator(cfg)
         self.nextMessage = next(self.generator)
 
         # Messages which need to be sent
@@ -132,7 +132,7 @@ class Sender():
         # Messages waiting for grant
         self.pending = []
 
-    def tick(self, time):
+    def tick(self):
         # Do we need to generate a new message from the poisson process?
         if (self.nextMessage.startTime < time):
             self.nextMessage = next(self.generator)
@@ -146,8 +146,8 @@ class Sender():
         for message in self.pending:
             if (message.ungranted < message.remaining):
                 # Construct a minimal queue entry for this message id. The payload defines the priority but can only send RTTbytes of payload initially.
-                print("READD")
-                print(message)
+                # print("READD")
+                # print(message)
                 queueEntry = QueueEntry(mid = message.id, priority = message.remaining, cycles = message.remaining - message.ungranted)
                 self.priorityQueue.enqueue(queueEntry)
                 self.pending.remove(message)
@@ -155,12 +155,10 @@ class Sender():
         self.priorityQueue.cycle()
 
         # Take care of stuff to send out onto network
-        self.egress(time)
+        self.egress()
 
         # Take care of stuff coming from network
         self.ingress()
-
-
 
     def sendmsg(self, message):
         # All messages initiall begin as granted (for one RTT)
@@ -171,7 +169,7 @@ class Sender():
 
         self.priorityQueue.enqueue(queueEntry)
 
-    def egress(self, time):
+    def egress(self):
         # Get the queue object output from the priority queue
         queue = self.priorityQueue.dequeue()
 
@@ -202,6 +200,7 @@ class Sender():
             if (queue.validCycles == 0):
                 self.pending.append(message)
                 return
+            
     
     def ingress(self):
         # Read the next packet from the network
@@ -218,17 +217,18 @@ class Sender():
             #print(message)
             search.ungranted = message.ungranted
     
-    def messageGenerator(self):
+    def messageGenerator(self, cfg):
         # Poisson arrival times + poisson packet sizes for outgoing messages
         t = 0
         while(1):
-            t += random.expovariate(.1)
+            t += random.expovariate(1/cfg['averageRate'])
+            # print(t)
             # .1 = 1/desired mean
             # Compute the number of units of payload
-            payload = math.floor(random.expovariate(.1)) + 1 + 2 
-            # granted = math.floor(random.expovariate(.1))
+            payload = math.floor(random.expovariate(1/cfg['averagePayload'])) + 1
+            # print(payload)
 
-            dest = random.randint(self.numSenders, self.numSenders + self.numReceivers - 1)
+            dest = random.randint(cfg['numSenders'], cfg['numSenders'] + cfg['numReceivers'] - 1)
 
             # Construct a new entry to pass to the queues
             # TODO increment payload by 1?
@@ -265,7 +265,7 @@ class Sender():
         print(f'   - Msg / Unit Time   : {self.msgThroughput(time)}')
 
 class Receiver():
-    def __init__(self, id, network, rttData):
+    def __init__(self, id, network, cfg):
         # Mesh network for routing
         self.network = network
 
@@ -276,10 +276,10 @@ class Receiver():
         self.outsanding = 0
 
         # Grant priority queue
-        self.priorityQueue = BisectedPriorityQueue()
+        self.priorityQueue = BisectedPriorityQueue(cfg)
 
         # How many units of RTT delay in network
-        self.rttData = rttData
+        self.rttData = cfg['rttData']
 
         self.grantableMessages = []
 
@@ -331,7 +331,7 @@ class Receiver():
 
                 self.priorityQueue.enqueue(queueEntry)
 
-    def tick(self, time):
+    def tick(self):
         self.egress()
         self.ingress()
         # TODO reneable
@@ -340,50 +340,53 @@ class Receiver():
 # Add RTT of delay in here, which will dicate the receiver grant size
 # This is just a mesh of lists for each receiver
 class Network():
-    # TODO use this to add delay over the network
-    def __init__(self, hosts, rttData):
-        self.links = [[] for i in range(hosts)]
+    # This routes data from ingress to egress
+    def __init__(self, cfg):
+        # Packets coming into the switch
+        self.ingress = [[] for i in range(cfg['numSenders'] + cfg['numReceivers'])]
+
+        # Packets going out of the switch
+        self.egress  = [[] for i in range(cfg['numSenders'] + cfg['numReceivers'])]
 
         # How many units of RTT delay in network
-        self.rttData = rttData
-
-        self.time = 0
+        self.rttData = cfg['rttData']
 
     # Outgoing packets towards the network
     def write(self, dest, message):
         # Add to the respective buffer the time of insertion and the message
-        self.links[dest].append((self.time, message))
+        self.ingress[dest].append((time, message))
 
     # Incoming packets coming from the network
     def read(self, dest):
-        # print(f'READ {dest}')
-        # print(self.links)
         # Are there any pending elements on the network
-        if (self.links[dest]):
-            if (self.links[dest][0][0] + int(self.rttData/2) < self.time):
-                return self.links[dest].pop(0)[1]
+        if (self.egress[dest]):
+            if (self.egress[dest][0][0] + int(self.rttData/2) < time):
+                return self.egress[dest].pop(0)[1]
         return None
-        # return self.links[dest].pop() if self.links[dest] else None
 
-    def tick(self, time):
-        self.time += 1
+    def tick(self):
+        for buffer in self.ingress:
+            if (len(buffer)):
+                head = buffer[-1]
+                dest = self.egress[head[1].dest] 
+                if (len(dest) < cfg['switchDepth']):
+                    buffer.remove(head)
+                    dest.append(head)
 
 class BisectedPriorityQueue():
-    def __init__(self):
+    def __init__(self, cfg):
         # TODO make these configurable
 
         # Fast on chip single-cycle priority queue
-        # self.onChip  = PriorityQueue(1024, 1)
-
-        self.onChip  = PriorityQueue(10, 1)
+        self.onChip  = PriorityQueue(cfg['onChipQueueDepth'], 1)
 
         # Slow off chip multi-cycle priority queue
-        self.offChip = PriorityQueue(math.inf, 10)
+        self.offChip = PriorityQueue(math.inf, cfg['offChipQueueLatency'])
 
     def enqueue(self, entry):
-        print("ENQUEUE")
+        # print("ENQUEUE")
         if (not self.onChip.full() or entry.priority < self.onChip.tail()):
-            print("ADD ON CHIP")
+            # print("ADD ON CHIP")
             # If the onChip queue is not full insert into it
             self.onChip.enqueue(entry)
         else:
@@ -397,18 +400,19 @@ class BisectedPriorityQueue():
         return None
 
     def cycle(self):
-        print("cycle")
-        print(self.onChip.queue)
-        print(self.offChip.queue)
+        # print("cycle")
+        # print(self.onChip.queue)
+        # print(self.offChip.queue)
         carryUp = self.onChip.carryUp()
         if (carryUp != None):
-            # print("carry up")
+            print("carry up")
             self.offChip.enqueue(carryUp)
 
         if (not self.onChip.full() and not self.offChip.empty()):
-            # print("carry down")
-            carry = self.offChip.carryDown()
-            # print(carry)
+            carryDown = self.offChip.carryDown()
+            if (carryDown != None):
+                print("carry down")
+                self.onChip.enqueue(carryDown)
             
         # TODO carry elements from onChip to offChip and vice versa
 
@@ -441,10 +445,13 @@ class PriorityQueue():
         return ideal
 
     def carryDown(self):
-        # Find the highest priority elements
-        ideal = min(self.queue, key=lambda entry: entry.priority)
-        self.queue.remove(ideal)
-        return ideal
+        if (time % self.delay == 0):
+            # Find the highest priority elements
+            ideal = min(self.queue, key=lambda entry: entry.priority)
+            self.queue.remove(ideal)
+            return ideal
+        else:
+            return None
 
     def carryUp(self):
         if (len(self.queue) > self.maxElements):
@@ -465,23 +472,24 @@ class PriorityQueue():
         return len(self.queue) == self.maxElements
 
 class Sim:
-    def __init__(self):
-        self.numSenders   = 1
-        self.numReceivers = 1
+    def __init__(self, cfg):
+        self.numSenders   = cfg['numSenders']
+        self.numReceivers = cfg['numReceivers']
 
         # How many units of payload for a network round trip (defines network latency)
-        self.rttData = 2
+        self.rttData = cfg['rttData'] 
         
-        self.network = Network(self.numSenders + self.numReceivers, self.rttData)
+        self.network = Network(cfg)
 
         # Tested queuing strategies
-        self.senders   = [Sender(i, self.network, self.numSenders, self.numReceivers, self.rttData) for i in range(self.numSenders)]
-        self.receivers = [Receiver(self.numSenders + i, self.network, self.rttData) for i in range(self.numReceivers)]
+        self.senders   = [Sender(i, self.network, cfg) for i in range(self.numSenders)]
+        self.receivers = [Receiver(self.numSenders + i, self.network, cfg) for i in range(self.numReceivers)]
 
         self.agents = self.senders + self.receivers + [self.network]
 
         # Timestep counter
-        self.time = 0
+        global time
+        time = 0
 
         # Initial ID to assign to new entries generated by the sendmsg function
         self.id = 0
@@ -496,12 +504,13 @@ class Sim:
         # while(not self.cmpl):
         for t in range(self.timeSteps):
             self.step()
-            self.time += 1
+            global time 
+            time += 1
 
     def step(self):
         # Simulate all of the agents for this timestep
         for agent in self.agents:
-            agent.tick(self.time)
+            agent.tick()
 
     # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
@@ -509,12 +518,26 @@ class Sim:
             sender.dumpStats(self.timeSteps)
 
 if __name__ == '__main__':
-    sim = Sim() 
+    cfg = {
+        'numSenders': 8,
+        'numReceivers': 2,
+        'rttData': 2,
+        'switchDepth': 4,
+        'averageRate': 10,
+        'averagePayload': 10,
+        'onChipQueueDepth': 10,
+        'offChipQueueLatency': 1000
+    }
+
+    # New message every ~averageRate cycles with payloads of ~averagePayload + 1
+    sim = Sim(cfg) 
     sim.simulate()
     sim.dumpStats()
 
-
-
+# TODO emph that flow control feedback benefits frim smaller rtts and thus use prefetcher
+# TODO does the topology of the switch make sense
+# TODO not normalized for number of messages
+# TODO what axes to compare (msg rate, payload sizes, size of on-chip queue, size of off-chip queue, size of on-chip cache). Number of senders/receivers
 # Compare infinitely large on chip queue to other constructions
 # TODO unify sender and receiver. Just have a single ID for each agent which has both sender and receiver.
 # Share bandwidth between them somehow? Grant whenever need to (which should be much less bandwidth)
@@ -522,17 +545,15 @@ if __name__ == '__main__':
 # TODO compute the "movement" of elements based on depth in queue
 # TODO also need to measure latency
 # TODO completion time should be measured by receivers
-
-
-
-# TODO The probability of grants decreases as time goes on which is probably biased? Maybe should simulate the receiver as well performing their own grant scheduling?
 # TODO Keith-The World is not Poisson
 # TODO Can you get better average completion time by ignoring messages that are not completely granted? Maybe depends on the distribution of incoming grants? Maybe some other scheduling policy is desirable?
 # TODO maybe also measure starvation?
-# TODO flow control on individual substreams? Or on per message basis
 
-# TODO need concrete bulk activation/deactivation examples
-# The key question is can all scheduling decisions be made at time of enqueue
+
+
+
+
+# Can all scheduling decisions be made at time of enqueue
 #   Processor sharing + SRPT? Seems like a lot of long activate deactive cycles. Maybe you want to weight SRPT somehow within the SRPT queue.
 #   Multiple RPCs over a single flow. Maybe this is the norm for TCP based RPC systems? Would not want a seperate flow for each recevier. Would not want to startup a TCP connection for a new RPC
 #   Simplicity of design?
@@ -541,8 +562,8 @@ if __name__ == '__main__':
 #   No-reneging of windows?
 #   Active queue management?
 
-
 # Look into least slack time first
+
 # Curious about market-based congestion control processes
 # Outgoing messages are sorted in a queue by their "bid". Each message individually describes how to compute their bid/what they are willing to pay? Sending a packet consumes "bids" worth of tokens from that message.
 # Maybe the operator defines a system wide marginal utility for sending a messages next packet. Messages define a marginal utility for their packet being sent next. And compare against the two? SRPT can be expressed within marginal utilities. The message with the least remaining bytes has the highest marginal utility for the next packet, and so forth. Maybe the scheduling policy is marginal utility (partial derivative) which is simpler way to express scheduling?
@@ -553,171 +574,6 @@ if __name__ == '__main__':
 
 # PIFO assumes that packet ranks increase monotonically within each flow
 
-# PIFO is O(n) comparisons?
-
-
-
-
-# !!!!! TODO  should reoder every cycle regardless of ops
-# class Mutable(Queue):
-#     def __init__(self):
-#         super().__init__("Mutable")
-# 
-#     def enqueue(self, entry):
-#         if (entry.grant == 0):
-#             entry.priority = 1
-#             self.queue.insert(0, entry)
-#         else:
-#             entry.priority = 0
-#             self.queue.insert(0, entry)
-# 
-#         # print(f'Enqueue: {entry}')
-#         self.order()
-# 
-#     def dequeue(self):
-#         # Nothing to send
-#         if (len(self.queue) == 0): return None
-# 
-#         # Will only pop from head of queue
-#         head = self.queue[0]
-# 
-#         '''
-#         If the entry at the head is granted, send a packet. If sending
-#         that packet causes the entry to be completely sent, then we
-#         are done and destroy it.
-#         '''
-#         if (head.priority == 0):
-#             # Send one packet
-#             # head.payload -= 1
-#             head.payload.pop(-1)
-#             head.grant   -= 1
-# 
-#             # Did we send the whole message?
-#             if (head.exhausted()):
-#                 self.queue.pop(0)
-#             elif (head.grant == 0):
-#                 head.priority = 1
-# 
-#             self.order()
-#             return head 
-#         else:
-#             self.order()
-#             # There can be no possible active entries in the queue
-#             return None
-# 
-#     def grant(self, grant):
-#         grant.priority = 2
-#         self.queue.insert(0, grant)
-#         self.order()
-# 
-#     def order(self):
-#         if (len(self.queue) != 0 and self.queue[-1].priority == 2):
-#             self.queue.pop(-1)
-# 
-#         # swap (0,1) (2,3) (4,5) (6,7) 
-#         for even in range(int(len(self.queue)/2)):
-#             low  = self.queue[even]
-#             high = self.queue[even+1]
-# 
-#             if (low.priority > high.priority):
-#                 # Is this a grant
-#                 if (low.priority == 2 and low.id == high.id):
-#                     # print("REACTIVE")
-#                     high.grant += low.grant
-#                     high.priority = 0
-#                 self.queue[even+1] = low
-#                 self.queue[even]   = high
-#             elif (low.priority == high.priority and low.payloadSize() > high.payloadSize()):
-#                 self.queue[even+1] = low
-#                 self.queue[even]   = high
-# 
-#         # swap (1,2) (3,4) (5,6) (7,8)
-#         for odd in range(int((len(self.queue)-1)/2)):
-#             low  = self.queue[odd+1]
-#             high = self.queue[odd+2]
-# 
-#             if (low.priority > high.priority):
-#                 # Is this a grant
-#                 if (low.priority == 2 and low.id == high.id):
-#                     # print("REACTIVE")
-#                     high.grant += low.grant
-#                     high.priority = 0
-#                 self.queue[odd+2] = low
-#                 self.queue[odd+1] = high
-#             elif (low.priority == high.priority and low.payloadSize() > high.payloadSize()):
-#                 self.queue[odd+2] = low
-#                 self.queue[odd+1] = high
-# 
-#     def tick(self, time):
-#         self.order()
-#  
-# 
-# class PIFO(Queue):
-#     def __init__(self):
-#         super().__init__("PIFO")
-# 
-#         # entries which cannot be inserted into the queue due fc state
-#         self.blocked = []
-# 
-#     def enqueue(self, entry):
-#         # If this entry has granted bytes, find its place in the queue, otherwise buffer
-#         if (entry.grant != 0):
-#             # Find the first entry in the queue that has a byte count greater then our new entry's byte count
-#             insert = next((e[0] for e in enumerate(self.queue) if e[1].payload > entry.payload), len(self.queue))
-#             self.queue.insert(insert, entry)
-#         else:
-#             self.blocked.append(entry)
-# 
-#     def dequeue(self):
-#         # Nothing to send
-#         if (len(self.queue) == 0): return None
-# 
-#         # PIFO will only pop from head of queue
-#         head = self.queue[0]
-# 
-#         '''
-#         If the entry at the head is granted, send a packet. If sending
-#         that packet causes the entry to be completely sent, then we
-#         are done and destroy it.
-#         '''
-#         if (head.grant != 0):
-#             # Send one packet
-#             # head.payload -= 1
-#             head.payload.pop(-1)
-#             head.grant   -= 1
-# 
-#             # Did we send the whole message?
-#             if (head.exhausted()):
-#                 self.queue.pop(0)
-#             elif (head.grant == 0):
-#                 self.queue.pop(0)
-#                 self.blocked.append(head)
-# 
-#             return head 
-#         else:
-#             # The entry is not granted and we will block it
-#             self.queue.pop(0)
-#             self.blocked.append(head)
-# 
-#             return None
-# 
-#     def grant(self, grant):
-#         # this is fine because when the entry gets to the head of the queue it can access this data immediately
-#         loc = next((e[1] for e in enumerate(self.queue) if e[1].id == grant.id), None)
-# 
-#         if loc != None:
-#             loc.grant += grant.grant
-# 
-#         loc = next((e[1] for e in enumerate(self.blocked) if e[1].id == grant.id), None)
-# 
-#         if loc != None:
-#             loc.grant += grant.grant
-#             self.enqueue(loc)
-#             self.blocked.remove(loc)
-# 
-#     def tick(self, time):
-#         None
- 
 '''
 Minimal PIFO vs Mutable vs Idealized SRPT Test Cases
 
@@ -780,75 +636,3 @@ Inaccuracies?
 #   - P99 completion time
 #   - Some measure of latency?
 '''
-
-
-
-# class Entry:
-#     def __init__(self, id, payloads, grant, st=0, priority=0):
-#         self.id = id
-#         self.payloads = payloads
-#         self.grant = grant
-#         self.st = st
-#         self.et = 0
-#         self.ugrant = 0
-#         self.origPayload = len(payloads)
-#         self.priority = priority
-# 
-#     def exhausted(self):
-#         return len(self.payloads) == 0
-# 
-#     def payloadSize(self):
-#         return len(self.payloads)
-# 
-#     def __repr__(self):
-#         return f'ID: {self.id}, Payload: {self.payloads}, Grant: {self.grant}, Priority: {self.priority}'
-
-# class Queue:
-#     def __init__(self, name):
-#         # Entries that have been completed by the queue
-#         self.complete = []
-# 
-#         # just use a list to store the elements and always search the elements
-#         self.queue = []
-# 
-#         # Tried to send an ungranted packet
-#         self.idleCycles = 0
-# 
-#         # Number of bytes sent
-#         self.totalBytes = 0
-# 
-#         self.cmplTime = 0
-# 
-#         # The name of the queue for printing purposes
-#         self.name = name
-# 
-#         # Payload data cache
-#         self.cache = []
-# 
-#     def cmplBytes(self):
-#         sum = 0
-#         for entry in self.complete:
-#             sum += entry.origPayload
-#         return sum
-# 
-#     def msgThroughput(self):
-#         return len(self.complete) / self.cmplTime
-# 
-#     def avgCmplTime(self):
-#         sumDir = 0
-#         for entry in self.complete:
-#             sumDir += (entry.et - entry.st)
-# 
-#         return sumDir / len(self.complete)
-# 
-#     def dumpStats(self):
-#         print(f'Queue: {self.name} Statistics:')
-#         print(f'   - Total Cycles      : {self.cmplTime}')
-#         print(f'   - Total Bytes       : {self.totalBytes}')
-#         print(f'   - Idle Cycles       : {self.idleCycles}')
-#         print(f'   - Completed Entries : {len(self.complete)}')
-#         print(f'   - Cmpl Bytes Sent   : {self.cmplBytes()}')
-#         print(f'   - Avg. Cmpl. Time   : {self.avgCmplTime()}')
-#         print(f'   - Msg / Unit Time   : {self.msgThroughput()}')
-
-
