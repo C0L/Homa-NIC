@@ -17,7 +17,7 @@ class Delegate extends Module {
   val io = IO(new Bundle {
     val function_i   = Flipped(new axis(512, false, 0, true, 32, false, 0, false)) // 512 bit blocks from user
     val newSendmsg   = Decoupled(new QueueEntry) // Output to sendmsg priority queue
-    val newFetchdata = Decoupled(new QueueEntry) // Output to datafetch queue
+    val newFetchdata = Decoupled(new PrefetcherState) // Output to datafetch queue
     val newDmaMap    = Decoupled(new DmaMap)     // Output to add new DMA map
 
     val ppEgressSendmsgRamReq  = Decoupled(new RamWriteReq) // Data to write to pp egress RAM
@@ -35,7 +35,7 @@ class Delegate extends Module {
   io.newSendmsg.bits  := 0.U.asTypeOf(new QueueEntry)
   io.newSendmsg.valid := false.B
 
-  io.newFetchdata.bits  := 0.U.asTypeOf(new QueueEntry)
+  io.newFetchdata.bits  := 0.U.asTypeOf(new PrefetcherState)
   io.newFetchdata.valid := false.B
 
   // By default all output streams are 0 initialized and inactive
@@ -134,12 +134,11 @@ class Delegate extends Module {
            io.newSendmsg.bits.priority  := queue_priority.ACTIVE.asUInt;
 
            // Construct a new entry for the fetch queue to fetch data
-           io.newFetchdata.bits.rpc_id    := msghdr_send.id
-           io.newFetchdata.bits.dbuff_id  := dbuff_id 
-           io.newFetchdata.bits.remaining := msghdr_send.buff_size
-           io.newFetchdata.bits.dbuffered := 0.U
-           io.newFetchdata.bits.granted   := msghdr_send.buff_size
-           io.newFetchdata.bits.priority  := queue_priority.ACTIVE.asUInt;
+           io.newFetchdata.bits.localID  := msghdr_send.id
+           io.newFetchdata.bits.dbuffID   := dbuff_id 
+           io.newFetchdata.bits.fetchable := msghdr_send.buff_size // TODO 
+           io.newFetchdata.bits.totalRem  := msghdr_send.buff_size
+           io.newFetchdata.bits.totalLen  := msghdr_send.buff_size
 
            // Only signal that a transaction is ready to exit our queue if all recievers are ready
            // Ram core will always be ready

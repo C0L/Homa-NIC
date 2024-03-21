@@ -171,7 +171,7 @@ class msghdr_t extends Bundle {
 class QueueEntry extends Bundle {
   val priority  = UInt(3.W)
   val granted   = UInt(20.W)
-  val dbuffered = UInt(20.W)
+  val dbuffered  = UInt(20.W)
   val remaining = UInt(20.W)
   val dbuff_id  = UInt(10.W)
   val rpc_id    = UInt(16.W)

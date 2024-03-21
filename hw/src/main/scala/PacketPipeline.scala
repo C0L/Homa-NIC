@@ -58,11 +58,11 @@ class PPegressStages extends Module {
   // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // pp_egress_trigger_ila.io.ila_data := io.trigger
 
-  val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  // val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
-  val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
+  // val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
   // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
@@ -377,14 +377,14 @@ class PPingressStages extends Module {
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
-  val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
-  pp_ingress_ila.io.ila_data := io.ingress
+  // val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  // pp_ingress_ila.io.ila_data := io.ingress
 
   // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
   // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
 
-  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  //  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 }
 
 /* PPingressDtor - take 64 byte chunks from off the network and
@@ -659,11 +659,12 @@ class PPingressPayload extends Module {
   }
 
   val buffAddr = Wire(UInt(16.W))
-  buffAddr := ramHead - buffBytesReg
+  // ram head overflows?
+  buffAddr := ramHead - buffBytesReg // TODO !!!!
 
   io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset() - buffBytesReg).asTypeOf(UInt(64.W))
   io.c2hPayloadDmaReq.bits.ram_sel   := 0.U
-  io.c2hPayloadDmaReq.bits.ram_addr  := buffAddr
+  io.c2hPayloadDmaReq.bits.ram_addr  := buffAddr 
   io.c2hPayloadDmaReq.bits.len       := buffBytesCurr
   io.c2hPayloadDmaReq.bits.tag       := 0.U
   io.c2hPayloadDmaReq.bits.port      := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
@@ -674,6 +675,13 @@ class PPingressPayload extends Module {
 
     when(packet_reg_0.io.deq.fire) {
       buffBytesReg := 0.U
+    }
+  }
+
+  // To avoid un-graceful wrap arounds we will reset the ring buffer to address 0 when we are conservatively within write buffers of ram limit
+  when (packet_reg_0.io.deq.bits.lastFrame() === 1.U && (65536.U - ramHead) < 2.U * io.dynamicConfiguration.writeBufferSize) {
+    when(packet_reg_0.io.deq.fire) {
+      ramHead := 0.U
     }
   }
 

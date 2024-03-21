@@ -89,9 +89,9 @@ class MgmtCore extends Module {
 
   fetch_queue.io.fetchCmpl    <> io.h2cPayloadDmaStat
 
-  val newFetchableQueue = Module(new Queue(new QueueEntry, 1, true, false))
+  val newFetchableQueue = Module(new Queue(new PrefetcherState, 1, true, false))
   newFetchableQueue.io.enq <> delegate.io.newFetchdata
-  fetch_queue.io.newFetchable <>newFetchableQueue.io.deq
+  fetch_queue.io.newFetchable <> newFetchableQueue.io.deq
 
   // TODO need to throw out read requests
   // axi2axis takes the address of an AXI write and converts it to an
@@ -131,6 +131,9 @@ class MgmtCore extends Module {
 
   // val dma_map_ila = Module(new ILA(new dma_map_t))
   // dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits
+
+  val fetch_in_ila = Module(new ILA(new PrefetcherState))
+  fetch_in_ila.io.ila_data := fetch_queue.io.newFetchable.bits
   
   val fetch_out_ila = Module(new ILA(new DmaReq))
   fetch_out_ila.io.ila_data := fetch_queue.io.fetchRequest.bits

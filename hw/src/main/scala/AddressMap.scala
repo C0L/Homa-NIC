@@ -17,7 +17,7 @@ class AddressMap extends Module {
     val mappableOut = Vec(3, Decoupled(new DmaReq))
   })
 
-  val map = SyncReadMem(3*16384, new DmaMap)
+  val map = SyncReadMem(3*100, new DmaMap)
   // TODO really need to have three seperate maps due to limited RW channels!!!
 
   // TODO can data still get lost in this if a read request goes out then there is stall??
@@ -33,7 +33,7 @@ class AddressMap extends Module {
     queueOut.io.enq         <> readStage.io.deq
     io.mappableOut(channel) <> queueOut.io.deq
 
-    val read = map.read(queueIn.io.deq.bits.port + (channel * 16384).U, queueIn.io.deq.fire)
+    val read = map.read(queueIn.io.deq.bits.port + (channel * 100).U, queueIn.io.deq.fire)
 
     when(queueOut.io.enq.fire) {
       queueOut.io.enq.bits.pcie_addr := readStage.io.deq.bits.pcie_addr + read.pcie_addr
@@ -47,6 +47,6 @@ class AddressMap extends Module {
 
   when (dmaMapReg.io.deq.valid) {
     // printf("Write: %d\n", dmaMapReg.io.deq.bits.port + (dmaMapReg.io.deq.bits.map_type * 16384.U))
-    map.write(dmaMapReg.io.deq.bits.port + (dmaMapReg.io.deq.bits.map_type * 16384.U), dmaMapReg.io.deq.bits)
+    map.write(dmaMapReg.io.deq.bits.port + (dmaMapReg.io.deq.bits.map_type * 100.U), dmaMapReg.io.deq.bits)
   }
 }
