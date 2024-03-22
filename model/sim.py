@@ -341,26 +341,27 @@ class Receiver():
 # This is just a mesh of lists for each receiver
 class Network():
     # This routes data from ingress to egress
-    def __init__(self, cfg):
+    def __init__(self, numAgents, intrinsicDelay, egressDepth, ingressDepth):
         # Packets coming into the switch
-        self.ingress = [[] for i in range(cfg['numSenders'] + cfg['numReceivers'])]
+        self.ingress = [[] for i in range(numAgents)]
 
         # Packets going out of the switch
-        self.egress  = [[] for i in range(cfg['numSenders'] + cfg['numReceivers'])]
+        self.egress  = [[] for i in range(numAgents)]
 
         # How many units of RTT delay in network
-        self.rttData = cfg['rttData']
+        self.intrinsicDelay = intrinsicDelay
 
     # Outgoing packets towards the network
     def write(self, dest, message):
         # Add to the respective buffer the time of insertion and the message
-        self.ingress[dest].append((time, message))
+        if (len(self.ingress) < self.ingressDepth):
+            self.ingress[dest].append((time, message))
 
     # Incoming packets coming from the network
     def read(self, dest):
         # Are there any pending elements on the network
         if (self.egress[dest]):
-            if (self.egress[dest][0][0] + int(self.rttData/2) < time):
+            if (self.egress[dest][0][0] + int(self.intrinsicDelay/2) < time):
                 return self.egress[dest].pop(0)[1]
         return None
 
@@ -369,14 +370,12 @@ class Network():
             if (len(buffer)):
                 head = buffer[-1]
                 dest = self.egress[head[1].dest] 
-                if (len(dest) < cfg['switchDepth']):
+                if (len(dest) < self.egressDepth):
                     buffer.remove(head)
                     dest.append(head)
 
 class BisectedPriorityQueue():
     def __init__(self, cfg):
-        # TODO make these configurable
-
         # Fast on chip single-cycle priority queue
         self.onChip  = PriorityQueue(cfg['onChipQueueDepth'], 1)
 
@@ -384,7 +383,6 @@ class BisectedPriorityQueue():
         self.offChip = PriorityQueue(math.inf, cfg['offChipQueueLatency'])
 
     def enqueue(self, entry):
-        # print("ENQUEUE")
         if (not self.onChip.full() or entry.priority < self.onChip.tail()):
             # print("ADD ON CHIP")
             # If the onChip queue is not full insert into it
@@ -400,9 +398,6 @@ class BisectedPriorityQueue():
         return None
 
     def cycle(self):
-        # print("cycle")
-        # print(self.onChip.queue)
-        # print(self.offChip.queue)
         carryUp = self.onChip.carryUp()
         if (carryUp != None):
             print("carry up")
@@ -413,8 +408,6 @@ class BisectedPriorityQueue():
             if (carryDown != None):
                 print("carry down")
                 self.onChip.enqueue(carryDown)
-            
-        # TODO carry elements from onChip to offChip and vice versa
 
 # TODO need to impose delay
 class PriorityQueue():
@@ -473,19 +466,18 @@ class PriorityQueue():
 
 class Sim:
     def __init__(self, cfg):
-        self.numSenders   = cfg['numSenders']
-        self.numReceivers = cfg['numReceivers']
+        self.numAgents = cfg['agents']
 
         # How many units of payload for a network round trip (defines network latency)
         self.rttData = cfg['rttData'] 
         
-        self.network = Network(cfg)
+        self.network = Network(self.agents)
 
         # Tested queuing strategies
-        self.senders   = [Sender(i, self.network, cfg) for i in range(self.numSenders)]
-        self.receivers = [Receiver(self.numSenders + i, self.network, cfg) for i in range(self.numReceivers)]
+        self.agents = [Agent(i, self.network, cfg) for i in range(self.agents)]
 
-        self.agents = self.senders + self.receivers + [self.network]
+        # self.agents = self.senders + self.receivers + [self.network]
+        self.entities = self.agents + [self.network]
 
         # Timestep counter
         global time
@@ -501,7 +493,6 @@ class Sim:
     Iterate through simulation steps up to the max simulation time
     ''' 
     def simulate(self):
-        # while(not self.cmpl):
         for t in range(self.timeSteps):
             self.step()
             global time 
@@ -509,13 +500,13 @@ class Sim:
 
     def step(self):
         # Simulate all of the agents for this timestep
-        for agent in self.agents:
-            agent.tick()
+        for entity in self.entities:
+            entity.tick()
 
     # If both the packet size and send time are poisson it models a M/M/1 queue?
     def dumpStats(self):
-        for sender in self.senders:
-            sender.dumpStats(self.timeSteps)
+        for agent in self.agents:
+            agent.dumpStats(self.timeSteps)
 
 if __name__ == '__main__':
     cfg = {
@@ -548,8 +539,17 @@ if __name__ == '__main__':
 # TODO Keith-The World is not Poisson
 # TODO Can you get better average completion time by ignoring messages that are not completely granted? Maybe depends on the distribution of incoming grants? Maybe some other scheduling policy is desirable?
 # TODO maybe also measure starvation?
-
-
+# overcommitment?
+# random destination, vary payload size, test all the same size and vary, bimodel message sizes, mice and elephant flow
+# Uniform -> bipartite half senders -> half receivers 
+# vary destination distribution
+# When does this not work
+# Deadline aware datacenter TCP
+# pfabric workloads
+# aggregate demand less than capacity!!! <- important
+# poisson is too favorable. need something bursty
+# some work is generated independently (small RPCs), some work is responsive to performance (while every so often download petabyte)
+# b4 paper, most traffic is low priority
 
 
 
