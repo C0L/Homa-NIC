@@ -1,5 +1,5 @@
 # Homa-NIC
-This repository contains a work in progress hardware implementation of the Homa transport protocol. It is intended to drive a 100Gbps even under small message workloads. Encapsulation, flow control, scheduling, are moved entirely into hardware. User communicate with the NIC is in terms of messages and no visibility into the underlying packets is granted. All hardware communication occurs with kernel bypass, with `sendmsg` and `recvmsg` requests implemented with MMIO writes, and message data transfer with DMA. A Linux kernel module character device configures these memory regions for MMIO and DMA at user application startup.
+This repository contains a work in progress implementation of the Homa transport protocol in hardware. It is intended to drive a 100Gbps even under small message workloads. Encapsulation, flow control, scheduling, are moved entirely into hardware. Users communicate with the NIC in terms of messages and no visibility into the underlying packets is granted. All hardware communication bypasses the kernel, with `sendmsg` and `recvmsg` requests implemented with MMIO writes, and message data transfer with DMA. A Linux kernel module character device configures these memory regions for MMIO and DMA at user application startup.
 
 Currently the only supported platform is the AMD Alveo U250 FPGA.
 
@@ -32,10 +32,10 @@ Currently the only supported platform is the AMD Alveo U250 FPGA.
 ## Application Programming Interface
 
 Each user applications are allocated four memory regions, which are used to carry out all critical path interactions with the network interface card. At a high level these are the following:
-1) Host-to-Card metadata: User applications initiating sendmsg and recvmsg requests
-2) Card-to-Host metadata: The return result from a sendmsg or recvmsg request
-3) Host-to-Card msg buff: Buffer of message data a user sends with a sendmsg request
-4) Card-to-Host msg buff: Buffer for message data a user receivers with a recvmsg request.
+1) Host-to-Card Metadata: User applications initiating sendmsg and recvmsg requests
+2) Card-to-Host Metadata: The return result from a sendmsg or recvmsg request
+3) Host-to-Card Messages: Buffer of message data a user sends onto the network via a sendmsg request
+4) Card-to-Host Messages: Buffer for message data a user receives from the network via a recvmsg request.
 
 The steps to access these memory regions are discuessed within the kernel module and application section. We deal here only with the application interface once the channel has been opened.
 

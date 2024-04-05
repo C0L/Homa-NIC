@@ -71,9 +71,10 @@ class PayloadCache extends Module {
     val queue = new PrefetcherEntry
   }
 
-  // Store data associated with oustanding requests to DMA 
-  val tag     = RegInit(0.U(8.W))
-  val tagMem  = Mem(512, new ReqMem)
+  // Store data associated with oustanding requests to DMA
+  val oustanding = RegInit(0.U(9.W))
+  val tag        = RegInit(0.U(10.W))
+  val tagMem     = Mem(1024, new ReqMem)
 
   // Requests to DMA
   val dmaRead = Wire(new DmaReq)
@@ -101,7 +102,7 @@ class PayloadCache extends Module {
 
   io.fetchRequest.bits  := dmaRead
   io.fetchRequest.valid := fetchQueue.io.dequeue.valid
-  fetchQueue.io.dequeue.ready := io.fetchRequest.ready
+  fetchQueue.io.dequeue.ready := io.fetchRequest.ready && (oustanding < 510.U)
 
   val pendTag = tagMem.read(io.fetchCmpl.bits.tag)
 
@@ -112,23 +113,25 @@ class PayloadCache extends Module {
   val notifQueue = Module(new Queue(new ReqMem, 4, true, false))
 
   // TODO fetchCmpl does not respond to push back
-  io.fetchCmpl.ready := notifQueue.io.enq.ready
+  io.fetchCmpl.ready      := notifQueue.io.enq.ready
   notifQueue.io.enq.valid := io.fetchCmpl.valid
-  notifQueue.io.enq.bits := pendTag
-
-  // val notif_offset = Wire(UInt(20.W))
-  // TODO this will not work when windowing cache
-  // notif_offset := notifQueue.io.deq.bits.queue.priority * io.fetchSize
-  // when (notif_offset < io.fetchSize) {
-  //   io.fetchNotif.bits.dbuffered := 0.U
-  // }.otherwise {
-  //   io.fetchNotif.bits.dbuffered := notif_offset - io.fetchSize
+  notifQueue.io.enq.bits  := pendTag
 
   io.fetchNotif.bits.dbuffered := notifQueue.io.deq.bits.queue.priority << 8.U
   io.fetchNotif.bits.granted   := 0.U
   io.fetchNotif.bits.priority  := queue_priority.DBUFF_UPDATE.asUInt
   io.fetchNotif.valid          := notifQueue.io.deq.valid
   notifQueue.io.deq.ready      := io.fetchNotif.ready
+
+  // If both a notif and a request occur, no change to oustanding
+  when (!(notifQueue.io.enq.fire && io.fetchRequest.fire)) {
+    // If just a notif occurs, one less outstanding. If just a fetch occurs, one more outsanding
+    when (notifQueue.io.enq.fire) {
+      oustanding := oustanding - 1.U
+    }.elsewhen (io.fetchRequest.fire) {
+      oustanding := oustanding + 1.U
+    }
+  }
  
   // If a read request is lodged then we store it in the memory until completiton
   when(io.fetchRequest.fire) {
@@ -138,6 +141,6 @@ class PayloadCache extends Module {
 
     tagMem.write(tag, tagEntry)
 
-    tag := tag + 1.U(8.W)
+    tag := tag + 1.U(9.W)
   }
 }

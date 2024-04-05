@@ -10,7 +10,7 @@ class dma_read_desc_t (ports: Int) extends Bundle {
   val ram_sel   = Output(UInt((ports * 2).W))
   val ram_addr  = Output(UInt((ports * 18).W))
   val len       = Output(UInt((ports * 16).W))
-  val tag       = Output(UInt((ports * 8).W))
+  val tag       = Output(UInt((ports * 10).W))
 }
 
 class dma_write_desc_t (ports: Int) extends Bundle {
@@ -18,7 +18,7 @@ class dma_write_desc_t (ports: Int) extends Bundle {
   val ram_sel   = Output(UInt((ports * 2).W))
   val ram_addr  = Output(UInt((ports * 18).W))
   val len       = Output(UInt((ports * 16).W))
-  val tag       = Output(UInt((ports * 8).W))
+  val tag       = Output(UInt((ports * 10).W))
 }
 
 class DmaReq extends Bundle {
@@ -26,17 +26,17 @@ class DmaReq extends Bundle {
   val ram_sel   = UInt(2.W)
   val ram_addr  = UInt(18.W)
   val len       = UInt(16.W)
-  val tag       = UInt(8.W)
+  val tag       = UInt(10.W)
   val port      = UInt(16.W)
 }
 
 class DmaReadStat extends Bundle {
-  val tag   = UInt(8.W)
+  val tag   = UInt(10.W)
   val error = UInt(4.W)
 }
 
 class DmaWriteStat extends Bundle {
-  val tag   = UInt(8.W)
+  val tag   = UInt(10.W)
   val error = UInt(4.W)
 }
 
@@ -260,7 +260,7 @@ class PacketFrameFactory extends Bundle {
   def lastFrame(): UInt = {
     val last = Wire(UInt(1.W))
     // If the next 64 bytes from frame offset exceeds the size then set last signal
-    when (frame_off + 64.U > NetworkCfg.headerBytes.U + data.data.seg_len) {
+    when (frame_off + 64.U >= NetworkCfg.headerBytes.U + data.data.seg_len) {
       last := 1.U
     }.otherwise {
       last := 0.U
@@ -290,6 +290,11 @@ class PacketFrameFactory extends Bundle {
     }
     truncbytes
   }
+
+  //        payload bytes     payload offset    buffBytesReg
+  // 0            0               0                 0
+  // 64           14              0                 0
+  // 128          64              14                14
 
   /* payloadOffset - Offset of the 0-64 Bytes of payload of this packet
    * factory within a single PacketFrameFactory

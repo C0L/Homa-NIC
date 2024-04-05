@@ -196,10 +196,10 @@ class pcie_rtl extends BlackBox (
       "AXI_ID_WIDTH" -> 8,
       "PCIE_ADDR_WIDTH" -> 64,
       "LEN_WIDTH" -> 16,
-      "TAG_WIDTH" -> 8,
+      "TAG_WIDTH" -> 10,
       "PORTS" -> 2,
-      "S_TAG_WIDTH" -> 8,
-      "M_TAG_WIDTH" -> 9,
+      "S_TAG_WIDTH" -> 10,
+      "M_TAG_WIDTH" -> 11,
       "S_RAM_SEL_WIDTH" -> 2,
       "M_RAM_SEL_WIDTH" -> 3 
   )) {

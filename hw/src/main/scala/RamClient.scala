@@ -36,10 +36,10 @@ class SegmentedRamRead extends Module {
 
   // A read requests moves from in_latch to pending when the read request is fired to RAM
   pending.io.enq.bits  := in_latch.io.deq.bits
-  pending.io.enq.valid := in_latch.io.deq.fire
+  pending.io.enq.valid := in_latch.io.deq.fire // TODO This should be fire!
 
   // A read request will occur if the in_latch has data and the RAM core is ready to accept it
-  in_latch.io.deq.ready := io.ram_rd.cmd_ready.andR
+  in_latch.io.deq.ready := io.ram_rd.cmd_ready.andR && pending.io.enq.ready
   io.ram_rd.cmd_valid   := Fill(2, in_latch.io.deq.valid)
 
   /* The segmented memory RAM has even and odd segments, which are

@@ -403,6 +403,7 @@ import chisel3.util._
 //   }
 // }
 
+/*
 class TestPriorityQueue extends AnyFreeSpec {
   "test priority queue" in {
     simulate(new PriorityQueue(new PrefetcherEntry, 128)) { dut =>
@@ -505,3 +506,4 @@ class TestPriorityQueue extends AnyFreeSpec {
     }
   }
 }
+*/

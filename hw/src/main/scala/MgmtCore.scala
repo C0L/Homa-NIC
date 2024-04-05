@@ -117,14 +117,14 @@ class MgmtCore extends Module {
   // val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
   // axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
-  val dbuff_ila = Module(new ILA(new QueueEntry))
-  dbuff_ila.io.ila_data := newDnotifsQueue.io.deq.bits
+  // val dbuff_ila = Module(new ILA(new QueueEntry))
+  // dbuff_ila.io.ila_data := newDnotifsQueue.io.deq.bits
 
   // val sendmsg_in_ila = Module(new ILA(Decoupled(new QueueEntry)))
   // sendmsg_in_ila.io.ila_data := sendm
 
-  val sendmsg_out_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
+  // val sendmsg_out_ila = Module(new ILA(Decoupled(new QueueEntry)))
+  // sendmsg_out_ila.io.ila_data := sendmsg_queue.io.dequeue
 
   // val axi_ila = Module(new ILA(new axi(512, 26, true, 8, true, 4, true, 4)))
   // axi_ila.io.ila_data := io.s_axi
@@ -132,20 +132,20 @@ class MgmtCore extends Module {
   // val dma_map_ila = Module(new ILA(new dma_map_t))
   // dma_map_ila.io.ila_data := delegate.io.dma_map_o.bits
 
-  val fetch_in_ila = Module(new ILA(new PrefetcherState))
-  fetch_in_ila.io.ila_data := fetch_queue.io.newFetchable.bits
-  
-  val fetch_out_ila = Module(new ILA(new DmaReq))
-  fetch_out_ila.io.ila_data := fetch_queue.io.fetchRequest.bits
+  // val fetch_in_ila = Module(new ILA(new PrefetcherState))
+  // fetch_in_ila.io.ila_data := fetch_queue.io.newFetchable.bits
+  // 
+  // val fetch_out_ila = Module(new ILA(new DmaReq))
+  // fetch_out_ila.io.ila_data := fetch_queue.io.fetchRequest.bits
 
-  val c2h_addr_map_out_ila = Module(new ILA(new DmaReq))
-  c2h_addr_map_out_ila.io.ila_data := addr_map.io.mappableOut(1).bits
+  // val c2h_addr_map_out_ila = Module(new ILA(new DmaReq))
+  // c2h_addr_map_out_ila.io.ila_data := addr_map.io.mappableOut(1).bits
 
-  val h2c_addr_map_out_ila = Module(new ILA(new DmaReq))
-  h2c_addr_map_out_ila.io.ila_data := addr_map.io.mappableOut(0).bits
+  // val h2c_addr_map_out_ila = Module(new ILA(new DmaReq))
+  // h2c_addr_map_out_ila.io.ila_data := addr_map.io.mappableOut(0).bits
 
-  val dyncfg_ila = Module(new ILA(new DynamicConfiguration))
-  dyncfg_ila.io.ila_data := delegate.io.dynamicConfiguration
+  // val dyncfg_ila = Module(new ILA(new DynamicConfiguration))
+  // dyncfg_ila.io.ila_data := delegate.io.dynamicConfiguration
 
   // val dma_meta_w_ila = Module(new ILA(new dma_write_t))
   // dma_meta_w_ila.io.ila_data := delegate.io.dma_w_req_o.bits

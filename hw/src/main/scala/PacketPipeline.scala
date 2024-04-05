@@ -55,20 +55,20 @@ class PPegressStages extends Module {
   // val pp_egress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
   // pp_egress_ila.io.ila_data := io.egress
 
-  // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  // pp_egress_trigger_ila.io.ila_data := io.trigger
+  val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
+  pp_egress_trigger_ila.io.ila_data := io.trigger
 
-  // val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  // pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
-  // val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  // pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
+  val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
-  // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
+  val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
 
-  // val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  // pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
+  val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
 }
 
 /* PPegressLookup - take an input trigger from the sendmsg queue and
@@ -82,10 +82,11 @@ class PPegressLookup extends Module {
     val packet_in  = Flipped(Decoupled(new QueueEntry)) // Output from sendmsg queue
     val packet_out = Decoupled(new PacketFrameFactory) // Packet factory associated with this queue output 
   })
+
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new QueueEntry, 1, true, false))
-  val pending      = Module(new Queue(new PacketFrameFactory, 12, true, false))
+  val pending      = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO does not need to be that large?
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // Tie register stages to input and output 
@@ -95,11 +96,12 @@ class PPegressLookup extends Module {
   /*
    *  Tie stage 0 to delay queue
    *  Dispatch the ram read request
-   */ 
+   */
+  packet_reg_0.io.deq.ready  := pending.io.enq.ready && io.ram_read_desc.ready
+
   pending.io.enq.bits         := 0.U.asTypeOf(new PacketFrameFactory)
   pending.io.enq.bits.trigger := packet_reg_0.io.deq.bits
-  pending.io.enq.valid        := packet_reg_0.io.deq.valid
-  packet_reg_0.io.deq.ready   := pending.io.enq.ready
+  pending.io.enq.valid        := packet_reg_0.io.deq.fire
 
   io.ram_read_desc.bits      := 0.U.asTypeOf(new RamReadReq)
   io.ram_read_desc.valid     := packet_reg_0.io.deq.fire
@@ -113,11 +115,11 @@ class PPegressLookup extends Module {
    * We are ready if there are no more chunks to dequeue
    */
   pending.io.deq.ready      := packet_reg_1.io.enq.ready && io.ram_read_data.valid
-  packet_reg_1.io.enq.valid := pending.io.deq.valid && io.ram_read_data.valid
+  packet_reg_1.io.enq.valid := pending.io.deq.fire
 
   // If the RAM read has data there is always data in queue. That will
   // be emptied when the downstream is availible
-  io.ram_read_data.ready := packet_reg_1.io.enq.ready
+  io.ram_read_data.ready := pending.io.deq.fire
 
   packet_reg_1.io.enq.bits    := pending.io.deq.bits
   packet_reg_1.io.enq.bits.cb := io.ram_read_data.bits.data.asTypeOf(new msghdr_t)
@@ -151,7 +153,7 @@ class PPegressDupe extends Module {
   // TODO Move some of this logic out
 
   packet_reg_0.io.deq.ready          := packet_reg_1.io.enq.ready && (frame_off >= (packet_reg_0.io.deq.bits.packetBytes() - 64.U))
-  packet_reg_1.io.enq.valid          := packet_reg_0.io.deq.valid
+  packet_reg_1.io.enq.valid          := packet_reg_0.io.deq.valid 
   packet_reg_1.io.enq.bits           := packet_reg_0.io.deq.bits
   packet_reg_1.io.enq.bits.frame_off := frame_off
 
@@ -160,7 +162,7 @@ class PPegressDupe extends Module {
    */
   when (io.packet_in.fire) { 
     frame_off := 0.U
-  }.elsewhen (packet_reg_1.io.enq.ready && packet_reg_0.io.deq.valid) {
+  }.elsewhen (packet_reg_1.io.enq.fire) {
     frame_off := frame_off + 64.U
   }
 }
@@ -186,15 +188,6 @@ class PPegressPayload extends Module {
   val pending = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO cross domain crossing heavy penatly
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
-  // Tie register stages to input and output 
-  packet_reg_0.io.enq <> io.packet_in
-  io.packet_out       <> packet_reg_1.io.deq 
-
-  /*
-   *  Tie stage 0 to delay queue
-   *  Dispatch the ram read request
-   */ 
-  pending.io.enq <> packet_reg_0.io.deq
 
   // TODO no flow control on this path. Frees 1 payload worth of bytes
   io.newCacheFree.bits  := packet_reg_0.io.deq.bits.trigger.dbuff_id
@@ -221,9 +214,18 @@ class PPegressPayload extends Module {
    */
   val finalOffset = cacheOffset + ((segmentOffset + payloadOffset) % CacheCfg.lineSize.U)
 
-  /* The ram read operation is dispatched when the packet factory moves from initial register stage to pending. 
-   * NOTE: This assumes the ram read core is always ready
+  // Tie register stages to input and output 
+  packet_reg_0.io.enq <> io.packet_in
+  io.packet_out       <> packet_reg_1.io.deq 
+
+  /*
+   *  Tie stage 0 to delay queue
+   *  Dispatch the ram read request
    */
+  packet_reg_0.io.deq.ready := pending.io.enq.ready && io.ramReadReq.ready
+  pending.io.enq.bits       := packet_reg_0.io.deq.bits
+  pending.io.enq.valid      := packet_reg_0.io.deq.fire
+
   io.ramReadReq.valid     := packet_reg_0.io.deq.fire
   io.ramReadReq.bits.addr := finalOffset
   io.ramReadReq.bits.len  := packet_reg_0.io.deq.bits.payloadBytes()
@@ -235,11 +237,11 @@ class PPegressPayload extends Module {
    * We are ready if there are no more chunks to dequeue
    */
   pending.io.deq.ready      := packet_reg_1.io.enq.ready && io.ramReadData.valid 
-  packet_reg_1.io.enq.valid := pending.io.deq.valid && io.ramReadData.valid
+  packet_reg_1.io.enq.valid := pending.io.deq.fire
 
   // If the RAM read has data there is always data in queue. That will
   // be emptied when the downstream is availible
-  io.ramReadData.ready := packet_reg_1.io.enq.ready
+  io.ramReadData.ready := pending.io.deq.fire
 
   packet_reg_1.io.enq.bits         := pending.io.deq.bits
   packet_reg_1.io.enq.bits.payload := io.ramReadData.bits.data
@@ -377,14 +379,14 @@ class PPingressStages extends Module {
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
-  // val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
-  // pp_ingress_ila.io.ila_data := io.ingress
+  val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  pp_ingress_ila.io.ila_data := io.ingress
 
-  // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
+  val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
 
-  //  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  // pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 }
 
 /* PPingressDtor - take 64 byte chunks from off the network and
@@ -427,6 +429,18 @@ class PPingressDtor extends Module {
    * up with the data being added to the packet factory we are
    * constructing.
    */
+
+
+  // class processedRead extends Bundle {
+  //   val processed = UInt(32.W)
+  // }
+
+  // val pp = Wire(new processedRead)
+  // pp.processed := processed
+
+  // val ppreg_ila = Module(new ILA(new processedRead))
+  // ppreg_ila.io.ila_data := pp
+
 
   // TODO can some of this be moved into packet factory?
   when ((pktvalid === false.B || io.packet_out.ready === 1.U) && io.ingress.tvalid) {
@@ -555,8 +569,11 @@ class PPingressLookup extends Module {
   /*
    *  Tie stage 0 to delay queue
    *  Dispatch the ram read request
-   */ 
-  pending.io.enq <> packet_reg_0.io.deq
+   */
+
+  packet_reg_0.io.deq.ready  := pending.io.enq.ready && io.ram_read_desc.ready
+  pending.io.enq.valid       := packet_reg_0.io.deq.fire
+  pending.io.enq.bits        := packet_reg_0.io.deq.bits
 
   io.ram_read_desc.bits     := 0.U.asTypeOf(new RamReadReq)
 
@@ -572,8 +589,8 @@ class PPingressLookup extends Module {
    * We are ready if there are no more chunks to dequeue
    */
   pending.io.deq.ready      := packet_reg_1.io.enq.ready && io.ram_read_data.valid
-  io.ram_read_data.ready    := packet_reg_1.io.enq.ready
-  packet_reg_1.io.enq.valid := io.ram_read_data.valid
+  packet_reg_1.io.enq.valid := pending.io.deq.fire
+  io.ram_read_data.ready    := pending.io.deq.fire
 
   // If the RAM read has data there is always data in queue. That will
   // be emptied when the downstream is availible
@@ -619,9 +636,9 @@ class PPingressPayload extends Module {
    *   1) Last frame of packet
    *   2) Reach io.dynamicConfiguration.writeBuffer offset
    */
-  val ramHead       = RegInit(0.U(16.W))
-  val buffBytesReg  = RegInit(0.U(16.W))
-  val buffBytesCurr = Wire(UInt(16.W))
+  val ramHead       = RegInit(0.U(18.W))
+  val buffBytesReg  = RegInit(0.U(18.W))
+  val buffBytesCurr = Wire(UInt(18.W))
 
   // printf("bbreg: %d, %d\n", buffBytesReg, buffBytesCurr)
 
@@ -638,11 +655,10 @@ class PPingressPayload extends Module {
    * payload chunk) is byte zero of our write request
    */
 
-  // TODO can this be made more generic? Shifting should happen somewhere else maybe?
   // The first frame is pure header data
   when (packet_reg_0.io.deq.bits.frame_off =/= 0.U) {
     // Always issue a RAM write request if possible
-    io.c2hPayloadRamReq.valid     := packet_reg_0.io.deq.valid
+    io.c2hPayloadRamReq.valid := packet_reg_0.io.deq.valid
   }
 
   when (packet_reg_0.io.deq.bits.frame_off === 64.U) {
@@ -653,21 +669,29 @@ class PPingressPayload extends Module {
 
   // When the RAM request is eventually made, we can increment the RAM pointer offset 
   when(packet_reg_0.io.deq.fire) {
-    // TODO how does this handle wrapping around the size of the RAM!?!?!?!
     ramHead := ramHead + packet_reg_0.io.deq.bits.payloadBytes()
     buffBytesReg := buffBytesReg + packet_reg_0.io.deq.bits.payloadBytes()
   }
 
-  val buffAddr = Wire(UInt(16.W))
-  // ram head overflows?
-  buffAddr := ramHead - buffBytesReg // TODO !!!!
+  val buffAddr = Wire(UInt(18.W))
+  buffAddr := ramHead - buffBytesReg
 
   io.c2hPayloadDmaReq.bits.pcie_addr := (packet_reg_0.io.deq.bits.data.data.offset + packet_reg_0.io.deq.bits.payloadOffset() - buffBytesReg).asTypeOf(UInt(64.W))
   io.c2hPayloadDmaReq.bits.ram_sel   := 0.U
-  io.c2hPayloadDmaReq.bits.ram_addr  := buffAddr 
+  io.c2hPayloadDmaReq.bits.ram_addr  := buffAddr
   io.c2hPayloadDmaReq.bits.len       := buffBytesCurr
   io.c2hPayloadDmaReq.bits.tag       := 0.U
   io.c2hPayloadDmaReq.bits.port      := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
+
+  // class BBReg extends Bundle {
+  //   val bbreg = UInt(18.W)
+  // }
+
+  // val bb = Wire(new BBReg)
+  // bb.bbreg := buffBytesReg
+
+  // val bbreg_ila = Module(new ILA(new BBReg))
+  // bbreg_ila.io.ila_data := bb
 
   // Will this frame cause us to reach our write buffer limit?
   when (buffBytesCurr >= io.dynamicConfiguration.writeBufferSize || packet_reg_0.io.deq.bits.lastFrame() === 1.U) {
@@ -679,10 +703,8 @@ class PPingressPayload extends Module {
   }
 
   // To avoid un-graceful wrap arounds we will reset the ring buffer to address 0 when we are conservatively within write buffers of ram limit
-  when (packet_reg_0.io.deq.bits.lastFrame() === 1.U && (65536.U - ramHead) < 2.U * io.dynamicConfiguration.writeBufferSize) {
-    when(packet_reg_0.io.deq.fire) {
-      ramHead := 0.U
-    }
+  when(packet_reg_0.io.deq.fire && 131072.U < ramHead) {
+    ramHead := 0.U
   }
 
   packet_reg_0.io.deq.ready := true.B

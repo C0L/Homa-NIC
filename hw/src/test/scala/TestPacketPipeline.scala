@@ -20,6 +20,8 @@ class TestPPegressLookup extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.packet_out.ready.poke(true.B)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -37,6 +39,7 @@ class TestPPegressLookup extends AnyFreeSpec {
 
       dut.io.packet_out.ready.poke(true.B)
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -61,6 +64,7 @@ class TestPPegressLookup extends AnyFreeSpec {
 
       dut.io.packet_out.ready.poke(true.B)
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -85,6 +89,7 @@ class TestPPegressLookup extends AnyFreeSpec {
 
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_in.bits.rpc_id.poke(100.U)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -102,6 +107,7 @@ class TestPPegressLookup extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -130,6 +136,7 @@ class TestPPegressLookup extends AnyFreeSpec {
 
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_in.bits.rpc_id.poke(99.U)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.io.packet_out.ready.poke(false.B)
 
@@ -620,7 +627,7 @@ class TestPPegressXmit extends AnyFreeSpec {
 }
 
 
-class TestPPegressDtor extends AnyFreeSpec {
+class TestPPigressDtor extends AnyFreeSpec {
 
   "data in gives data out" in {
     simulate(new PPingressDtor) { dut =>
@@ -744,6 +751,7 @@ class TestPPingressLookup extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -761,6 +769,7 @@ class TestPPingressLookup extends AnyFreeSpec {
 
       dut.io.packet_out.ready.poke(true.B)
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -799,6 +808,8 @@ class TestPPingressLookup extends AnyFreeSpec {
       dut.io.packet_out.ready.poke(true.B)
       dut.io.packet_in.valid.poke(true.B)
 
+      dut.io.ram_read_desc.ready.poke(true.B)
+
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(false.B)
@@ -823,6 +834,8 @@ class TestPPingressLookup extends AnyFreeSpec {
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_in.bits.cb.id.poke(100.U)
 
+      dut.io.ram_read_desc.ready.poke(true.B)
+
       dut.clock.step()
 
       dut.io.ram_read_desc.valid.expect(true.B)
@@ -839,6 +852,7 @@ class TestPPingressLookup extends AnyFreeSpec {
       dut.clock.step()
 
       dut.io.packet_in.valid.poke(true.B)
+      dut.io.ram_read_desc.ready.poke(true.B)
 
       dut.clock.step()
 
@@ -868,6 +882,7 @@ class TestPPingressLookup extends AnyFreeSpec {
       dut.io.packet_in.valid.poke(true.B)
       dut.io.packet_in.bits.cb.id.poke(99.U)
 
+      dut.io.ram_read_desc.ready.poke(true.B)
       dut.io.packet_out.ready.poke(false.B)
 
       dut.clock.step()
