@@ -12,6 +12,8 @@
 
 #include <linux/io.h>
 
+#define MAX_PORTS 16 
+
 #define AXI_CMAC_1 0x30000
 
 #define MINOR_H2C_METADATA 0
@@ -21,85 +23,77 @@
 
 #define MAX_MINOR 4
 
-#define HOMA_MAX_MESSAGE_LENGTH 1000000 // The maximum number of bytes in a single message
-
-#define IOCTL_DMA_DUMP 0
-
-#define LOG_RECORD 0
-#define LOG_DRAIN  1
+// The maximum number of bytes in a single message
+#define HOMA_MAX_MESSAGE_LENGTH 1000000 
 
 struct pci_dev * pdev;
 uint32_t BAR_0;
 
-/* device registers for physical address map onboarding AXI-Stream FIFO */
+// NIC device registers
 void __iomem * io_regs; 
 
-/* single user address for DMA and for CPU */
-// TODO eventually this should be an array indexed by port
-void * h2c_msgbuff_cpu_addr;
-dma_addr_t h2c_msgbuff_dma_handle;
+// state associated with a single NIC user
+struct session sessions[MAX_PORTS];
 
-void * c2h_msgbuff_cpu_addr;
-dma_addr_t c2h_msgbuff_dma_handle;
+// State associated with a user session
+struct session {
+    bool assigned = false;
 
-void * c2h_metadata_cpu_addr;
-dma_addr_t c2h_metadata_dma_handle;
+    void * h2c_msgbuff_cpu_addr;
+    dma_addr_t h2c_msgbuff_dma_handle;
 
-// TODO this will just cycle around and eventually reallocate ports
-uint16_t ports = 1;
+    void * c2h_msgbuff_cpu_addr;
+    dma_addr_t c2h_msgbuff_dma_handle;
 
-struct cfg_t {
-    uint32_t unused0; // 4
-    char unused1[16]; // 16
-    char unused2[16]; // 16
-    uint16_t unused3; // 2
-    uint16_t unused4; // 2
-    uint32_t unused5; // 4
-    uint32_t unused6; // 4
-    uint64_t unused8; // 8
-    uint32_t unused9; // 4
-    uint16_t writeBufferSize; // 2
-    uint16_t fetchRequestSize; // 2
+    void * c2h_metadata_cpu_addr;
+    dma_addr_t c2h_metadata_dma_handle;
+}
+
+// Structure passed to NIC for configuration
+struct cfg {
+    char unused1[60]; 
+    uint16_t writeBufferSize;
+    uint16_t fetchRequestSize;
 }__attribute__((packed));
 
-struct port_to_phys_t {
+// Structure passed to NIC for DMA address mappings
+struct port_to_phys {
     uint64_t phys_addr;
     uint16_t port;
     uint8_t  type;
     char     pad[53];
 }__attribute__((packed));
 
-struct cfg_t cfg __attribute__((aligned(64)));
-
-struct port_to_phys_t h2c_port_to_msgbuff __attribute__((aligned(64)));
-struct port_to_phys_t c2h_port_to_msgbuff __attribute__((aligned(64)));
-struct port_to_phys_t c2h_port_to_metadata __attribute__((aligned(64)));
-
-// struct log_control_t log_control __attribute__((aligned(64)));
-// struct log_entry_t log_entry __attribute__((aligned(64)));
-
-extern char _binary_firmware_start[];
-extern char _binary_firmware_end[];
+// Aligned configuration declaration
+struct cfg cfg __attribute__((aligned(64)));
+struct port_to_phys dma_map __attribute__((aligned(64)));
 
 /* Kernel Module Functions */
 int     homanic_open(struct inode *, struct file *);
 ssize_t homanic_read(struct file *, char *, size_t, loff_t *);
 int     homanic_close(struct inode *, struct file *);
 int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
-// long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
 
-/* Helper Functions */
-void dump_log(void);
-void init_eth(void);
-void init_mb(void);
-void dump_mb(void);
-void h2c_new_msgbuff(struct port_to_phys_t * portmap);
-void c2h_new_msgbuff(struct port_to_phys_t * portmap);
-void c2h_new_metadata(struct port_to_phys_t * portmap);
+struct file_operations homanic_fops = {
+    .owner          = THIS_MODULE,
+    .open           = homanic_open,
+    .release        = homanic_close,
+    .mmap           = homanic_mmap,
+
+};
+
+struct device_data {
+    struct cdev cdev;
+};
+
+struct device_data devs[4];
+
+struct class * cls;
+
+int dev_major = 0;
 
 // https://lore.kernel.org/lkml/157428502934.36836.8119026517510193201.stgit@djiang5-desk3.ch.intel.com/
 // https://stackoverflow.com/questions/51918804/generating-a-64-byte-read-pcie-tlp-from-an-x86-cpu
-// inline void iomov64B(__m256i * dst, __m256i * src) {
 void iomov64B(__m256i * dst, __m256i * src) {
     __m256i ymm0;
     __m256i ymm1;
@@ -119,30 +113,6 @@ void iomov64B(__m256i * dst, __m256i * src) {
     kernel_fpu_end();
 }
 
-// void dump_mb() {
-//     int i;
-// 
-//     volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40000);
-//  
-//     for (i = 0; i < 200; ++i) {
-// 	pr_alert("mem index %x: %x\n", i * 4, *((uint32_t*) (prog_mem + i)));
-//     }
-// }
-// 
-// void init_mb() {
-//     int i;
-// 
-//     uint32_t * prog_mem = (uint32_t*) (io_regs + 0x40000);
-// 
-//     for (i = 0; i < ((_binary_firmware_end - _binary_firmware_start) / 4); ++i) {
-// 	iowrite32(*(((uint32_t*) _binary_firmware_start) + i), prog_mem + i);
-//     }
-// 
-//     for (i = 0; i < 150; ++i) {
-//     	pr_alert("mem index %x: %x\n", i * 4, ioread32(prog_mem + i));
-//     }
-// }
-
 // https://docs.xilinx.com/r/en-US/pg203-cmac-usplus/Without-AXI4-Lite-Interface
 void init_eth() {
     iowrite32(0x00000001, io_regs + AXI_CMAC_1 + 0x00000);
@@ -157,77 +127,8 @@ void init_eth() {
     pr_alert("CMAC stat %x\n", ioread32(io_regs + AXI_CMAC_1 + 0x0200));
 } 
 
-struct file_operations homanic_fops = {
-    .owner          = THIS_MODULE,
-    .open           = homanic_open,
-    .release        = homanic_close,
-    .mmap           = homanic_mmap,
-    // .unlocked_ioctl = homanic_ioctl
-};
-
-struct device_data {
-    struct cdev cdev;
-};
-
-struct device_data devs[4];
-
-struct class * cls;
-
-int dev_major = 0;
-
-// void dump_log() {
-//      uint32_t rlr = 0;
-//      uint32_t rdfo = 0;
-//  
-//      // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
-//  
-//      log_control.state = LOG_DRAIN;
-// 
-//      iomov64B((void*) io_regs + 320, (void*) &log_control);
-//  
-//      pr_alert("Dump Log\n");
-//  
-//      rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
-//      rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
-//  
-//      while (rdfo != 0) {
-//  	iomov64B((void *) &log_entry, (void*) io_regs + 0x13000);
-//  	
-//  	iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
-//  	iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
-//  
-//  	rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
-//  	rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
-//  
-//  	pr_alert("Log Entry: ");
-//  	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
-//  	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
-//  	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
-//  	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
-//  	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
-//  	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
-//  	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
-//  	pr_alert("  Duff Notif     - %02hhX", log_entry.dbuff_notif_log);
-//  	pr_alert("  Timer          - %u",     log_entry.timer);
-//      }
-//     
-//      // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
-//  
-//      log_control.state = LOG_RECORD;
-//  
-//      iomov64B((void*) io_regs + 320, (void*) &log_control);
-//  
-//      // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
-// }
-
-void onboard_dma_map(struct port_to_phys_t * port_to_phys) {
-    iomov64B((void*) io_regs, (void*) port_to_phys);
-}
-
+// TODO can multiple threads call open simultanously
 int homanic_open(struct inode * inode, struct file * file) {
-    memset(&h2c_port_to_msgbuff, 0xffffffff, 64);
-    memset(&c2h_port_to_msgbuff, 0xffffffff, 64);
-    memset(&c2h_port_to_metadata, 0xffffffff, 64);
 
     pr_alert("homanic_open");
 
@@ -246,7 +147,9 @@ int homanic_open(struct inode * inode, struct file * file) {
 	    c2h_port_to_metadata.port      = ports;
 	    c2h_port_to_metadata.type 	   = 2;
 
-	    onboard_dma_map(&c2h_port_to_metadata);
+	    // onboard_dma_map(&c2h_port_to_metadata);
+
+	    iomov64B((void*) io_regs, (void*) dma_map);
 
 	    break;
 	}
@@ -317,29 +220,8 @@ int homanic_close(struct inode * inode, struct file * file) {
     return 0;
 }
 
-// long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioctl_param) {
-//     printk(KERN_ALERT "homanic_ioctl\n");
-// 
-//     switch(ioctl_num) {
-// 	case IOCTL_DMA_DUMP:
-// 
-// 	    // dump_log();
-// 	    // for (i = 0; i < 8; ++i) {
-// 	    // 	printk(KERN_ALERT "Chunk %d: ", i);
-// 	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
-// 	    // }
-// 	    // 
-// 	    // for (i = 0; i < 8; ++i) {
-// 	    // 	printk(KERN_ALERT "Chunk %d: ", i);
-// 	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
-// 	    // }
-// 	    break;
-//     }
-// 
-//     return 0;
-// }
-
-
+// TODO store data in struct file?
+file->private_data 
 int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
     int ret = 0;
 
@@ -353,6 +235,10 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
     switch(iminor(file->f_inode)) {
 	case MINOR_H2C_METADATA:
 	    pr_alert("device register remap");
+
+	    // TODO multiply by port number here?
+	    // Use vm_page_prot and size to determine what type of mapping?
+	    // How do we know the port number for caller?
 
 	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + 4096) >> PAGE_SHIFT, 4096, vma->vm_page_prot);
 	    // ret = remap_pfn_range(vma, vma->vm_start, BAR_0 >> PAGE_SHIFT, 16384, vma->vm_page_prot);
@@ -512,3 +398,128 @@ void homanic_exit(void) {
 module_init(homanic_init)
 module_exit(homanic_exit)
 MODULE_LICENSE("GPL");
+
+
+
+// void dump_mb() {
+//     int i;
+// 
+//     volatile uint64_t * prog_mem = (volatile uint64_t*) (io_regs + 0x40000);
+//  
+//     for (i = 0; i < 200; ++i) {
+// 	pr_alert("mem index %x: %x\n", i * 4, *((uint32_t*) (prog_mem + i)));
+//     }
+// }
+// 
+// void init_mb() {
+//     int i;
+// 
+//     uint32_t * prog_mem = (uint32_t*) (io_regs + 0x40000);
+// 
+//     for (i = 0; i < ((_binary_firmware_end - _binary_firmware_start) / 4); ++i) {
+// 	iowrite32(*(((uint32_t*) _binary_firmware_start) + i), prog_mem + i);
+//     }
+// 
+//     for (i = 0; i < 150; ++i) {
+//     	pr_alert("mem index %x: %x\n", i * 4, ioread32(prog_mem + i));
+//     }
+// }
+
+
+// long homanic_ioctl(struct file * file, unsigned int ioctl_num, unsigned long ioctl_param) {
+//     printk(KERN_ALERT "homanic_ioctl\n");
+// 
+//     switch(ioctl_num) {
+// 	case IOCTL_DMA_DUMP:
+// 
+// 	    // dump_log();
+// 	    // for (i = 0; i < 8; ++i) {
+// 	    // 	printk(KERN_ALERT "Chunk %d: ", i);
+// 	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) c2h_msgbuff_cpu_addr) + j + (i*64)));
+// 	    // }
+// 	    // 
+// 	    // for (i = 0; i < 8; ++i) {
+// 	    // 	printk(KERN_ALERT "Chunk %d: ", i);
+// 	    // 	for (j = 0; j < 64; ++j) printk(KERN_CONT "%02hhX", *(((unsigned char *) h2c_msgbuff_cpu_addr) + j + (i*64)));
+// 	    // }
+// 	    break;
+//     }
+// 
+//     return 0;
+// }
+
+
+// void dump_log() {
+//      uint32_t rlr = 0;
+//      uint32_t rdfo = 0;
+//  
+//      // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+//  
+//      log_control.state = LOG_DRAIN;
+// 
+//      iomov64B((void*) io_regs + 320, (void*) &log_control);
+//  
+//      pr_alert("Dump Log\n");
+//  
+//      rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
+//      rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
+//  
+//      while (rdfo != 0) {
+//  	iomov64B((void *) &log_entry, (void*) io_regs + 0x13000);
+//  	
+//  	iowrite32(0xffffffff, io_regs + 0x11000 + AXI_STREAM_FIFO_ISR);
+//  	iowrite32(0x0C000000, io_regs + 0x11000 + AXI_STREAM_FIFO_IER);
+//  
+//  	rdfo = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RDFO);
+//  	rlr  = ioread32(io_regs + 0x11000 + AXI_STREAM_FIFO_RLR);
+//  
+//  	pr_alert("Log Entry: ");
+//  	pr_alert("  DMA Write Req  - %02hhX", log_entry.dma_w_req_log);
+//  	pr_alert("  DMA Write Stat - %02hhX", log_entry.dma_w_stat_log);
+//  	pr_alert("  DMA Read Req   - %02hhX", log_entry.dma_r_req_log);
+//  	pr_alert("  DMA Read Resp  - %02hhX", log_entry.dma_r_resp_log);
+//  	pr_alert("  DMA Read Stat  - %02hhX", log_entry.dma_r_stat_log);
+//  	pr_alert("  H2C Packet     - %02hhX", log_entry.h2c_pkt_log);
+//  	pr_alert("  C2H Packet     - %02hhX", log_entry.c2h_pkt_log);
+//  	pr_alert("  Duff Notif     - %02hhX", log_entry.dbuff_notif_log);
+//  	pr_alert("  Timer          - %u",     log_entry.timer);
+//      }
+//     
+//      // iowrite32(LOG_CONTROL_DEST, axi_stream_regs + AXI_STREAM_FIFO_TDR);
+//  
+//      log_control.state = LOG_RECORD;
+//  
+//      iomov64B((void*) io_regs + 320, (void*) &log_control);
+//  
+//      // iowrite32(64, axi_stream_regs + AXI_STREAM_FIFO_TLR);
+// }
+
+// long    homanic_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
+
+// TODO eventually this should be an array indexed by port
+// void * h2c_msgbuff_cpu_addr;
+// dma_addr_t h2c_msgbuff_dma_handle;
+// 
+// void * c2h_msgbuff_cpu_addr;
+// dma_addr_t c2h_msgbuff_dma_handle;
+// 
+// void * c2h_metadata_cpu_addr;
+// dma_addr_t c2h_metadata_dma_handle;
+
+
+// #define IOCTL_DMA_DUMP 0
+
+// #define LOG_RECORD 0
+// #define LOG_DRAIN  1
+
+// extern char _binary_firmware_start[];
+// extern char _binary_firmware_end[];
+
+    // .unlocked_ioctl = homanic_ioctl
+// void init_mb(void);
+// void dump_mb(void);
+
+/* Helper Functions */
+// void dump_log(void);
+// void init_eth(void);
+
