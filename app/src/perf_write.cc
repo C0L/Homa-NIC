@@ -24,37 +24,34 @@ char * h2c_msgbuff_map;
 char * c2h_msgbuff_map;
 
 int main() {
-    int c2h_metadata_fd = open("/dev/homa_nic_c2h_metadata", O_RDWR|O_SYNC);
-    int h2c_metadata_fd = open("/dev/homa_nic_h2c_metadata", O_RDWR|O_SYNC);
-    int c2h_msgbuff_fd  = open("/dev/homa_nic_c2h_msgbuff", O_RDWR|O_SYNC);
-    int h2c_msgbuff_fd  = open("/dev/homa_nic_h2c_msgbuff", O_RDWR|O_SYNC);
-
-    if (c2h_metadata_fd < 0 || h2c_metadata_fd < 0 || c2h_msgbuff_fd < 0 || h2c_msgbuff_fd < 0) {
-    	perror("Invalid character device\n");
+    int homanic_fd = open("/dev/homanic", O_RDWR|O_SYNC);
+    if (homanic_fd < 0) {
+	perror("Invalid character device\n");
     }
 
-    h2c_metadata_map = (char *) mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_metadata_fd, 0);
-    c2h_metadata_map = (char *) mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_metadata_fd, 0);
-    h2c_msgbuff_map  = (char *) mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, h2c_msgbuff_fd, 0);
-    c2h_msgbuff_map  = (char *) mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, c2h_msgbuff_fd, 0);
+    c2h_metadata_map = (char *) mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, homanic_fd, 0 * sysconf(_SC_PAGE_SIZE));
+    h2c_metadata_map = (char *) mmap(NULL, 16384, PROT_READ | PROT_WRITE, MAP_SHARED, homanic_fd, 1 * sysconf(_SC_PAGE_SIZE));
+    h2c_msgbuff_map  = (char *) mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, homanic_fd, 2 * sysconf(_SC_PAGE_SIZE));
+    c2h_msgbuff_map  = (char *) mmap(NULL, 1 * HOMA_MAX_MESSAGE_LENGTH, PROT_READ| PROT_WRITE, MAP_SHARED, homanic_fd, 3 * sysconf(_SC_PAGE_SIZE));
 
     if (h2c_metadata_map == NULL || c2h_metadata_map == NULL || h2c_msgbuff_map == NULL || c2h_msgbuff_map == NULL) {
-    	perror("mmap failed\n");
+	perror("mmap failed\n");
     }
+
 
     char pattern[5] = "\xDE\xAD\xBE\xEF";
 
-    for (int i = 0; i < (HOMA_MAX_MESSAGE_LENGTH/64)-1; ++i) {
-	memset(pattern, 0xFF, 4);
-    	for (int j = 0; j < 64/4; ++j) {
-       		 memcpy((((char*) h2c_msgbuff_map)) + (j*4) + (i*64), pattern, 4);
-	}	
+     for (int i = 0; i < (HOMA_MAX_MESSAGE_LENGTH/64)-1; ++i) {
+     	memset(pattern, 0xFF, 4);
+     	for (int j = 0; j < 64/4; ++j) {
+        		 memcpy((((char*) h2c_msgbuff_map)) + (j*4) + (i*64), pattern, 4);
+     	}	
 
-        //memset(pattern, i+2, 4);
-    	//for (int j = 0; j < 64/4; ++j) {
-        //	memcpy((((char*) h2c_msgbuff_map)) + (j*4) + (i*64), pattern, 4);
-    	//}
-    }
+         //memset(pattern, i+2, 4);
+     	//for (int j = 0; j < 64/4; ++j) {
+         //	memcpy((((char*) h2c_msgbuff_map)) + (j*4) + (i*64), pattern, 4);
+     	//}
+     }
 
     uint32_t retoff = 0; // Lte 12 bits used
 
@@ -65,6 +62,8 @@ int main() {
     msghdr_send_in.buff_addr = 0;
     msghdr_send_in.id        = 0;
     msghdr_send_in.cc        = 0;
+
+
 
     for (int i = 0; i < 200; ++i) {
     	char thread_name[50];
@@ -93,17 +92,14 @@ int main() {
 	char file_name[50];
 	snprintf(file_name, 50, "parse/perf_write_%03d.tt\0", i);
     	time_trace::print_to_file(file_name);
-    } 
+    }
 
     munmap(h2c_metadata_map, 16384);
     munmap(c2h_metadata_map, 16384);
     munmap(h2c_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
     munmap(c2h_msgbuff_map, 1 * HOMA_MAX_MESSAGE_LENGTH);
 
-    close(h2c_metadata_fd);
-    close(c2h_metadata_fd);
-    close(h2c_msgbuff_fd);
-    close(c2h_msgbuff_fd);
+    close(homanic_fd);
 }
 
 // TODO placesomewhere more organized

@@ -1,6 +1,7 @@
 #include <linux/module.h>
 #include <linux/cdev.h>
 #include <linux/printk.h>
+#include <linux/mman.h>
 #include <linux/dma-mapping.h>
 #include <linux/pci.h>
 #include <linux/set_memory.h>
@@ -12,7 +13,12 @@
 
 #include <linux/io.h>
 
-#define MAX_PORTS 16 
+#define MAX_PORTS 16
+#define METADATA_SIZE 16384
+
+#define H2C_MSGBUFF_MAP  0
+#define C2H_MSGBUFF_MAP  1
+#define C2H_METADATA_MAP 2
 
 #define AXI_CMAC_1 0x30000
 
@@ -30,14 +36,12 @@ struct pci_dev * pdev;
 uint32_t BAR_0;
 
 // NIC device registers
-void __iomem * io_regs; 
-
-// state associated with a single NIC user
-struct session sessions[MAX_PORTS];
+void __iomem * io_regs;
 
 // State associated with a user session
 struct session {
-    bool assigned = false;
+    bool assigned;
+    uint16_t port;
 
     void * h2c_msgbuff_cpu_addr;
     dma_addr_t h2c_msgbuff_dma_handle;
@@ -47,7 +51,10 @@ struct session {
 
     void * c2h_metadata_cpu_addr;
     dma_addr_t c2h_metadata_dma_handle;
-}
+};
+
+// state associated with a single NIC user
+struct session sessions[MAX_PORTS];
 
 // Structure passed to NIC for configuration
 struct cfg {
@@ -73,6 +80,8 @@ int     homanic_open(struct inode *, struct file *);
 ssize_t homanic_read(struct file *, char *, size_t, loff_t *);
 int     homanic_close(struct inode *, struct file *);
 int     homanic_mmap(struct file * fp, struct vm_area_struct * vma);
+
+void init_eth(void);
 
 struct file_operations homanic_fops = {
     .owner          = THIS_MODULE,
@@ -129,176 +138,131 @@ void init_eth() {
 
 // TODO can multiple threads call open simultanously
 int homanic_open(struct inode * inode, struct file * file) {
+    struct session * session;
+    size_t s;
 
     pr_alert("homanic_open");
 
-    switch(iminor(file->f_inode)) {
-	case MINOR_H2C_METADATA:
-	    pr_alert("device register open");
-
-	    break;
-	case MINOR_C2H_METADATA: {
-	    c2h_metadata_cpu_addr = dma_alloc_coherent(&(pdev->dev), 16384, &c2h_metadata_dma_handle, GFP_KERNEL);
-
-	    pr_alert("cpu address:%llx\n", (uint64_t) c2h_metadata_cpu_addr);
-	    pr_alert("dma address:%llx\n", (uint64_t) c2h_metadata_dma_handle);
-
-	    c2h_port_to_metadata.phys_addr = ((uint64_t) c2h_metadata_dma_handle);
-	    c2h_port_to_metadata.port      = ports;
-	    c2h_port_to_metadata.type 	   = 2;
-
-	    // onboard_dma_map(&c2h_port_to_metadata);
-
-	    iomov64B((void*) io_regs, (void*) dma_map);
-
+    // TODO find the open port
+    for (s = 0; s < MAX_PORTS; ++s) {
+	if (sessions[s].assigned == false) {
+	    session = sessions + s;
 	    break;
 	}
-	case MINOR_H2C_MSGBUFF:
-	    h2c_msgbuff_cpu_addr  = dma_alloc_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, &h2c_msgbuff_dma_handle, GFP_KERNEL);
-	    pr_alert("cpu address:%llx\n", (uint64_t) h2c_msgbuff_cpu_addr);
-	    pr_alert("dma address:%llx\n", (uint64_t) h2c_msgbuff_dma_handle);
 
-	    h2c_port_to_msgbuff.phys_addr = ((uint64_t) h2c_msgbuff_dma_handle);
-	    h2c_port_to_msgbuff.port      = ports;
-	    h2c_port_to_msgbuff.type 	  = 0;
-
-	    onboard_dma_map(&h2c_port_to_msgbuff);
-
-	    break;
-
-	case MINOR_C2H_MSGBUFF:
-	    c2h_msgbuff_cpu_addr  = dma_alloc_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_msgbuff_dma_handle, GFP_KERNEL);
-
-	    pr_alert("cpu address:%llx\n", (uint64_t) c2h_msgbuff_cpu_addr);
-	    pr_alert("dma address:%llx\n", (uint64_t) c2h_msgbuff_dma_handle);
-
-	    c2h_port_to_msgbuff.phys_addr = ((uint64_t) c2h_msgbuff_dma_handle);
-	    c2h_port_to_msgbuff.port      = ports;
-	    c2h_port_to_msgbuff.type      = 1;
-
-	    onboard_dma_map(&c2h_port_to_msgbuff);
-
-	    break;
+	// TODO better error handling
+	if (s == MAX_PORTS-1) {
+	    return 1;
+	}
     }
+
+    // Ensure that this session is not allocated to anyone else
+    session->assigned = true;
+
+    // Associate this session with this file descriptor
+    file->private_data = session;
+
+    // printk(KERN_ALERT "port %d: ", session->port);
+    pr_alert("port %d: ", session->port);
+
+    // Allocate a buffer for metadata written from card to host
+    session->c2h_metadata_cpu_addr = dma_alloc_coherent(&(pdev->dev), 16384, &(session->c2h_metadata_dma_handle), GFP_KERNEL);
+
+    // Create an on-chip mapping to this buffer
+    dma_map.phys_addr = ((uint64_t) session->c2h_metadata_dma_handle);
+    dma_map.port      = session->port;
+    dma_map.type      = C2H_METADATA_MAP;
+    iomov64B((void*) io_regs, (void*) &dma_map);
+
+    // Allocate a buffer for metadata written from card to host
+    session->h2c_msgbuff_cpu_addr = dma_alloc_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, &(session->h2c_msgbuff_dma_handle), GFP_KERNEL);
+
+    // Create an on-chip mapping to this buffer
+    dma_map.phys_addr = ((uint64_t) session->h2c_msgbuff_dma_handle);
+    dma_map.port      = session->port;
+    dma_map.type      = H2C_MSGBUFF_MAP;
+    iomov64B((void*) io_regs, (void*) &dma_map);
+
+    // Allocate a buffer for metadata written from card to host
+    session->c2h_msgbuff_cpu_addr  = dma_alloc_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, &(session->c2h_msgbuff_dma_handle), GFP_KERNEL);
+
+    // Create an on-chip mapping to this buffer
+    dma_map.phys_addr = ((uint64_t) session->c2h_msgbuff_dma_handle);
+    dma_map.port      = session->port;
+    dma_map.type      = C2H_MSGBUFF_MAP;
+    iomov64B((void*) io_regs, (void*) &dma_map);
 
     return 0;
 }
 
+// TODO should implement munmap?
 int homanic_close(struct inode * inode, struct file * file) {
-    // TODO free up the ID
-    // Free the buffers
-    // Wipe user data from the device
+    struct session * session = file->private_data;
 
-    switch(iminor(file->f_inode)) {
-	case MINOR_H2C_METADATA:
-	    printk(KERN_ALERT "h2c metadata close()");
-	    // set_memory_wb((uint64_t) h2c_metadata_cpu_addr, 16384 / PAGE_SIZE);
-	    // TODO also need to cleanup remap pages?
+    pr_alert("homanic_close\n");
 
-	    break;
+    // TODO no write back?
+    // Free the DMA buffer
+    dma_free_coherent(&(pdev->dev), 16384, session->c2h_metadata_cpu_addr, session->c2h_metadata_dma_handle);
 
-	case MINOR_C2H_METADATA:
-	    printk(KERN_ALERT "c2h metadata close()");
-	    // set_memory_wb((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
-	    dma_free_coherent(&(pdev->dev), 16384, c2h_metadata_cpu_addr, c2h_metadata_dma_handle);
-	    break;
+    // Reset memory in page attribute table to write back, free the DMA buffer
+    set_memory_wb((uint64_t) session->h2c_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+    dma_free_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, session->h2c_msgbuff_cpu_addr, session->h2c_msgbuff_dma_handle);
 
-	case MINOR_H2C_MSGBUFF:
-	    printk(KERN_ALERT "h2c msgbuff close()");
-	    set_memory_wb((uint64_t) h2c_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
-	    dma_free_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, h2c_msgbuff_cpu_addr,  h2c_msgbuff_dma_handle);
-	    break;
-
-	case MINOR_C2H_MSGBUFF:
-	    printk(KERN_ALERT "c2h msgbuff close()");
-	    set_memory_wb((uint64_t) c2h_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
-	    dma_free_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, c2h_msgbuff_cpu_addr,  c2h_msgbuff_dma_handle);
-	    break;
-    }
-    pr_info("homanic_close\n");
+    // Reset memory in page attribute table to write back, free the DMA buffer
+    set_memory_wb((uint64_t) session->c2h_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+    dma_free_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, session->c2h_msgbuff_cpu_addr, session->c2h_msgbuff_dma_handle);
 
     return 0;
 }
 
 // TODO store data in struct file?
-file->private_data 
 int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
     int ret = 0;
+    int map = vma->vm_pgoff;
+    struct session * session = file->private_data;
 
     pr_alert("homanic_mmap\n");
 
-    /* Get the minor number to determine if the caller is interested in
-     *     - Control page for device registers
-     *     - h2c memory buffer
-     *     - c2h memory buffer
-     */
-    switch(iminor(file->f_inode)) {
-	case MINOR_H2C_METADATA:
-	    pr_alert("device register remap");
+    vma->vm_pgoff = 0;
 
-	    // TODO multiply by port number here?
-	    // Use vm_page_prot and size to determine what type of mapping?
-	    // How do we know the port number for caller?
+    printk(KERN_ALERT "port %d: ", session->port);
+    printk(KERN_ALERT "Chunk %d: ", vma->vm_pgoff);
 
+    switch(map) {
+	case 0:
+	    // C2H Metadata
+	    set_memory_uc((uint64_t) session->c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
+	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+	    ret = dma_mmap_coherent(&(pdev->dev), vma, session->c2h_metadata_cpu_addr, session->c2h_metadata_dma_handle, 16384);
+	    pr_alert("0\n");
+	    break;
+
+	case 1:
+	    pr_alert("1\n");
+	    // H2C Metadata
 	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + 4096) >> PAGE_SHIFT, 4096, vma->vm_page_prot);
-	    // ret = remap_pfn_range(vma, vma->vm_start, BAR_0 >> PAGE_SHIFT, 16384, vma->vm_page_prot);
-	    // ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + AXI_STREAM_AXIL) >> PAGE_SHIFT, 16384, vma->vm_page_prot);
-	    // set_memory_wc((uint64_t) vma->vm_start, 16384 / PAGE_SIZE);
-
-	    if (ret != 0) {
-		goto exit;
-	    }
-
 	    break;
 
-	case MINOR_C2H_METADATA:
-	    pr_alert("c2h metadata buffer remap");
+	case 2:
+	    pr_alert("2\n");
 
-	    pr_alert("cpu addr:%llx\n", (uint64_t) c2h_metadata_cpu_addr);
-	    pr_alert("dma handle:%llx\n", (uint64_t) c2h_metadata_dma_handle);
-
-	    set_memory_uc((uint64_t) c2h_metadata_cpu_addr, 16384 / PAGE_SIZE);
+	    pr_alert("%d\n", vma->vm_end - vma->vm_start);
+	    // H2C Msgbuff
+	    set_memory_uc((uint64_t) session->h2c_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
 	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-	    ret = dma_mmap_coherent(&(pdev->dev), vma, c2h_metadata_cpu_addr, c2h_metadata_dma_handle, 16384);
-
-	    if (ret < 0) {
-		pr_err("c2h metadata dma_mmap_coherent failed\n");
-	    }
-
+	    ret = dma_mmap_coherent(&(pdev->dev), vma, session->h2c_msgbuff_cpu_addr, session->h2c_msgbuff_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
 	    break;
 
-	case MINOR_H2C_MSGBUFF:
-	    pr_alert("h2c msgbuff buffer remap");
-	    pr_alert("cpu addr:%llx\n", (uint64_t) h2c_msgbuff_cpu_addr);
-	    pr_alert("dma handle:%llx\n", (uint64_t) h2c_msgbuff_dma_handle);
+	case 3:
+	    pr_alert("3\n");
 
-	    set_memory_uc((uint64_t) h2c_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
+	    pr_alert("%d\n", vma->vm_end - vma->vm_start);
+	    // C2H Msgbuff
+	    set_memory_uc((uint64_t) session->c2h_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
 	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-	    ret = dma_mmap_coherent(&(pdev->dev), vma, h2c_msgbuff_cpu_addr, h2c_msgbuff_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
-
-	    if (ret < 0) {
-		pr_err("h2c msgbuff dma_mmap_coherent failed\n");
-	    }
-
-	    break;
-
-	case MINOR_C2H_MSGBUFF:
-	    pr_alert("c2h msgbuff buffer remap");
-	    pr_alert("cpu addr:%llx\n", (uint64_t) c2h_msgbuff_cpu_addr);
-	    pr_alert("dma handle:%llx\n", (uint64_t) c2h_msgbuff_dma_handle);
-
-
-	    set_memory_uc((uint64_t) c2h_msgbuff_cpu_addr, (1 * HOMA_MAX_MESSAGE_LENGTH) / PAGE_SIZE);
-	    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-	    ret = dma_mmap_coherent(&(pdev->dev), vma, c2h_msgbuff_cpu_addr, c2h_msgbuff_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
-
-	    if (ret < 0) {
-		pr_err("c2h msgbuff dma_mmap_coherent failed\n");
-	    }
-
+	    ret = dma_mmap_coherent(&(pdev->dev), vma, session->c2h_msgbuff_cpu_addr, session->c2h_msgbuff_dma_handle, 1 * HOMA_MAX_MESSAGE_LENGTH);
 	    break;
     }
 
@@ -320,8 +284,15 @@ static void pci_enable_capability(struct pci_dev *pdev, int cap) {
 int homanic_init(void) {
     dev_t dev;
     int err;
+    size_t s;
 
     pr_info("homanic_init\n");
+
+    // Ports go from 1-MAX_PORTS
+    for (s = 0; s < MAX_PORTS; ++s) {
+	sessions[s].port = s+1;
+	sessions[s].assigned = false;
+    }
 
     pdev = pci_get_device(0x1234, 0x0001, NULL);
      
@@ -341,7 +312,8 @@ int homanic_init(void) {
 
     dma_set_mask_and_coherent(&(pdev->dev), DMA_BIT_MASK(48));
 
-    err = alloc_chrdev_region(&dev, 0, MAX_MINOR, "homanic");
+    err = alloc_chrdev_region(&dev, 0, 1, "homanic");
+    // err = alloc_chrdev_region(&dev, 0, MAX_MINOR, "homanic");
 
     if (err != 0) {
 	return err;
@@ -350,20 +322,24 @@ int homanic_init(void) {
     dev_major = MAJOR(dev);
 
     cls = class_create(THIS_MODULE, "homanic");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_METADATA), NULL, "homa_nic_h2c_metadata");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_METADATA), NULL, "homa_nic_c2h_metadata");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_MSGBUFF),  NULL, "homa_nic_h2c_msgbuff");
-    device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_MSGBUFF),  NULL, "homa_nic_c2h_msgbuff");
+    device_create(cls, NULL, MKDEV(dev_major, 0), NULL, "homanic");
+    cdev_init(&devs[0].cdev, &homanic_fops);
+    cdev_add(&devs[0].cdev, MKDEV(dev_major, 0), 1);
 
-    cdev_init(&devs[MINOR_H2C_METADATA].cdev, &homanic_fops);
-    cdev_init(&devs[MINOR_C2H_METADATA].cdev, &homanic_fops);
-    cdev_init(&devs[MINOR_H2C_MSGBUFF].cdev,  &homanic_fops);
-    cdev_init(&devs[MINOR_C2H_MSGBUFF].cdev,  &homanic_fops);
+    // device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_METADATA), NULL, "homa_nic_h2c_metadata");
+    // device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_METADATA), NULL, "homa_nic_c2h_metadata");
+    // device_create(cls, NULL, MKDEV(dev_major, MINOR_H2C_MSGBUFF),  NULL, "homa_nic_h2c_msgbuff");
+    // device_create(cls, NULL, MKDEV(dev_major, MINOR_C2H_MSGBUFF),  NULL, "homa_nic_c2h_msgbuff");
 
-    cdev_add(&devs[MINOR_H2C_METADATA].cdev, MKDEV(dev_major, MINOR_H2C_METADATA), 1);
-    cdev_add(&devs[MINOR_C2H_METADATA].cdev, MKDEV(dev_major, MINOR_C2H_METADATA), 1);
-    cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_H2C_MSGBUFF),  1);
-    cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_C2H_MSGBUFF),  1);
+    // cdev_init(&devs[MINOR_H2C_METADATA].cdev, &homanic_fops);
+    // cdev_init(&devs[MINOR_C2H_METADATA].cdev, &homanic_fops);
+    // cdev_init(&devs[MINOR_H2C_MSGBUFF].cdev,  &homanic_fops);
+    // cdev_init(&devs[MINOR_C2H_MSGBUFF].cdev,  &homanic_fops);
+
+    // cdev_add(&devs[MINOR_H2C_METADATA].cdev, MKDEV(dev_major, MINOR_H2C_METADATA), 1);
+    // cdev_add(&devs[MINOR_C2H_METADATA].cdev, MKDEV(dev_major, MINOR_C2H_METADATA), 1);
+    // cdev_add(&devs[MINOR_H2C_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_H2C_MSGBUFF),  1);
+    // cdev_add(&devs[MINOR_C2H_MSGBUFF].cdev,  MKDEV(dev_major, MINOR_C2H_MSGBUFF),  1);
 
     io_regs = ioremap_wc(BAR_0, 0xA0000);
 
@@ -380,17 +356,21 @@ int homanic_init(void) {
 void homanic_exit(void) {
     pr_info("homanic_exit\n");
 
-    device_destroy(cls, MKDEV(dev_major, MINOR_H2C_METADATA));
-    device_destroy(cls, MKDEV(dev_major, MINOR_C2H_METADATA));
-    device_destroy(cls, MKDEV(dev_major, MINOR_H2C_MSGBUFF));
-    device_destroy(cls, MKDEV(dev_major, MINOR_C2H_MSGBUFF));
+    device_destroy(cls, MKDEV(dev_major, 0));
+    // device_destroy(cls, MKDEV(dev_major, MINOR_H2C_METADATA));
+    // device_destroy(cls, MKDEV(dev_major, MINOR_C2H_METADATA));
+    // device_destroy(cls, MKDEV(dev_major, MINOR_H2C_MSGBUFF));
+    // device_destroy(cls, MKDEV(dev_major, MINOR_C2H_MSGBUFF));
     class_destroy(cls);
 
-    cdev_del(&devs[MINOR_H2C_METADATA].cdev);
-    cdev_del(&devs[MINOR_C2H_METADATA].cdev);
-    cdev_del(&devs[MINOR_H2C_MSGBUFF].cdev);
-    cdev_del(&devs[MINOR_C2H_MSGBUFF].cdev);
-    unregister_chrdev_region(MKDEV(dev_major, 0), MAX_MINOR);
+    cdev_del(&devs[0].cdev);
+    // cdev_del(&devs[MINOR_H2C_METADATA].cdev);
+    // cdev_del(&devs[MINOR_C2H_METADATA].cdev);
+    // cdev_del(&devs[MINOR_H2C_MSGBUFF].cdev);
+    // cdev_del(&devs[MINOR_C2H_MSGBUFF].cdev);
+    // unregister_chrdev_region(MKDEV(dev_major, 0), MAX_MINOR);
+
+    unregister_chrdev_region(MKDEV(dev_major, 0), 1);
 
     iounmap(io_regs);
 }
@@ -521,5 +501,58 @@ MODULE_LICENSE("GPL");
 
 /* Helper Functions */
 // void dump_log(void);
-// void init_eth(void);
+
+
+
+
+
+
+    // switch(iminor(file->f_inode)) {
+    // 	case MINOR_H2C_METADATA:
+    // 	    pr_alert("device register open");
+
+    // 	    break;
+    // 	case MINOR_C2H_METADATA: {
+    // 	    c2h_metadata_cpu_addr = dma_alloc_coherent(&(pdev->dev), 16384, &c2h_metadata_dma_handle, GFP_KERNEL);
+
+    // 	    pr_alert("cpu address:%llx\n", (uint64_t) c2h_metadata_cpu_addr);
+    // 	    pr_alert("dma address:%llx\n", (uint64_t) c2h_metadata_dma_handle);
+
+    // 	    c2h_port_to_metadata.phys_addr = ((uint64_t) c2h_metadata_dma_handle);
+    // 	    c2h_port_to_metadata.port      = ports;
+    // 	    c2h_port_to_metadata.type 	   = 2;
+
+    // 	    // onboard_dma_map(&c2h_port_to_metadata);
+
+    // 	    iomov64B((void*) io_regs, (void*) dma_map);
+
+    // 	    break;
+    // 	}
+    // 	case MINOR_H2C_MSGBUFF:
+    // 	    h2c_msgbuff_cpu_addr  = dma_alloc_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, &h2c_msgbuff_dma_handle, GFP_KERNEL);
+    // 	    pr_alert("cpu address:%llx\n", (uint64_t) h2c_msgbuff_cpu_addr);
+    // 	    pr_alert("dma address:%llx\n", (uint64_t) h2c_msgbuff_dma_handle);
+
+    // 	    h2c_port_to_msgbuff.phys_addr = ((uint64_t) h2c_msgbuff_dma_handle);
+    // 	    h2c_port_to_msgbuff.port      = ports;
+    // 	    h2c_port_to_msgbuff.type 	  = 0;
+
+    // 	    onboard_dma_map(&h2c_port_to_msgbuff);
+
+    // 	    break;
+
+    // 	case MINOR_C2H_MSGBUFF:
+    // 	    c2h_msgbuff_cpu_addr  = dma_alloc_coherent(&(pdev->dev), 1 * HOMA_MAX_MESSAGE_LENGTH, &c2h_msgbuff_dma_handle, GFP_KERNEL);
+
+    // 	    pr_alert("cpu address:%llx\n", (uint64_t) c2h_msgbuff_cpu_addr);
+    // 	    pr_alert("dma address:%llx\n", (uint64_t) c2h_msgbuff_dma_handle);
+
+    // 	    c2h_port_to_msgbuff.phys_addr = ((uint64_t) c2h_msgbuff_dma_handle);
+    // 	    c2h_port_to_msgbuff.port      = ports;
+    // 	    c2h_port_to_msgbuff.type      = 1;
+
+    // 	    onboard_dma_map(&c2h_port_to_msgbuff);
+
+    // 	    break;
+    // }
 
