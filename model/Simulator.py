@@ -10,9 +10,9 @@ from Network import Network
 
 class Sim:
     def __init__(self, config):
-        self.network = Network(config['Simulation']['hosts'], config['Network'])
+        self.network = Network(config['Simulation']['hosts']['total'], config['Network'])
 
-        self.hosts = [Host(i, self.network, config, self) for i in range(config['Simulation']['hosts'])]
+        self.hosts = [Host(i, self.network, config, self) for i in range(config['Simulation']['hosts']['total'])]
         self.entities = self.hosts + [self.network]
         self.messages = []
 
@@ -25,6 +25,8 @@ class Sim:
 
         # Number of time steps to simulate for
         self.timeSteps = config['Simulation']['cycles']
+
+        self.config = config
 
     '''
     Iterate through simulation steps up to the max simulation time
@@ -48,11 +50,11 @@ class Sim:
             if message.receiverReceived == message.length and message.endTime == 0:
                 message.endTime = time
 
-    def completeMessages(self, host):
-        return [m for m in self.messages if m.src == host.id and m.endTime != 0]
+    def completeMessages(self, host, token):
+        return [m for m in self.messages if m.src == host.id and m.endTime != 0 and m.token == token]
 
-    def avgCmplTime(self, host):
-        complete = self.completeMessages(host)
+    def avgCmplTime(self, host, token):
+        complete = self.completeMessages(host, token)
         sumDir = 0
         for entry in complete:
             sumDir += (entry.endTime - entry.startTime)
@@ -60,11 +62,12 @@ class Sim:
             return sumDir / len(complete)
 
     def dumpStats(self):
-        for host in self.hosts: 
-            print(f'Host: {host.id} Statistics:')
-            print(f'   - Total Complete Messages    : {len(self.completeMessages(host))}')
-            print(f'   - Avg. Cmpl. Time            : {self.avgCmplTime(host)}')
-            # print(f'   - Msg / Unit Time   : {self.msgThroughput(time)}')
+        for host in self.hosts:
+            for rate in self.config['Host']['Rates']:
+                print(f'Host: {host.id}, Rate: {rate['token']}:')
+                print(f'   - Total Complete Messages    : {len(self.completeMessages(host, rate['token']))}')
+                print(f'   - Avg. Cmpl. Time            : {self.avgCmplTime(host, rate['token'])}')
+                # print(f'   - Msg / Unit Time   : {self.msgThroughput(time)}')
 
 def main(args):
     with open(args.config) as file:

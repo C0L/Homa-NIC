@@ -9,7 +9,7 @@ class GrantPacket:
         self.message = message
     
 class Message:
-    def __init__(self, src, dest, length, unscheduled, startTime):
+    def __init__(self, src, dest, length, unscheduled, startTime, token):
         self.src  = src 
         self.dest = dest
 
@@ -26,6 +26,8 @@ class Message:
 
         self.grantEntry = None
         self.dataEntry = None
+
+        self.token = token
 
     def __repr__(self):
         return f'''

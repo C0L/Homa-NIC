@@ -31,7 +31,7 @@ class Host():
         self.id  = id
 
         # Generator for payloads and sizes
-        self.generator = [self.msgGen(r['rate'], r['size']) for r in config['Host']['Rates']]
+        self.generator = [self.msgGen(r['rate'], r['size'], r['token']) for r in config['Host']['Rates']]
         self.events = [next(gen) for gen in self.generator]
 
         # Number of units of grants outstaning
@@ -45,18 +45,14 @@ class Host():
 
     def tick(self):
         # Do we need to generate a new message from the poisson process?
-        #if (self.nextMessage == None):
-        #    self.nextMessage = next(self.generator)
-        self.events = [next(fut) if curr[0] < self.time else curr for fut, curr in zip(self.generator, self.events)]
+        self.events = [next(fut) if curr.startTime < self.time else curr for fut, curr in zip(self.generator, self.events)]
 
         # If this cycle is when the new sendmsg request is ready 
         for event in self.events:
-            if event[0] == self.time:  
-                # Construct a new entry to pass to the queues
-                message = Message(src=self.id, dest=event[1], length=event[2], unscheduled=self.unscheduled, startTime=event[0])
+            if event.startTime == self.time:  
 
                 # Initiate the sendmsg request
-                self.sendmsg(message)
+                self.sendmsg(event)
                 self.nextMessage = None
                 continue
 
@@ -70,7 +66,7 @@ class Host():
         self.ingress()
 
         self.time += 1
-
+        
     def sendmsg(self, message):
         # Add to global message store
         self.simulator.messages.append(message)
@@ -93,6 +89,11 @@ class Host():
                     # print(self.outstanding)
                     yield packet
                     continue
+
+            # Check if this host is a sender
+            if self.id >= self.config['Simulation']['hosts']['senders']:
+                yield None
+                continue
 
             # Get the queue object output from the priority queue
             entry = self.dataPriorityQueue.dequeue()
@@ -154,14 +155,16 @@ class Host():
     # TODO could we get an update and remove from the queue in the same cycle
                 
     # TODO why even pass this by arg?    
-    def msgGen(self, rate, size):
+    def msgGen(self, rate, size, token):
         # Poisson arrival times + poisson packet sizes for outgoing messages
         t = 0
         while(1):
             t += math.ceil(random.expovariate(1/rate))
             # Compute the number of units of payload
-            payload = math.floor(random.expovariate(1/size)) + 1
+            length = math.floor(random.expovariate(1/size)) + 1
             dest = random.randint(0, self.numHosts-1)
 
-            yield (math.floor(t), dest, payload) 
+            message = Message(src=self.id, dest=dest, length=length, unscheduled=self.unscheduled, startTime=math.floor(t), token=token)
+
+            yield message
 

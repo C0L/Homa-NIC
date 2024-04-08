@@ -1,6 +1,13 @@
 Simulation:
-  hosts: 16
+  # Uniform 
+  # hosts: {total: 16, senders: 16}
+
+  # Bipartite
+  hosts: {total: 16, senders: 8}
+
   cycles: 10000
+
+  # TODO Need a way to partition network here
 
 Network:
   rttData: 1500 
@@ -12,12 +19,17 @@ Host:
   packetsize: 15
   overcommitment: 1600 # TODO
 
+  # Mice and elephant flows (e.g RPCs and data transfer)
   Rates:
-    - {rate: 10, size: 1000} # Every 100 cycles, payload of 100 units
-    - {rate: 100,   size: 10}  # Every 10 cycles, payload of 10 units
+    - {rate: 1000, size: 1000, token: "Backup", dist: "Poisson"} # Every 100 cycles, payload of 100 unit
+    - {rate: 10,   size: 50, token: "RPC", dist: "Poisson"}  # Every 10 cycles, payload of 10 units
 
+  # One size varied across tests
+  # Rates:
+  #  - {rate: 100, size: 100} 
+  
   Queue:
-    onChipDepth: 10
-    onChipLatency: 1
+    onChipDepth: 1
+    onChipLatency: 100 # TODO unimplemented
     offChipDepth: 1000
     offChipLatency: 100

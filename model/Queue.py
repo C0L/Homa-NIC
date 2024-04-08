@@ -10,10 +10,10 @@ class QueueEntry:
 class BisectedPriorityQueue():
     def __init__(self, config):
         # Fast on chip single-cycle priority queue
-        self.onChip  = PriorityQueue(config['onChipDepth'], 1)
+        self.onChip  = PriorityQueue(config['onChipDepth'], config['onChipLatency'])
 
         # Slow off chip multi-cycle priority queue
-        self.offChip = PriorityQueue(math.inf, config['offChipLatency'])
+        self.offChip = PriorityQueue(config['offChipDepth'], config['offChipLatency'])
 
     def enqueue(self, entry):
         if (not self.onChip.full() or entry.priority < self.onChip.tail()):
@@ -40,7 +40,7 @@ class BisectedPriorityQueue():
                 # print("carry down")
                 self.onChip.enqueue(carryDown)
 
-        self.onChip.time += 1
+        self.onChip.time  += 1
         self.offChip.time += 1
 
 # TODO need to impose delay
