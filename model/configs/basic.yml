@@ -1,0 +1,22 @@
+Simulation:
+  hosts: 16
+  cycles: 100000
+
+Network:
+  rttData: 8
+  switchDepth: 8
+  intrinsicDelay: 4
+  bufferDepth: 4
+
+Host:
+  averageRate: 100
+  averagePayload: 100
+  unscheduled: 1000
+  packetsize: 15
+  overcommitment: 10
+
+  Queue:
+    onChipDepth: 1000
+    onChipLatency: 1
+    offChipDepth: 1000
+    offChipLatency: 100
