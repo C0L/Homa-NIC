@@ -1,22 +1,23 @@
 Simulation:
   hosts: 16
-  cycles: 100000
+  cycles: 10000
 
 Network:
-  rttData: 8
-  switchDepth: 8
-  intrinsicDelay: 4
-  bufferDepth: 4
+  rttData: 1500 
+  intrinsicDelay: 750
+  bufferDepth: 1000 # TODO not calibrated 
 
 Host:
-  averageRate: 100
-  averagePayload: 100
-  unscheduled: 1000
+  unscheduled: 1500
   packetsize: 15
-  overcommitment: 10
+  overcommitment: 1600 # TODO
+
+  Rates:
+    - {rate: 10, size: 1000} # Every 100 cycles, payload of 100 units
+    - {rate: 100,   size: 10}  # Every 10 cycles, payload of 10 units
 
   Queue:
-    onChipDepth: 1000
+    onChipDepth: 10
     onChipLatency: 1
     offChipDepth: 1000
     offChipLatency: 100

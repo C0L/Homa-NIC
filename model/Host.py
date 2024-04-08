@@ -31,8 +31,8 @@ class Host():
         self.id  = id
 
         # Generator for payloads and sizes
-        self.generator   = self.messageGenerator(config)
-        self.nextMessage = None
+        self.generator = [self.msgGen(r['rate'], r['size']) for r in config['Host']['Rates']]
+        self.events = [next(gen) for gen in self.generator]
 
         # Number of units of grants outstaning
         self.outstanding = 0
@@ -45,14 +45,20 @@ class Host():
 
     def tick(self):
         # Do we need to generate a new message from the poisson process?
-        if (self.nextMessage == None):
-            self.nextMessage = next(self.generator)
+        #if (self.nextMessage == None):
+        #    self.nextMessage = next(self.generator)
+        self.events = [next(fut) if curr[0] < self.time else curr for fut, curr in zip(self.generator, self.events)]
 
-        # If this cycle is when the new sendmsg request is ready
-        if (self.nextMessage.startTime == self.time):
-            # Initiate the sendmsg request
-            self.sendmsg(copy.deepcopy(self.nextMessage))
-            self.nextMessage = None
+        # If this cycle is when the new sendmsg request is ready 
+        for event in self.events:
+            if event[0] == self.time:  
+                # Construct a new entry to pass to the queues
+                message = Message(src=self.id, dest=event[1], length=event[2], unscheduled=self.unscheduled, startTime=event[0])
+
+                # Initiate the sendmsg request
+                self.sendmsg(message)
+                self.nextMessage = None
+                continue
 
         self.dataPriorityQueue.cycle()
         self.grantPriorityQueue.cycle()
@@ -117,6 +123,7 @@ class Host():
 
         match packet:
             case DataPacket():
+                # TODO check this logic
                 if packet.message.length > self.config['Host']['unscheduled']:
                     if packet.message.receiverReceived > self.config['Host']['unscheduled']:
                         self.outstanding -= 1
@@ -147,21 +154,14 @@ class Host():
     # TODO could we get an update and remove from the queue in the same cycle
                 
     # TODO why even pass this by arg?    
-    def messageGenerator(self, config):
+    def msgGen(self, rate, size):
         # Poisson arrival times + poisson packet sizes for outgoing messages
         t = 0
         while(1):
-            # TODO justify 1+
-            incr = math.ceil(random.expovariate(1/config['Host']['averageRate']))
-            t += incr
-            # print(f'{self.id}: {incr} {t}')
+            t += math.ceil(random.expovariate(1/rate))
             # Compute the number of units of payload
-            # TODO justify 1+
-            payload = math.floor(random.expovariate(1/config['Host']['averagePayload'])) + 1
-            dest = random.randint(0, self.numHosts-1) # TODO maybe -1?
-            # Construct a new entry to pass to the queues
-            message = Message(src=self.id, dest=dest, length=payload, unscheduled=self.unscheduled, startTime=math.floor(t))
-            # print(message)
+            payload = math.floor(random.expovariate(1/size)) + 1
+            dest = random.randint(0, self.numHosts-1)
 
-            yield message 
+            yield (math.floor(t), dest, payload) 
 

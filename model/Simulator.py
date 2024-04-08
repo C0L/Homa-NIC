@@ -66,26 +66,6 @@ class Sim:
             print(f'   - Avg. Cmpl. Time            : {self.avgCmplTime(host)}')
             # print(f'   - Msg / Unit Time   : {self.msgThroughput(time)}')
 
-    # The message throughput at the current time "time"
-    # def msgThroughput(self, time):
-    #     return len(self.messages) / time
-
-    # # Average message completion time at the current time
-    # def avgCmplTime(self):
-    #     sumDir = 0
-    #     complete = [m for m in self.messages if m.endTime != 0]
-    #     for entry in complete:
-    #         sumDir += (entry.endTime - entry.startTime)
-    #         
-    #     return sumDir / len(complete)
-
-    # def dumpStats(self):
-    #     print(f'Host: {self.id} Statistics:')
-    #     print(f'   - Total Messages    : {len(self.messages)}')
-    #     print(f'   - Avg. Cmpl. Time   : {self.avgCmplTime()}')
-    #     print(f'   - Msg / Unit Time   : {self.msgThroughput(time)}')
-
-
 def main(args):
     with open(args.config) as file:
         config = yaml.safe_load(file)
@@ -103,3 +83,4 @@ if __name__ == '__main__':
     main(args)
 
 
+    
