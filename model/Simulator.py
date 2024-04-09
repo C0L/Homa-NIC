@@ -64,15 +64,30 @@ class Sim:
     def dumpStats(self):
         for host in self.hosts:
             for rate in self.config['Host']['Rates']:
-                print(f'Host: {host.id}, Rate: {rate['token']}:')
-                print(f'   - Total Complete Messages    : {len(self.completeMessages(host, rate['token']))}')
-                print(f'   - Avg. Cmpl. Time            : {self.avgCmplTime(host, rate['token'])}')
+                print(f'Host: {host.id}, Rate: {rate["token"]}:')
+                print(f'   - Total Complete Messages    : {len(self.completeMessages(host, rate["token"]))}')
+                print(f'   - Avg. Cmpl. Time            : {self.avgCmplTime(host, rate["token"])}')
                 # print(f'   - Msg / Unit Time   : {self.msgThroughput(time)}')
 
+def checkConfig(config):
+    totalBandwidth = 0.0
+    for r in config['Host']['Rates']:
+        # Data bandwidth
+        totalBandwidth += r['size'] / r['rate']
+
+        grantable = r['size'] - config['Host']['unscheduled']
+        # Grants bandwidth
+        if grantable > 0:
+            totalBandwith += grantable / r['rate']
+
+    print(f'Aggregate Network Demand: {totalBandwidth} per unit time')
+                
 def main(args):
     with open(args.config) as file:
         config = yaml.safe_load(file)
 
+    checkConfig(config)
+        
     sim = Sim(config) 
     sim.simulate()
     sim.dumpStats()
