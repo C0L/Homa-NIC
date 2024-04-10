@@ -42,7 +42,8 @@ class AXISClockConverterRaw(
 
   // Generate tcl to 1) construct the ip with the given name, 2) parameterize the module 
   ipgen ++= s"create_ip -name axis_clock_converter -vendor xilinx.com -library ip -module_name ${ipname}\n"
-  ipgen ++= s"set_property CONFIG.TDATA_NUM_BYTES ${numbytes} [get_ips ${ipname}]"
+  ipgen ++= s"set_property CONFIG.TDATA_NUM_BYTES ${numbytes} [get_ips ${ipname}]\n"
+  ipgen ++= s"set_property CONFIG.SYNCHRONIZATION_STAGES {6} [get_ips ${ipname}]"
 
   // Dump the generated tcl for build flow
   Files.write(Paths.get(s"gen/${ipname}.tcl"), ipgen.toString.getBytes(StandardCharsets.UTF_8))

@@ -29,6 +29,7 @@ class DynamicConfiguration extends Bundle {
  */
 object CacheCfg {
   val lineSize = 16384
+  val logLineSize = 14 
   // val lines = number of dbuffs
 }
 

@@ -42,7 +42,7 @@ class Top extends RawModule {
   ps_reset.io.peripheral_aresetn   := DontCare
   ps_reset.io.mb_debug_sys_rst     := 0.U
 
-  /* core logic operates at 200MHz output from clock generator */
+  /* core logic operates at 250MHz output from clock generator */
   val core = withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) { Module(new MgmtCore) }
 
   val pcie_user_clk   = Wire(Clock())
@@ -106,28 +106,28 @@ class Top extends RawModule {
   axi_cc.io.m_axi_aclk    := mainClk.io.clk_out1
   axi_cc.io.m_axi         <> core.io.s_axi
 
- withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) {
-   val h2cPayloadRamReq_ila = Module(new ILA(new RamReadReq))
-   h2cPayloadRamReq_ila.io.ila_data := core.io.h2cPayloadRamReq.bits
+ // withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) {
+ //   val h2cPayloadRamReq_ila = Module(new ILA(new RamReadReq))
+ //   h2cPayloadRamReq_ila.io.ila_data := core.io.h2cPayloadRamReq.bits
 
-   val c2hPayloadRamReq_ila = Module(new ILA(new RamWriteReq))
-   c2hPayloadRamReq_ila.io.ila_data := core.io.c2hPayloadRamReq.bits
+ //   val c2hPayloadRamReq_ila = Module(new ILA(new RamWriteReq))
+ //   c2hPayloadRamReq_ila.io.ila_data := core.io.c2hPayloadRamReq.bits
 
-   val c2hMetadataRamReq_ila = Module(new ILA(new RamWriteReq))
-   c2hMetadataRamReq_ila.io.ila_data := core.io.c2hMetadataRamReq.bits
+ //   val c2hMetadataRamReq_ila = Module(new ILA(new RamWriteReq))
+ //   c2hMetadataRamReq_ila.io.ila_data := core.io.c2hMetadataRamReq.bits
 
-   val h2cPayloadDmaReq_ila = Module(new ILA(new DmaReq))
-   h2cPayloadDmaReq_ila.io.ila_data := core.io.h2cPayloadDmaReq.bits
+ //   val h2cPayloadDmaReq_ila = Module(new ILA(new DmaReq))
+ //   h2cPayloadDmaReq_ila.io.ila_data := core.io.h2cPayloadDmaReq.bits
 
-   val h2cPayloadDmaStat_ila = Module(new ILA(new DmaReadStat))
-   h2cPayloadDmaStat_ila.io.ila_data := core.io.h2cPayloadDmaStat.bits
+ //   val h2cPayloadDmaStat_ila = Module(new ILA(new DmaReadStat))
+ //   h2cPayloadDmaStat_ila.io.ila_data := core.io.h2cPayloadDmaStat.bits
 
-   val c2hPayloadDmaReq_ila = Module(new ILA(new DmaReq))
-   c2hPayloadDmaReq_ila.io.ila_data := core.io.c2hPayloadDmaReq.bits
+ //   val c2hPayloadDmaReq_ila = Module(new ILA(new DmaReq))
+ //   c2hPayloadDmaReq_ila.io.ila_data := core.io.c2hPayloadDmaReq.bits
 
-   val c2hMetadataDmaReq_ila = Module(new ILA(new DmaReq))
-   c2hMetadataDmaReq_ila.io.ila_data := core.io.c2hMetadataDmaReq.bits
- }
+ //   val c2hMetadataDmaReq_ila = Module(new ILA(new DmaReq))
+ //   c2hMetadataDmaReq_ila.io.ila_data := core.io.c2hMetadataDmaReq.bits
+ // }
 }
 
 /* Main - generate the system verilog code of the entire design (top.sv)

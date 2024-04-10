@@ -150,7 +150,7 @@ class Delegate extends Module {
            io.c2hMetadataDmaReq.valid     := function_queue.io.deq.fire
            io.ppEgressSendmsgRamReq.valid := function_queue.io.deq.fire
 
-           // Only when te transaction takes place we increment the send and dbuff IDs
+           // Only when the transaction takes place we increment the send and dbuff IDs
            when (function_queue.io.deq.fire) {
              // send_id  := send_id + 1.U
              // dbuff_id := dbuff_id + 1.U

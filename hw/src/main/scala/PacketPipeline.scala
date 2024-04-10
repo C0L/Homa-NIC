@@ -5,10 +5,6 @@ import circt.stage.ChiselStage
 import chisel3.util.Decoupled
 import chisel3.util._
 
-// TODO if the DMA write logic is moved to the pipeline we can size
-// the writes based on the number of incoming data as provided by the
-// segment length
-
 /* PPegressStages - combine the egress (out to network) packet
  * processing stages. This involves a lookup to find the data
  * associated with the outgoing RPC (addresses, ports, etc), get the
@@ -55,20 +51,20 @@ class PPegressStages extends Module {
   // val pp_egress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
   // pp_egress_ila.io.ila_data := io.egress
 
-  val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
-  pp_egress_trigger_ila.io.ila_data := io.trigger
+  // val pp_egress_trigger_ila = Module(new ILA(Decoupled(new QueueEntry)))
+  // pp_egress_trigger_ila.io.ila_data := io.trigger
 
-  val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  // val pp_egress_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_egress_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 
-  val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
+  // val pp_egress_dupe_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_egress_dupe_ila.io.ila_data := pp_dupe.io.packet_out
 
-  val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
+  // val pp_egress_payload_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_egress_payload_ila.io.ila_data := pp_payload.io.packet_out
 
-  val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
+  // val pp_egress_ctor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_egress_ctor_ila.io.ila_data := pp_ctor.io.packet_out
 }
 
 /* PPegressLookup - take an input trigger from the sendmsg queue and
@@ -185,7 +181,7 @@ class PPegressPayload extends Module {
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO cross domain crossing heavy penatly
+  val pending = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO cross domain crossing heavy penatly?
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
 
@@ -197,7 +193,7 @@ class PPegressPayload extends Module {
   io.ramReadReq.bits := 0.U.asTypeOf(new RamReadReq)
 
   // The cache line offset for this packet is determined by the cache ID times line size
-  val cacheOffset = (packet_reg_0.io.deq.bits.trigger.dbuff_id * CacheCfg.lineSize.U)
+  val cacheOffset = (packet_reg_0.io.deq.bits.trigger.dbuff_id << CacheCfg.logLineSize.U)
 
   /* The offset of the data segment for this packet
    * NOTE: The cache is a circular buffer within individual cache lines
@@ -379,14 +375,14 @@ class PPingressStages extends Module {
   pp_lookup.io.ram_read_desc        <> io.cb_ram_read_desc
   pp_lookup.io.ram_read_data        <> io.cb_ram_read_data
 
-  val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
-  pp_ingress_ila.io.ila_data := io.ingress
+  // val pp_ingress_ila = Module(new ILA(new axis(512, false, 0, false, 0, true, 64, true)))
+  // pp_ingress_ila.io.ila_data := io.ingress
 
-  val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
+  // val pp_dtor_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_dtor_ila.io.ila_data := pp_dtor.io.packet_out
 
-  val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
-  pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
+  // val pp_lookup_ila = Module(new ILA(Decoupled(new PacketFrameFactory)))
+  // pp_lookup_ila.io.ila_data := pp_lookup.io.packet_out
 }
 
 /* PPingressDtor - take 64 byte chunks from off the network and
