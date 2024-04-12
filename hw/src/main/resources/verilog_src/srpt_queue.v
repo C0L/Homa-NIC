@@ -216,9 +216,7 @@ module srpt_queue #(parameter CACHE_SIZE = 131072,
 	    for (entry = 0; entry < MAX_RPCS-1; entry=entry+1) begin
 	       queue[entry] <= queue_swap_odd[entry];
 	    end 
-	 end
-
-	 if (!m_axis_tvalid || m_axis_tready) begin
+	 end else if (!m_axis_tvalid || m_axis_tready) begin
 	    if (dequeue_ready) begin
 	       if (TYPE == "sendmsg") begin
 	  	  if (queue_head[`QUEUE_ENTRY_REMAINING] <= PAYLOAD_SIZE) begin

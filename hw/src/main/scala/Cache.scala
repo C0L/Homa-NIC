@@ -3,9 +3,7 @@ package gpnic
 import chisel3._
 import chisel3.util._
 
-// TODO should have flow control on data fetch priority queue output
 // TODO no flow control on DMA stat output!!!! 
-// TODO move this outside of RTL wrappers
 // TODO should move storage of message size outside?
 
 // TODO this is more of a prefetcher?
@@ -16,7 +14,7 @@ import chisel3.util._
  */ 
 class PayloadCache extends Module {
   val io = IO(new Bundle {
-    val fetchSize    = Input(UInt(16.W)) // Number of bytes to fetch per cycle for an RPC
+    val logFetchSize    = Input(UInt(16.W)) // Number of bytes to fetch per cycle for an RPC
     val newFetchable = Flipped(Decoupled(new PrefetcherState)) // New RPCs to fetch data for
     val newFree      = Flipped(Decoupled(UInt(10.W))) // Opens cache window for refered dbuff ID
     val fetchRequest = Decoupled(new DmaReq) // DMA read requests to fetch data
@@ -33,7 +31,6 @@ class PayloadCache extends Module {
    * TODO will need to expand
    */
   val fetchQueue = Module(new PriorityQueue(new PrefetcherEntry, 32))
-  fetchQueue.io.increment := io.fetchSize
 
   /* Data associated with the entries in the priorty queue
    * TODO will need to expand
@@ -43,12 +40,11 @@ class PayloadCache extends Module {
   /* Create a new entry for the priority queue
    *   0   - 255 bytes, priority of 0, single fetch
    *   256 - 512 bytes, priority of 1, double fetch
-   *   .....
-   * TODO make >> 8 more general based on fetchSize
+   *   ...
    */
   val newPrefetcherEntry = Wire(new PrefetcherEntry)
   newPrefetcherEntry.dbuffID  := io.newFetchable.bits.dbuffID
-  newPrefetcherEntry.priority := (io.newFetchable.bits.totalLen >> 8.U) 
+  newPrefetcherEntry.priority := (io.newFetchable.bits.totalLen >> io.logFetchSize) 
   newPrefetcherEntry.active   := 1.U
 
   // Tie new prefetcher entry to enqueue of the priority queue
@@ -72,7 +68,6 @@ class PayloadCache extends Module {
   }
 
   // Store data associated with oustanding requests to DMA
-  val oustanding = RegInit(0.U(9.W))
   val tag        = RegInit(0.U(10.W))
   val tagMem     = Mem(1024, new ReqMem)
 
@@ -90,19 +85,19 @@ class PayloadCache extends Module {
   val maxPriority = Wire(UInt(10.W))
   maxPriority := (dbuffRead.totalLen >> 8.U) 
 
-  msgOff := (maxPriority - fetchQueue.io.dequeue.bits.priority) << 8.U
+  msgOff := (maxPriority - fetchQueue.io.dequeue.bits.priority) << io.logFetchSize
   ramAddr := (CacheCfg.lineSize.U * fetchQueue.io.dequeue.bits.dbuffID) + (msgOff % 16364.U)
 
   dmaRead.pcie_addr := msgOff
   dmaRead.ram_sel   := 0.U
   dmaRead.ram_addr  := ramAddr
-  dmaRead.len       := io.fetchSize
+  dmaRead.len       := (2.U << (io.logFetchSize - 1.U))
   dmaRead.tag       := tag
-  dmaRead.port      := 1.U // TODO placeholder
+  dmaRead.port      := 1.U
 
   io.fetchRequest.bits  := dmaRead
   io.fetchRequest.valid := fetchQueue.io.dequeue.valid
-  fetchQueue.io.dequeue.ready := io.fetchRequest.ready && (oustanding < 510.U)
+  fetchQueue.io.dequeue.ready := io.fetchRequest.ready
 
   val pendTag = tagMem.read(io.fetchCmpl.bits.tag)
 
@@ -110,10 +105,10 @@ class PayloadCache extends Module {
   io.fetchNotif.bits.dbuff_id   := pendTag.queue.dbuffID
   io.fetchNotif.bits.remaining  := 0.U
 
-  val notifQueue = Module(new Queue(new ReqMem, 4, true, false))
+  // TODO needs to be large to accomidate no fetchCmpl feedback??
+  val notifQueue = Module(new Queue(new ReqMem, 128, true, false))
 
-  // TODO fetchCmpl does not respond to push back
-  io.fetchCmpl.ready      := notifQueue.io.enq.ready
+  io.fetchCmpl.ready      := notifQueue.io.enq.ready // TODO meaningless
   notifQueue.io.enq.valid := io.fetchCmpl.valid
   notifQueue.io.enq.bits  := pendTag
 
@@ -123,16 +118,6 @@ class PayloadCache extends Module {
   io.fetchNotif.valid          := notifQueue.io.deq.valid
   notifQueue.io.deq.ready      := io.fetchNotif.ready
 
-  // If both a notif and a request occur, no change to oustanding
-  when (!(notifQueue.io.enq.fire && io.fetchRequest.fire)) {
-    // If just a notif occurs, one less outstanding. If just a fetch occurs, one more outsanding
-    when (notifQueue.io.enq.fire) {
-      oustanding := oustanding - 1.U
-    }.elsewhen (io.fetchRequest.fire) {
-      oustanding := oustanding + 1.U
-    }
-  }
- 
   // If a read request is lodged then we store it in the memory until completiton
   when(io.fetchRequest.fire) {
     val tagEntry = Wire(new ReqMem)
@@ -141,6 +126,6 @@ class PayloadCache extends Module {
 
     tagMem.write(tag, tagEntry)
 
-    tag := tag + 1.U(9.W)
+    tag := tag + 1.U(10.W)
   }
 }

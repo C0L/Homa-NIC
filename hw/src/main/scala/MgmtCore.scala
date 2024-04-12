@@ -32,7 +32,7 @@ class MgmtCore extends Module {
 
   val addr_map       = Module(new AddressMap) // Map read and write requests to DMA address
 
-  val fetch_queue    = Module(new PayloadCache)    // Fetch the next best chunk of data
+  val fetch_queue    = Module(new PayloadCache)  // Fetch the next best chunk of data
   val sendmsg_queue  = Module(new SendmsgQueue)  // Send the next best message
 
   val sendmsg_cb     = Module(new SegmentedRam(262144)) // Memory for sendmsg control blocks
@@ -44,8 +44,8 @@ class MgmtCore extends Module {
 
   delegate.io.c2hMetadataRamReq <> io.c2hMetadataRamReq
 
-  fetch_queue.io.fetchSize   := delegate.io.dynamicConfiguration.fetchRequestSize
-  sendmsg_queue.io.fetchSize := delegate.io.dynamicConfiguration.fetchRequestSize
+  fetch_queue.io.logFetchSize   := delegate.io.dynamicConfiguration.logReadSize
+  sendmsg_queue.io.fetchSize := (2.U << (delegate.io.dynamicConfiguration.logReadSize - 1.U))
 
   val pp_ingress = Module(new PPingressStages)
 
@@ -114,8 +114,8 @@ class MgmtCore extends Module {
   sendmsg_arbiter.io.out   <> sendmsg_queue.io.enqueue
 
   /* DEBUGGING ILAS */
-  // val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
-  // axi2axis_ila.io.ila_data := axi2axis.io.m_axis
+  val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))
+  axi2axis_ila.io.ila_data := axi2axis.io.m_axis
 
   // val dbuff_ila = Module(new ILA(new QueueEntry))
   // dbuff_ila.io.ila_data := newDnotifsQueue.io.deq.bits

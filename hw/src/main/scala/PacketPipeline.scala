@@ -26,10 +26,10 @@ class PPegressStages extends Module {
   })
 
   val pp_lookup  = Module(new PPegressLookup)  // Lookup the control block
-  val pp_ctor    = Module(new PPegressCtor) // Construct the packet header from control block data // TODO Move this after the lookup
-  val pp_dupe    = Module(new PPegressDupe) // Generate a packet factory for each 64 bytes of packet
+  val pp_ctor    = Module(new PPegressCtor)    // Construct the packet header from control block data
+  val pp_dupe    = Module(new PPegressDupe)    // Generate a packet factory for each 64 bytes of packet
   val pp_payload = Module(new PPegressPayload) // Grab the payload data for this packet factory
-  val pp_xmit    = Module(new PPegressXmit) // Contruct 64B chunks from packet factory for network
+  val pp_xmit    = Module(new PPegressXmit)    // Contruct 64B chunks from packet factory for network
 
   // Link all the units together
   pp_lookup.io.packet_in  <> io.trigger
@@ -81,7 +81,7 @@ class PPegressLookup extends Module {
 
   /* Computation occurs between register stage 0 and 1
    */
-  val packet_reg_0 = Module(new Queue(new QueueEntry, 1, true, false))
+  val packet_reg_0 = Module(new Queue(new QueueEntry, 1, false, false))
   val pending      = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO does not need to be that large?
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
@@ -127,8 +127,10 @@ class PPegressLookup extends Module {
 class PPegressDupe extends Module {
   val io = IO(new Bundle {
     val packet_in  = Flipped(Decoupled(new PacketFrameFactory)) // Input packet factory
-    val packet_out = Decoupled(new PacketFrameFactory) // Output duplicated packet factories
+    val packet_out = Decoupled(new PacketFrameFactory)          // Output duplicated factories
   })
+
+  val last = Wire(Bool())
 
   // Tag each duplicated packet factory out with 64 byte increments
   val frame_off = RegInit(0.U(32.W))
@@ -138,6 +140,8 @@ class PPegressDupe extends Module {
   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
+  last := ((frame_off >= (packet_reg_0.io.deq.bits.packetBytes() - 64.U)))
+
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
   io.packet_out       <> packet_reg_1.io.deq
@@ -146,9 +150,7 @@ class PPegressDupe extends Module {
    * Only remove the element from the first stage if we have sent all
    * the frames and receiver is ready
    */
-  // TODO Move some of this logic out
-
-  packet_reg_0.io.deq.ready          := packet_reg_1.io.enq.ready && (frame_off >= (packet_reg_0.io.deq.bits.packetBytes() - 64.U))
+  packet_reg_0.io.deq.ready          := packet_reg_1.io.enq.ready && last
   packet_reg_1.io.enq.valid          := packet_reg_0.io.deq.valid 
   packet_reg_1.io.enq.bits           := packet_reg_0.io.deq.bits
   packet_reg_1.io.enq.bits.frame_off := frame_off
@@ -183,7 +185,6 @@ class PPegressPayload extends Module {
   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
   val pending = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO cross domain crossing heavy penatly?
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
-
 
   // TODO no flow control on this path. Frees 1 payload worth of bytes
   io.newCacheFree.bits  := packet_reg_0.io.deq.bits.trigger.dbuff_id
@@ -395,75 +396,48 @@ class PPingressDtor extends Module {
     val packet_out = Decoupled(new PacketFrameFactory) // Constructed packet factory to the next stage
   })
 
-  val processed = RegInit(0.U(32.W)) // Number of bytes we have received so far for this packet
-  val pkt       = Reg(new PacketFrameFactory) // Packet factory we are building as data arrives
-  val pktvalid  = RegInit(false.B) // Whether the packet factory should progress to the next stage
+  val buffered = RegInit(0.U(32.W)) // Number of bytes we have received so far for this packet
+  val buffer   = Reg(new PacketFrameFactory) // Packet factory we are building as data arrives
 
-  // The output to the next stage is a registed packet factory and registered valid signal
-  io.packet_out.valid := pktvalid
-  io.packet_out.bits  := pkt
+  val len  = (new PacketFrameFactory).getWidth // Length of a frame factory in bits
+  // val zero = (new PacketFrameFactory).asUInt   // 0 value wirte
+  val ft   = new PacketFrameFactory
 
-  // TODO this is probably not good
-  io.ingress.tready := io.packet_out.ready
+  // io.packet_out.bits  := buffered
+  io.packet_out.valid:= false.B
+  io.packet_out.bits  := 0.U.asTypeOf(new PacketFrameFactory)
 
-  val length = (new PacketFrameFactory).getWidth
+  io.ingress.tready := io.packet_out.ready 
 
-  /* State machine for parsing packets
-   * If there is data from ingress (64 byte chunks coming from the
-   * network), we make a decision as to what to do with the data based
-   * on how much data we have buffered already which is stored in the
-   * processed register. If there are 0 bytes processed, this is the
-   * first 64 bytes of the header and we drop that in the first 64
-   * bytes of the packet factory. If there are 64 bytes processed,
-   * this is the second 64 bytes of the header and we drop that in the
-   * second 64 bytes of the packet factory. Otherwise, this is purely
-   * data payload and we just store the entire thing in the payload
-   * section of the packet factory. When we receive a tlast signal
-   * from ingress that is the completition of a packet and we can
-   * clear the processed register to prepare for the next packet. We
-   * also register the valid signal to delay it by one cycle to match
-   * up with the data being added to the packet factory we are
-   * constructing.
-   */
+  // Is there data to process (ingress) and is there space in output (packet_out)
+  when (io.packet_out.ready && io.ingress.tvalid) {
+    // Default case
+    io.packet_out.bits := buffer
+    io.packet_out.bits.payload := io.ingress.tdata
 
+    io.packet_out.valid := true.B
 
-  // class processedRead extends Bundle {
-  //   val processed = UInt(32.W)
-  // }
+    switch (buffered) {
+      // First frame (all header)
+      is (0.U) {
+        // Update buffer for next cycle 
+        buffer := Cat(io.ingress.tdata, 0.U((len - 512).W)).asTypeOf(ft)
+        io.packet_out.valid := false.B
+      }
 
-  // val pp = Wire(new processedRead)
-  // pp.processed := processed
-
-  // val ppreg_ila = Module(new ILA(new processedRead))
-  // ppreg_ila.io.ila_data := pp
-
-
-  // TODO can some of this be moved into packet factory?
-  when ((pktvalid === false.B || io.packet_out.ready === 1.U) && io.ingress.tvalid) {
-    when (processed === 0.U) {
-      pkt := Cat(io.ingress.tdata, 0.U(((new PacketFrameFactory).getWidth - 512).W)).asTypeOf(new PacketFrameFactory)
-      pkt.frame_off := processed
-      pktvalid := false.B
-    }.elsewhen (processed === 64.U) {
-      // We know that packet_out was ready so this will send data
-      pkt := Cat(pkt.asUInt(length-1,length-512), io.ingress.tdata, 0.U(((new PacketFrameFactory).getWidth - 1024).W)).asTypeOf(new PacketFrameFactory)
-
-      pkt.frame_off := processed
-      pktvalid  := true.B
-    }.otherwise {
-      // Fill the payload section
-      pktvalid := true.B
-      pkt.payload := io.ingress.tdata
-      pkt.frame_off := processed
+      // Second frame (partial header/payload)
+      is (64.U) {
+        // Update buffer for next cycle
+        buffer := Cat(buffer.asUInt(len-1,len-512), io.ingress.tdata, 0.U((len - 1024).W)).asTypeOf(ft)
+        // Use buffered value + new data to output
+        io.packet_out.bits := Cat(buffer.asUInt(len-1,len-512), io.ingress.tdata, 0.U((len - 1024).W)).asTypeOf(ft)
+        io.packet_out.valid := true.B
+      }
     }
 
-    when (io.ingress.tlast.get) {
-      processed := 0.U 
-    }.otherwise {
-      processed := processed + 64.U
-    }
-  }.elsewhen (io.packet_out.fire) {
-    pktvalid := false.B
+    // Frame value always set
+    io.packet_out.bits.frame_off := buffered
+    buffered := Mux(io.ingress.tlast.get, 0.U, buffered + 64.U)
   }
 }
 
@@ -555,7 +529,7 @@ class PPingressLookup extends Module {
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFrameFactory, 6, true, false))
+  val pending = Module(new Queue(new PacketFrameFactory, 18, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // Tie register stages to input and output 
@@ -567,9 +541,9 @@ class PPingressLookup extends Module {
    *  Dispatch the ram read request
    */
 
-  packet_reg_0.io.deq.ready  := pending.io.enq.ready && io.ram_read_desc.ready
-  pending.io.enq.valid       := packet_reg_0.io.deq.fire
-  pending.io.enq.bits        := packet_reg_0.io.deq.bits
+  packet_reg_0.io.deq.ready := pending.io.enq.ready && io.ram_read_desc.ready
+  pending.io.enq.valid      := packet_reg_0.io.deq.fire
+  pending.io.enq.bits       := packet_reg_0.io.deq.bits
 
   io.ram_read_desc.bits     := 0.U.asTypeOf(new RamReadReq)
 
@@ -614,12 +588,6 @@ class PPingressPayload extends Module {
 
   packet_reg_0.io.enq <> io.packet_in
 
-  /* The RAM core is always ready = True, so we only perform
-   * a transaction when there is valid data in queue and
-   * the DAM core is ready to accept a request
-   */
-  packet_reg_0.io.deq.ready := io.c2hPayloadDmaReq.ready
-
   io.c2hPayloadRamReq.bits  := 0.U.asTypeOf((new RamWriteReq))
   io.c2hPayloadRamReq.valid := false.B
 
@@ -636,7 +604,11 @@ class PPingressPayload extends Module {
   val buffBytesReg  = RegInit(0.U(18.W))
   val buffBytesCurr = Wire(UInt(18.W))
 
-  // printf("bbreg: %d, %d\n", buffBytesReg, buffBytesCurr)
+  /* The RAM core is always ready = True, so we only perform
+   * a transaction when there is valid data in queue and
+   * the DAM core is ready to accept a request
+   */
+  packet_reg_0.io.deq.ready := io.c2hPayloadDmaReq.ready
 
   buffBytesCurr := buffBytesReg + packet_reg_0.io.deq.bits.payloadBytes()
 
@@ -652,13 +624,14 @@ class PPingressPayload extends Module {
    */
 
   // The first frame is pure header data
-  when (packet_reg_0.io.deq.bits.frame_off =/= 0.U) {
+  when (packet_reg_0.io.deq.bits.frame_off =/= 0.U && packet_reg_0.io.deq.fire) {
     // Always issue a RAM write request if possible
-    io.c2hPayloadRamReq.valid := packet_reg_0.io.deq.valid
+    // TODO this issues wasteful requests
+    io.c2hPayloadRamReq.valid := true.B
   }
 
   when (packet_reg_0.io.deq.bits.frame_off === 64.U) {
-    io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload >> (512.U - (packet_reg_0.io.deq.bits.payloadBytes() * 8.U))
+    io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload >> (512.U - (packet_reg_0.io.deq.bits.payloadBytes() << 3.U))
   }.otherwise {
     io.c2hPayloadRamReq.bits.data := packet_reg_0.io.deq.bits.payload
   }
@@ -679,33 +652,19 @@ class PPingressPayload extends Module {
   io.c2hPayloadDmaReq.bits.tag       := 0.U
   io.c2hPayloadDmaReq.bits.port      := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
 
-  // class BBReg extends Bundle {
-  //   val bbreg = UInt(18.W)
-  // }
-
-  // val bb = Wire(new BBReg)
-  // bb.bbreg := buffBytesReg
-
-  // val bbreg_ila = Module(new ILA(new BBReg))
-  // bbreg_ila.io.ila_data := bb
-
   // Will this frame cause us to reach our write buffer limit?
-  when (buffBytesCurr >= io.dynamicConfiguration.writeBufferSize || packet_reg_0.io.deq.bits.lastFrame() === 1.U) {
+  when (buffBytesCurr >= (2.U << (io.dynamicConfiguration.logWriteSize - 1.U)) || packet_reg_0.io.deq.bits.lastFrame() === 1.U) {
     io.c2hPayloadDmaReq.valid := packet_reg_0.io.deq.valid
 
     when(packet_reg_0.io.deq.fire) {
       buffBytesReg := 0.U
+      when (131072.U < ramHead) {
+        ramHead := 0.U
+      }
     }
   }
 
-  // To avoid un-graceful wrap arounds we will reset the ring buffer to address 0 when we are conservatively within write buffers of ram limit
-  when(packet_reg_0.io.deq.fire && 131072.U < ramHead) {
-    ramHead := 0.U
-  }
-
-  packet_reg_0.io.deq.ready := true.B
-  packet_reg_0.io.deq.bits  := DontCare
-  packet_reg_0.io.deq.valid := DontCare
+  // Should use the language "flush"
 }
 
 // class pp_ingress_bitmap extends Module {

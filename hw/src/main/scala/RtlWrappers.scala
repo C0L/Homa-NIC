@@ -363,6 +363,6 @@ class PCIe (PORTS: Int) extends Module {
 
 
 
-  val h2cDmaReadReq_ila = Module(new ILA(Flipped(new dma_read_desc_raw(2))))
-  h2cDmaReadReq_ila.io.ila_data := pcie_core.io.dma_read_desc
+  // val h2cDmaReadReq_ila = Module(new ILA(Flipped(new dma_read_desc_raw(2))))
+  // h2cDmaReadReq_ila.io.ila_data := pcie_core.io.dma_read_desc
 }

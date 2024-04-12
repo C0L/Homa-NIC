@@ -139,7 +139,7 @@ class PriorityQueue[T <: PriorityQueable] (entry: T, size: Int) extends Module {
     val enqueue = Flipped(Decoupled(entry))
     val dequeue = Decoupled(entry)
 
-    val increment = Input(UInt(32.W))
+    // val increment = Input(UInt(32.W))
   })
 
   io.enqueue.ready := true.B
@@ -149,9 +149,6 @@ class PriorityQueue[T <: PriorityQueable] (entry: T, size: Int) extends Module {
   val outputQueue = Module(new Queue(new PrefetcherEntry, 1, true, false))
 
   outputQueue.io.deq <> io.dequeue
-  outputQueue.io.enq.valid := false.B
-  outputQueue.io.enq.bits  := 0.U.asTypeOf(new PrefetcherEntry)
-
   outputQueue.io.enq.valid := false.B
   outputQueue.io.enq.bits := queue(0)
 

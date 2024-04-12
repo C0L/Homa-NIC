@@ -25,30 +25,33 @@ class Top extends RawModule {
   val resetn    = IO(Input(Bool()))
 
   /* primary clock of user logic */
-  val mainClk  = Module(new ClockWizard)
-  mainClk.io.clk_in1_n := clk_in1_n
-  mainClk.io.clk_in1_p := clk_in1_p
-  mainClk.io.reset     := !resetn
+  // val mainClk  = Module(new ClockWizard)
+  // mainClk.io.clk_in1_n := clk_in1_n
+  // mainClk.io.clk_in1_p := clk_in1_p
+  // mainClk.io.reset     := !resetn
 
   /* synchronizes resets to slowest clock */
-  val ps_reset = Module(new ProcessorSystemReset)
-  ps_reset.io.ext_reset_in         := !resetn
-  ps_reset.io.aux_reset_in         := false.B
-  ps_reset.io.slowest_sync_clk     := mainClk.io.clk_out1
-  ps_reset.io.dcm_locked           := mainClk.io.locked
-  ps_reset.io.mb_reset             := DontCare
-  ps_reset.io.bus_struct_reset     := DontCare
-  ps_reset.io.interconnect_aresetn := DontCare
-  ps_reset.io.peripheral_aresetn   := DontCare
-  ps_reset.io.mb_debug_sys_rst     := 0.U
+  // val ps_reset = Module(new ProcessorSystemReset)
+  // ps_reset.io.ext_reset_in         := !resetn
+  // ps_reset.io.aux_reset_in         := false.B
+  // ps_reset.io.slowest_sync_clk     := mainClk.io.clk_out1
+  // ps_reset.io.dcm_locked           := mainClk.io.locked
+  // ps_reset.io.mb_reset             := DontCare
+  // ps_reset.io.bus_struct_reset     := DontCare
+  // ps_reset.io.interconnect_aresetn := DontCare
+  // ps_reset.io.peripheral_aresetn   := DontCare
+  // ps_reset.io.mb_debug_sys_rst     := 0.U
 
   /* core logic operates at 250MHz output from clock generator */
-  val core = withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) { Module(new MgmtCore) }
+  // val core = withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) { Module(new MgmtCore) }
 
   val pcie_user_clk   = Wire(Clock())
   val pcie_user_reset = Wire(Bool())
 
+  val core = withClockAndReset(pcie_user_clk, pcie_user_reset) { Module(new MgmtCore) }
   /* pcie logic operates at 250MHz output from internal pcie core */
+  // val pcie = withClockAndReset(pcie_user_clk, pcie_user_reset) { Module(new pcie_core) }
+
   val pcie = withClockAndReset(pcie_user_clk, pcie_user_reset) { Module(new pcie_core) }
 
   pcie_user_clk   := pcie.pcie_user_clk
@@ -64,47 +67,92 @@ class Top extends RawModule {
 
   /* Clock Convert core (200MHz) -> pcie (250MHz) */
 
-  def core2pcie(source: DecoupledIO[Data], dest: DecoupledIO[Data]) = {
-    val cc  = Module(new AXISClockConverter(chiselTypeOf((source: DecoupledIO[Data]).bits)))
-    source <> cc.io.s_axis
-    cc.io.s_axis_aresetn  := !ps_reset.io.peripheral_reset.asBool
-    cc.io.s_axis_aclk     := mainClk.io.clk_out1
-    cc.io.m_axis_aresetn  := !pcie.pcie_user_reset
-    cc.io.m_axis_aclk     := pcie.pcie_user_clk
-    cc.io.m_axis          <> dest
-  }
+  // def core2pcie(source: DecoupledIO[Data], dest: DecoupledIO[Data]) = {
+  //   val cc  = Module(new AXISClockConverter(chiselTypeOf((source: DecoupledIO[Data]).bits)))
+  //   source <> cc.io.s_axis
+  //   cc.io.s_axis_aresetn  := !ps_reset.io.peripheral_reset.asBool
+  //   cc.io.s_axis_aclk     := mainClk.io.clk_out1
+  //   cc.io.m_axis_aresetn  := !pcie.pcie_user_reset
+  //   cc.io.m_axis_aclk     := pcie.pcie_user_clk
+  //   cc.io.m_axis          <> dest
+  // }
 
-  def pcie2core(source: DecoupledIO[Data], dest: DecoupledIO[Data]) = {
-    val cc  = Module(new AXISClockConverter(chiselTypeOf((source: DecoupledIO[Data]).bits)))
-    source <> cc.io.s_axis
-    cc.io.s_axis_aresetn := !pcie.pcie_user_reset
-    cc.io.s_axis_aclk    := pcie.pcie_user_clk
-    cc.io.m_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
-    cc.io.m_axis_aclk    := mainClk.io.clk_out1
-    cc.io.m_axis         <> dest
+  // def pcie2core(source: DecoupledIO[Data], dest: DecoupledIO[Data]) = {
+  //   val cc  = Module(new AXISClockConverter(chiselTypeOf((source: DecoupledIO[Data]).bits)))
+  //   source <> cc.io.s_axis
+  //   cc.io.s_axis_aresetn := !pcie.pcie_user_reset
+  //   cc.io.s_axis_aclk    := pcie.pcie_user_clk
+  //   cc.io.m_axis_aresetn := !ps_reset.io.peripheral_reset.asBool
+  //   cc.io.m_axis_aclk    := mainClk.io.clk_out1
+  //   cc.io.m_axis         <> dest
 
-  }
+  // }
 
-  core2pcie(core.io.h2cPayloadRamReq, pcie.h2cPayloadRamReq)
-  core2pcie(core.io.c2hPayloadRamReq, pcie.c2hPayloadRamReq)
-  core2pcie(core.io.c2hMetadataRamReq, pcie.c2hMetadataRamReq)
-  core2pcie(core.io.h2cPayloadDmaReq, pcie.h2cPayloadDmaReq)
-  core2pcie(core.io.c2hPayloadDmaReq, pcie.c2hPayloadDmaReq)
-  core2pcie(core.io.c2hMetadataDmaReq, pcie.c2hMetadataDmaReq)
 
-  pcie2core(pcie.h2cPayloadRamResp, core.io.h2cPayloadRamResp)
-  pcie2core(pcie.h2cPayloadDmaStat, core.io.h2cPayloadDmaStat)
+  core.io.h2cPayloadRamReq <> pcie.h2cPayloadRamReq
+  core.io.c2hPayloadRamReq <> pcie.c2hPayloadRamReq
+  core.io.c2hMetadataRamReq <> pcie.c2hMetadataRamReq
+  core.io.h2cPayloadDmaReq <> pcie.h2cPayloadDmaReq
+  core.io.c2hPayloadDmaReq <> pcie.c2hPayloadDmaReq
+  core.io.c2hMetadataDmaReq <> pcie.c2hMetadataDmaReq
+
+  pcie.h2cPayloadRamResp <> core.io.h2cPayloadRamResp
+  pcie.h2cPayloadDmaStat <> core.io.h2cPayloadDmaStat
+
+
+  // core2pcie(core.io.h2cPayloadRamReq, pcie.h2cPayloadRamReq)
+  // core2pcie(core.io.c2hPayloadRamReq, pcie.c2hPayloadRamReq)
+  // core2pcie(core.io.c2hMetadataRamReq, pcie.c2hMetadataRamReq)
+  // core2pcie(core.io.h2cPayloadDmaReq, pcie.h2cPayloadDmaReq)
+  // core2pcie(core.io.c2hPayloadDmaReq, pcie.c2hPayloadDmaReq)
+  // core2pcie(core.io.c2hMetadataDmaReq, pcie.c2hMetadataDmaReq)
+
+  // pcie2core(pcie.h2cPayloadRamResp, core.io.h2cPayloadRamResp)
+  // pcie2core(pcie.h2cPayloadDmaStat, core.io.h2cPayloadDmaStat)
 
   /* Clock Convert pcie (250MHz) -> core (200MHz) */
 
-  val axi_cc    = Module(new AXIClockConverter(512, 26, true, 8, true, 4, true, 4))
+  // val axi_cc    = Module(new AXIClockConverter(512, 26, true, 8, true, 4, true, 4))
 
-  axi_cc.io.s_axi         <> pcie.m_axi
-  axi_cc.io.s_axi_aresetn := !pcie.pcie_user_reset
-  axi_cc.io.s_axi_aclk    := pcie.pcie_user_clk
-  axi_cc.io.m_axi_aresetn := !ps_reset.io.peripheral_reset.asBool
-  axi_cc.io.m_axi_aclk    := mainClk.io.clk_out1
-  axi_cc.io.m_axi         <> core.io.s_axi
+  // axi_cc.io.s_axi         <> pcie.m_axi
+  // axi_cc.io.s_axi_aresetn := !pcie.pcie_user_reset
+  // axi_cc.io.s_axi_aclk    := pcie.pcie_user_clk
+  // axi_cc.io.m_axi_aresetn := !ps_reset.io.peripheral_reset.asBool
+  // axi_cc.io.m_axi_aclk    := mainClk.io.clk_out1
+  // axi_cc.io.m_axi         <> core.io.s_axi
+
+  pcie.m_axi <> core.io.s_axi
+
+  // withClockAndReset(pcie.pcie_user_clk, ps_reset.io.peripheral_reset) {
+  //   val h2cPayloadRamReq_ila = Module(new ILA(new RamReadReq))
+  //   h2cPayloadRamReq_ila.io.ila_data := core.io.h2cPayloadRamReq.bits
+  //  }
+
+  // withClockAndReset(pcie.pcie_user_clk, ps_reset.io.peripheral_reset) {
+  /*
+  withClockAndReset(pcie.pcie_user_clk, pcie_user_reset) {
+    val h2cPayloadRamReq_ila = Module(new ILA(new RamReadReq))
+    h2cPayloadRamReq_ila.io.ila_data := core.io.h2cPayloadRamReq.bits
+
+    val c2hPayloadRamReq_ila = Module(new ILA(new RamWriteReq))
+    c2hPayloadRamReq_ila.io.ila_data := core.io.c2hPayloadRamReq.bits
+
+    val c2hMetadataRamReq_ila = Module(new ILA(new RamWriteReq))
+    c2hMetadataRamReq_ila.io.ila_data := core.io.c2hMetadataRamReq.bits
+
+    val h2cPayloadDmaReq_ila = Module(new ILA(new DmaReq))
+    h2cPayloadDmaReq_ila.io.ila_data := core.io.h2cPayloadDmaReq.bits
+
+    val h2cPayloadDmaStat_ila = Module(new ILA(new DmaReadStat))
+    h2cPayloadDmaStat_ila.io.ila_data := core.io.h2cPayloadDmaStat.bits
+
+    val c2hPayloadDmaReq_ila = Module(new ILA(new DmaReq))
+    c2hPayloadDmaReq_ila.io.ila_data := core.io.c2hPayloadDmaReq.bits
+
+    val c2hMetadataDmaReq_ila = Module(new ILA(new DmaReq))
+    c2hMetadataDmaReq_ila.io.ila_data := core.io.c2hMetadataDmaReq.bits
+  }
+   */
 
  // withClockAndReset(mainClk.io.clk_out1, ps_reset.io.peripheral_reset) {
  //   val h2cPayloadRamReq_ila = Module(new ILA(new RamReadReq))
