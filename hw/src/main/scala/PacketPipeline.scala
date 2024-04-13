@@ -140,11 +140,12 @@ class PPegressDupe extends Module {
   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
-  last := ((frame_off >= (packet_reg_0.io.deq.bits.packetBytes() - 64.U)))
-
   // Tie register stages to input and output 
   packet_reg_0.io.enq <> io.packet_in
   io.packet_out       <> packet_reg_1.io.deq
+
+  // This is the last frame in packet if we are within 64 bytes of total size
+  last := ((frame_off >= (packet_reg_0.io.deq.bits.packetBytes() - 64.U)))
 
   /*
    * Only remove the element from the first stage if we have sent all
@@ -158,11 +159,7 @@ class PPegressDupe extends Module {
   /* When a new frame is accepted then reset frame offset When a new
    * frame is removed then increment the frame offset
    */
-  when (io.packet_in.fire) { 
-    frame_off := 0.U
-  }.elsewhen (packet_reg_1.io.enq.fire) {
-    frame_off := frame_off + 64.U
-  }
+  frame_off := Mux(io.packet_in.fire, 0.U, frame_off + 64.U)
 }
 
 /* PPegressPayload - takes an input packet factory, locates the
@@ -216,8 +213,8 @@ class PPegressPayload extends Module {
   io.packet_out       <> packet_reg_1.io.deq 
 
   /*
-   *  Tie stage 0 to delay queue
-   *  Dispatch the ram read request
+   * Tie stage 0 to delay queue
+   * Dispatch the ram read request
    */
   packet_reg_0.io.deq.ready := pending.io.enq.ready && io.ramReadReq.ready
   pending.io.enq.bits       := packet_reg_0.io.deq.bits
@@ -524,8 +521,6 @@ class PPingressLookup extends Module {
     val packet_out = Decoupled(new PacketFrameFactory) // Packet factory output with control block added
   })
 
-  // println((io.packet_in.bits.eth.getWidth + io.packet_in.bits.ipv6.getWidth + io.packet_in.bits.common.getWidth + io.packet_in.bits.data.getWidth)/8);
-
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
@@ -572,7 +567,6 @@ class PPingressLookup extends Module {
  * payload data, determine the destination for the payload data, send
  * a dma write request.
  *
- * TODO: eventually expose more of the RAM interface to this core
  */
 class PPingressPayload extends Module {
   val io = IO(new Bundle {
@@ -593,8 +587,6 @@ class PPingressPayload extends Module {
 
   io.c2hPayloadDmaReq.bits  := 0.U.asTypeOf((new DmaReq))
   io.c2hPayloadDmaReq.valid := false.B
-
-  // !! TODO maybe need to realign on 64 byte boundaries!!!!
 
   /* Two events trigger a DMA write request
    *   1) Last frame of packet
@@ -652,19 +644,19 @@ class PPingressPayload extends Module {
   io.c2hPayloadDmaReq.bits.tag       := 0.U
   io.c2hPayloadDmaReq.bits.port      := packet_reg_0.io.deq.bits.common.dport // TODO unsafe
 
-  // Will this frame cause us to reach our write buffer limit?
+  // Will this frame cause us to reach our write buffer limit? If so, flush to DMA.
   when (buffBytesCurr >= (2.U << (io.dynamicConfiguration.logWriteSize - 1.U)) || packet_reg_0.io.deq.bits.lastFrame() === 1.U) {
     io.c2hPayloadDmaReq.valid := packet_reg_0.io.deq.valid
 
     when(packet_reg_0.io.deq.fire) {
       buffBytesReg := 0.U
+
+      // TODO maybe uneeded?
       when (131072.U < ramHead) {
         ramHead := 0.U
       }
     }
   }
-
-  // Should use the language "flush"
 }
 
 // class pp_ingress_bitmap extends Module {

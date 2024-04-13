@@ -32,8 +32,9 @@ class MgmtCore extends Module {
 
   val addr_map       = Module(new AddressMap) // Map read and write requests to DMA address
 
-  val fetch_queue    = Module(new PayloadCache)  // Fetch the next best chunk of data
-  val sendmsg_queue  = Module(new SendmsgQueue)  // Send the next best message
+  val fetch_queue    = Module(new PayloadPrefetcher) // Fetch the next best chunk of data
+  // TODO rename PacketScheduler
+  val sendmsg_queue  = Module(new SendmsgQueue)      // Send the next best message
 
   val sendmsg_cb     = Module(new SegmentedRam(262144)) // Memory for sendmsg control blocks
   val recvmsg_cb     = Module(new SegmentedRam(262144)) // Memory for recvmsg control blocks

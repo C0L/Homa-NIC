@@ -6,55 +6,55 @@ import chisel3.util._
 /* srpt_queue - BlackBox module for the srpt queue Verilog
  * implementation. This name must match that of the Verilog.
  */
-class srpt_queue (qtype: String) extends BlackBox (
-  Map("CACHE_SIZE" -> 1000000, // CacheCfg.lineSize,
-    "PAYLOAD_SIZE" -> NetworkCfg.payloadBytes,
-    "MAX_RPCS" -> 64,
-    "TYPE" -> qtype,
-  )) with HasBlackBoxResource {
-
-  val io = IO(new Bundle {
-    val clk = Input(Clock())
-    val rst = Input(UInt(1.W))
-
-    val CACHE_BLOCK_SIZE = Input(UInt(16.W))
-
-    val s_axis = Flipped(new axis(89, false, 0, false, 0, false, 0, false))
-    val m_axis = new axis(89, false, 0, false, 0, false, 0, false)
-  })
-
-  addResource("/verilog_src/srpt_queue.v")
-}
-
-class SendmsgQueue extends Module {
-  val io = IO(new Bundle {
-    val fetchSize = Input(UInt(16.W))
-
-    val enqueue = Flipped(Decoupled(new QueueEntry))
-    // TODO this is temporary
-    val dequeue = Decoupled(new QueueEntry)
-  })
-
-  val send_queue_raw = Module(new srpt_queue("sendmsg"))
-
-  send_queue_raw.io.CACHE_BLOCK_SIZE <> io.fetchSize
-
-  send_queue_raw.io.clk := clock
-  send_queue_raw.io.rst := reset.asUInt
-
-  val raw_in  = io.enqueue.bits.asTypeOf(UInt(89.W))
-  val raw_out = Wire(new QueueEntry)
-
-  raw_out := send_queue_raw.io.m_axis.tdata.asTypeOf(new QueueEntry)
-
-  io.enqueue.ready                := send_queue_raw.io.s_axis.tready
-  send_queue_raw.io.s_axis.tvalid := io.enqueue.valid
-  send_queue_raw.io.s_axis.tdata  := raw_in
-
-  send_queue_raw.io.m_axis.tready := io.dequeue.ready
-  io.dequeue.valid                := send_queue_raw.io.m_axis.tvalid
-  io.dequeue.bits                 := raw_out
-}
+// class srpt_queue (qtype: String) extends BlackBox (
+//   Map("CACHE_SIZE" -> 1000000,
+//     "PAYLOAD_SIZE" -> NetworkCfg.payloadBytes,
+//     "MAX_RPCS" -> 64,
+//     "TYPE" -> qtype,
+//   )) with HasBlackBoxResource {
+// 
+//   val io = IO(new Bundle {
+//     val clk = Input(Clock())
+//     val rst = Input(UInt(1.W))
+// 
+//     val CACHE_BLOCK_SIZE = Input(UInt(16.W))
+// 
+//     val s_axis = Flipped(new axis(89, false, 0, false, 0, false, 0, false))
+//     val m_axis = new axis(89, false, 0, false, 0, false, 0, false)
+//   })
+// 
+//   addResource("/verilog_src/srpt_queue.v")
+// }
+// 
+// class SendmsgQueue extends Module {
+//   val io = IO(new Bundle {
+//     val fetchSize = Input(UInt(16.W))
+// 
+//     val enqueue = Flipped(Decoupled(new QueueEntry))
+//     // TODO this is temporary
+//     val dequeue = Decoupled(new QueueEntry)
+//   })
+// 
+//   val send_queue_raw = Module(new srpt_queue("sendmsg"))
+// 
+//   send_queue_raw.io.CACHE_BLOCK_SIZE <> io.fetchSize
+// 
+//   send_queue_raw.io.clk := clock
+//   send_queue_raw.io.rst := reset.asUInt
+// 
+//   val raw_in  = io.enqueue.bits.asTypeOf(UInt(89.W))
+//   val raw_out = Wire(new QueueEntry)
+// 
+//   raw_out := send_queue_raw.io.m_axis.tdata.asTypeOf(new QueueEntry)
+// 
+//   io.enqueue.ready                := send_queue_raw.io.s_axis.tready
+//   send_queue_raw.io.s_axis.tvalid := io.enqueue.valid
+//   send_queue_raw.io.s_axis.tdata  := raw_in
+// 
+//   send_queue_raw.io.m_axis.tready := io.dequeue.ready
+//   io.dequeue.valid                := send_queue_raw.io.m_axis.tvalid
+//   io.dequeue.bits                 := raw_out
+// }
 
 /* SegmentedRAM - interface over black box for automatic clock and
  * reset inference.

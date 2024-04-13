@@ -151,6 +151,53 @@ class axis(
   val tlast  = if (ENABLE_LAST) Some(Output(Bool())) else None             // Optional
 }
 
+class PrefetcherState extends Bundle {
+  val localID   = UInt(16.W) // The RPC ID of this message
+  val dbuffID   = UInt(10.W) // Cache for this RPC
+  val fetchable = UInt(20.W) // How many bytes we are eligible to fetch
+  val totalRem  = UInt(20.W) // Determines the overall priority
+  val totalLen  = UInt(20.W) // Total message length
+}
+
+trait PriorityQueable extends Bundle {
+  def active: Bool
+
+  def pop(): PriorityQueable
+  def <(that: PriorityQueable): Bool 
+}
+
+class PrefetcherEntry extends Bundle with PriorityQueable {
+  val dbuffID  = UInt(5.W)  // Cache for this RPC
+  val priority = UInt(10.W) // Priority of this entry
+  val active   = Bool()     // Whether this entry is valid
+
+  // True means remove this entry, false means it stays
+  override def pop(): PriorityQueable = {
+    val current = Wire(new PrefetcherEntry)
+    current := this
+    when (this.priority < 1.U) {
+      current.active := false.B
+    }.otherwise {
+      current.priority := this.priority - 1.U 
+    }
+    current
+  }
+
+  // LHS is "this" and RHS is "that"
+  override def <(that: PriorityQueable): Bool = that match {
+    case that: PrefetcherEntry =>  {
+      val result = Wire(Bool())
+      when (that.active === false.B || this.priority < that.priority) {
+        result := true.B
+      }.otherwise {
+        result := false.B
+      }
+      result
+    }
+    case _ => throw new UnsupportedOperationException("Wrong comparison")
+  }
+}
+
 /* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
  * recvmsg requests that form the msghdr
  */
