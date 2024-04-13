@@ -58,9 +58,9 @@ struct session sessions[MAX_PORTS];
 
 // Structure passed to NIC for configuration
 struct cfg {
-    char unused1[60]; 
-    uint16_t writeBufferSize;
-    uint16_t fetchRequestSize;
+    char unused1[62]; 
+    uint8_t writeBufferSize;
+    uint8_t fetchRequestSize;
 }__attribute__((packed));
 
 // Structure passed to NIC for DMA address mappings
@@ -170,7 +170,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 
     // Create an on-chip mapping to this buffer
     dma_map.phys_addr = ((uint64_t) session->c2h_metadata_dma_handle);
-    dma_map.port      = session->port;
+    dma_map.port      = 1; // session->port; TODO
     dma_map.type      = C2H_METADATA_MAP;
     iomov64B((void*) io_regs, (void*) &dma_map);
 
@@ -179,7 +179,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 
     // Create an on-chip mapping to this buffer
     dma_map.phys_addr = ((uint64_t) session->h2c_msgbuff_dma_handle);
-    dma_map.port      = session->port;
+    dma_map.port      = 1; // session->port; TODO
     dma_map.type      = H2C_MSGBUFF_MAP;
     iomov64B((void*) io_regs, (void*) &dma_map);
 
@@ -188,7 +188,7 @@ int homanic_open(struct inode * inode, struct file * file) {
 
     // Create an on-chip mapping to this buffer
     dma_map.phys_addr = ((uint64_t) session->c2h_msgbuff_dma_handle);
-    dma_map.port      = session->port;
+    dma_map.port      = 1; // session->port;
     dma_map.type      = C2H_MSGBUFF_MAP;
     iomov64B((void*) io_regs, (void*) &dma_map);
 
@@ -242,6 +242,7 @@ int homanic_mmap(struct file * file, struct vm_area_struct * vma) {
 	case 1:
 	    pr_alert("1\n");
 	    // H2C Metadata
+	    // TODO should shift
 	    ret = remap_pfn_range(vma, vma->vm_start, (BAR_0 + 4096) >> PAGE_SHIFT, 4096, vma->vm_page_prot);
 	    break;
 
@@ -343,8 +344,17 @@ int homanic_init(void) {
 
     io_regs = ioremap_wc(BAR_0, 0xA0000);
 
-    cfg.fetchRequestSize = 256;
-    cfg.writeBufferSize  = 256;
+    // TODO currently this is limited by the fetch core hardcoded for 256 byte
+    // cfg.fetchRequestSize = 256;
+    // cfg.writeBufferSize  = 256;
+    
+    // cfg.fetchRequestSize = 256;
+    // cfg.writeBufferSize  = 1024;
+    
+
+    // 100.76 GBps
+    cfg.fetchRequestSize = 10;
+    cfg.writeBufferSize  = 10;
 
     iomov64B((void*) io_regs + 64, (void *) &cfg);
 
