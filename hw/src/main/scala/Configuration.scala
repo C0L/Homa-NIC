@@ -20,9 +20,9 @@ object NetworkCfg {
 // TODO what goes through the pipeline?
 
 class DynamicConfiguration extends Bundle {
-  val logReadSize  = UInt(16.W) // Log2 of the size of DMA read requests 
-  val logWriteSize = UInt(16.W) // Log2 of the size of DMA write requests
-  val unused           = UInt((512-32).W)
+  val logReadSize  = UInt(8.W) // Log2 of the size of DMA read requests  was 16
+  val logWriteSize = UInt(8.W) // Log2 of the size of DMA write requests was 16
+  val unused       = UInt((512-16).W)
 }
 
 /* CACHE - cache system constant configuration

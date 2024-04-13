@@ -4,7 +4,8 @@ chisel: clean
 	sbt run
 
 homa: chisel
-	$(VIVADO) -mode batch -source tcl/compile.tcl
+	# $(VIVADO) -mode batch -source tcl/compile.tcl
+	$(VIVADO) -stack 10000 -mode batch -source tcl/compile.tcl
 
 clean:
 	rm -f *.log

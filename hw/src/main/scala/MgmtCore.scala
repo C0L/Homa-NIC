@@ -44,7 +44,7 @@ class MgmtCore extends Module {
 
   delegate.io.c2hMetadataRamReq <> io.c2hMetadataRamReq
 
-  fetch_queue.io.logFetchSize   := delegate.io.dynamicConfiguration.logReadSize
+  fetch_queue.io.logReadSize   := delegate.io.dynamicConfiguration.logReadSize
   sendmsg_queue.io.fetchSize := (2.U << (delegate.io.dynamicConfiguration.logReadSize - 1.U))
 
   val pp_ingress = Module(new PPingressStages)

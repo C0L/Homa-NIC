@@ -3,9 +3,6 @@ package gpnic
 import chisel3._
 import chisel3.util._
 
-// TODO no flow control on DMA stat output!!!! 
-// TODO should move storage of message size outside?
-
 // TODO this is more of a prefetcher?
 /* PayloadCache - Responsible for prefetching packet payload data.
  * Issues DMA read requests, stores associated state while request is
@@ -14,7 +11,7 @@ import chisel3.util._
  */ 
 class PayloadCache extends Module {
   val io = IO(new Bundle {
-    val logFetchSize    = Input(UInt(16.W)) // Number of bytes to fetch per cycle for an RPC
+    val logReadSize    = Input(UInt(16.W)) // Number of bytes to fetch per cycle for an RPC
     val newFetchable = Flipped(Decoupled(new PrefetcherState)) // New RPCs to fetch data for
     val newFree      = Flipped(Decoupled(UInt(10.W))) // Opens cache window for refered dbuff ID
     val fetchRequest = Decoupled(new DmaReq) // DMA read requests to fetch data
@@ -44,7 +41,7 @@ class PayloadCache extends Module {
    */
   val newPrefetcherEntry = Wire(new PrefetcherEntry)
   newPrefetcherEntry.dbuffID  := io.newFetchable.bits.dbuffID
-  newPrefetcherEntry.priority := (io.newFetchable.bits.totalLen >> io.logFetchSize) 
+  newPrefetcherEntry.priority := (io.newFetchable.bits.totalLen >> io.logReadSize) 
   newPrefetcherEntry.active   := 1.U
 
   // Tie new prefetcher entry to enqueue of the priority queue
@@ -83,15 +80,15 @@ class PayloadCache extends Module {
   // When priority is max-1, magAddr = 256
 
   val maxPriority = Wire(UInt(10.W))
-  maxPriority := (dbuffRead.totalLen >> 8.U) 
+  maxPriority := (dbuffRead.totalLen >> io.logReadSize) 
 
-  msgOff := (maxPriority - fetchQueue.io.dequeue.bits.priority) << io.logFetchSize
+  msgOff := (maxPriority - fetchQueue.io.dequeue.bits.priority) << io.logReadSize
   ramAddr := (CacheCfg.lineSize.U * fetchQueue.io.dequeue.bits.dbuffID) + (msgOff % 16364.U)
 
   dmaRead.pcie_addr := msgOff
   dmaRead.ram_sel   := 0.U
   dmaRead.ram_addr  := ramAddr
-  dmaRead.len       := (2.U << (io.logFetchSize - 1.U))
+  dmaRead.len       := (2.U << (io.logReadSize - 1.U))
   dmaRead.tag       := tag
   dmaRead.port      := 1.U
 
@@ -112,7 +109,7 @@ class PayloadCache extends Module {
   notifQueue.io.enq.valid := io.fetchCmpl.valid
   notifQueue.io.enq.bits  := pendTag
 
-  io.fetchNotif.bits.dbuffered := notifQueue.io.deq.bits.queue.priority << 8.U
+  io.fetchNotif.bits.dbuffered := notifQueue.io.deq.bits.queue.priority << io.logReadSize
   io.fetchNotif.bits.granted   := 0.U
   io.fetchNotif.bits.priority  := queue_priority.DBUFF_UPDATE.asUInt
   io.fetchNotif.valid          := notifQueue.io.deq.valid

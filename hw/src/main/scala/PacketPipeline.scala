@@ -82,7 +82,7 @@ class PPegressLookup extends Module {
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new QueueEntry, 1, false, false))
-  val pending      = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO does not need to be that large?
+  val pending      = Module(new Queue(new PacketFrameFactory, 8, true, false)) 
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // Tie register stages to input and output 
@@ -183,7 +183,7 @@ class PPegressPayload extends Module {
   /* Computation occurs between register stage 0 and 1
    */
   val packet_reg_0 = Module(new Queue(new PacketFrameFactory, 1, true, false))
-  val pending = Module(new Queue(new PacketFrameFactory, 18, true, false)) // TODO cross domain crossing heavy penatly?
+  val pending = Module(new Queue(new PacketFrameFactory, 8, true, false)) // TODO cross domain crossing heavy penatly?
   val packet_reg_1 = Module(new Queue(new PacketFrameFactory, 1, true, false))
 
   // TODO no flow control on this path. Frees 1 payload worth of bytes
