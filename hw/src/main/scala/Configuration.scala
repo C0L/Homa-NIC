@@ -3,6 +3,10 @@ package gpnic
 import chisel3._
 import chisel3.util._
 
+object SysCfg {
+  val maxRPCs = 16384 // Maximum number of assignable RPC IDs
+}
+
 // Network imposed constraints
 object NetworkCfg {
   val maxEthFrameBytes = 1522 // Ethernet frame maximum 1522 bytes (non-jumbo)

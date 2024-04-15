@@ -32,9 +32,9 @@ class MgmtCore extends Module {
 
   val addr_map       = Module(new AddressMap) // Map read and write requests to DMA address
 
-  val fetch_queue    = Module(new PayloadPrefetcher) // Fetch the next best chunk of data
+  val fetch_queue    = Module(new Prefetcher) // Fetch the next best chunk of data
   // TODO rename PacketScheduler
-  val sendmsg_queue  = Module(new SendmsgQueue)      // Send the next best message
+  val sendmsg_queue  = Module(new Scheduler)      // Send the next best message
 
   val sendmsg_cb     = Module(new SegmentedRam(262144)) // Memory for sendmsg control blocks
   val recvmsg_cb     = Module(new SegmentedRam(262144)) // Memory for recvmsg control blocks
@@ -46,7 +46,6 @@ class MgmtCore extends Module {
   delegate.io.c2hMetadataRamReq <> io.c2hMetadataRamReq
 
   fetch_queue.io.logReadSize   := delegate.io.dynamicConfiguration.logReadSize
-  sendmsg_queue.io.fetchSize := (2.U << (delegate.io.dynamicConfiguration.logReadSize - 1.U))
 
   val pp_ingress = Module(new PPingressStages)
 
@@ -65,7 +64,7 @@ class MgmtCore extends Module {
   pp_egress.io.payload_ram_read_desc <> io.h2cPayloadRamReq
   pp_egress.io.payload_ram_read_data <> io.h2cPayloadRamResp
 
-  pp_egress.io.trigger <> sendmsg_queue.io.dequeue
+  pp_egress.io.trigger <> sendmsg_queue.io.sendPacket
   pp_egress.io.egress  <> pp_ingress.io.ingress
 
   pp_egress.io.newCacheFree <> fetch_queue.io.newFree
@@ -109,10 +108,13 @@ class MgmtCore extends Module {
   newDnotifsQueue.io.enq <> fetch_queue.io.fetchNotif
 
   // Alternate between fetchdata and notifs to the fetch queue
-  val sendmsg_arbiter = Module(new RRArbiter(new QueueEntry, 2))
-  sendmsg_arbiter.io.in(0) <> newSendmsgQueue.io.deq
-  sendmsg_arbiter.io.in(1) <> newDnotifsQueue.io.deq
-  sendmsg_arbiter.io.out   <> sendmsg_queue.io.enqueue
+  // val sendmsg_arbiter = Module(new RRArbiter(new QueueEntry, 2))
+  // sendmsg_arbiter.io.in(0) <> newSendmsgQueue.io.deq
+  // sendmsg_arbiter.io.in(1) <> newDnotifsQueue.io.deq
+  // sendmsg_arbiter.io.out   <> sendmsg_queue.io.newMessage
+
+  newDnotifsQueue.io.deq <> sendmsg_queue.io.newCached
+  newSendmsgQueue.io.deq <> sendmsg_queue.io.newMessage
 
   /* DEBUGGING ILAS */
   val axi2axis_ila = Module(new ILA(new axis(512, false, 0, true, 32, false, 0, false)))

@@ -157,27 +157,123 @@ class PrefetcherState extends Bundle {
   val fetchable = UInt(20.W) // How many bytes we are eligible to fetch
   val totalRem  = UInt(20.W) // Determines the overall priority
   val totalLen  = UInt(20.W) // Total message length
+
+  /* Construct a new initial entry for the priority queue ranked based
+   * on number of read requests required for the entire message
+   */
+  def entry(logReadSize: UInt): PrefetcherEntry = {
+    val e = Wire(new PrefetcherEntry)
+    e.dbuffID  := this.dbuffID
+    e.priority := this.totalRem >> logReadSize
+    e.active   := 1.U
+
+    e
+  }
+
+  // def nextRead(): {
+  //   val dmaRead = Wire(new DmaReq)
+  //   val ramAddr = Wire(UInt(32.W)) // Where in ram to write to
+  //   val msgOff  = Wire(UInt(32.W)) // Absolute address in message
+  //   val maxPriority = Wire(UInt(10.W))
+  //   maxPriority := (dbuffRead.totalLen >> io.logReadSize)
+
+  //   (maxPriority - fetchQueue.io.dequeue.bits.priority) << io.logReadSize
+
+  //   ramAddr := (CacheCfg.lineSize.U * fetchQueue.io.dequeue.bits.dbuffID) + (msgOff % 16364.U)
+
+  //   dmaRead.pcie_addr := msgOff
+  //   dmaRead.ram_sel   := 0.U
+  //   dmaRead.ram_addr  := ramAddr
+  //   dmaRead.len       := (2.U << (io.logReadSize - 1.U))
+  //   dmaRead.tag       := this.dbuffID 
+  //   dmaRead.port      := 1.U
+  // }
+
+  // def nextNotif(): {
+  //   io.fetchNotif.bits.rpc_id    := 0.U
+  //   io.fetchNotif.bits.dbuff_id  := pendTag.queue.dbuffID
+  //   io.fetchNotif.bits.remaining := 0.U
+
+  //   io.fetchNotif.bits.dbuffered := notifQueue.io.deq.bits.queue.priority << io.logReadSize
+  //   io.fetchNotif.bits.granted   := 0.U
+  //   io.fetchNotif.bits.priority  := queue_priority.DBUFF_UPDATE.asUInt
+  // }
+}
+
+
+class SchedulerState extends Bundle {
+  val localID   = UInt(16.W) // The RPC ID of this message
+  val dbuffID   = UInt(10.W) // Cache for this RPC
+  val cached    = UInt(20.W)
+  val totalRem  = UInt(20.W) // Determines the overall priority
+  val totalLen  = UInt(20.W) // Total message length
+
+  val queued = Bool() // Is the respective entry currently in the PQ
+
+  /* Construct a new initial entry for the priority queue ranked based
+   * on number of read requests required for the entire message
+   */
+  def entry(packetSize: UInt): SchedulerEntry = {
+    val e = Wire(new SchedulerEntry)
+    e.localID    := this.localID
+    e.priority := this.totalRem / packetSize
+    e.active   := 1.U
+
+    e
+  }
+
+  // def nextRead(): {
+  //   val dmaRead = Wire(new DmaReq)
+  //   val ramAddr = Wire(UInt(32.W)) // Where in ram to write to
+  //   val msgOff  = Wire(UInt(32.W)) // Absolute address in message
+  //   val maxPriority = Wire(UInt(10.W))
+  //   maxPriority := (dbuffRead.totalLen >> io.logReadSize)
+
+  //   (maxPriority - fetchQueue.io.dequeue.bits.priority) << io.logReadSize
+
+  //   ramAddr := (CacheCfg.lineSize.U * fetchQueue.io.dequeue.bits.dbuffID) + (msgOff % 16364.U)
+
+  //   dmaRead.pcie_addr := msgOff
+  //   dmaRead.ram_sel   := 0.U
+  //   dmaRead.ram_addr  := ramAddr
+  //   dmaRead.len       := (2.U << (io.logReadSize - 1.U))
+  //   dmaRead.tag       := this.dbuffID 
+  //   dmaRead.port      := 1.U
+  // }
+
+  // def nextNotif(): {
+  //   io.fetchNotif.bits.rpc_id    := 0.U
+  //   io.fetchNotif.bits.dbuff_id  := pendTag.queue.dbuffID
+  //   io.fetchNotif.bits.remaining := 0.U
+
+  //   io.fetchNotif.bits.dbuffered := notifQueue.io.deq.bits.queue.priority << io.logReadSize
+  //   io.fetchNotif.bits.granted   := 0.U
+  //   io.fetchNotif.bits.priority  := queue_priority.DBUFF_UPDATE.asUInt
+  // }
 }
 
 trait PriorityQueable extends Bundle {
   def active: Bool
 
   def pop(): PriorityQueable
+  def ===(that: PriorityQueable): Bool 
   def <(that: PriorityQueable): Bool 
 }
 
-class PrefetcherEntry extends Bundle with PriorityQueable {
-  val dbuffID  = UInt(5.W)  // Cache for this RPC
+class SchedulerEntry extends Bundle with PriorityQueable {
+  val localID  = UInt(14.W) // Cache for this RPC
   val priority = UInt(10.W) // Priority of this entry
+  val cycles   = UInt(10.W) // Number of cycles to pop
   val active   = Bool()     // Whether this entry is valid
 
   // True means remove this entry, false means it stays
   override def pop(): PriorityQueable = {
     val current = Wire(new PrefetcherEntry)
     current := this
-    when (this.priority < 1.U) {
+    when (this.cycles < 1.U) {
       current.active := false.B
     }.otherwise {
+      current.cycles   := this.cycles - 1.U
       current.priority := this.priority - 1.U 
     }
     current
@@ -198,8 +294,65 @@ class PrefetcherEntry extends Bundle with PriorityQueable {
   }
 }
 
-/* Offsets within the sendmsg and recvmsg bitvector for sendmsg and
- * recvmsg requests that form the msghdr
+class PrefetcherEntry extends Bundle with PriorityQueable {
+  val dbuffID  = UInt(5.W)  // Cache for this RPC
+  val priority = UInt(10.W) // Priority of this entry
+  val cycles   = UInt(10.W) // Number of cycles to pop
+  val active   = Bool()     // Whether this entry is valid
+
+  // True means remove this entry, false means it stays
+  override def pop(): PriorityQueable = {
+    val current = Wire(new PrefetcherEntry)
+    current := this
+    when (this.cycles < 1.U) {
+      current.active := false.B
+    }.otherwise {
+      current.cycles   := this.cycles - 1.U
+      current.priority := this.priority - 1.U 
+    }
+    current
+  }
+
+
+  // override def +(that: PriorityQueable): PriorityQueable = that match {
+  //   case that: PrefetcherEntry =>  {
+  //     val result = Wire(new PrefetcherEntry)
+  //     result := this
+  //     result.cycles := result.cycles + that.cycles
+  //     result
+  //   }
+  //   case _ => throw new UnsupportedOperationException("Wrong comparison")
+  // }
+
+  override def ===(that: PriorityQueable): Bool = that match {
+    case that: PrefetcherEntry =>  {
+      val result = Wire(Bool())
+      when (that.dbuffID === this.dbuffID) {
+        result := true.B
+      }.otherwise {
+        result := false.B
+      }
+      result
+    }
+    case _ => throw new UnsupportedOperationException("Wrong comparison")
+  }
+
+  // LHS is "this" and RHS is "that"
+  override def <(that: PriorityQueable): Bool = that match {
+    case that: PrefetcherEntry =>  {
+      val result = Wire(Bool())
+      when (that.active === false.B || this.priority < that.priority) {
+        result := true.B
+      }.otherwise {
+        result := false.B
+      }
+      result
+    }
+    case _ => throw new UnsupportedOperationException("Wrong comparison")
+  }
+}
+
+/* msghdr_t - Requests for send and receive message
  */
 class msghdr_t extends Bundle {
   val cc        = UInt(64.W)

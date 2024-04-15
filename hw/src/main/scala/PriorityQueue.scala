@@ -3,10 +3,20 @@ package gpnic
 import chisel3._
 import chisel3.util._
 
+/* PriorityQueue - Performs parallel comparison of new elements will
+ * all elements in the queue to determine insertion location. Pops
+ * from the head of the queue to get the highest priority elements.
+ * Relies on the entries to be "PriorityQueable" which means they
+ * override the pop(), +, ===, and < operator. The + operator defines
+ * update operations (how to combine a new entry with an entry that
+ * matches). The === defines whether two entries should match and an
+ * update should be performed. The < operator is used to compare
+ * priority.
+ */
 class PriorityQueue[T <: PriorityQueable] (entry: T, size: Int) extends Module {
   val io  = IO(new Bundle {
-    val enqueue = Flipped(Decoupled(entry))
-    val dequeue = Decoupled(entry)
+    val enqueue = Flipped(Decoupled(entry)) // New entries to add to the queue
+    val dequeue = Decoupled(entry)          // Entries poped from the head of queue
   })
 
   io.enqueue.ready := true.B
@@ -20,17 +30,16 @@ class PriorityQueue[T <: PriorityQueable] (entry: T, size: Int) extends Module {
   outputQueue.io.enq.bits := queue(0)
 
   when (io.enqueue.valid) {
-    val matchMask = queue.map {elem => io.enqueue.bits < elem}
-    val insertIndex = PriorityEncoder(matchMask)
+    val priorityMask  = queue.map {elem => io.enqueue.bits < elem}
+    val priorityIndex = PriorityEncoder(priorityMask)
 
-    // could pipeline this
     for (entry <- 0 to size - 2) {
-      when (entry.U === insertIndex) {
+      when (entry.U === priorityIndex) {
         queue(entry) := io.enqueue.bits
         queue(entry).active := true.B
       }
 
-      when (matchMask(entry) === 1.U) {
+      when (priorityMask(entry) === 1.U) {
         queue(entry+1) := queue(entry)
       }
     }
