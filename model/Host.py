@@ -42,25 +42,25 @@ class Host():
         self.time = 0
 
         self.nextpacket = self.nextPacket()
+        self.egressGen = self.egress()
 
     def tick(self):
         # Do we need to generate a new message from the poisson process?
         self.events = [next(fut) if curr.startTime < self.time else curr for fut, curr in zip(self.generator, self.events)]
 
+        # print(self.events)
         # If this cycle is when the new sendmsg request is ready 
         for event in self.events:
-            if event.startTime == self.time:  
-
+            if event.startTime <= self.time and event.length != 0:  
                 # Initiate the sendmsg request
                 self.sendmsg(event)
-                self.nextMessage = None
-                continue
+                # self.events.remove(event)
 
-        self.dataPriorityQueue.cycle()
-        self.grantPriorityQueue.cycle()
+        self.dataPriorityQueue.tick()
+        self.grantPriorityQueue.tick()
 
         # Take care of stuff to send out onto network
-        self.egress()
+        next(self.egressGen)
 
         # Take care of stuff coming from network
         self.ingress()
@@ -78,17 +78,17 @@ class Host():
 
     def nextPacket(self):
         while(True):
-            if (self.outstanding < self.config['Host']['overcommitment']):
-                # Select a packet type to send
-                entry = self.grantPriorityQueue.dequeue()
-                if (entry != None):
-                    packet = GrantPacket(entry.message)
-                    # We sent one packet for this message
-                    entry.message.receiverGranted += self.config['Host']['packetsize']
-                    self.outstanding += self.config['Host']['packetsize']
-                    # print(self.outstanding)
-                    yield packet
-                    continue
+            # if (self.outstanding < self.config['Host']['overcommitment']):
+            #     # Select a packet type to send
+            #     entry = self.grantPriorityQueue.dequeue()
+            #     if (entry != None):
+            #         packet = GrantPacket(entry.message)
+            #         # We sent one packet for this message
+            #         entry.message.receiverGranted += self.config['Host']['packetsize']
+            #         self.outstanding += self.config['Host']['packetsize']
+            #         # print(self.outstanding)
+            #         yield packet
+            #         continue
 
             # Check if this host is a sender
             if self.id >= self.config['Simulation']['hosts']['senders']:
@@ -110,10 +110,20 @@ class Host():
             yield None
 
     def egress(self):
-        if self.network.peek(self.id):
-            packet = next(self.nextpacket)
+        packet = None
+        while True:
+            if packet == None:
+                packet = next(self.nextpacket)
+
+            # TODO will not route grants correctly
             if packet != None:
                 send = self.network.write(packet.message.dest, packet)
+                # if (self.id == 0):
+                #     print(f"time: {self.time} {send}")
+                if send == True:
+                   packet = None 
+
+            yield
         
     def ingress(self):
         # Read the next packet from the network
@@ -150,7 +160,8 @@ class Host():
                 if reinsert:
                     self.dataPriorityQueue.enqueue(packet.message.dataEntry)
             case _:
-                print("Unrecognized packet type")
+                None
+                # print("Unrecognized packet type")
 
     # TODO could we get an update and remove from the queue in the same cycle
                 
@@ -159,12 +170,20 @@ class Host():
         # Poisson arrival times + poisson packet sizes for outgoing messages
         t = 0
         while(1):
-            t += math.ceil(random.expovariate(1/rate))
+            t += random.expovariate(1/rate)
             # Compute the number of units of payload
-            length = math.floor(random.expovariate(1/size)) + 1
+            length = round(random.expovariate(1/size))
             dest = random.randint(0, self.numHosts-1)
 
-            message = Message(src=self.id, dest=dest, length=length, unscheduled=self.unscheduled, startTime=math.floor(t), token=token)
+            message = Message(src=self.id, dest=dest, length=length, unscheduled=self.unscheduled, startTime=round(t), token=token)
+            # if (self.id == 0):
+            #     print(round(t))
+            #     print(length)
 
             yield message
+
+    def stats(self):
+        self.dataPriorityQueue.stats()
+        self.grantPriorityQueue.stats()
+
 

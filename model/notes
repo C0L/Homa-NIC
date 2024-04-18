@@ -8,6 +8,12 @@ simulatior with hosts SRPTing on sending and receiving data
   - I think next I need some burstier distribution. Because if the aggregate demand is less than the capacity and that demand is uniform this does not really fill up the priority queue.
     * But if I increase the aggregate demand beyond the capcity there are a constant enough stream of short messages they message throughput remaings high.
 
+64 x 400Gbps
+1 BDP for each
+no ingress queue
+responsive demand!
+
+littles law! can get high queues
 
 # TODO emph that flow control feedback benefits frim smaller rtts and thus use prefetcher
 # TODO does the topology of the switch make sense
