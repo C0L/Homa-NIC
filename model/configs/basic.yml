@@ -1,36 +1,16 @@
 Simulation:
-  # Uniform 
-  hosts: {total: 4, senders: 4}
-  # hosts: {total: 64, senders: 64}
-
-  # Bipartite
-  # hosts: {total: 16, senders: 8}
-
-  cycles: 100000
-
-Network:
-  rttData: 1500 
-  delay: 750 # 1 way delay
-  # delay: 750  # 1 way delay
-  bufferDepth: 6000 # Total dynamic space in switch (1 BDP for each port)
-  # bufferDepth: 96000 # Total dynamic space in switch (1 BDP for each port)
+  competitions: 100000
 
 Host:
-  unscheduled: 1500
-  packetsize: 15
-  overcommitment: 1600 # TODO
-
-  # Mice and elephant flows (e.g RPCs and data transfer)
   Rates:
-    - {rate: 1.6,   size: 1, token: "RPC", dist: "Poisson"}  # Every 10 cycles, payload of 10 units
+    - {rate: .9, size: 1, token: "RPC", dist: "Poisson"}
 
-  # One size varied across tests
-  # Rates:
-  #  - {rate: 100, size: 100} 
-  
   Queue:
-    commDelay: 100
-    queueDelay: 30
-    onChipDepth: 100000
-    # onChipDepth: 100
+    # 1 unit is 64 bytes
+    # If a write takes 700ns from host, and timestep is 5ns, then 140 cycle comm delay
+    # Rough priority queue latency https://gcc.gnu.org/onlinedocs/libstdc++/ext/pb_ds/priority_queue_text_push_timing_test.html
+    commDelay: 140
+    queueDelay: 40
+    # onChipDepth: 10000
+    onChipDepth: 10
     offChipDepth: 10000

@@ -3,9 +3,17 @@ import math
 import copy
 import yaml
 import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+import numpy as np
+
+import sys
+sys.set_int_max_str_digits(0)
 
 class Message:
-    def __init__(self, length):
+    def __init__(self, id, length, startTime):
+        self.id = id
+
         # For SRPT the priority is the length
         self.priority = length 
         self.length   = length
@@ -36,6 +44,9 @@ class BisectedPriorityQueue():
     def dequeue(self):
         return self.onChip.dequeue()
 
+    def done(self):
+        return self.onChip.done() and self.offChip.done()
+
     def tick(self):
         demote = self.onChip.demote()
 
@@ -50,14 +61,14 @@ class BisectedPriorityQueue():
 
         # TODO this should be made more realistic
 
-        # Impose communication dmoting on-chip to off-chip
+        # Impose communication penalty dmoting on-chip to off-chip
         if len(self.demoting) != 0:
             head = self.demoting[0]
             if self.time - head[0] > self.commDelay:
                 self.offChip.enqueue(head[1])
                 self.demoting.remove(head)
 
-        # Impose communication promoting off-chip to on-chip
+        # Impose communication penalty promoting off-chip to on-chip
         if len(self.promoting) != 0:
             head = self.promoting[0]
             if self.time - head[0] > self.commDelay:
@@ -72,11 +83,14 @@ class BisectedPriorityQueue():
 
         self.time += 1
 
+    def remains(self):
+        return self.onChip.remains() + self.offChip.remains()
+
     def stats(self):
         self.onChip.stats()
         self.offChip.stats()
 
-class PriorityQueue():
+class PriorityQueue:
     def __init__(self, size, token):
         self.size  = size  
         self.token = token
@@ -86,22 +100,21 @@ class PriorityQueue():
 
     def enqueue(self, entry):
         self.queue.append(entry)
-        assert len(self.queue) <= self.size, \
+        assert len(self.queue) <= self.size+1, \
             "Queue Overflow" 
         
     def dequeue(self):
         # If we are storing no entries there is no work to do 
         if (len(self.queue) == 0): return None
 
-        # Find the highest priority elements
+        # Find the highest priority element
         ideal = min(self.queue, key=lambda entry: entry.priority)
 
         # Reduce the priority as we send one packet
-        ideal.priority = max(0, ideal.priority - ideal.increment)
-        ideal.cycles   = max(0, ideal.cycles - ideal.increment)
+        ideal.priority = ideal.priority - 1
         
         # If the entry is done remove it
-        if (ideal.priority == 0 or ideal.cycles == 0):
+        if (ideal.priority <= 0):
             self.queue.remove(ideal)
 
         return ideal
@@ -118,28 +131,43 @@ class PriorityQueue():
         return best 
 
     def demote(self):
-        if len(self.queue) == self.size:
+        if len(self.queue) == self.size+1:
             worst = max(self.queue, key=lambda entry: entry.priority)
             self.queue.remove(worst)
             return worst 
 
         return None
 
+    def done(self):
+        return len(self.queue) == 0
+
     def tick(self):
         self.record.append(len(self.queue))
         self.time += 1
 
-    def stats(self):
-        print(f'PriorityQueue: {self.token} (Size: {self.size}):')
-        print(f'   - Average Occupancy: {sum(self.record)/len(self.record)}')
-        print(f'   - Median Occupancy:  {statistics.median(self.record)}')
-        print(f'   - Max Occupancy:     {max(self.record)}')
+    def remains(self):
+        return len(self.queue)
 
-class Host():
-    def __init__(self):
+    def stats(self):
+        record = np.array(self.record)
+        print(f'PriorityQueue: {self.token} (Size: {self.size}):')
+        print(f'   - Average Occupancy: {record.mean()}')
+        print(f'   - Median Occupancy:  {np.median(record)}')
+        print(f'   - Max Occupancy:     {record.max()}')
+        print("Remaining Length: " + str(len(self.queue)))
+
+class Host:
+    def __init__(self, config):
+        self.mid = 0
+        self.time = 0
+
+        # self.cap = config['completions']
+
         # Generator for payloads and sizes
-        self.generator = [self.msgGen(r['rate'], r['size'], r['token']) for r in config['Host']['Rates']]
+        self.generator = [self.mm1(r['arrival'], r['service'], r['token']) for r in config['rates']]
         self.events    = [next(gen) for gen in self.generator]
+
+        self.queue = BisectedPriorityQueue(config)
 
     def tick(self):
         # Do we need to generate a new message from the poisson process?
@@ -147,19 +175,12 @@ class Host():
 
         # If this cycle is when the new sendmsg request is ready 
         for event in self.events:
-            if event.startTime <= self.time and event.length != 0:  
-                # Initiate the sendmsg request
+            if event.startTime <= self.time and event.priority != 0:
                 self.queue.enqueue(event)
 
         self.queue.tick()
+        self.time += 1
 
-    def sendmsg(self, message):
-        # Construct a queue entry for this message id
-        self.queue.enqueue(message)
-
-    '''
-    Called from simulator
-    '''
     def egress(self):
         entry = self.queue.dequeue()
         if (entry != None):
@@ -167,17 +188,26 @@ class Host():
 
         return None
 
-    def mm1(self, rate, size, token):
+    def mm1(self, arrival, service, token):
         # Poisson arrival times + poisson packet sizes for outgoing messages
         t = 0
         while(1):
-            t += random.expovariate(1/rate)
+            t += random.expovariate(arrival)
             # Compute the number of units of payload
-            length = round(random.expovariate(1/size))
+            length = round(random.expovariate(service))
 
-            message = Message(id=self.id, length=length, startTime=round(t), token=token)
+            message = Message(id=self.mid, length=length, startTime=round(t))
+
+            self.mid += 1
 
             yield message
+
+    def remains(self):
+        return self.queue.remains()
+
+    def stats(self):
+
+        self.queue.stats()
 
 class Sim:
     def __init__(self, config):
@@ -189,52 +219,143 @@ class Sim:
         self.id = 0
 
         # Number of time steps to simulate for
-        self.timeSteps = 100000
+        self.timeSteps = config['completions']
 
-        self.host = Host()
+        self.host = Host(config)
 
-    '''
-    Iterate through simulation steps up to the max simulation time
-    ''' 
+        self.config = config
+
+        self.duration = []
+
     def simulate(self):
-        for t in range(self.timeSteps):
+        global time 
+        # while True:
+        for i in range(self.timeSteps):
             self.host.tick()
-            global time 
+            packet = self.host.egress()
+
+            if (packet != None and packet.priority <= 0):
+                packet.endTime = time
+                self.duration.append(time - packet.startTime)
+
             time += 1
 
-    # def avgCmplTime(self, host, token):
-    #     complete = self.completeMessages(host, token)
-    #     sumDir = 0
-    #     for entry in complete:
-    #         sumDir += (entry.endTime - entry.startTime)
-    #      
-    #         return sumDir / len(complete)
+        remains = self.host.remains()
+        durations = np.array(self.duration)
+        return durations, remains
 
-    # def stats(self):
-    #     for host in self.hosts:
-    #         for rate in self.config['Host']['Rates']:
-    #             print(f'Host: {host.id}, Rate: {rate["token"]}:')
-    #             print(f'   - Total Complete Messages    : {len(self.completeMessages(host, rate["token"]))}')
-    #             print(f'   - Avg. Cmpl. Time            : {self.avgCmplTime(host, rate["token"])}')
-    #             # print(f'   - Msg / Unit Time   : {self.msgThroughput(time)}')
-    #         host.stats()
-
-def main(args):
-    with open(args.config) as file:
-        config = yaml.safe_load(file)
-
-    sim = Sim(config) 
-    sim.simulate()
-    sim.stats()
+    def stats(self):
+        for rate in self.config['rates']:
+            durations = np.array(self.duration)
+            print(f'Host: 0, Rate: {rate["token"]}:')
+            print(f'   - Total Complete Messages    : {durations.shape}')
+            print(f'   - Avg. Cmpl. Time            : {durations.mean()}')
+            print(f'   - Inaccuracies : ')
+            print(f'   - Dry-fires    : ')
+            self.host.stats()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, help="yaml config file")
+    config = {
+        'completions': 500000,
+        'rates': [],
+        'commDelay' : 140,
+        'queueDelay': 40,
+        'onChipDepth': 10,
+        'offChipDepth': 1000000
+    }
 
-    args = parser.parse_args()
+    fig, axs = plt.subplots(1, figsize=(6,4))
+    # fig, axs = plt.subplots(9, figsize=(8,32))
+    # fig.tight_layout()
+    fig.tight_layout(pad=3.0)
+    # fig.tight_layout(pad=1.0)
+    ax = 0
 
-    main(args)
+    # TODO Enforce some rw locking slow PQ to be more CPU realistic
+    # for service in range(1,5):
+    # Iterate through mean service times
+    for mst in range(1,2):
+    # for mst in range(1,10):
+        # plt.figure(figsize=(4,4))
+        mu = 1/mst
 
+        # depths = list(range(2,12))
+        # depths = list(range(1,6))
+
+        depths = list(range(1,6))
+        depths.append(18)
+        for onChipDepth in depths:
+            config['onChipDepth'] = 2**onChipDepth
+
+            xs = []
+            mcts = []
+
+            # Iterate through utilization .1->.9
+            # for rate in range(1,2):
+            for rate in range(1,100):
+                # The rate of poisson arrival
+                # lamda = 1/rate
+
+                # desired utilization (vary rho from .1 -> .9)
+                rho = rate/100
+
+                # Compute corresponding service rate
+                lamda = rho * mu
+
+                config['rates'] = [{'arrival' : lamda, 'service': mu, 'token': 'RPC', 'dict': 'Poisson'}]
+                print(config)
+
+                # need to not count simulations which are unstable
+                
+                sim = Sim(config)
+                result, rem = sim.simulate()
+                if rem < 100:
+                    print(rem)
+                    xs.append(rho)
+                    mcts.append(result.mean())
+                print(sim.stats())
+
+            axs.plot(xs, mcts, label=f'Size: {2**onChipDepth}')
+            # axs.set_title(r'Utilization: $\frac{\lambda}{\mu}$ = [0.1,.9], Mean Completition Time $\frac{1}{\mu}$ = ' + str(1/mu))
+
+            axs.set_title(r'Mean Completition Time by Utilization (Mean Service Time = 1)')
+            axs.legend(loc='upper left', title='On Chip Queue Size')
+            axs.set_ylabel('Mean Completition Time')
+            axs.set_xlabel(r'Utilization $(\frac{\lambda}{\mu})$')
+            axs.set_ylim(0,70)
+
+
+            # axs[ax].plot(xs, mcts, label=f'Size: {2**onChipDepth}')
+            # axs[ax].set_title(r'Utilization: $\frac{\lambda}{\mu}$ = [0.1,.9], Mean Service Time $\frac{1}{\mu}$ = ' + str(1/mu))
+            # axs[ax].legend(loc='upper left')
+            # axs[ax].set_ylabel('Mean Completition Time')
+            # axs[ax].set_xlabel(r'Utilization (\frac{\lambda}{\mu})$')
+
+            # axs[ax].set_xlabel(r'$\rho = \frac{\lambda}{\mu}$')
+
+        print(ax)
+
+        ax += 1
+
+    # The challenge in simulation is we do not have stable state gaurentee with slow queue
+    # Taking any time slice with stable state is good mean completititon time
+    # TODO want some sort of mean service time per unit time
+    # TODO add a theoretical line to compare fidelity of the simulator
+    # TODO simulate for duration of time without stopping and letting drain....
+
+    plt.savefig(f'mm1_bisected.png')
+
+    plt.plot(xs, mcts, label=f'Perfect')
+
+# https://en.wikipedia.org/wiki/M/M/1_queue - average number of customers in the system
+
+
+# Normalize for number of cycles taken to complete?
+
+# Test non-full staturated network
+# TODO compare against FIFO policy
+# - hopfully this would not have same scaling
+            
 # class Sim:
 #     def __init__(self, config):
 #         self.network = Network(config['Simulation']['hosts']['total'], config['Network'])
