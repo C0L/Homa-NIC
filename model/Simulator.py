@@ -23,6 +23,9 @@ class Message:
         self.startTime = startTime
         self.endTime   = 0
 
+    def __repr__(self):
+        return f'{self.id} : {self.priority}'
+
 # class BisectedPriorityQueue():
 #     def __init__(self, config):
 #         # Fast on chip single-cycle priority queue
@@ -99,7 +102,11 @@ class PriorityQueue:
         self.time   = 0
 
     def enqueue(self, entry):
-        self.queue.append(entry)
+        insert = next((e[0] for e in enumerate(self.queue) if e[1].priority > entry.priority), len(self.queue))
+        self.queue.insert(insert, entry)
+
+
+        # self.queue.append(entry)
         assert len(self.queue) <= self.size+1, \
             "Queue Overflow" 
         
@@ -108,7 +115,8 @@ class PriorityQueue:
         if (len(self.queue) == 0): return None
 
         # Find the highest priority element
-        ideal = min(self.queue, key=lambda entry: entry.priority)
+        # ideal = min(self.queue, key=lambda entry: entry.priority)
+        ideal = self.queue[0]
 
         # Reduce the priority as we send one packet
         ideal.priority = ideal.priority - 1
@@ -122,42 +130,10 @@ class PriorityQueue:
     def trace(self):
         return self.record
     
-    # def promote(self):
-    #     if len(self.queue) == 0:
-    #         return None
-
-    #     # Find the highest priority element
-    #     best = min(self.queue, key=lambda entry: entry.priority)
-
-    #     self.queue.remove(best)
-
-    #     return best 
-
-    # def demote(self):
-    #     if len(self.queue) == self.size+1:
-    #         worst = max(self.queue, key=lambda entry: entry.priority)
-    #         self.queue.remove(worst)
-    #         return worst 
-
-    #     return None
-
-    # def done(self):
-    #     return len(self.queue) == 0
-
     def tick(self):
-        self.record.append(copy.deepcopy(self.queue))
+        # print(self.queue[0:16])
+        self.record.append(copy.copy(self.queue))
         self.time += 1
-
-    # def remains(self):
-    #     return len(self.queue)
-
-    # def stats(self):
-    #     record = np.array(self.record)
-    #     print(f'PriorityQueue: {self.token} (Size: {self.size}):')
-    #     print(f'   - Average Occupancy: {record.mean()}')
-    #     print(f'   - Median Occupancy:  {np.median(record)}')
-    #     print(f'   - Max Occupancy:     {record.max()}')
-    #     print("Remaining Length: " + str(len(self.queue)))
 
 class Host:
     def __init__(self, config):
@@ -170,8 +146,6 @@ class Host:
         self.events    = [next(gen) for gen in self.generator]
 
         self.queue = PriorityQueue(self.size)
-
-        # self.queue = BisectedPriorityQueue(config)
 
     def tick(self):
         # Do we need to generate a new message from the poisson process?
@@ -211,27 +185,36 @@ class Host:
         print("computing flux")
         runs = [[] for i in range(self.size)]
 
+        # TODO this misses the very last trace
+
         # Iterate through slots
         for slot in range(self.size):
             run = 0
             last = None
+
             # Iterate through entries
             for record in records:
-                # This is the start of a run
-                if len(record) > slot and last == record[slot]:
-                    run += 1
-                    print("incr")
-                else:
-                    runs[slot].append(run)
-                    run = 0
-
+                current = None
                 if len(record) > slot:
-                    last = record[slot]
-                else:
-                    last = None
+                    current = record[slot]
 
-        # print(records)
-        # print(runs)
+                if current != None:
+                    if current == last: # is it a continuation
+                        run += 1
+                    else: # is it a new run
+                        if run != 0:
+                            runs[slot].append(run)
+                        run = 1
+                else:
+                    if run != 0:
+                        runs[slot].append(run)
+                        run = 0
+
+                last = current
+
+        for run in reversed(runs[0:32]):
+            if run != []:
+                print(statistics.mean(run))
 
     def stats(self):
         records = self.queue.record
@@ -291,7 +274,7 @@ class Sim:
 
 if __name__ == '__main__':
     config = {
-        'completions': 100,
+        'completions': 500000,
         # 'completions': 500000,
         'rates': [],
         'commDelay' : 140,
@@ -305,22 +288,52 @@ if __name__ == '__main__':
     fig, axs = plt.subplots(1, figsize=(6,4))
     fig.tight_layout(pad=3.0)
 
-    # Mean service time 
-    # mst = 1
-
-    mst = 4
-
-    mu = 1/mst
-
-    # depths = list(range(1,6))
-    # depths.append(18)
-    # for onChipDepth in depths:
     onChipDepth = 10 
-    # onChipDepth = 18
     config['onChipDepth'] = 2**onChipDepth
 
     xs = []
     mcts = []
+
+    # for rate in range(1,100):
+    # rate = .99
+    rho = .99
+    for mst in [1, 2, 4, 8, 16, 32, 64, 128, 256]:
+        mu = 1/mst
+
+        # desired utilization (vary rho from .1 -> .9)
+        # rho = rate/100
+
+        # Compute corresponding service rate
+        lamda = rho * mu
+
+        config['rates'] = [{'arrival' : lamda, 'service': mu, 'token': 'RPC', 'dict': 'Poisson'}]
+        print(config)
+
+        sim = Sim(config)
+        result, rem = sim.simulate()
+
+        # need to not count simulations which are unstable
+        print(rem)
+        xs.append(rho)
+        mcts.append(result.mean())
+        print(sim.stats())
+
+        axs.plot(xs, mcts, label=f'Size: {2**onChipDepth}')
+
+        axs.set_title(r'Mean Completition Time by Utilization (Mean Service Time = {mst})')
+        axs.legend(loc='upper left', title='On Chip Queue Size')
+        axs.set_ylabel('Mean Completition Time')
+        axs.set_xlabel(r'Utilization $(\frac{\lambda}{\mu})$')
+        axs.set_ylim(0,5)
+
+        plt.savefig(f'mm1_bisected_{mst}.png')
+        plt.plot(xs, mcts, label=f'Perfect')
+
+
+    ''' Vary Utilization
+    mst = 1
+
+    mu = 1/mst
 
     # Iterate through utilization .1->.9
     for rate in range(1,100):
@@ -352,6 +365,10 @@ if __name__ == '__main__':
 
     plt.savefig(f'mm1_bisected.png')
     plt.plot(xs, mcts, label=f'Perfect')
+    '''
+
+
+
 
 '''
 if __name__ == '__main__':
@@ -427,8 +444,6 @@ if __name__ == '__main__':
     plt.plot(xs, mcts, label=f'Perfect')
 
 '''
-
-# TODO Enforce some rw locking slow PQ to be more CPU realistic
 
 # Vary across 5 workloads
 
