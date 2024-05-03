@@ -3,4 +3,8 @@
    "python-pyyaml"
    "python-numpy"
    "python-matplotlib"
+   "gcc-toolchain"
+   "coreutils"
+   "vim"
+   "make"
    ))
