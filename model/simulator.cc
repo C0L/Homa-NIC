@@ -55,9 +55,9 @@ int main(int argc, char ** argv) {
     }
 
     std::list<uint64_t> queue;
-    log_t stats[40000];
+    log_t stats[100000];
 
-    for (int s = 0; s < 4096; ++s)  {
+    for (int s = 0; s < 100000; ++s)  {
 	stats[s].diffs = 0;
 	stats[s].count = 0;
     }
@@ -151,8 +151,8 @@ int main(int argc, char ** argv) {
     // TODO get this name from cmd line
     std::ofstream myfile;
     myfile.open(argv[4]);
-    
-    for (int s = 0; s < 4096; ++s)  {
+    // 40000
+    for (int s = 0; s < 100000; ++s)  {
 	if (stats[s].count != 0) {
 	    float rate = stats[s].diffs/stats[s].count;
 	    myfile << rate << std::endl;
