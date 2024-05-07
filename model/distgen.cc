@@ -9,6 +9,8 @@
 #include <iostream>
 #include <map>
 
+#include <cmath>
+
 #include "dist.h"
 
 /** @rand_gen: random number generator. */
@@ -24,6 +26,11 @@ int main(int argc, char**argv) {
 	}
 
 	for (size_t i = 0; i < atoi(argv[2]); i++) {
-		printf("%d\n", generator(rand_gen));
+	    float sample = generator(rand_gen);
+	    sample = sample / 64.0;
+	    int blocks = sample;
+	    
+	    // printf("%f\n", sample);
+	    printf("%d\n", blocks);
 	}
 }

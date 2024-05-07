@@ -2,6 +2,7 @@
  '("python@3.10.7"
    "python-pyyaml"
    "python-numpy"
+   "python-scipy"
    "python-matplotlib"
    "gcc-toolchain"
    "coreutils"
