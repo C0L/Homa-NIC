@@ -38,9 +38,9 @@ if __name__ == '__main__':
         # axs.plot(t, label=[args.traces.split(',')[i]])
         i += 1
 
-    # axs.set_ylim(0, .2)
+    # axs.set_ylim(0, .4)
     axs.set_title(r'Queue Flow Rate by Slot Index')
-    axs.legend(loc='upper left', title='Rate')
+    axs.legend(loc='upper left', title='Utilization')
     axs.set_ylabel('Flow Rate')
     axs.set_xlabel(r'Slot Index')
     axs.axhline(0, linestyle='--')

@@ -10,17 +10,21 @@ import scipy.stats
 
 import statistics
 import sys
+import struct
+
+from pathlib import Path
 
 
 def parseWorkload(path):
     w = []
-    file  = open(path, 'r')
-    lines = file.readlines()
+    
+    # lines = file.readlines()
         
-    for line in lines:
-           w.append(int(line.split()[0]))
+    # for line in lines:
+        # ints = struct.unpack('iiii', data[:16])
+        # w.append(int(line.split()[0]))
 
-    return w 
+    return ints
 
 if __name__ == '__main__':
 
@@ -33,17 +37,21 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--workload', required=True)
     parser.add_argument('-a', '--arrival', required=True)
     parser.add_argument('-s', '--samples', required=True)
-    # parser.add_argument('-u', '--utils', help='list of utilizations', type=str, required=True)
 
     args = parser.parse_args()
 
-    # args = parser.parse_args()
-    # utils = [float(item) for item in args.utils.split(',')]
+    scale = 1
 
-    w = parseWorkload(args.workload)
+    # w = parseWorkload(args.workload)
+
+    # data = Path(args.workload).read_bytes()
+    # w = np.mean(struct.unpack('<Q', data))
+
+    ifile = open(args.workload, "r")
+    w = np.mean(np.fromfile(ifile, dtype=np.uint64))
 
     for rho in [float(args.util)]:
-        ofile = open(args.arrival, "w")
+        ofile = open(args.arrival, "wb")
 
         mst = np.mean(w)
 
@@ -51,15 +59,26 @@ if __name__ == '__main__':
         # lamda = rho * mu
         # arrival = lamda
 
-        arrival = mst / rho
-        a = (1+arrival)/arrival
+        arrival = mst * (1/rho)
+        a = (scale+arrival)/arrival
+        # # print("a value: " + str(a))
+
+        # artest = 10 * 1
+        # atest = (1+artest)/artest
+
+        # for i in range(10000000):
+        #     samp.append(scipy.stats.lomax.rvs(atest))
+
+        # print("MEAN " + str(np.mean(samp)))
 
         # Poisson arrival times + poisson packet sizes for outgoing messages
         t = 0
         for i in range(int(args.samples)):
-            t += scipy.stats.lomax.rvs(a)
+            t += scipy.stats.lomax.rvs(a, scale=scale)
             # t += random.expovariate(arrival)
+            # t += scipy.stats.poisson.rvs(1/arrival)
+            # t += scipy.stats.poisson.rvs(1/arrival)
 
-            ofile.write(f"{round(t)}\n")
+            ofile.write(round(t).to_bytes(8, byteorder='little', signed=False))
 
     

@@ -26,7 +26,7 @@ simulator:
 # 	python3 Plot.py -t "traces/w2_.9.trace,traces/w2_.5.trace,traces/w2_.25.trace"
 
 simulate: clean simulator distgen
-	./genplot.sh
+	./runsim.sh
 
 clean:
 	rm -rf simulator

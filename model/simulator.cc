@@ -3,71 +3,129 @@
 #include <list>
 #include <fstream>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+
 #include <cstdint>
 #include <cmath>
 
-static FILE * flengths;
-static FILE * farrival;
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+static int flength;
+static int farrival;
 
 struct log_t {
     float diffs;
     float count;
 };
 
-uint64_t ts = 0;
 
-uint64_t next_length() {
- char line[256];
- char * end;
- fgets(line, sizeof(line), flengths);
- return strtol(line, &end, 10);
-}
-
-uint64_t next_arrival() {
- char line[256];
- char * end;
- fgets(line, sizeof(line), farrival);
- return strtol(line, &end, 10);
-}
+// TODO clean this up then start working on high/low water mark implementation
 
 // Accept a workload file and interval file
 int main(int argc, char ** argv) {
+    // char * qtype = NULL;
+    // int index;
+
+    int c;
+
+    opterr = 0;
+
+    uint64_t cycles;
+    char * end;
+    std::string type;
+    std::string lfile;
+    std::string afile;
+    std::string tfile;
+
+    while ((c = getopt(argc, argv, "q:l:a:c:t:")) != -1)
+	switch (c) {
+	    case 'q':
+		type = std::string(optarg);
+		break;
+	    case 'l':
+		lfile = std::string(optarg);
+		break;
+	    case 'a':
+		afile = std::string(optarg);
+		break;
+	    case 'c':
+		cycles = strtol(optarg, &end, 10);
+		break;
+	    case 't':
+		tfile = std::string(optarg);
+		break;
+	    default:
+		abort ();
+	}
+
+    std::cerr << "Launching Simulator:" << std::endl;
+    std::cerr << "  - Queuing Policy: " << type << std::endl;
+    std::cerr << "  - Lengths File  : " << lfile << std::endl;
+    std::cerr << "  - Arrival File  : " << afile << std::endl;
+    std::cerr << "  - Trace File    : " << tfile << std::endl;
+    std::cerr << "  - Cycles        : " << cycles << std::endl;
+
+    // TODO check everything was set
 
     std::string str("SRPT");
 
-    bool srpt = str.compare(argv[1]) == 0;
-    char * end;
-    uint64_t cycles = strtol(argv[5], &end, 10);
+    bool srpt = str.compare(type) == 0;
 
-    printf("cycles %d\n", cycles);
-    printf("SRPT MODE %d\n", srpt);
+    struct stat lsb;
+    struct stat asb;
 
-    // Get flags from command line
-    flengths = fopen(argv[2], "r");
-    farrival = fopen(argv[3], "r");
+    flength  = open(lfile.c_str(), O_RDONLY);
+    farrival = open(afile.c_str(), O_RDONLY);
 
-    uint64_t arrival = next_arrival();
-    uint64_t length  = next_length();
+    fstat(flength, &lsb);
+    fstat(farrival, &asb);
 
-    while (length == 0) {
-	arrival = next_arrival();
-	length  = next_length();
-    }
+    uint64_t * mlengths  = (uint64_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
+    uint64_t * marrivals = (uint64_t *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
+
+    int next = 0;
+    uint64_t ts = 0;
+
+    uint64_t arrival = marrivals[next];
+    uint64_t length  = mlengths[next];
+
+    next++;
 
     std::list<uint64_t> queue;
-    log_t stats[100000];
+    std::queue<std::pair<uint64_t, uint64_t>> insert;
 
-    for (int s = 0; s < 100000; ++s)  {
+    log_t * stats = (log_t *) malloc(cycles * sizeof(log_t));
+
+    for (int s = 0; s < cycles; ++s)  {
 	stats[s].diffs = 0;
 	stats[s].count = 0;
     }
 
     for (;ts < cycles; ++ts) {
-	bool inserted = false;
+	bool inserted = false; // Did we insert this cycle
+	bool pop = false;     // Did we pop this cycle
 	int slot = 0;
+	int size = queue.size();
 
-	// Enqueue 
 	if (arrival <= ts) {
+	    insert.push_back();
+
+	    arrival = marrivals[next];
+	    length  = mlengths[next];
+	    next++;
+	} 
+
+	// Enqueue
+	if (!insert.empty()) {
 	    inserted = true;
 	    if (!srpt) {
 		// Insert FIFO
@@ -75,90 +133,46 @@ int main(int argc, char ** argv) {
 		slot = queue.size();
 	    } else {
 		auto it = std::find_if(queue.begin(), queue.end(), [length](uint64_t i) {return i > length;});
-		slot = std::distance(queue.begin(), it);
-		queue.insert(it, length);
+		    slot = std::distance(queue.begin(), it);
+		    queue.insert(it, length);
 	    }
-	
-	    length = next_length();
-	    arrival = next_arrival();
+	}
 
-	    while (length == 0) {
-		arrival = next_arrival();
-		length  = next_length();
-	    }
-	} 
-
-	bool pop = false;
-	
 	// Dequeue
 	if (!queue.empty()) {
-	    // std::cerr << queue.size() << std::endl;
 	    uint64_t newhead = queue.front() - 1;
 	    queue.pop_front();
-
+	    
 	    if (newhead != 0) {
 		queue.push_front(newhead);
 	    } else {
 		pop = true;
 	    }
 	}
-
-	if (inserted && !pop) {
-	    // everything up to slot+1 is 0, everything past is -1
-	    int s = 0;
-	    for (auto it = queue.begin(); it != std::prev(queue.end()); ++it) {
-		if (s < slot) {
-		    stats[s].count++;
-		} else if (s >= slot) {
-	     	    stats[s].diffs--;
-		    stats[s].count++;
-		}
-		s++;
-	    }
-	} else if (inserted && pop) {
-	    // everything up to slot+1 is 1, everything past is 0
-	    int s = 0;
-	    for (auto it = queue.begin(); it != queue.end(); ++it) {
-		if (s < slot) {
-	     	    stats[s].diffs++;
-		    stats[s].count++;
-		} else if (s >= slot) {
-		    stats[s].count++;
-		}
-		s++;
-	    }
-	} else if (!inserted && pop){
-	    // everything is 1
-	    int s = 0;
-	    for (auto it = queue.begin(); it != queue.end(); ++it) {
-		stats[s].diffs++;
-		stats[s].count++;
-		s++;
-	    }
-	    stats[s].diffs++;
+	
+	// Size is the original number of elements in the priority queue before enqueue/dequeue
+	for (int s = 0; s < size; s++) {
+	    int diff = 0;
+	    if (pop) diff++;
+	    if (s >= slot && inserted) diff--;
+	    stats[s].diffs += diff;
 	    stats[s].count++;
-	} else {
-	    int s = 0;
-	    for (auto it = queue.begin(); it != queue.end(); ++it) {
-		stats[s].count++;
-		s++;
-	    }
 	}
     }
 
-    std::cerr << "COMPLETE SIM\n";
-
-    // TODO get this name from cmd line
-    std::ofstream myfile;
-    myfile.open(argv[4]);
+    std::ofstream rates;
+    rates.open(tfile.c_str());
     // 40000
-    for (int s = 0; s < 100000; ++s)  {
+    for (int s = 0; s < cycles; ++s)  {
 	if (stats[s].count != 0) {
 	    float rate = stats[s].diffs/stats[s].count;
-	    myfile << rate << std::endl;
+	    rates << rate << std::endl;
 	}
     }
-    
-    fclose(flengths);
-    fclose(farrival);
+
+
+    close(flength);
+    close(farrival);
+    rates.close();
+    // fclose(farrival);
 }
