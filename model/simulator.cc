@@ -22,15 +22,19 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-static int flength;
-static int farrival;
-
-struct log_t {
-    uint32_t start;
-    uint32_t end;
-    // float diffs;
-    // float count;
+struct simstat_t {
+    uint32_t highwater;
+    uint32_t lowwater;
+    float compsum;
+    float compcount;
 };
+
+// struct msgstat_t {
+//     uint32_t start;
+//     uint32_t end;
+// };
+
+static simstat_t simstat;
 
 const struct option longOpts[]{
     {"queue-type",required_argument,NULL,'q'},
@@ -121,8 +125,8 @@ int main(int argc, char ** argv) {
     struct stat lsb;
     struct stat asb;
 
-    flength  = open(lfile.c_str(), O_RDONLY);
-    farrival = open(afile.c_str(), O_RDONLY);
+    int flength  = open(lfile.c_str(), O_RDONLY);
+    int farrival = open(afile.c_str(), O_RDONLY);
 
     fstat(flength, &lsb);
     fstat(farrival, &asb);
@@ -144,33 +148,28 @@ int main(int argc, char ** argv) {
     std::queue<std::pair<uint64_t, uint32_t>> chaindown;
     std::queue<std::pair<uint64_t, uint32_t>> insert;
 
-    log_t * stats = (log_t *) malloc(cycles * sizeof(log_t));
+    // msgstat_t * stats = (msgstat_t *) malloc(cycles * sizeof(msgstat_t));
 
-    for (int s = 0; s < cycles; ++s)  {
-	stats[s].start = 0;
-	stats[s].end   = 0;
-    }
+    // for (int s = 0; s < cycles; ++s)  {
+    // 	stats[s].start = 0;
+    // 	stats[s].end   = 0;
+    // }
 
     uint32_t ring = 0;
     for (;ts < cycles; ++ts) {
-	// bool inserted = false; // Did we insert this cycle
-	// bool pop = false;      // Did we pop this cycle
-	// int slot = 0;
-	// int size = queue.size();
-
 	// Push to FIFO insert
 	if (arrival <= ts) {
-	    insert.push(std::pair(length, next));
-	    stats[next].start = ts;
+	    insert.push(std::pair(length, ts));
+	    // stats[next].start = ts;
 
 	    arrival = marrivals[next];
 	    length  = mlengths[next];
 	    next++;
 	} 
 
-
 	// If there are too many entries in queue, move them up
 	if (hwqueue.size() > highwater) {
+	    simstat.highwater++;
 	    uint32_t rem = blocksize;
 	    while (!hwqueue.empty() && rem--) {
 		// TODO need to tag with time here
@@ -180,7 +179,10 @@ int main(int argc, char ** argv) {
 	}
 
 	// If there are not enough entries in queue, make a request for more
-	if (hwqueue.size() < lowwater) {
+	if (hwqueue.size() < lowwater && !swqueue.empty() && ring == 0) {
+	    simstat.lowwater++;
+	    // TODO this will just spam requests
+	    // The on-chip queue can know the size of the offchip to determine whether to ring or not
 	    ring = ts;
 	}
 
@@ -206,6 +208,7 @@ int main(int argc, char ** argv) {
 		    // swqueue.push(ins);
 		    // slot = hwqueue.size();
 		} else {
+		    // std::cerr << "Chain up insert" << std::endl;
 		    auto it = std::find_if(swqueue.begin(), swqueue.end(), [head](std::pair<uint64_t, uint32_t> i) {return i.first > head.first;});
 		    //slot = std::distance(swqueue.begin(), it);
 		    swqueue.insert(it, head);
@@ -247,7 +250,8 @@ int main(int argc, char ** argv) {
 	    if (head.first != 0) {
 		hwqueue.push_front(head);
 	    } else {
-		stats[head.second].end = ts;
+		simstat.compsum += (ts - head.second);
+		simstat.compcount++;
 	    }
 	}
 
@@ -261,18 +265,22 @@ int main(int argc, char ** argv) {
 	// }
     }
 
-    std::ofstream rates;
-    rates.open(tfile.c_str());
-    float compsum = 0;
-    float compcount = 0;
-    for (int s = 0; s < cycles; ++s)  {
-	if (stats[s].start != 0) {
-	    compsum += (stats[s].end - stats[s].start);
-	    compcount++;
-	}
-    }
-    rates << compsum/compcount << std::endl;
-    rates.close();
+    // std::ofstream rates;
+    // rates.open(tfile.c_str());
+    // float compsum = 0;
+    // float compcount = 0;
+    // for (int s = 0; s < cycles; ++s)  {
+    // 	if (stats[s].start != 0) {
+    // 	    compsum += (stats[s].end - stats[s].start);
+    // 	    compcount++;
+    // 	}
+    // }
+    // rates << compsum/compcount << std::endl;
+    // rates.close();
+
+    std::cerr << "Mean Cmpl: " << simstat.compsum / simstat.compcount << std::endl;
+    std::cerr << "Highwaters: " << simstat.highwater << std::endl;
+    std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
 
     // std::ofstream rates;
     // rates.open(tfile.c_str());
