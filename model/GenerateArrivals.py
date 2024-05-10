@@ -14,18 +14,6 @@ import struct
 
 from pathlib import Path
 
-
-def parseWorkload(path):
-    w = []
-    
-    # lines = file.readlines()
-        
-    # for line in lines:
-        # ints = struct.unpack('iiii', data[:16])
-        # w.append(int(line.split()[0]))
-
-    return ints
-
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(
@@ -40,45 +28,59 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    scale = 1
+    # scale = 1
 
-    # w = parseWorkload(args.workload)
 
-    # data = Path(args.workload).read_bytes()
-    # w = np.mean(struct.unpack('<Q', data))
+    # TODO can compute a scale based on the workload to keep variance the same...
 
     ifile = open(args.workload, "r")
-    w = np.mean(np.fromfile(ifile, dtype=np.uint64))
-
+    
+    w = np.fromfile(ifile, dtype=np.uint32)
+    # print(w)
     for rho in [float(args.util)]:
-        ofile = open(args.arrival, "wb")
-
+        print(rho)
+        print(w)
         mst = np.mean(w)
+        print("Compute Mean: " + str(mst))
 
         # mu  = 1/mst
         # lamda = rho * mu
+
+        # Normalized completition time
+
         # arrival = lamda
 
         arrival = mst * (1/rho)
+        scale = arrival + 1
+
+        # print(arrival)
         a = (scale+arrival)/arrival
-        # # print("a value: " + str(a))
 
-        # artest = 10 * 1
-        # atest = (1+artest)/artest
+        mst = 1 / (a-1)
 
-        # for i in range(10000000):
-        #     samp.append(scipy.stats.lomax.rvs(atest))
+        print(a)
 
-        # print("MEAN " + str(np.mean(samp)))
-
+        # print(scipy.stats.lomax.stats(a, moments='mv'))
+        # print(scipy.stats.pareto.stats(a, moments='mv'))
         # Poisson arrival times + poisson packet sizes for outgoing messages
-        t = 0
-        for i in range(int(args.samples)):
-            t += scipy.stats.lomax.rvs(a, scale=scale)
+        # ts = np.zeros(int(args.samples), dtype=np.float32)
+        # ts = np.random.pareto(a, size=int(args.samples)).astype(np.float32)
+
+        ts = scipy.stats.lomax.rvs(a, scale=scale, size = int(args.samples)).astype(np.float32)
+
+        print("Desired Arrival: " + str(arrival))
+        print("Sampled Arrival: " + str(np.mean(ts)))
+        print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, moments='mv')))
+        print("Sanity Check: Average Message Length/Average Inter Arrival Time = " + str(mst / np.mean(ts)))
+
+        # ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
+        print(ts)
+
             # t += random.expovariate(arrival)
             # t += scipy.stats.poisson.rvs(1/arrival)
             # t += scipy.stats.poisson.rvs(1/arrival)
 
-            ofile.write(round(t).to_bytes(8, byteorder='little', signed=False))
+        ts.tofile(args.arrival)
+        # ofile.write(round(t).to_bytes(8, byteorder='little', signed=False))
 
     

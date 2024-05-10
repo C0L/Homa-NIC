@@ -22,17 +22,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+using namespace std;
+
 struct simstat_t {
     uint32_t highwater;
     uint32_t lowwater;
     float compsum;
     float compcount;
 };
-
-// struct msgstat_t {
-//     uint32_t start;
-//     uint32_t end;
-// };
 
 static simstat_t simstat;
 
@@ -49,8 +46,6 @@ const struct option longOpts[]{
 };
 
 // Maybe some ILP approach to derive the queue sizes that performs the best?
-
-// Accept a workload file and interval file
 
 /*
  * highwater - trggers data moving off chip
@@ -131,39 +126,35 @@ int main(int argc, char ** argv) {
     fstat(flength, &lsb);
     fstat(farrival, &asb);
 
-    uint64_t * mlengths  = (uint64_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
-    uint64_t * marrivals = (uint64_t *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
+    uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
+    float * marrivals = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
 
     int next = 0;
     uint64_t ts = 0;
 
-    uint64_t arrival = marrivals[next];
-    uint64_t length  = mlengths[next];
+    float arrival = marrivals[next];
+    uint32_t length  = mlengths[next];
 
     next++;
 
     std::list<std::pair<uint64_t, uint32_t>> hwqueue;
     std::list<std::pair<uint64_t, uint32_t>> swqueue;
-    std::queue<std::pair<uint64_t, uint32_t>> chainup;
-    std::queue<std::pair<uint64_t, uint32_t>> chaindown;
+    std::queue<pair<uint32_t, std::pair<uint64_t, uint32_t>>> chainup;
+    std::queue<pair<uint32_t, std::pair<uint64_t, uint32_t>>> chaindown;
     std::queue<std::pair<uint64_t, uint32_t>> insert;
-
-    // msgstat_t * stats = (msgstat_t *) malloc(cycles * sizeof(msgstat_t));
-
-    // for (int s = 0; s < cycles; ++s)  {
-    // 	stats[s].start = 0;
-    // 	stats[s].end   = 0;
-    // }
 
     uint32_t ring = 0;
     for (;ts < cycles; ++ts) {
-	// Push to FIFO insert
-	if (arrival <= ts) {
-	    insert.push(std::pair(length, ts));
-	    // stats[next].start = ts;
 
-	    arrival = marrivals[next];
-	    length  = mlengths[next];
+	// std::cerr << arrival << std::endl;
+	// std::cerr << length << std::endl;
+
+	float tsf = (float) ts;
+	// Push to FIFO insert
+	if (arrival <= tsf) {
+	    insert.push(std::pair(length, ts));
+	    arrival += marrivals[next];
+	    length  = (uint64_t) mlengths[next];
 	    next++;
 	} 
 
@@ -172,8 +163,10 @@ int main(int argc, char ** argv) {
 	    simstat.highwater++;
 	    uint32_t rem = blocksize;
 	    while (!hwqueue.empty() && rem--) {
+		pair<uint64_t, uint32_t> tail = hwqueue.back();
+
 		// TODO need to tag with time here
-		chainup.push(hwqueue.back());
+		chainup.push(std::pair(ts, tail));
 		hwqueue.pop_back();
 	    }
 	}
@@ -184,20 +177,29 @@ int main(int argc, char ** argv) {
 	    // TODO this will just spam requests
 	    // The on-chip queue can know the size of the offchip to determine whether to ring or not
 	    ring = ts;
+	    // std::cerr << "ring!!!" << std::endl;
 	}
+	// else if (hwqueue.size() < lowwater && !swqueue.empty()) {
+	//     std::cerr << "BING" << std::endl;
+	// }
+
+	// if (hwqueue.size() < lowwater) {
+	//     std::cerr << "ring!!!" << std::endl;
+	// }
 
 	// Once the request for data has reached swqueue, begin satisfying it
 	if (ts > ring + chainlatency && ring != 0) {
 	    uint32_t rem = blocksize;
 	    while (!swqueue.empty() && rem--) {
-		chaindown.push(swqueue.front());
+		// std::cerr << "CHAIN DOWN\n";
+		chaindown.push(pair(ts, swqueue.front()));
 		swqueue.pop_front();
 	    }
 	    ring = 0;
 	}
 
 	if (!chainup.empty()) {
-	    std::pair<uint64_t, uint32_t> head = chainup.front();
+	    std::pair<uint32_t, std::pair<uint64_t, uint32_t>> head = chainup.front();
 	    if (head.first + chainlatency < ts) {
 		chainup.pop();
 		// TODO sort slowly here
@@ -208,21 +210,20 @@ int main(int argc, char ** argv) {
 		    // swqueue.push(ins);
 		    // slot = hwqueue.size();
 		} else {
-		    // std::cerr << "Chain up insert" << std::endl;
-		    auto it = std::find_if(swqueue.begin(), swqueue.end(), [head](std::pair<uint64_t, uint32_t> i) {return i.first > head.first;});
+		    // std::cerr << swqueue.size() << " " << hwqueue.size() << std::endl;
+		    auto it = std::find_if(swqueue.begin(), swqueue.end(), [head](std::pair<uint64_t, uint32_t> i) {return i.first > head.second.first;});
 		    //slot = std::distance(swqueue.begin(), it);
-		    swqueue.insert(it, head);
+		    swqueue.insert(it, head.second);
 		}
 	    }
 	}
 
 	if (!chaindown.empty()) {
-	    std::pair<uint64_t, uint32_t> head = chaindown.front();
-
+	    std::pair<uint32_t, std::pair<uint64_t, uint32_t>> head = chaindown.front();
 	    // Did it complete its sojurn time
 	    if (head.first + chainlatency < ts) {
 		chaindown.pop();
-		insert.push(head);
+		insert.push(head.second);
 	    }
 	}
 
@@ -278,10 +279,12 @@ int main(int argc, char ** argv) {
     // rates << compsum/compcount << std::endl;
     // rates.close();
 
+    std::cerr << "Total Cmpl: " << simstat.compcount << std::endl;
     std::cerr << "Mean Cmpl: " << simstat.compsum / simstat.compcount << std::endl;
     std::cerr << "Highwaters: " << simstat.highwater << std::endl;
     std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
-
+    std::cerr << "Final Size: " << hwqueue.size() << std::endl;
+    std::cerr << "Final Size: " << swqueue.size() << std::endl;
     // std::ofstream rates;
     // rates.open(tfile.c_str());
     // for (int s = 0; s < cycles; ++s)  {

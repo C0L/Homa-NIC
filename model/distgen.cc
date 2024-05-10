@@ -25,11 +25,9 @@ static std::mt19937 rand_gen(std::chrono::system_clock::now().time_since_epoch()
 
 int main(int argc, char**argv) {
 
-    int max_message_length = 100000000;
-
     int lfile = open(argv[3], O_RDWR | O_APPEND | O_CREAT, 0644);
 
-    dist_point_gen generator(argv[1], max_message_length);
+    dist_point_gen generator(argv[1], 0, 0);
 
     for (size_t i = 0; i < 1'000'000; i++) {
 	generator(rand_gen);
@@ -37,10 +35,8 @@ int main(int argc, char**argv) {
 
     for (size_t i = 0; i < atoi(argv[2]); i++) {
 	float sample = generator(rand_gen);
-	sample = sample / 64.0;
-	uint64_t length = ceil(sample);
-
-	write(lfile, &length, sizeof(length));
+	uint32_t length = ceil(sample / 64.0);
+	write(lfile, &length, sizeof(uint32_t));
     }
 
     close(lfile);

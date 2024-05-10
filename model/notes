@@ -1,3 +1,6 @@
+We want to avoid queue thrashing!
+
+
 simulatior with hosts SRPTing on sending and receiving data
   - Every machine is connected though a switch that has input and output queues for each host of fixed size
   - I have picked some reasonable values for the rtt time, the overcommitment of receivers, the intrinsic delay of the network. There are a lot of knobs here though.

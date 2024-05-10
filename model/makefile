@@ -31,5 +31,5 @@ simulate: clean simulator distgen
 clean:
 	rm -rf simulator
 	rm -rf distgen
-	rm -rf dists/*
+# rm -rf dists/*
 	rm -rf traces/*

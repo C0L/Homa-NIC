@@ -1,13 +1,16 @@
 #!/bin/bash
 
-WORKLOADS=( w1 w2 w3 w4 w5 )
-UTILS=( .1 )
-HWS=( 40 )
+# WORKLOADS=( w1 )
+WORKLOADS=( w3 )
+# WORKLOADS=( w1 w2 w3 w4 w5 )
+UTILS=( .9 )
+HWS=( 10 )
 LWS=( 20 )
-CL=( 20 )
+CL=( 1 )
 BS=( 10 )
 # UTILS=( .9 .7 .5 .3 .1 )
-CYCLES=10000000
+CYCLES=500000
+# CYCLES=10
 # CYCLES=1000000
 # CYCLES=10000000
 
@@ -15,8 +18,10 @@ for wk in "${WORKLOADS[@]}"; do
     ./distgen $wk ${CYCLES} dists/${wk}_lengths
 
     for util in "${UTILS[@]}"; do
-    	echo $util
-	python3 GenerateArrivals.py -d pareto -u $util -w dists/${wk}_lengths -a dists/${wk}_${util}_arrivals -s ${CYCLES}
+	if [ ! -e "dists/${wk}_${util}_arrivals" ]; then
+    	    echo $util
+	    python3 GenerateArrivals.py -d pareto -u $util -w dists/${wk}_lengths -a dists/${wk}_${util}_arrivals -s ${CYCLES}
+	fi
 	for hw in "${HWS[@]}"; do
 	    for lw in "${LWS[@]}"; do
 		for cl in "${CL[@]}"; do
@@ -30,6 +35,7 @@ for wk in "${WORKLOADS[@]}"; do
 				    --low-water  ${lw}                           \
 				    --chain-latency ${cl}                        \
 				    --block-size ${bs}
+			# exit
 		    done
 		done
 	    done

@@ -10,6 +10,10 @@
 #include <cstdlib>
 #include <string.h>
 
+#include <iostream>
+
+#include <stdio.h>
+
 #include "dist.h"
 
 /* Forward declarations for built-in CDFs. */
@@ -58,13 +62,18 @@ dist_point_gen::dist_point_gen(const char* dist, size_t max_length,
 	cdf_point* points;
 	if (strcmp(dist, "w1") == 0) {
 		points = w1;
+		std::cerr << "w1 distgen" << std::endl;
 	} else if (strcmp(dist, "w2") == 0) {
 		points = w2;
+		std::cerr << "w2 distgen" << std::endl;
 	} else if (strcmp(dist, "w3") == 0) {
 		points = w3;
+		std::cerr << "w3 distgen" << std::endl;
 	} else if (strcmp(dist, "w4") == 0) {
 		points = w4;
+		std::cerr << "w4 distgen" << std::endl;
 	} else if (strcmp(dist, "w5") == 0) {
+		std::cerr << "w5 distgen" << std::endl;
 		points = w5;
 	} else {
 		fprintf(stderr, "Invalid workload %s; must be w1, "
