@@ -28,59 +28,27 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # scale = 1
-
-
-    # TODO can compute a scale based on the workload to keep variance the same...
-
     ifile = open(args.workload, "r")
     
     w = np.fromfile(ifile, dtype=np.uint32)
-    # print(w)
-    for rho in [float(args.util)]:
-        print(rho)
-        print(w)
-        mst = np.mean(w)
-        print("Compute Mean: " + str(mst))
+    rho = float(args.util)
 
-        # mu  = 1/mst
-        # lamda = rho * mu
+    mst = np.mean(w)
+    arrival = mst * (1/rho)
+    print("Distribution: " + args.dist)
+    print("Mean Service Time: " + str(mst))
+    print("Desired Arrival: " + str(arrival))
 
-        # Normalized completition time
-
-        # arrival = lamda
-
-        arrival = mst * (1/rho)
+    if args.dist == "poisson":
+        print("Statistical Arrival: " + str(scipy.stats.poisson.stats(arrival, moments='mv')))
+        ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
+    elif args.dist == "lomax":
         scale = arrival + 1
-
-        # print(arrival)
         a = (scale+arrival)/arrival
-
-        mst = 1 / (a-1)
-
-        print(a)
-
-        # print(scipy.stats.lomax.stats(a, moments='mv'))
-        # print(scipy.stats.pareto.stats(a, moments='mv'))
-        # Poisson arrival times + poisson packet sizes for outgoing messages
-        # ts = np.zeros(int(args.samples), dtype=np.float32)
-        # ts = np.random.pareto(a, size=int(args.samples)).astype(np.float32)
-
+        print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, moments='mv')))
         ts = scipy.stats.lomax.rvs(a, scale=scale, size = int(args.samples)).astype(np.float32)
 
-        print("Desired Arrival: " + str(arrival))
-        print("Sampled Arrival: " + str(np.mean(ts)))
-        print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, moments='mv')))
-        print("Sanity Check: Average Message Length/Average Inter Arrival Time = " + str(mst / np.mean(ts)))
+    print("Sampled Arrival: " + str(np.mean(ts)))
+    print("Sanity Check: Average Message Length/Average Inter Arrival Time = " + str(mst / np.mean(ts)))
 
-        # ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
-        print(ts)
-
-            # t += random.expovariate(arrival)
-            # t += scipy.stats.poisson.rvs(1/arrival)
-            # t += scipy.stats.poisson.rvs(1/arrival)
-
-        ts.tofile(args.arrival)
-        # ofile.write(round(t).to_bytes(8, byteorder='little', signed=False))
-
-    
+    ts.tofile(args.arrival)

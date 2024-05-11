@@ -1,8 +1,11 @@
 #!/bin/bash
 
-WORKLOADS=( w1 w2 w3 w4 w5 )
-UTILS=( .9 .7 .5 .3 .1 )
-CYCLES=10000000
+# WORKLOADS=( w1 w2 w3 w4 w5 )
+# UTILS=( .9 .7 .5 .3 .1 )
+# CYCLES=10000000
+
+
+# Plot MCT vs Utilization for each of the 5 workloads
 
 for wk in "${WORKLOADS[@]}";
 do

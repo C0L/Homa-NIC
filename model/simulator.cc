@@ -146,9 +146,6 @@ int main(int argc, char ** argv) {
     uint32_t ring = 0;
     for (;ts < cycles; ++ts) {
 
-	// std::cerr << arrival << std::endl;
-	// std::cerr << length << std::endl;
-
 	float tsf = (float) ts;
 	// Push to FIFO insert
 	if (arrival <= tsf) {
@@ -285,17 +282,17 @@ int main(int argc, char ** argv) {
     std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
     std::cerr << "Final Size: " << hwqueue.size() << std::endl;
     std::cerr << "Final Size: " << swqueue.size() << std::endl;
-    // std::ofstream rates;
-    // rates.open(tfile.c_str());
-    // for (int s = 0; s < cycles; ++s)  {
-    // 	if (stats[s].count != 0) {
-    // 	    float rate = stats[s].diffs/stats[s].count;
-    // 	    rates << rate << std::endl;
-    // 	}
-    // }
-    // rates.close();
+
+    std::ofstream rates;
+    rates.open(tfile.c_str());
+    rates << simstat.compcount << std::endl;
+    rates << simstat.compsum / simstat.compcount << std::endl;
+    rates << simstat.highwater << std::endl;
+    rates << simstat.lowwater << std::endl;
+    rates << hwqueue.size() << std::endl;
+    rates << swqueue.size() << std::endl;
+    rates.close();
 
     close(flength);
     close(farrival);
-
 }
