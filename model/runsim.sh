@@ -1,26 +1,26 @@
 #!/bin/bash
 
-WORKLOADS=( w1 )
-# WORKLOADS=( w1 w2 w3 w4 w5 )
-ARRIVAL=( poisson )
+# WORKLOADS=( w1 )
+WORKLOADS=( w1 w2 w3 w4 w5 )
+ARRIVAL=( lomax )
 UTILS=( .1 .5 .9 )
 
 # Pairs of high/low water marks
-HWS=( 64 )
-LWS=( 32 )
+HWS=( 60000000000 )
+LWS=( 60000000000 )
 
 CL=( 140 ) # Based off PCIe measurements
-BS=( 2 4 8 16 32 64 ) # Bump 8 elements to the upper queue
-CYCLES=100000
+BS=( 8 ) # Block size to transfer between queues
+CYCLES=10000000
 
 for wk in "${WORKLOADS[@]}"; do
     ./distgen $wk ${CYCLES} dists/${wk}_lengths
 
     for util in "${UTILS[@]}"; do
-	for arrival in "${UTILS[@]}"; do
+	for arrival in "${ARRIVAL[@]}"; do
 	    if [ ! -e "dists/${wk}_${util}_${arrival}_arrivals" ]; then
     		echo $util
-		python3 GenerateArrivals.py -d poisson -u $util -w dists/${wk}_lengths -a dists/${wk}_${util}_${arrival}_arrivals -s ${CYCLES}
+		python3 GenerateArrivals.py -d ${arrival} -u $util -w dists/${wk}_lengths -a dists/${wk}_${util}_${arrival}_arrivals -s ${CYCLES}
 	    fi
 	    for wm in "${!HWS[@]}"; do
 		hw="${HWS[wm]}"

@@ -43,10 +43,29 @@ if __name__ == '__main__':
         print("Statistical Arrival: " + str(scipy.stats.poisson.stats(arrival, moments='mv')))
         ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
     elif args.dist == "lomax":
-        scale = arrival + 1
-        a = (scale+arrival)/arrival
-        print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, moments='mv')))
+        # Mean of 1
+        a = 1.15
+        scale = 1
+
+        mean = scale/(a-1)
+
+        # scale = arrival * (a-1)
+        print("scale " + str(scale))
+        # scale = 1
+        # a = (scale+arrival)/arrival
+        # 1 = (scale+arrival)/arrival
+        # 1*arrival = scale + arrival
+
+
         ts = scipy.stats.lomax.rvs(a, scale=scale, size = int(args.samples)).astype(np.float32)
+        print("Sampled Arrival: " + str(np.mean(ts)))
+        ts = ts/mean * arrival
+        print("Sampled Arrival: " + str(np.mean(ts)))
+
+
+        #ts = scipy.stats.lomax.rvs(a, scale=scale, size = int(args.samples)).astype(np.float32)
+        print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, scale=scale, moments='mv')))
+        # print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, moments='mv')))
 
     print("Sampled Arrival: " + str(np.mean(ts)))
     print("Sanity Check: Average Message Length/Average Inter Arrival Time = " + str(mst / np.mean(ts)))

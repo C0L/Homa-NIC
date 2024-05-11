@@ -143,8 +143,12 @@ int main(int argc, char ** argv) {
     std::queue<pair<uint32_t, std::pair<uint64_t, uint32_t>>> chaindown;
     std::queue<std::pair<uint64_t, uint32_t>> insert;
 
+    uint32_t max = 0;
+
     uint32_t ring = 0;
     for (;ts < cycles; ++ts) {
+
+	max = (hwqueue.size() > max) ? hwqueue.size() : max;
 
 	float tsf = (float) ts;
 	// Push to FIFO insert
@@ -282,6 +286,7 @@ int main(int argc, char ** argv) {
     std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
     std::cerr << "Final Size: " << hwqueue.size() << std::endl;
     std::cerr << "Final Size: " << swqueue.size() << std::endl;
+    std::cerr << "Max: "       << max << std::endl;
 
     std::ofstream rates;
     rates.open(tfile.c_str());
