@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# WORKLOADS=( w1 )
-WORKLOADS=( w1 w2 w3 w4 w5 )
+WORKLOADS=( w1 )
+# WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( lomax )
-UTILS=( .1 .5 .9 )
+UTILS=( .9 )
 
 # Pairs of high/low water marks
 HWS=( 60000000000 )
@@ -11,7 +11,7 @@ LWS=( 60000000000 )
 
 CL=( 140 ) # Based off PCIe measurements
 BS=( 8 ) # Block size to transfer between queues
-CYCLES=10000000
+CYCLES=1000000
 
 for wk in "${WORKLOADS[@]}"; do
     ./distgen $wk ${CYCLES} dists/${wk}_lengths
@@ -20,7 +20,12 @@ for wk in "${WORKLOADS[@]}"; do
 	for arrival in "${ARRIVAL[@]}"; do
 	    if [ ! -e "dists/${wk}_${util}_${arrival}_arrivals" ]; then
     		echo $util
-		python3 GenerateArrivals.py -d ${arrival} -u $util -w dists/${wk}_lengths -a dists/${wk}_${util}_${arrival}_arrivals -s ${CYCLES}
+		python3 GenerateArrivals.py \
+			-d ${arrival} \
+			-u $util \
+			-w dists/${wk}_lengths \
+			-a dists/${wk}_${util}_${arrival}_arrivals \
+			-s ${CYCLES}
 	    fi
 	    for wm in "${!HWS[@]}"; do
 		hw="${HWS[wm]}"
@@ -30,7 +35,6 @@ for wk in "${WORKLOADS[@]}"; do
 		echo ${lw}
 		for cl in "${CL[@]}"; do
 		    for bs in "${BS[@]}"; do
-			echo "SIMULATE\n"
     			./simulator --queue-type SRPT                            \
 				    --length-file dists/${wk}_lengths            \
 				    --arrival-file dists/${wk}_${util}_${arrival}_arrivals  \

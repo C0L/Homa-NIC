@@ -62,7 +62,6 @@ if __name__ == '__main__':
         ts = ts/mean * arrival
         print("Sampled Arrival: " + str(np.mean(ts)))
 
-
         #ts = scipy.stats.lomax.rvs(a, scale=scale, size = int(args.samples)).astype(np.float32)
         print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, scale=scale, moments='mv')))
         # print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, moments='mv')))

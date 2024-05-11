@@ -146,18 +146,22 @@ int main(int argc, char ** argv) {
     uint32_t max = 0;
 
     uint32_t ring = 0;
-    for (;ts < cycles; ++ts) {
+    for (;; ++ts) {
 
 	max = (hwqueue.size() > max) ? hwqueue.size() : max;
 
+	if (hwqueue.empty() && swqueue.empty() && ts > cycles) {
+	    break;
+	}
+
 	float tsf = (float) ts;
-	// Push to FIFO insert
-	if (arrival <= tsf) {
+	// Push to FIFO insert only if within cycle count
+	if (arrival <= tsf && ts < cycles) {
 	    insert.push(std::pair(length, ts));
 	    arrival += marrivals[next];
 	    length  = (uint64_t) mlengths[next];
 	    next++;
-	} 
+	}
 
 	// If there are too many entries in queue, move them up
 	if (hwqueue.size() > highwater) {
