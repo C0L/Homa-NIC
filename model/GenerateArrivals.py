@@ -44,7 +44,8 @@ if __name__ == '__main__':
         ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
     elif args.dist == "lomax":
         # Mean of 1
-        a = 1.15
+        # a = 1.15
+        a = 1
         scale = 1
 
         mean = scale/(a-1)

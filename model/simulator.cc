@@ -42,7 +42,8 @@ const struct option longOpts[]{
     {"high-water",required_argument,NULL,'h'},
     {"low-water",required_argument,NULL,'l'},
     {"chain-latency",required_argument,NULL,'p'},
-    {"block-size",required_argument,NULL,'b'}
+    {"block-size",required_argument,NULL,'b'},
+    {"sort-latency",required_argument,NULL,'s'}
 };
 
 // Maybe some ILP approach to derive the queue sizes that performs the best?
@@ -62,12 +63,13 @@ int main(int argc, char ** argv) {
     std::string lfile;
     std::string afile;
     std::string tfile;
-    uint32_t highwater;
-    uint32_t lowwater;
+    uint64_t highwater;
+    uint64_t lowwater;
     uint32_t chainlatency;
     uint32_t blocksize;
+    uint32_t sortdelay;
 
-    while ((c = getopt_long(argc, argv, "q:d:a:c:t:h:l:p:b", longOpts, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "q:d:a:c:t:h:l:p:b:s", longOpts, NULL)) != -1)
 	switch (c) {
 	    case 'q':
 		type = std::string(optarg);
@@ -96,6 +98,9 @@ int main(int argc, char ** argv) {
 	    case 'b':
 		blocksize = strtol(optarg, &end, 10);
 		break;
+	    case 's':
+		sortdelay = strtol(optarg, &end, 10);
+		break;
 	    default:
 		abort ();
 	}
@@ -110,6 +115,7 @@ int main(int argc, char ** argv) {
     std::cerr << "  - Low Water     : " << lowwater << std::endl;
     std::cerr << "  - Chain Latency : " << chainlatency << std::endl;
     std::cerr << "  - Block Size    : " << blocksize << std::endl;
+    std::cerr << "  - Sort Latnecy  : " << sortdelay << std::endl;
 
     // TODO check everything was set
 
@@ -132,7 +138,7 @@ int main(int argc, char ** argv) {
     int next = 0;
     uint64_t ts = 0;
 
-    float arrival = marrivals[next];
+    double arrival = marrivals[next];
     uint32_t length  = mlengths[next];
 
     next++;
@@ -144,22 +150,32 @@ int main(int argc, char ** argv) {
     std::queue<std::pair<uint64_t, uint32_t>> insert;
 
     uint32_t max = 0;
-
     uint32_t ring = 0;
-    for (;; ++ts) {
+    uint32_t swqueuetime = 0;
 
+    for (;ts < cycles; ++ts) {
+	// std::cerr << arrival << endl;
 	max = (hwqueue.size() > max) ? hwqueue.size() : max;
 
-	if (hwqueue.empty() && swqueue.empty() && ts > cycles) {
-	    break;
-	}
+	// if (hwqueue.empty() && swqueue.empty() && ts > cycles) {
+	//     break;
+	// }
 
-	float tsf = (float) ts;
+	// if (cycles % 10000000 == 0) {
+	//     std::cerr << ts/cycles << endl;
+	// }
+
+	double tsf = (double) ts;
 	// Push to FIFO insert only if within cycle count
-	if (arrival <= tsf && ts < cycles) {
+	if (arrival <= tsf) {
+	    // std::cerr << "INSERT" << ts << std::endl;
 	    insert.push(std::pair(length, ts));
 	    arrival += marrivals[next];
 	    length  = (uint64_t) mlengths[next];
+
+	    // std::cerr << arrival << std::endl;
+	    // std::cerr << length << std::endl;
+
 	    next++;
 	}
 
@@ -203,11 +219,12 @@ int main(int argc, char ** argv) {
 	    ring = 0;
 	}
 
-	if (!chainup.empty()) {
+	swqueuetime = (swqueuetime != 0) ? swqueuetime-- : 0;
+
+	if (!chainup.empty() && swqueuetime == 0) {
 	    std::pair<uint32_t, std::pair<uint64_t, uint32_t>> head = chainup.front();
 	    if (head.first + chainlatency < ts) {
 		chainup.pop();
-		// TODO sort slowly here
 		if (!srpt) {
 		    std::cerr << "Unimplemented" << std::endl;
 		    // Insert FIFO
@@ -220,6 +237,8 @@ int main(int argc, char ** argv) {
 		    //slot = std::distance(swqueue.begin(), it);
 		    swqueue.insert(it, head.second);
 		}
+
+		swqueuetime = sortdelay;
 	    }
 	}
 
