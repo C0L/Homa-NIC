@@ -12,7 +12,7 @@
 # X is util
 # Y is MCT
 
-WORKLOADS=( w1 )
+WORKLOADS=( w5 )
 # WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( poisson )
 UTILS=( .999 .9999 .99999 )
@@ -40,7 +40,7 @@ for wk in "${WORKLOADS[@]}"; do
 	for arrival in "${ARRIVAL[@]}"; do
 	    if [ ! -e "dists/${wk}_${util}_${arrival}_arrivals" ]; then
     		echo $util
-		python3 GenerateArrivals.py \
+		python3.10 GenerateArrivals.py \
 			-d ${arrival} \
 			-u $util \
 			-w dists/${wk}_lengths \
@@ -65,13 +65,9 @@ for wk in "${WORKLOADS[@]}"; do
 				    --chain-latency ${cl}                        \
 				    --block-size ${bs}                           \
 				    --sort-latency ${LATENCY}
-			exit
 		    done
 		done
 	    done
 	done
     done
 done
-
-# ./simulator -q FIFO -l dists/${wk}_lengths -a dists/${wk}_${util}_arrivals -t traces/${wk}_${util}_fifo.trace -c ${CYCLES}
-# ./simulator -q SRPT -l dists/${wk}_lengths -a dists/${wk}_${util}_arrivals -t traces/${wk}_${util}_srpt.trace -c ${CYCLES}

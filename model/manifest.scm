@@ -8,4 +8,5 @@
    "coreutils"
    "vim"
    "make"
+   "bash"
    ))
