@@ -25,8 +25,8 @@ simulator:
 # %.plot: %.trace
 # 	python3 Plot.py -t "traces/w2_.9.trace,traces/w2_.5.trace,traces/w2_.25.trace"
 
-simulate: clean simulator distgen
-	./runsim.sh
+queuebisect: clean simulator distgen
+	./queuebisect.sh
 
 clean:
 	rm -rf simulator

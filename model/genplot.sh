@@ -1,14 +1,10 @@
 #!/bin/bash
 
-# WORKLOADS=( w1 w2 w3 w4 w5 )
-# UTILS=( .9 .7 .5 .3 .1 )
-# CYCLES=10000000
-
-
-# Plot MCT vs Utilization for each of the 5 workloads
+WORKLOADS=( w1 w2 w3 w4 w5 )
 
 for wk in "${WORKLOADS[@]}";
 do
-    python3 Plot.py -t traces/${wk}_*_fifo.trace -f mm1_${wk}_fifo.png
-    python3 Plot.py -t traces/${wk}_*_srpt.trace -f mm1_${wk}_srpt.png 
+    # python3 Plot.py -t traces/${wk}_*.rate -f mm1_${wk}_rate.png -x "Slot Index" -y "Rate" -T "Rate by Slot Index"
+    # python3 Plot.py -t traces/${wk}_*.mass -f mm1_${wk}_mass.png -x "Slot Index" -y "Mass" -T "Mass by Slot Index"
+    python3 PlotMCTs.py -t traces/${wk}_*.simstats -f img/mm1_${wk}_mcts.png
 done
