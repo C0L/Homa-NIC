@@ -3,7 +3,8 @@
 WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( poisson )
 # UTILS=( .1 .2 .3 .4 .5 .6 .7 .8 .9 .99 .999 .9999 .99999 )
-UTILS=( .5 .6 .7 .8 .9 .99 .9999)
+UTILS=( .9999)
+# UTILS=( .5 .6 .7 .8 .9 .99 .9999)
 
 # Pairs of high/low water marks
 HWS=( -1 )
@@ -13,7 +14,8 @@ LWS=( 0 ) # Based on reasonable PIFO sizes
 CL=( 140 ) # Based off PCIe measurements
 BS=( 8 ) # Block size to transfer between queues
 
-CYCLES=10000000
+CYCLES=100000
+# CYCLES=10000000
 
 LATENCY=40
 

@@ -38,10 +38,10 @@ struct slotstat_t {
 };
 
 struct entry_t {
-    uint32_t ts;        // Start time
+    uint64_t ts;        // Start time
     uint32_t length;    // Original Length
     uint32_t remaining; // Remaining length
-}
+};
 
 static simstat_t simstat;
 
@@ -173,11 +173,11 @@ int main(int argc, char ** argv) {
 
     next++;
 
-    std::list<std::pair<uint64_t, uint32_t>> hwqueue;
-    std::list<std::pair<uint64_t, uint32_t>> swqueue;
-    std::queue<pair<uint32_t, std::pair<uint64_t, uint32_t>>> chainup;
-    std::queue<pair<uint32_t, std::pair<uint64_t, uint32_t>>> chaindown;
-    std::queue<std::pair<uint64_t, uint32_t>> insert;
+    std::list<entry_t> hwqueue;
+    std::list<entry_t> swqueue;
+    std::queue<pair<uint32_t, entry_t>> chainup;
+    std::queue<pair<uint32_t, entry_t>> chaindown;
+    std::queue<entry_t> insert;
 
     uint32_t ring = 0;
     uint32_t swqueuetime = 0;
@@ -193,7 +193,7 @@ int main(int argc, char ** argv) {
 
 	// Push to FIFO insert only if within cycle count
 	if (arrival <= tsf) {
-	    insert.push(std::pair(length, ts));
+	    insert.push(entry_t{ts, length, length});
 	    arrival += marrivals[next];
 	    length  = (uint64_t) mlengths[next];
 
@@ -205,10 +205,12 @@ int main(int argc, char ** argv) {
 	    simstat.highwater++;
 	    uint32_t rem = blocksize;
 	    while (!hwqueue.empty() && rem--) {
-		pair<uint64_t, uint32_t> tail = hwqueue.back();
+		// pair<uint64_t, uint32_t> tail = hwqueue.back();
+		entry_t tail = hwqueue.back();
 
 		// TODO need to tag with time here
 		chainup.push(std::pair(ts, tail));
+		// chainup.push(std::pair(ts, tail));
 		hwqueue.pop_back();
 	    }
 	}
@@ -230,10 +232,16 @@ int main(int argc, char ** argv) {
 	    ring = 0;
 	}
 
-	swqueuetime = (swqueuetime != 0) ? swqueuetime-- : 0;
+	// if (swqueuetime != 0) {
+	//     std::cerr << swqueuetime << std::endl;
+	// }
+
+	swqueuetime = (swqueuetime != 0) ? swqueuetime-1 : 0;
+
+
 
 	if (!chainup.empty() && swqueuetime == 0) {
-	    std::pair<uint32_t, std::pair<uint64_t, uint32_t>> head = chainup.front();
+	    std::pair<uint32_t, entry_t> head = chainup.front();
 	    if (head.first + chainlatency < ts) {
 		chainup.pop();
 		if (!srpt) {
@@ -243,7 +251,7 @@ int main(int argc, char ** argv) {
 		    // slot = hwqueue.size();
 		} else {
 		    // std::cerr << swqueue.size() << " " << hwqueue.size() << std::endl;
-		    auto it = std::find_if(swqueue.begin(), swqueue.end(), [head](std::pair<uint64_t, uint32_t> i) {return i.first > head.second.first;});
+		    auto it = std::find_if(swqueue.begin(), swqueue.end(), [head](entry_t i) {return i.remaining > head.second.remaining;});
 		    //slot = std::distance(swqueue.begin(), it);
 		    swqueue.insert(it, head.second);
 		}
@@ -253,7 +261,7 @@ int main(int argc, char ** argv) {
 	}
 
 	if (!chaindown.empty()) {
-	    std::pair<uint32_t, std::pair<uint64_t, uint32_t>> head = chaindown.front();
+	    std::pair<uint32_t, entry_t> head = chaindown.front();
 	    // Did it complete its sojurn time
 	    if (head.first + chainlatency < ts) {
 		chaindown.pop();
@@ -263,14 +271,14 @@ int main(int argc, char ** argv) {
 
 	// Pull from FIFO insert
 	if (!insert.empty()) {
-	    std::pair<uint64_t, uint32_t> ins = insert.front();
+	    entry_t ins = insert.front();
 	    insert.pop();
 	    if (!srpt) {
 		// Insert FIFO
 		hwqueue.push_back(ins);
 		insslot = hwqueue.size();
 	    } else {
-		auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](std::pair<uint64_t, uint32_t> i) {return i.first > ins.first;});
+		auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
 		insslot = std::distance(hwqueue.begin(), it);
 		hwqueue.insert(it, ins);
 	    }
@@ -279,15 +287,16 @@ int main(int argc, char ** argv) {
 
 	// Pop from outgoing queue
 	if (!hwqueue.empty()) {
-	    std::pair<uint64_t, uint32_t> head = hwqueue.front();
-	    head.first--;
+	    entry_t head = hwqueue.front();
+	    head.remaining--;
 	    hwqueue.pop_front();
 	    
-	    if (head.first != 0) {
+	    if (head.remaining != 0) {
 		hwqueue.push_front(head);
 	    } else {
 		pop = true;
-		simstat.compsum += (ts - head.second);
+		simstat.compsum += (ts - head.ts);
+		// simstat.compsum += ((float) (ts - head.ts))/((float)(head.length));
 		simstat.compcount++;
 	    }
 	}
@@ -299,7 +308,7 @@ int main(int argc, char ** argv) {
 	for (int i = 0; i < hwqueue.size(); ++i) {
 	    slotstats[i].validcycles++;
 	    slotstats[i].totalmass += mass;
-	    mass += (*it).first;
+	    mass += (*it).remaining ;
 	    it++;
 	}
 

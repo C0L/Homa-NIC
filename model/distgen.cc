@@ -27,13 +27,20 @@ int main(int argc, char**argv) {
 
     int lfile = open(argv[3], O_RDWR | O_APPEND | O_CREAT, 0644);
 
+
+                                         
     dist_point_gen generator(argv[1], 0, 0);
+    // dist_point_gen generator(argv[1], 0, 0);
+
+    std::cerr << "mean: " << generator.get_mean() << std::endl;
 
     for (size_t i = 0; i < 1'000'000; i++) {
 	generator(rand_gen);
     }
 
     std::cerr << "generating..." << std::endl;
+
+
     uint32_t* lens = (uint32_t*) malloc(atoi(argv[2]) * sizeof(uint32_t));
     for (size_t i = 0; i < atoi(argv[2]); i++) {
 	float sample = generator(rand_gen);
