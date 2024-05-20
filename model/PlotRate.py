@@ -5,6 +5,7 @@ import yaml
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm 
 import numpy as np
 import scipy.stats
 import sys
@@ -19,7 +20,8 @@ def parsefn(fn):
         'bs'       : fn[4],
         'cl'       : fn[5],
         'sl'       : fn[6],
-        'arrival'  : fn[7]
+        'arrival'  : fn[7],
+        'type'     : fn[8]
     }
 
 if __name__ == '__main__':
@@ -40,6 +42,7 @@ if __name__ == '__main__':
     cmap = {}
 
     for trace in args.traces:
+        print(trace)
         cfg = parsefn(trace)
 
         ts = []
@@ -47,7 +50,7 @@ if __name__ == '__main__':
             for line in file:
                 ts.append(float(line.rstrip()))
             
-            axs.plot(ts)
+            axs.plot(ts, label=cfg['type'] + ' ' + cfg['util'])
 
             # count = 0
             # for i, line in enumerate(file):
@@ -62,9 +65,9 @@ if __name__ == '__main__':
             #         print(float(line.rstrip()))
             #         axs.plot(float(cfg['util']), float(line.rstrip()), 'o', c=cmap[qt], label=qt)
 
-    axs.set_title("Mean Completition Time by Utilization")
-    axs.set_ylabel("Mean Completion Time")
-    axs.set_xlabel("Utilization")
+    axs.set_title("Rate by Slot")
+    axs.set_ylabel("Rate")
+    axs.set_xlabel("Slot")
 
     handles, labels = axs.get_legend_handles_labels()
     newLabels, newHandles = [], []
@@ -79,8 +82,8 @@ if __name__ == '__main__':
     # axs.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
     #            fancybox=True, shadow=True, ncol=4)
 
-    # axs.set_xlim(0,1)
-    
+    axs.set_xlim(0,60)
+    axs.set_ylim(0,.3)
     plt.savefig(args.outfile, bbox_inches="tight")
 
 

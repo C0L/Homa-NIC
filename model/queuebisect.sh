@@ -35,9 +35,6 @@ for wk in "${WORKLOADS[@]}"; do
 		cl="${CL[wm]}"
 		sl="${SL[wm]}"
 		bs="${BS[wm]}"
-		# for cl in "${CL[@]}"; do
-		#     for sl in "${SL[@]}"; do
-		# for bs in "${BS[@]}"; do
     		./simulator --queue-type SRPT                            \
 			    --length-file dists/${wk}_lengths            \
 			    --arrival-file dists/${wk}_${util}_${arrival}_arrivals  \
@@ -48,9 +45,6 @@ for wk in "${WORKLOADS[@]}"; do
 			    --chain-latency ${cl}                        \
 			    --block-size ${bs}                           \
 			    --sort-latency ${sl}
-			# done
-		    # done
-		# done
 	    done
 	done
     done

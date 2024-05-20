@@ -238,8 +238,6 @@ int main(int argc, char ** argv) {
 
 	swqueuetime = (swqueuetime != 0) ? swqueuetime-1 : 0;
 
-
-
 	if (!chainup.empty() && swqueuetime == 0) {
 	    std::pair<uint32_t, entry_t> head = chainup.front();
 	    if (head.first + chainlatency < ts) {
@@ -320,7 +318,7 @@ int main(int argc, char ** argv) {
 	    // if (diff == 0) {
 	    slotstats[s].statics += diff;
 	    // slotstats[s].statics += 1;
-		// }
+	    // }
 	}
     }
 
@@ -340,10 +338,12 @@ int main(int argc, char ** argv) {
     // TODO make this max queue size
     for (int i = 0; i < 4*16384; ++i) {
 	if (slotstats[i].validcycles != 0) {
-	    rates << slotstats[i].statics / cycles << std::endl;
-	    // rates << slotstats[i].statics / slotstats[i].validcycles << std::endl;
+	    // rates << slotstats[i].statics / cycles << std::endl;
+	    rates << slotstats[i].statics / slotstats[i].validcycles << std::endl;
 	}
     }
+
+    // TODO somehow incorporate the mass of the elements? (bytes/unit time). This would be more like mass flow?
 
     ofstream masses;
     string massroot = tfile;
@@ -363,6 +363,7 @@ int main(int argc, char ** argv) {
 
     simstats << simstat.compcount << std::endl;
 
+    
     // TODO Normalize based on message length!! Then weight based on message length??
     simstats << simstat.compsum / simstat.compcount << std::endl;
     simstats << simstat.highwater << std::endl;
