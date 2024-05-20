@@ -1,11 +1,11 @@
 #!/bin/bash
 
-WORKLOADS=( w1 )
-# WORKLOADS=( w1 w2 w3 w4 w5 )
-ARRIVAL=( poisson )
+WORKLOADS=( w1 w2 w3 w4 w5 )
+ARRIVAL=( lomax )
+# ARRIVAL=( poisson )
 # UTILS=( .1 .2 .3 .4 .5 .6 .7 .8 .9 .99 .999 .9999 .99999 )
-UTILS=( .5 .6 .7 .8 .9 .99 )
-# UTILS=( .5 .6 .7 .8 .9 .99 .9999)
+# UTILS=( .9 .99 .9999)
+UTILS=( 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9)
 
 # Pairs of high/low water marks
 HWS=( -1 )
@@ -15,7 +15,8 @@ LWS=( 0 ) # Based on reasonable PIFO sizes
 CL=( 140 ) # Based off PCIe measurements
 BS=( 8 ) # Block size to transfer between queues
 
-CYCLES=10000000
+COMPS=50000
+CYCLES=100000000
 
 LATENCY=40
 
@@ -44,7 +45,7 @@ for wk in "${WORKLOADS[@]}"; do
     		./simulator --queue-type SRPT                            \
 			    --length-file dists/${wk}_lengths            \
 			    --arrival-file dists/${wk}_${util}_${arrival}_arrivals  \
-			    --cycles ${CYCLES}                           \
+			    --cycles ${COMPS} \
 			    --trace-file traces/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl}_${arrival}_srpt \
 			    --high-water ${hw}                           \
 			    --low-water  ${lw}                           \
@@ -52,16 +53,16 @@ for wk in "${WORKLOADS[@]}"; do
 			    --block-size ${bs}                           \
 			    --sort-latency ${LATENCY}
 
-		./simulator --queue-type FIFO                            \
-			    --length-file dists/${wk}_lengths            \
-			    --arrival-file dists/${wk}_${util}_${arrival}_arrivals  \
-			    --cycles ${CYCLES}                           \
-			    --trace-file traces/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl}_${arrival}_fifo \
-			    --high-water ${hw}                           \
-			    --low-water  ${lw}                           \
-			    --chain-latency ${cl}                        \
-			    --block-size ${bs}                           \
-			    --sort-latency ${LATENCY}
+		# ./simulator --queue-type FIFO                            \
+		# 	    --length-file dists/${wk}_lengths            \
+		# 	    --arrival-file dists/${wk}_${util}_${arrival}_arrivals  \
+		# 	    --cycles ${CYCLES}                           \
+		# 	    --trace-file traces/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl}_${arrival}_fifo \
+		# 	    --high-water ${hw}                           \
+		# 	    --low-water  ${lw}                           \
+		# 	    --chain-latency ${cl}                        \
+		# 	    --block-size ${bs}                           \
+		# 	    --sort-latency ${LATENCY}
 	    done
 	done
     done

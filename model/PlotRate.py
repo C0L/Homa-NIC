@@ -9,6 +9,7 @@ from matplotlib.pyplot import cm
 import numpy as np
 import scipy.stats
 import sys
+import re
 
 def parsefn(fn):
     fn = fn.split('_')
@@ -34,7 +35,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    fig, axs = plt.subplots(1, figsize=(8,6))
+    fig, axs = plt.subplots(5, figsize=(5,6), sharex=True)
+    fig.subplots_adjust(hspace=0)
 
     color = iter(cm.rainbow(np.linspace(0, 1, 8)))
     c = next(color)
@@ -45,12 +47,15 @@ if __name__ == '__main__':
         print(trace)
         cfg = parsefn(trace)
 
+        wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
+        print(wk)
+
         ts = []
         with open(trace) as file:
             for line in file:
                 ts.append(float(line.rstrip()))
-            
-            axs.plot(ts, label=cfg['type'] + ' ' + cfg['util'])
+            # x/np.sqrt(x.dot(x))
+            axs[wk].plot(np.array(ts)/np.sqrt(np.array(ts).dot(np.array(ts))), label=cfg['type'] + ' ' + cfg['util'])
 
             # count = 0
             # for i, line in enumerate(file):
@@ -65,25 +70,41 @@ if __name__ == '__main__':
             #         print(float(line.rstrip()))
             #         axs.plot(float(cfg['util']), float(line.rstrip()), 'o', c=cmap[qt], label=qt)
 
-    axs.set_title("Rate by Slot")
-    axs.set_ylabel("Rate")
-    axs.set_xlabel("Slot")
+    # axs.set_title("Rate by Slot")
+    # axs.set_ylabel("Rate")
+    # axs.set_xlabel("Slot")
 
-    handles, labels = axs.get_legend_handles_labels()
-    newLabels, newHandles = [], []
-    for handle, label in zip(handles, labels):
-        if label not in newLabels:
-            newLabels.append(label)
-            newHandles.append(handle)
+    # handles, labels = axs.get_legend_handles_labels()
+    # newLabels, newHandles = [], []
+    # for handle, label in zip(handles, labels):
+    #     if label not in newLabels:
+    #         newLabels.append(label)
+    #         newHandles.append(handle)
 
-    axs.legend(newHandles, newLabels)
+    # axs.legend(newHandles, newLabels)
 
     # axs.legend(loc='upper right', title='utilization')
-    # axs.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
-    #            fancybox=True, shadow=True, ncol=4)
+    axs[4].legend(loc='upper center', bbox_to_anchor=(0.5, -0.5),
+               fancybox=True, shadow=True, ncol=3)
 
-    axs.set_xlim(0,60)
-    axs.set_ylim(0,.3)
+    # ys = [.1, .1, .1, .0005, .00005]
+
+    # TODO place a point of intersection??
+    for i in range(5):
+        axs[i].set_xlim(0,200)
+        axs[i].set_ylim(0,.6)
+        axs[i].text(.97, .9, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
+
+    fig.text(0.5, 0.04, 'Slot Index', ha='center')
+    fig.text(0, 0.5, 'Flow Rate', va='center', rotation='vertical')
+
+    # plt.text(.01, .01, 'w1', c='r', fontsize = 22)
+
+    # axs[1].text(.9, .1, 'w2')
+    # axs[2].text(.9, .1, 'w3')
+    # axs[3].text(.9, .1, 'w4')
+    # axs[4].text(.9, .1, 'w5')
+    
     plt.savefig(args.outfile, bbox_inches="tight")
 
 

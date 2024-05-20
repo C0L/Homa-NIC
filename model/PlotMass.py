@@ -65,6 +65,6 @@ if __name__ == '__main__':
 
     axs.legend(newHandles, newLabels)
 
-    # axs.set_xlim(0,60)
-    # axs.set_ylim(0,.3)
+    axs.set_xlim(0,400)
+    axs.set_ylim(0,1500)
     plt.savefig(args.outfile, bbox_inches="tight")

@@ -182,7 +182,10 @@ int main(int argc, char ** argv) {
     uint32_t ring = 0;
     uint32_t swqueuetime = 0;
 
-    for (;ts < cycles; ++ts) {
+    uint32_t max = 0;
+
+    // for (;ts < cycles; ++ts) {
+    for (;simstat.compcount < cycles;) {
 	bool push = false;
 	bool pop = false;
 	uint32_t insslot = 0;
@@ -190,6 +193,11 @@ int main(int argc, char ** argv) {
 	double tsf = (double) ts;
 
 	uint32_t size = hwqueue.size();
+
+	if (hwqueue.size() > max) {
+	    max = hwqueue.size();
+	    std::cerr << max << std::endl;
+	}
 
 	// Push to FIFO insert only if within cycle count
 	if (arrival <= tsf) {
@@ -320,6 +328,10 @@ int main(int argc, char ** argv) {
 	    // slotstats[s].statics += 1;
 	    // }
 	}
+	if (ts > 1000000000) {
+	    std::cerr << "err" << std::endl;
+	}
+	ts++;
     }
 
     std::cerr << "Total Cmpl: " << simstat.compcount << std::endl;
@@ -347,13 +359,13 @@ int main(int argc, char ** argv) {
 
     ofstream masses;
     string massroot = tfile;
-    rates.open(massroot.append(".mass").c_str());
+    masses.open(massroot.append(".mass").c_str());
 
     // TODO make this max queue size
     for (int i = 0; i < 4*16384; ++i) {
 	if (slotstats[i].validcycles != 0) {
-	    rates << slotstats[i].totalmass / cycles << std::endl;
-	    // rates << slotstats[i].totalmass / slotstats[i].validcycles << std::endl;
+	    // rates << slotstats[i].totalmass / cycles << std::endl;
+	    masses << slotstats[i].totalmass / slotstats[i].validcycles << std::endl;
 	}
     }
 
@@ -362,7 +374,6 @@ int main(int argc, char ** argv) {
     simstats.open(simstatroot.append(".simstats").c_str());
 
     simstats << simstat.compcount << std::endl;
-
     
     // TODO Normalize based on message length!! Then weight based on message length??
     simstats << simstat.compsum / simstat.compcount << std::endl;

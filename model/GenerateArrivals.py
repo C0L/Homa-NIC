@@ -43,29 +43,31 @@ if __name__ == '__main__':
         print("Statistical Arrival: " + str(scipy.stats.poisson.stats(arrival, moments='mv')))
         ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
     elif args.dist == "lomax":
-        # Mean of 1
-        # a = 1.15
-        a = 1
-        scale = 1
+        rho = .9
+        arrival = mst * (1/rho)
 
-        mean = scale/(a-1)
-
-        # scale = arrival * (a-1)
-        print("scale " + str(scale))
+        a = float(args.util)
         # scale = 1
-        # a = (scale+arrival)/arrival
-        # 1 = (scale+arrival)/arrival
-        # 1*arrival = scale + arrival
 
+        scale = arrival * (a-1) 
+
+        print("scale " + str(scale))
 
         ts = scipy.stats.lomax.rvs(a, scale=scale, size = int(args.samples)).astype(np.float32)
+
         print("Sampled Arrival: " + str(np.mean(ts)))
-        ts = ts/mean * arrival
+        # ts = ts/mean * arrival
         print("Sampled Arrival: " + str(np.mean(ts)))
 
         #ts = scipy.stats.lomax.rvs(a, scale=scale, size = int(args.samples)).astype(np.float32)
         print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, scale=scale, moments='mv')))
         # print("Statistical Arrival: " + str(scipy.stats.lomax.stats(a, moments='mv')))
+    elif args.dist == "weibull":
+        ts = np.random.weibull(a=1, size=int(args.samples)).astype(np.float32)
+        ts = ts * arrival
+        print(ts[0:40])
+
+        print("Sampled Arrival: " + str(np.mean(ts)))
 
     print("Sampled Arrival: " + str(np.mean(ts)))
     print("Sanity Check: Average Message Length/Average Inter Arrival Time = " + str(mst / np.mean(ts)))
