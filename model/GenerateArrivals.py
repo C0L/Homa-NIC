@@ -43,7 +43,7 @@ if __name__ == '__main__':
         print("Statistical Arrival: " + str(scipy.stats.poisson.stats(arrival, moments='mv')))
         ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
     elif args.dist == "lomax":
-        rho = .9
+        rho = .8
         arrival = mst * (1/rho)
 
         a = float(args.util)

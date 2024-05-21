@@ -5,7 +5,9 @@ ARRIVAL=( lomax )
 # ARRIVAL=( poisson )
 # UTILS=( .1 .2 .3 .4 .5 .6 .7 .8 .9 .99 .999 .9999 .99999 )
 # UTILS=( .9 .99 .9999)
-UTILS=( 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9)
+UTILS=( 1.2 1.3 1.4 )
+# UTILS=( 1.05 1.1 1.15 1.2)
+# UTILS=( 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9)
 
 # Pairs of high/low water marks
 HWS=( -1 )
@@ -15,8 +17,8 @@ LWS=( 0 ) # Based on reasonable PIFO sizes
 CL=( 140 ) # Based off PCIe measurements
 BS=( 8 ) # Block size to transfer between queues
 
-COMPS=50000
-CYCLES=100000000
+COMPS=100000
+CYCLES=1000000000
 
 LATENCY=40
 

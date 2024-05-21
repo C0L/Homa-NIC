@@ -9,6 +9,7 @@ from matplotlib.pyplot import cm
 import numpy as np
 import scipy.stats
 import sys
+import re
 
 def parsefn(fn):
     fn = fn.split('_')
@@ -35,21 +36,20 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    fig, axs = plt.subplots(1, figsize=(8,6))
+    fig, axs = plt.subplots(5, figsize=(5,6), sharex=True)
+    fig.subplots_adjust(hspace=0)
 
-    # TODO need queue structure to turn into a tuple in label
-    # Use a different color for each queue size
-    # Perfect queue, 30/40, then 20/30, 10/20,
-    # Need to check output stats to see if queue is unstable, use a red X if it is not?
-
-    color = iter(cm.rainbow(np.linspace(0, 1, 8)))
+    color = iter(cm.rainbow(np.linspace(0, 1, 12)))
     c = next(color)
 
     cmap = {}
 
     for trace in args.traces:
         cfg = parsefn(trace)
-        print(cfg)
+
+        wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
+
+        # print(cfg)
         with open(trace) as file:
             count = 0
             for i, line in enumerate(file):
@@ -61,28 +61,39 @@ if __name__ == '__main__':
                         cmap[qt] = c
                         c = next(color)
 
-                    print(float(line.rstrip()))
-                    axs.plot(float(cfg['util']), float(line.rstrip()), 'o', c=cmap[qt], label=qt)
+                    # print(float(line.rstrip()))
+                    axs[wk].plot(float(cfg['util']), float(line.rstrip()), 'o', c=cmap[qt], label=qt)
 
-                    
 
-    axs.set_title("Mean Completition Time by Utilization")
-    axs.set_ylabel("Mean Completion Time")
-    axs.set_xlabel("Utilization")
+    # axs.set_title("Mean Completition Time by Utilization")
+    # axs.set_ylabel("Mean Completion Time")
+    # axs.set_xlabel("Utilization")
 
-    handles, labels = axs.get_legend_handles_labels()
+    handles, labels = axs[0].get_legend_handles_labels()
     newLabels, newHandles = [], []
     for handle, label in zip(handles, labels):
         if label not in newLabels:
             newLabels.append(label)
             newHandles.append(handle)
-    axs.legend(newHandles, newLabels)
+    # axs[0].legend(newHandles, newLabels)
 
 
     # axs.legend(loc='upper right', title='utilization')
-    # axs.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
-    #            fancybox=True, shadow=True, ncol=4)
+    axs[4].legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.5),
+                fancybox=False, shadow=False, ncol=3)
+
+
+    # axs[4].legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.1),
+    #               fancybox=False, shadow=False, ncol=3)
 
     # axs.set_xlim(0,1)
+
+    for i in range(5):
+        # axs[i].set_xlim(0,200)
+        # axs[i].set_ylim(0,.6)
+        axs[i].text(.97, .9, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
+
+    fig.text(0.5, 0.04, 'Tail Index', ha='center')
+    fig.text(0, 0.5, 'Mean Completion Cycles', va='center', rotation='vertical')
     
     plt.savefig(args.outfile, bbox_inches="tight")

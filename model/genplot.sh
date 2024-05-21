@@ -1,18 +1,6 @@
 #!/bin/bash
 
-# WORKLOADS=( w1 )
-WORKLOADS=( w1 w2 w3 w4 w5 )
-
-# for wk in "${WORKLOADS[@]}";
-# do
-    # python3 Plot.py -t traces/${wk}_*.rate -f mm1_${wk}_rate.png -x "Slot Index" -y "Rate" -T "Rate by Slot Index"
-    # python3 Plot.py -t traces/${wk}_*.mass -f mm1_${wk}_mass.png -x "Slot Index" -y "Mass" -T "Mass by Slot Index"
-
-    # current
-    # python3 PlotMCTs.py -t traces/${wk}_*.simstats -f img/mm1_${wk}_mcts.png
-#     echo $wk
-    # python3 PlotMass.py -t traces/${wk}_*.mass -f img/mm1_${wk}_mass.png
-    # python3 PlotRate.py -t traces/${wk}_*.rate -f img/mm1_${wk}_rates.png
-# done
-
-python3 PlotRate.py -t traces/*.rate -f img/mm1_comb_rates.png
+python3 PlotMCTs.py -t traces/*_0_0*.simstats -f img/no_comm_comb_mcts.png
+python3 PlotMCTs.py -t traces/*_140_40*.simstats -f img/comm_comb_mcts.png
+python3 PlotMass.py -t traces/*-1_-1_0_0_0*.mass -f img/mm1_comb_mass.png
+python3 PlotRate.py -t traces/*-1_-1_0_0_0*.rate -f img/mm1_comb_rates.png

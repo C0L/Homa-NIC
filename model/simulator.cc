@@ -165,7 +165,7 @@ int main(int argc, char ** argv) {
 	slotstats[i].statics = 0;
     }
 
-    int next = 0;
+    uint64_t next = 0;
     uint64_t ts = 0;
 
     double arrival = marrivals[next];
@@ -328,9 +328,12 @@ int main(int argc, char ** argv) {
 	    // slotstats[s].statics += 1;
 	    // }
 	}
+
+	// TODO wrap around
 	if (ts > 1000000000) {
-	    std::cerr << "err" << std::endl;
+	    next = 0;
 	}
+
 	ts++;
     }
 
