@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # axs.legend(loc='upper right', title='utilization')
     axs[4].legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.5),
-                fancybox=False, shadow=False, ncol=3)
+                fancybox=False, shadow=False, ncol=2)
 
 
     # axs[4].legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.1),

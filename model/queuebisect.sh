@@ -2,13 +2,13 @@
 
 WORKLOADS=( w1 w2 w3 w4 w5 )
 # WORKLOADS=( w1 w2 w3 w4 w5 )
-ARRIVAL=( lomax )
-UTILS=( 1.1 1.2 1.3 1.4 1.5 1.6 1.7 )
-HWS=( -1 20 40 80 160 320 640 1280 -1 20 40 80 160 320 640 1280 )
-LWS=( -1 10 30 70 150 310 630 1270 -1 10 30 70 150 310 630 1270 ) # Based on reasonable PIFO sizes
-CL=( 0 0 0 0 0 0 140 140 140 140 140 140 140 140 140 140) # Communication latency
-SL=( 0 0 0 0 0 0 40 40 40 40 40 40 40 40 40 40 ) # Sort latency
-BS=( 0 5 5 5 5 5 5 5 0 5 5 5 5 5 5 5 ) # Block size to transfer between queues
+ARRIVAL=( poisson )
+# UTILS=( 1.1 1.2 1.3 1.4 1.5 1.6 1.7 )
+# HWS=( -1 20 40 80 160 320 640 1280 -1 20 40 80 160 320 640 1280 -1 20 40 80 160 320 640 1280 )
+# LWS=( -1 10 30 70 150 310 630 1270 -1 10 30 70 150 310 630 1270 -1 10 30 70 150 310 630 1270 ) # Based on reasonable PIFO sizes
+# CL=( 0 0 0 0 0 0 140 140 140 140 140 140 140 140 140 140 140 140 140 140 140 140 140 140 ) # Communication latency
+# SL=( 0 0 0 0 0 0 40 40 40 40 40 40 40 40 40 40 0 0 0 0 0 0 0 0 ) # Sort latency
+# BS=( 0 5 5 5 5 5 5 5 0 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 ) # Block size to transfer between queues
 
 # Pairs of high/low water marks
 # HWS=( -1 40 40 30 20 10 )
