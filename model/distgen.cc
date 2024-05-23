@@ -26,11 +26,8 @@ static std::mt19937 rand_gen(std::chrono::system_clock::now().time_since_epoch()
 int main(int argc, char**argv) {
 
     int lfile = open(argv[3], O_RDWR | O_APPEND | O_CREAT, 0644);
-
-
                                          
     dist_point_gen generator(argv[1], 0, 0);
-    // dist_point_gen generator(argv[1], 0, 0);
 
     std::cerr << "mean: " << generator.get_mean() << std::endl;
 

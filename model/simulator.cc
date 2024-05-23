@@ -25,17 +25,19 @@
 using namespace std;
 
 struct simstat_t {
-    uint32_t highwater;
-    uint32_t lowwater;
-    double compsum;
-    double compcount;
+    uint64_t highwater;
+    uint64_t lowwater;
+    uint64_t max;
+    uint64_t events;
+    uint64_t compcount;
+    double   compsum;
 };
 
-struct slotstat_t {
-    double validcycles;
-    double totalmass;
-    double statics;
-};
+// struct slotstat_t {
+//     double validcycles;
+//     double totalmass;
+//     double statics;
+// };
 
 struct entry_t {
     uint64_t ts;        // Start time
@@ -153,17 +155,8 @@ int main(int argc, char ** argv) {
     fstat(flength, &lsb);
     fstat(farrival, &asb);
 
-    uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
-    float * marrivals = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
-
-    // TODO max queue size
-    slotstat_t * slotstats = (slotstat_t *) malloc(4*16384 * sizeof(slotstat_t));
-
-    for (int i = 0; i < 4*16384; ++i) {
-	slotstats[i].validcycles = 0;
-	slotstats[i].totalmass = 0;
-	slotstats[i].statics = 0;
-    }
+    uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, flength, 0);
+    float * marrivals    = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, farrival, 0);
 
     uint64_t next = 0;
     uint64_t ts = 0;
@@ -175,35 +168,46 @@ int main(int argc, char ** argv) {
 
     std::list<entry_t> hwqueue;
     std::list<entry_t> swqueue;
-    std::queue<pair<uint32_t, entry_t>> chainup;
-    std::queue<pair<uint32_t, entry_t>> chaindown;
-    std::queue<entry_t> insert;
+    // std::queue<pair<uint32_t, entry_t>> chainup;
+    // std::queue<pair<uint32_t, entry_t>> chaindown;
+    // std::queue<entry_t> insert;
 
-    uint32_t ring = 0;
-    uint32_t swqueuetime = 0;
+    simstat.highwater = 0;
+    simstat.lowwater  = 0;
+    simstat.max       = 0;
+    simstat.events    = 0;
+    simstat.compcount = 0;
+    simstat.compsum   = 0;
 
-    uint32_t max = 0;
+    uint64_t next_event = 0;
 
-    // for (;ts < cycles; ++ts) {
+    // Iterate through events until we reach the requisite number of completitions
     for (;simstat.compcount < cycles;) {
-	bool push = false;
-	bool pop = false;
-	uint32_t insslot = 0;
 
-	double tsf = (double) ts;
+	// bool event = false;
 
-	uint32_t size = hwqueue.size();
-
-	if (hwqueue.size() > max) {
-	    max = hwqueue.size();
-	    std::cerr << max << std::endl;
+	if (!hwqueue.empty()) {
+	    entry_t head = hwqueue.front();
+	    head.remaining -= next_event;
+	    hwqueue.pop_front();
+	    
+	    if (head.remaining != 0) {
+		hwqueue.push_front(head);
+	    } else {
+		simstat.events++;
+		simstat.compsum += (ts - head.ts);
+		simstat.compcount++;
+	    }
 	}
 
-	// Push to FIFO insert only if within cycle count
-	if (arrival <= tsf) {
-	    insert.push(entry_t{ts, length, length});
+	while (arrival <= ts) {
+	    entry_t ins = entry_t{ts, length, length};
 	    arrival += marrivals[next];
-	    length  = (uint64_t) mlengths[next];
+	    length  =  mlengths[next];
+
+	    auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
+	    hwqueue.insert(it, ins);
+	    simstat.events++;
 
 	    next++;
 	}
@@ -213,128 +217,43 @@ int main(int argc, char ** argv) {
 	    simstat.highwater++;
 	    uint32_t rem = blocksize;
 	    while (!hwqueue.empty() && rem--) {
-		// pair<uint64_t, uint32_t> tail = hwqueue.back();
 		entry_t tail = hwqueue.back();
+		auto it = std::find_if(swqueue.begin(), swqueue.end(), [tail](entry_t i) {return i.remaining > tail.remaining;});
+		swqueue.insert(it, tail);
 
-		// TODO need to tag with time here
-		chainup.push(std::pair(ts, tail));
-		// chainup.push(std::pair(ts, tail));
 		hwqueue.pop_back();
 	    }
 	}
 
-	// If there are not enough entries in queue, make a request for more
-	if (hwqueue.size() <= lowwater && !swqueue.empty() && ring == 0) {
+	if (hwqueue.size() <= lowwater && !swqueue.empty()) {
 	    simstat.lowwater++;
-	    // The on-chip queue can know the size of the offchip to determine whether to ring or not
-	    ring = ts;
-	}
-
-	// Once the request for data has reached swqueue, begin satisfying it
-	if (ts > ring + chainlatency && ring != 0) {
 	    uint32_t rem = blocksize;
 	    while (!swqueue.empty() && rem--) {
-		chaindown.push(pair(ts, swqueue.front()));
+		entry_t ins = swqueue.front();
+
+		auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
+		hwqueue.insert(it, ins);
 		swqueue.pop_front();
 	    }
-	    ring = 0;
 	}
 
-	// if (swqueuetime != 0) {
-	//     std::cerr << swqueuetime << std::endl;
-	// }
-
-	swqueuetime = (swqueuetime != 0) ? swqueuetime-1 : 0;
-
-	if (!chainup.empty() && swqueuetime == 0) {
-	    std::pair<uint32_t, entry_t> head = chainup.front();
-	    if (head.first + chainlatency < ts) {
-		chainup.pop();
-		if (!srpt) {
-		    // Insert FIFO
-		    // TODO need to maintain FIFO order
-		    // swqueue.push(ins);
-		    // slot = hwqueue.size();
-		} else {
-		    // std::cerr << swqueue.size() << " " << hwqueue.size() << std::endl;
-		    auto it = std::find_if(swqueue.begin(), swqueue.end(), [head](entry_t i) {return i.remaining > head.second.remaining;});
-		    //slot = std::distance(swqueue.begin(), it);
-		    swqueue.insert(it, head.second);
-		}
-
-		swqueuetime = sortdelay;
-	    }
-	}
-
-	if (!chaindown.empty()) {
-	    std::pair<uint32_t, entry_t> head = chaindown.front();
-	    // Did it complete its sojurn time
-	    if (head.first + chainlatency < ts) {
-		chaindown.pop();
-		insert.push(head.second);
-	    }
-	}
-
-	// Pull from FIFO insert
-	if (!insert.empty()) {
-	    entry_t ins = insert.front();
-	    insert.pop();
-	    if (!srpt) {
-		// Insert FIFO
-		hwqueue.push_back(ins);
-		insslot = hwqueue.size();
-	    } else {
-		auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
-		insslot = std::distance(hwqueue.begin(), it);
-		hwqueue.insert(it, ins);
-	    }
-	    push = true;
-	}
-
-	// Pop from outgoing queue
-	if (!hwqueue.empty()) {
-	    entry_t head = hwqueue.front();
-	    head.remaining--;
-	    hwqueue.pop_front();
-	    
-	    if (head.remaining != 0) {
-		hwqueue.push_front(head);
-	    } else {
-		pop = true;
-		simstat.compsum += (ts - head.ts);
-		// simstat.compsum += ((float) (ts - head.ts))/((float)(head.length));
-		simstat.compcount++;
-	    }
-	}
-
-	// Compute slot stats
-
-	uint64_t mass = 0;
-	auto it = hwqueue.begin();
-	for (int i = 0; i < hwqueue.size(); ++i) {
-	    slotstats[i].validcycles++;
-	    slotstats[i].totalmass += mass;
-	    mass += (*it).remaining ;
-	    it++;
-	}
-
-	// Size is the original number of elements in the priority queue before enqueue/dequeue
-	for (int s = 0; s < size; s++) {
-	    int diff = 0;
-	    if (pop) diff++;
-	    if (s > insslot && push) diff--;
-	    // if (diff == 0) {
-	    slotstats[s].statics += diff;
-	    // slotstats[s].statics += 1;
-	    // }
+	if (hwqueue.size() + swqueue.size() > simstat.max) {
+	    simstat.max = hwqueue.size() + swqueue.size();
 	}
 
 	// TODO wrap around
-	if (ts > 1000000000) {
+	if (next >= 10000000) {
+	    std::cerr << "Wrap" << std::endl;
 	    next = 0;
 	}
 
-	ts++;
+	// std::cerr << arrival << std::endl;
+	// std::cerr << hwqueue.front().remaining << std::endl;
+	next_event = min((uint64_t) ((!hwqueue.empty()) ? hwqueue.front().remaining : -1), ((uint64_t) arrival) - ts);
+
+	// std::cerr << next_event << std::endl;
+    
+	ts += next_event;
     }
 
     std::cerr << "Total Cmpl: " << simstat.compcount << std::endl;
@@ -343,53 +262,11 @@ int main(int argc, char ** argv) {
     std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
     std::cerr << "Final Size: " << hwqueue.size() << std::endl;
     std::cerr << "Final Size: " << swqueue.size() << std::endl;
-    // std::cerr << "Max: "       << max << std::endl;
-    // std::cerr << "Max Mass: "  << maxmass << std::endl;
 
-    std::ofstream rates;
-    string ratesroot = tfile;
-    rates.open(ratesroot.append(".rate").c_str());
-
-    // TODO make this max queue size
-    for (int i = 0; i < 4*16384; ++i) {
-	if (slotstats[i].validcycles != 0) {
-	    // rates << slotstats[i].statics / cycles << std::endl;
-	    rates << slotstats[i].statics / slotstats[i].validcycles << std::endl;
-	}
-    }
-
-    // TODO somehow incorporate the mass of the elements? (bytes/unit time). This would be more like mass flow?
-
-    ofstream masses;
-    string massroot = tfile;
-    masses.open(massroot.append(".mass").c_str());
-
-    // TODO make this max queue size
-    for (int i = 0; i < 4*16384; ++i) {
-	if (slotstats[i].validcycles != 0) {
-	    // rates << slotstats[i].totalmass / cycles << std::endl;
-	    masses << slotstats[i].totalmass / slotstats[i].validcycles << std::endl;
-	}
-    }
-
-    std::ofstream simstats;
     string simstatroot = tfile;
-    simstats.open(simstatroot.append(".simstats").c_str());
-
-    simstats << simstat.compcount << std::endl;
-    
-    // TODO Normalize based on message length!! Then weight based on message length??
-    simstats << simstat.compsum / simstat.compcount << std::endl;
-    simstats << simstat.highwater << std::endl;
-    simstats << simstat.lowwater << std::endl;
-    simstats << hwqueue.size() << std::endl;
-    simstats << swqueue.size() << std::endl;
-    simstats << chaindown.size() << std::endl;
-    simstats << chainup.size() << std::endl;
-
-    rates.close();
-    masses.close();
-    simstats.close();
+    int statfile = open(simstatroot.append(".simstats").c_str(), O_RDWR | O_CREAT, 0644);
+    write(statfile, &simstat, sizeof(simstat_t));
+    close(statfile);
 
     close(flength);
     close(farrival);
