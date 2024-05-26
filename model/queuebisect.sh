@@ -2,7 +2,7 @@
 
 WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( poisson )
-UTILS=( .1 .5 .9 .99 .999 .9999)
+UTILS=( .1 .5 .9 .99 .999 .9999 )
 HWS=( 80 70 60 50 40 30 20 -1 )
 LWS=( 70 60 50 40 30 20 10 -1 ) # Based on reasonable PIFO sizes
 CL=( 0 0 0 0 0 0 0 0 ) # Communication latency
@@ -16,8 +16,9 @@ BS=( 5 5 5 5 5 5 5 0 ) # Block size to transfer between queues
 # SL=( 0 0 0 0 ) # Sort latency
 # BS=( 0 0 0 0 ) # Block size to transfer between queues
 
-COMPS=1000000
-# COMPS=100000000
+# COMPS=1000000
+#COMPS=10000000
+COMPS=100000000
 CYCLES=1000000000
 
 for wk in "${WORKLOADS[@]}"; do

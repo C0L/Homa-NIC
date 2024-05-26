@@ -2,7 +2,7 @@
 
 shopt -s extglob
 
-python3 PlotSimstats.py -t traces/*@(.1|.5|.9|.99|.999|.9999)*.simstats -f img/simstats.png
+# python3 PlotSimstats.py -t traces/*@(.1|.5|.9|.99|.999|.9999)* -f img/simstats.png
 python3 PlotSlotstats.py -t traces/*@(.9|.99|.999)*-1*-1*.slotstats -f img/slotstats.png
 
 # python3 PlotMCTs.py -t traces/*_0_0*.simstats -f img/no_comm_comb_mcts.png

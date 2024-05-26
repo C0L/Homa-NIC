@@ -281,13 +281,14 @@ int main(int argc, char ** argv) {
 
     string slotstatroot = tfile;
     int fslotstat = open(slotstatroot.append(".slotstats").c_str(), O_RDWR | O_CREAT, 0644);
+    write(fslotstat, &simstat, sizeof(simstat_t));
     write(fslotstat, &slotstats, 16384 * sizeof(slotstat_t));
     close(fslotstat);
 
-    string simstatroot = tfile;
-    int fqueuestat = open(simstatroot.append(".simstats").c_str(), O_RDWR | O_CREAT, 0644);
-    write(fqueuestat, &simstat, sizeof(simstat_t));
-    close(fqueuestat);
+    // string simstatroot = tfile;
+    // int fqueuestat = open(simstatroot.append(".simstats").c_str(), O_RDWR | O_CREAT, 0644);
+    // write(fqueuestat, &simstat, sizeof(simstat_t));
+    // close(fqueuestat);
 
     close(flength);
     close(farrival);
