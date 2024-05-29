@@ -63,9 +63,12 @@ if __name__ == '__main__':
 
         mintotalbacklog = slotstats['mintotalbacklog'].astype(np.uint64)
         minbacklog = slotstats['minbacklog'].astype(np.uint64)
+        np.set_printoptions(threshold=sys.maxsize)
+        print(slotstats[slotstats['validcycles'] != 0]['validcycles'])
+        print(simstats['cycles'])
 
-        axs[wk, 0].plot(slotstats['totalbacklog']/slotstats['validcycles'], 'o', label=cfg['util'])
-        axs[wk, 1].plot(slotstats['backlog']/slotstats['validcycles'], 'o', label=cfg['util'])
+        axs[wk, 0].plot((slotstats['totalbacklog']/slotstats['validcycles']), 'o', label=cfg['util'])
+        axs[wk, 1].plot((slotstats['backlog']/slotstats['validcycles']), 'o', label=cfg['util'])
         
         axs[wk, 2].plot(mintotalbacklog[mintotalbacklog != 18446744073709551615], 'o', label=cfg['util'])
         axs[wk, 3].plot(minbacklog[minbacklog != 18446744073709551615], 'o', label=cfg['util'])
@@ -103,14 +106,14 @@ if __name__ == '__main__':
 
         axs[i,4].text(.05, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i,4].transAxes)
         axs[i,4].set_xlabel("Slot Index")
-        axs[i,4].set_ylabel("% Occupied")
+        axs[i,4].set_ylabel("Ratio Occupied")
 
         axs[i,0].set_ylim(ymin=0)
         axs[i,1].set_ylim(ymin=0)
 
         axs[i,2].set_ylim(ymin=0)
         axs[i,3].set_ylim(ymin=0)
-        # axs[i,4].set_ylim(ymin=0)
+        axs[i,4].set_ylim(ymin=.001, ymax=1.0)
 
         axs[i,1].axhline(y=1000000/64, color='r', linestyle='-', label='1MB')
         axs[i,3].axhline(y=1000000/64, color='r', linestyle='-', label='1MB')
@@ -153,7 +156,7 @@ if __name__ == '__main__':
     axs[0,1].set_title('Slot Backlog')
     axs[0,2].set_title('Min Total Backlog')
     axs[0,3].set_title('Min Slot Backlog')
-    axs[0,4].set_title('% Events Slot Occupied')
+    axs[0,4].set_title('Ratio Slot Occupied')
     # fig.text(.08, 1, 'Total Backlog by Slot Index', va='center')
     # fig.text(.32, 1, 'Slot Backlog by Slot Index', va='center')
 
