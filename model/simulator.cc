@@ -144,8 +144,8 @@ int main(int argc, char ** argv) {
     fstat(flength, &lsb);
     fstat(farrival, &asb);
 
-    uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, flength, 0);
-    float * marrivals    = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, farrival, 0);
+    uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
+    float * marrivals    = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
 
     if (comps >= lsb.st_size || comps >= asb.st_size) {
 	perror("insufficient trace data");
@@ -166,6 +166,47 @@ int main(int argc, char ** argv) {
 
     // Iterate through events until we reach the requisite number of completitions
     for (;simstat.compcount < comps;) {
+
+	// Determine if we have reached a new maximum occupancy
+	if (hwqueue.size() + swqueue.size() > simstat.max) {
+	    simstat.max = hwqueue.size() + swqueue.size();
+	    // std::cerr << simstat.max << std::endl;
+	}
+
+	auto it = hwqueue.begin();
+
+	uint64_t mass = 0;
+	for (int i = 0; i < hwqueue.size(); ++i) {
+	    if (i == 0) {
+	     	// TODO check this logic
+	     	if (next_event % 2 == 1) {
+	     	    mass = ((*it).remaining - (next_event/2)) * next_event - next_event;
+	     	} else {
+	     	    mass = (((*it).remaining - (next_event/2))) * next_event;
+	     	}
+
+	     	slotstats[0].validcycles += next_event;
+	     	slotstats[0].totalbacklog += mass;
+	     	slotstats[0].backlog += mass;
+	    } else {
+		mass += (*it).remaining * next_event;
+		slotstats[i].validcycles += next_event;
+		slotstats[i].totalbacklog += mass;
+		slotstats[i].backlog += (*it).remaining * next_event;
+	    }
+
+
+	    if (slotstats[i].minbacklog > (*it).remaining) {
+		slotstats[i].minbacklog = (*it).remaining;
+	    }
+
+	    if (slotstats[i].mintotalbacklog > mass) {
+		slotstats[i].mintotalbacklog = mass;
+	    }
+
+	    it++;
+	}
+
 	// If the small queue is not empty, decrement the head or pop it
 	if (!hwqueue.empty()) {
 	    entry_t head = hwqueue.front();
@@ -223,51 +264,35 @@ int main(int argc, char ** argv) {
 	    }
 	}
 
-	// Determine if we have reached a new maximum occupancy
-	if (hwqueue.size() + swqueue.size() > simstat.max) {
-	    simstat.max = hwqueue.size() + swqueue.size();
-	}
+
+
+	// it = swqueue.begin();
+	// for (int i = 0; i < swqueue.size(); ++i) {
+	//     mass += (*it).remaining;
+	//     slotstats[i+highwater].validcycles++;
+	//     slotstats[i+highwater].totalbacklog += mass;
+	//     slotstats[i+highwater].backlog += (*it).remaining;
+
+	//     if (slotstats[i+highwater].minbacklog > (*it).remaining) {
+	// 	slotstats[i+highwater].minbacklog = (*it).remaining;
+	//     }
+
+	//     if (slotstats[i+highwater].mintotalbacklog > mass) {
+	// 	slotstats[i+highwater].mintotalbacklog = mass;
+	//     }
+
+	//     it++;
+	// }
 
 	// Determine the number of comps till the next event
-	next_event = min((uint64_t) ((!hwqueue.empty()) ? hwqueue.front().remaining : -1), ((uint64_t) arrival) - ts);
-	uint64_t mass = 0;
-	auto it = hwqueue.begin();
-	for (int i = 0; i < hwqueue.size(); ++i) {
-	    mass += (*it).remaining;
-	    slotstats[i].validcycles++;
-	    slotstats[i].totalbacklog += mass;
-	    slotstats[i].backlog += (*it).remaining;
-
-	    if (slotstats[i].minbacklog > (*it).remaining) {
-		slotstats[i].minbacklog = (*it).remaining;
-	    }
-
-	    if (slotstats[i].mintotalbacklog > mass) {
-		slotstats[i].mintotalbacklog = mass;
-	    }
-	    it++;
-	}
-
-	it = swqueue.begin();
-	for (int i = 0; i < swqueue.size(); ++i) {
-	    mass += (*it).remaining;
-	    slotstats[i+highwater].validcycles++;
-	    slotstats[i+highwater].totalbacklog += mass;
-	    slotstats[i+highwater].backlog += (*it).remaining;
-
-	    if (slotstats[i+highwater].minbacklog > (*it).remaining) {
-		slotstats[i+highwater].minbacklog = (*it).remaining;
-	    }
-
-	    if (slotstats[i+highwater].mintotalbacklog > mass) {
-		slotstats[i+highwater].mintotalbacklog = mass;
-	    }
-
-	    it++;
-	}
+	next_event = min((uint64_t) ((!hwqueue.empty()) ? hwqueue.front().remaining : -1), ((uint64_t) arrival + 1) - ts);
 
 	// Move the timestep to the next event
 	ts += next_event;
+
+	if (next % 100000000 == 0) {
+	    std::cerr << next << std::endl;
+	}
     }
 
     simstat.cycles = ts;
@@ -284,11 +309,6 @@ int main(int argc, char ** argv) {
     write(fslotstat, &simstat, sizeof(simstat_t));
     write(fslotstat, &slotstats, 16384 * sizeof(slotstat_t));
     close(fslotstat);
-
-    // string simstatroot = tfile;
-    // int fqueuestat = open(simstatroot.append(".simstats").c_str(), O_RDWR | O_CREAT, 0644);
-    // write(fqueuestat, &simstat, sizeof(simstat_t));
-    // close(fqueuestat);
 
     close(flength);
     close(farrival);
