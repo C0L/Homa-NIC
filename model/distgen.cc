@@ -37,15 +37,15 @@ int main(int argc, char**argv) {
 
     std::cerr << "generating..." << std::endl;
 
-
-    uint32_t* lens = (uint32_t*) malloc(atoi(argv[2]) * sizeof(uint32_t));
-    for (size_t i = 0; i < atoi(argv[2]); i++) {
+    // uint32_t * lens = (uint32_t*) malloc(atol(argv[2]) * sizeof(uint32_t));
+    // std::cerr << atol(argv[2]) << std::endl;
+    for (size_t i = 0; i < atol(argv[2]); i++) {
 	float sample = generator(rand_gen);
 	uint32_t length = ceil(sample / 64.0);
-	lens[i] = length;
-	// write(lfile, &length, sizeof(uint32_t));
+	// lens[i] = length;
+	write(lfile, &length, sizeof(uint32_t));
     }
     std::cerr << "writing..." << std::endl;
-    write(lfile, lens, atoi(argv[2]) * sizeof(uint32_t));
+    // write(lfile, lens, atol(argv[2]) * sizeof(uint32_t));
     close(lfile);
 }
