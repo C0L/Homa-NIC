@@ -4,6 +4,7 @@
    "python-numpy"
    "python-scipy"
    "python-matplotlib"
+   "python-pandas"
    "gcc-toolchain"
    "coreutils"
    "vim"

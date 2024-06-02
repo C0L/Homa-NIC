@@ -31,6 +31,9 @@ queueprof: clean simulator distgen
 queuebisect: clean simulator distgen
 	./queuebisect.sh
 
+queuestress: clean simulator distgen
+	./queuestress.sh
+
 clean:
 	rm -rf simulator
 	rm -rf distgen

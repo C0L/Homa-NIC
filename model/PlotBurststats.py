@@ -10,18 +10,24 @@ import numpy as np
 import scipy.stats
 import sys
 import re
+import os
+import pandas as pd
+import glob
+
+
 
 def parsefn(fn):
-    fn = fn.split('_')
+    fsplit = fn.split('_')
     return {
-        'workload' : fn[0], 
-        'util'     : fn[1], 
-        'hw'       : fn[2],
-        'lw'       : fn[3],
-        'bs'       : fn[4],
-        'cl'       : fn[5],
-        'sl'       : fn[6],
-        'burst'    : fn[7]
+        'workload' : os.path.basename(fsplit[0]), 
+        'util'     : float(fsplit[1]), 
+        'hw'       : int(fsplit[2]),
+        'lw'       : int(fsplit[3]),
+        'bs'       : int(fsplit[4]),
+        'cl'       : float(fsplit[5]),
+        'sl'       : float(fsplit[6]),
+        'burst'    : int(fsplit[7]),
+        'stat'     : np.fromfile(fn, dtype=simstat_t, count=1)
     }
 
 # TODO create some matplotlib defaults here
@@ -40,115 +46,102 @@ if __name__ == '__main__':
 
     fig.tight_layout()
 
-    slotstat_t = np.dtype([('validcycles', np.uint64), ('totalbacklog', np.uint64), ('backlog', np.uint64), ('mintotalbacklog', np.uint64), ('minbacklog', np.uint64)])
-    simstat_t = np.dtype([('highwater', np.uint64), ('lowwater', np.uint64), ('max', np.uint64), ('events', np.uint64), ('compcount', np.uint64), ('compsum', np.uint64), ('cycles', np.uint64)])
+    simstat_t = np.dtype([('highwater', np.uint64),
+                          ('lowwater', np.uint64),
+                          ('max', np.uint64),
+                          ('events', np.uint64),
+                          ('compcount', np.uint64),
+                          ('compsum', np.uint64),
+                          ('cycles', np.uint64)])
 
-    # TODO need to make the mean compleititon time only for the burst
+    df = pd.DataFrame({
+        'workload' : [],
+        'util'     : [],
+        'hw'       : [],
+        'lw'       : [],
+        'bs'       : [],
+        'cl'       : [],
+        'sl'       : [],
+        'burst'    : [],
+        'stat'     : []
+        })
 
-            # wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
-            # qt = f"lw:{cfg['lw']}, hw:{cfg['hw']}, bs:{cfg['bs']}, cl:{cfg['cl']}, cs:{cfg['sl']}"
+    traces = glob.glob(args.traces[0] + '*burst*.slotstats')
+    print(traces)
 
-            # simstats  = np.fromfile(trace, dtype=simstat_t, count=1)
-            # slotstats = np.fromfile(trace, dtype=slotstat_t, count=-1, offset=simstats.nbytes)
+    for trace in traces:
+        print(trace)
+        df.loc[len(df)] = parsefn(trace)
 
-    points = {}
-    golden = {}
+    print("COMPLETED PARSING")
+    # doms = {}
 
-    for trace in args.traces:
-        cfg = parsefn(trace)
-        # print(cfg)
-        
-        if (int(cfg['hw']) == -1):
-            # TODO also need workload
-            golden[cfg['burst']+cfg['util']]=trace
-        else:
-            # TODO also need workload
-            if cfg['burst']+cfg['util'] not in points:
-                points[cfg['burst']+cfg['util']] = [trace]
-            else:
-                points[cfg['burst']+cfg['util']].append(trace)
+    for workload in df['workload'].unique():
+        print(workload)
 
-    print(golden)
-
-    doms = {}
-
-    # Remove dominated points
-    for pset in points:
-        dom = []
-        print(points[pset])
-        for trace in points[pset]:
-            cfgorig = parsefn(trace)
-            statorig = np.fromfile(trace, dtype=simstat_t, count=1)
-
-            mctorig  = (statorig['compsum'] / statorig['compcount'])[0]
-            commorig = (statorig['highwater'] / statorig['cycles'])[0]
-
-            # print(cfg)
-
-            # wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
-            # qt = f"lw:{cfg['lw']}, hw:{cfg['hw']}, bs:{cfg['bs']}, cl:{cfg['cl']}, cs:{cfg['sl']}"
-
-            add = True 
-            for comp in points[pset]:
-                cfgcmp = parsefn(comp)
-                statscmp  = np.fromfile(comp, dtype=simstat_t, count=1)
-
-                mctcmp  = (statscmp['compsum'] / statscmp['compcount'])[0]
-                commcmp = (statscmp['highwater'] / statscmp['cycles'])[0]
-
-                statsgold = np.fromfile(golden[cfgcmp['burst']+cfgcmp['util']], dtype=simstat_t, count=1)
-                mctgold  = (statsgold['compsum'] / statsgold['compcount'])[0]
-
-                if ((mctorig - mctgold)/((mctorig + mctgold)/2) > 1):
-                    add = True 
-                else:
-                    # pass
-                    # print("CHECK")
-                    # print(cfgorig['hw'])
-                    # print(cfgcmp['hw'])
-                    # print(commorig)
-                    # print(commcmp)
-
-                    # diff = (commorig[0] - commcmp[0])/((commorig[0] + commcmp[0])/2)
-
-                    # if (cfgorig['hw'] >= cfgcmp['hw'] and diff > .1):
-                    # if ((cfgorig['hw'] > cfgcmp['hw'] and commorig > commcmp)):
-                    if ((cfgorig['hw'] > cfgcmp['hw'] and commorig == commcmp) or (cfgorig['hw'] == cfgcmp['hw'] and commorig > commcmp) or (cfgorig['hw'] > cfgcmp['hw'] and commorig > commcmp)):
-                        # add = False
-                        add = True 
-                        # print("DOMINATED")
-
-            if (add):
-                dom.append(trace)
-
-        doms[cfgorig['burst']+cfgorig['util']] = dom
-
-    # TODO still need to organize by workload
-
-
-    color = iter(cm.rainbow(np.linspace(0, 1, 4)))
-    c = next(color)
-
-    cmap = {}
-
-    for dom in doms:
-        for efficient in doms[dom]:
-            print(efficient)
-            cfgorig = parsefn(efficient)
-            statorig = np.fromfile(efficient, dtype=simstat_t, count=1)
-
-            commorig = statorig['highwater'] / statscmp['cycles']
-
-            axs[0].plot(int(cfgorig['hw']), commorig, 'o', color=c, label=cfgorig['util'] + ' , ' + cfgorig['burst'])
-
+        color = iter(cm.rainbow(np.linspace(0, 1, 4)))
         c = next(color)
+
+        for burst in df['burst'].unique():
+            print(burst)
+            for util in df['util'].unique():
+                print(util)
+                samples = df.loc[(df['workload'] == workload)
+                                 & (df['burst'] == burst)
+                                 & (df['hw'] != -1)
+                                 & (df['util'] == util)]
+
+                gold = df.loc[(df['workload'] == workload)
+                                 & (df['burst'] == burst)
+                                 & (df['hw'] == -1)
+                                 & (df['util'] == util)].iloc[0]
+
+                mctgold  = (gold['stat']['compsum'] / gold['stat']['compcount'])[0]
+
+                origs = pd.DataFrame({
+                    'workload' : [],
+                    'util'     : [],
+                    'hw'       : [],
+                    'lw'       : [],
+                    'bs'       : [],
+                    'cl'       : [],
+                    'sl'       : [],
+                    'burst'    : [],
+                    'stat'     : []
+                })
+
+                # Remove non-convergent
+                for i, orig in samples.iterrows():
+                    mctorig = (orig['stat']['compsum'] / orig['stat']['compcount'])[0]
+                    if (abs(mctgold - mctorig)/((mctgold + mctorig)/2) <= .01):
+                        origs.loc[len(origs)] = orig
+
+                stripped = origs.copy()
+
+                for i0, orig in origs.iterrows():
+                    stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
+
+
+                wk = int(re.findall(r'\d+', workload)[0])-1
+                axs[wk].plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util) + ' , ' + str(burst))
+
+            c = next(color)
+
+    # for dom in doms:
+    #     for efficient in doms[dom]:
+    #         cfgorig = parsefn(efficient)
+    #         statorig = np.fromfile(efficient, dtype=simstat_t, count=1)
+
+    #         axs[0].plot(int(cfgorig['hw']), float(cfgorig['sl']), 'o', color=c, label=cfgorig['util'] + ' , ' + cfgorig['burst'])
+
+    #     c = next(color)
 
     for i in range(5):
         axs[i].text(.05, .05, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
-        axs[i].set_xlabel("Min. Small Queue With Fidelity")
-        axs[i].set_ylabel("Min. Communication Overhead")
+        axs[i].set_xlabel("Min. Queue Size")
+        axs[i].set_ylabel("Min. Sorting Accuracy")
         axs[i].set_ylim(axs[i].get_ylim()[::-1])
-        axs[i].set_xlim(axs[i].get_xlim()[::-1])
+        # axs[i].set_xlim(axs[i].get_xlim()[::-1])
 
     handles, labels = axs[0].get_legend_handles_labels()
 
@@ -162,3 +155,6 @@ if __name__ == '__main__':
                   fancybox=False, shadow=False, ncol=2, title='Utilization')
 
     plt.savefig(args.outfile, bbox_inches="tight")
+
+
+# for some burst size, we plot the maximum utilizations that can be sustained 

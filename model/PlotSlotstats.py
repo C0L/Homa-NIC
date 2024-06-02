@@ -64,8 +64,8 @@ if __name__ == '__main__':
         mintotalbacklog = slotstats['mintotalbacklog'].astype(np.uint64)
         minbacklog = slotstats['minbacklog'].astype(np.uint64)
         np.set_printoptions(threshold=sys.maxsize)
-        print(slotstats[slotstats['validcycles'] != 0]['validcycles'])
-        print(simstats['cycles'])
+        # print(slotstats[slotstats['validcycles'] != 0]['validcycles'])
+        # print(simstats['cycles'])
 
         axs[wk, 0].plot((slotstats['totalbacklog']/slotstats['validcycles']), 'o', label=cfg['util'])
         axs[wk, 1].plot((slotstats['backlog']/slotstats['validcycles']), 'o', label=cfg['util'])
@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
         validcycles = slotstats['validcycles']
 
-        axs[wk, 4].plot(validcycles[validcycles != 0]/simstats['cycles'], 'o', label=cfg['util'])
+        axs[wk, 4].plot((validcycles[validcycles != 0]/simstats['cycles'])[0:100], 'o', label=cfg['util'])
 
     for i in range(5):
         axs[i,0].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
