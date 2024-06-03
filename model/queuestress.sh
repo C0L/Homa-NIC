@@ -17,7 +17,7 @@ BURST=( 999 )
 # COMPS=100000000
 # CYCLES=200000000
       
-COMPS=1000000
+COMPS=100000
 CYCLES=10000000
 
 for wk in "${WORKLOADS[@]}"; do
@@ -92,9 +92,13 @@ for wk in "${WORKLOADS[@]}"; do
 	    		--sort-latency ${sl}
 
 	    # for i in {12..256}; do
-	    for i in {1..128}; do
-		hw=$(( $i*128))
-		lw=$(( $i*128 - 32 ))
+	    for i in {16..512}; do
+		# hw=$(( $i*16))
+		# lw=$(( $i*16- 32 ))
+		hw=$(( $i*4 ))
+		lw=$(( $i*4 - 32 ))
+
+
 
 		# hw=$(( $i*16 ))
 		# lw=$(( $i*16 - 8 ))

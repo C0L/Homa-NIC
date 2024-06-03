@@ -66,7 +66,7 @@ if __name__ == '__main__':
         'stat'     : []
         })
 
-    traces = glob.glob(args.traces[0] + 'w1*burst*.slotstats')
+    traces = glob.glob(args.traces[0] + 'w3*burst*.slotstats')
     print(traces)
 
     for trace in traces:
@@ -119,9 +119,11 @@ if __name__ == '__main__':
 
                     # if (mctgold/mctorig >= .95 and mctgold/mctorig <= 1.05):
                     # if (mctgold/mctorig >= .99 and mctgold/mctorig <= 1.01 and abs(orig['stat']['lowwater']/orig['stat']['highwater'] - 1.0) < .1):
+                    # if (mctgold/mctorig >= .999999):
+                    # if (mctgold/mctorig >= .9999999 and mctgold/mctorig <= 1.1):
                     # if (mctgold/mctorig >= .9999):
-                    if (mctgold/mctorig >= .95):
-                    # if (mctgold/mctorig >= .99):
+                    # if (mctgold/mctorig >= .95):
+                    if (mctgold/mctorig >= .99):
                         origs.loc[len(origs)] = orig
                     else:
                         if (mctgold/mctorig >= 1.00):
