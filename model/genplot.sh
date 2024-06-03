@@ -3,7 +3,7 @@
 shopt -s extglob
 
 
-python3 PlotBurststats.py -t traces/ -f img/slotstats_burst.png
+python3 PlotBurststats.py -t traces/ -f img/pareto_efficient.png
 # python3 PlotBurststats.py -t traces/w1*burst*.slotstats -f img/slotstats_burst.png
 # python3 PlotSlotstats.py -t traces/*@(1.2|1.3|1.4|1.5|1.6)*-1*-1*.slotstats -f img/slotstats.png
 

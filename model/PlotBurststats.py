@@ -66,7 +66,7 @@ if __name__ == '__main__':
         'stat'     : []
         })
 
-    traces = glob.glob(args.traces[0] + '*burst*.slotstats')
+    traces = glob.glob(args.traces[0] + 'w1*burst*.slotstats')
     print(traces)
 
     for trace in traces:
@@ -79,11 +79,14 @@ if __name__ == '__main__':
     for workload in df['workload'].unique():
         print(workload)
 
-        color = iter(cm.rainbow(np.linspace(0, 1, 4)))
+        color = iter(cm.rainbow(np.linspace(0, 1, 6)))
         c = next(color)
 
         for burst in df['burst'].unique():
             print(burst)
+
+            print(df.loc[(df['workload'] == workload) & (df['burst'] == burst) & (df['hw'] == -1)])
+
             for util in df['util'].unique():
                 print(util)
                 samples = df.loc[(df['workload'] == workload)
@@ -113,19 +116,28 @@ if __name__ == '__main__':
                 # Remove non-convergent
                 for i, orig in samples.iterrows():
                     mctorig = (orig['stat']['compsum'] / orig['stat']['compcount'])[0]
-                    if (abs(mctgold - mctorig)/((mctgold + mctorig)/2) <= .01):
+
+                    # if (mctgold/mctorig >= .95 and mctgold/mctorig <= 1.05):
+                    # if (mctgold/mctorig >= .99 and mctgold/mctorig <= 1.01 and abs(orig['stat']['lowwater']/orig['stat']['highwater'] - 1.0) < .1):
+                    # if (mctgold/mctorig >= .9999):
+                    if (mctgold/mctorig >= .95):
+                    # if (mctgold/mctorig >= .99):
                         origs.loc[len(origs)] = orig
+                    else:
+                        if (mctgold/mctorig >= 1.00):
+                            print(mctgold/mctorig)
 
                 stripped = origs.copy()
 
                 for i0, orig in origs.iterrows():
+                    # stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] >= orig['sl'])]
                     stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
 
-
                 wk = int(re.findall(r'\d+', workload)[0])-1
-                axs[wk].plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util) + ' , ' + str(burst))
+                axs[wk].plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util))
+                # axs[wk].plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util) + ' , ' + str(burst))
 
-            c = next(color)
+                c = next(color)
 
     # for dom in doms:
     #     for efficient in doms[dom]:
@@ -138,6 +150,7 @@ if __name__ == '__main__':
 
     for i in range(5):
         axs[i].text(.05, .05, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
+        # axs[i].set_xlim(xmax=20)
         axs[i].set_xlabel("Min. Queue Size")
         axs[i].set_ylabel("Min. Sorting Accuracy")
         axs[i].set_ylim(axs[i].get_ylim()[::-1])

@@ -81,7 +81,7 @@ int main(int argc, char ** argv) {
     uint64_t lowwater;
     uint32_t chainlatency;
     uint32_t blocksize;
-    float sortdelay;
+    double sortdelay;
     // uint32_t sortdelay;
     // uint64_t warmup;
     // bool drain = false;
@@ -116,7 +116,7 @@ int main(int argc, char ** argv) {
 		blocksize = strtol(optarg, &end, 10);
 		break;
 	    case 's':
-		sortdelay = strtof(optarg, &end);
+		sortdelay = strtod(optarg, &end);
 		// sortdelay = strtol(optarg, &end, 10);
 		break;
 	    default:
@@ -274,9 +274,14 @@ int main(int argc, char ** argv) {
 
 		double r = ((double) rand() / (RAND_MAX));
 
+		// std::cerr << r << std::endl;
+
 		if (r < sortdelay) {
 		    // Random insertion
 		    double ins = ((double) rand() / (RAND_MAX)) * swqueue.size();
+		    // std::cerr << "double vs int" << std::endl;
+		    // std::cerr << ins << std::endl;
+		    // std::cerr << (int) ins << std::endl;
 		    it = std::next(swqueue.begin(), (int) ins);
 		} 
 

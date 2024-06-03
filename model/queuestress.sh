@@ -1,16 +1,24 @@
 #!/bin/bash
 
 WORKLOADS=( w1 w2 w3 w4 w5 )
-ARRIVAL=( poisson )
+ARRIVAL=( lomax )
 
-UTILS=( 3.0 3.0 3.0 )
-BURST=( 1024 2048 4096 )
+UTILS=( 1.1 )
+BURST=( 999 )
+#UTILS=( .9 .99 .999 .9999 .99999 )
+#BURST=( 999 999 999  999    999 )
+# UTILS=( 3.0 3.0 3.0 )
+# BURST=( 1024 2048 4096 )
 
-WARM=1000000
-COMPS=2000000
-CYCLES=3000000
+# WARM=1000000
+# COMPS=2000000
+# CYCLES=3000000
 
-# TODO could vary the LWM to reduce communication, but the workload needs to relect this
+# COMPS=100000000
+# CYCLES=200000000
+      
+COMPS=1000000
+CYCLES=10000000
 
 for wk in "${WORKLOADS[@]}"; do
     if [ ! -e "dists/${wk}_lengths" ]; then
@@ -21,30 +29,41 @@ for wk in "${WORKLOADS[@]}"; do
 	burst="${BURST[id]}"
 	util="${UTILS[id]}"
 
-	arrival=poisson
+	arrival=lomax
 
 	if [ ! -e "dists/${wk}_${util}_${arrival}_${burst}_arrivals" ]; then
-    	    echo $util
-	    python3.10 GenerateArrivals.py                   \
-	    	       -d ${arrival}                            \
-	    	       -u .9                                    \
-	    	       -w dists/${wk}_lengths                   \
-	    	       -a dists/${wk}_${util}_${arrival}_steady \
-	    	       -s ${WARM}
-
 	    python3.10 GenerateArrivals.py                     \
-	    	       -d ${arrival}                              \
-	    	       -u $util                                   \
-	    	       -w dists/${wk}_lengths                     \
-	    	       -a dists/${wk}_${util}_${arrival}_burst    \
-	    	       -s ${burst}
-
-	    cat dists/${wk}_${util}_${arrival}_steady dists/${wk}_${util}_${arrival}_burst dists/${wk}_${util}_${arrival}_steady > dists/${wk}_${util}_${arrival}_${burst}_arrivals
+		       -d ${arrival}                              \
+		       -u $util                                   \
+		       -w dists/${wk}_lengths                     \
+		       -a dists/${wk}_${util}_${arrival}_${burst}_arrivals    \
+		       -s ${CYCLES}
 	fi
 
-	for j in $(seq -f "%02g" 0 2 99); do
-	    sl=.$j
-	    bs=4
+	# if [ ! -e "dists/${wk}_${util}_${arrival}_${burst}_arrivals" ]; then
+    	#     echo $util
+	#     python3.10 GenerateArrivals.py                   \
+	#     	       -d ${arrival}                            \
+	#     	       -u .9                                    \
+	#     	       -w dists/${wk}_lengths                   \
+	#     	       -a dists/${wk}_${util}_${arrival}_steady \
+	#     	       -s ${WARM}
+
+	#     python3.10 GenerateArrivals.py                     \
+	#     	       -d ${arrival}                              \
+	#     	       -u $util                                   \
+	#     	       -w dists/${wk}_lengths                     \
+	#     	       -a dists/${wk}_${util}_${arrival}_burst    \
+	#     	       -s ${burst}
+
+	#     cat dists/${wk}_${util}_${arrival}_steady dists/${wk}_${util}_${arrival}_burst dists/${wk}_${util}_${arrival}_steady > dists/${wk}_${util}_${arrival}_${burst}_arrivals
+	# fi
+
+	#for j in $(seq -f "%03g" 0 1 999); do
+	for j in $(seq -f "%02g" 0 .02 1); do
+	    sl=$j
+	    bs=16
+	    # bs=4
 	    cl=0
 
 	    hw=-1
@@ -72,14 +91,13 @@ for wk in "${WORKLOADS[@]}"; do
 	    		--block-size ${bs}                           \
 	    		--sort-latency ${sl}
 
-	    for i in {4..32}; do
-	    # for i in {4..128}; do
-		hw=$(( $i*64 ))
-		lw=$(( $i*64 - 8 ))
+	    # for i in {12..256}; do
+	    for i in {1..128}; do
+		hw=$(( $i*128))
+		lw=$(( $i*128 - 32 ))
 
-
-		# hw=$(( $i*4 ))
-		# lw=$(( $i*4 - 8 ))
+		# hw=$(( $i*16 ))
+		# lw=$(( $i*16 - 8 ))
 
 	    	./simulator --queue-type SRPT                            \
 	    		--length-file dists/${wk}_lengths            \
