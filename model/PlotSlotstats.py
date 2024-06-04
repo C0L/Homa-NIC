@@ -67,15 +67,15 @@ if __name__ == '__main__':
         # print(slotstats[slotstats['validcycles'] != 0]['validcycles'])
         # print(simstats['cycles'])
 
-        axs[wk, 0].plot((slotstats['totalbacklog']/slotstats['validcycles']), 'o', label=cfg['util'])
-        axs[wk, 1].plot((slotstats['backlog']/slotstats['validcycles']), 'o', label=cfg['util'])
+        axs[wk, 0].plot((slotstats['totalbacklog']/slotstats['validcycles'])[0:50], 'o', label=cfg['util'])
+        axs[wk, 1].plot((slotstats['backlog']/slotstats['validcycles'])[0:50], 'o', label=cfg['util'])
         
-        axs[wk, 2].plot(mintotalbacklog[mintotalbacklog != 18446744073709551615], 'o', label=cfg['util'])
-        axs[wk, 3].plot(minbacklog[minbacklog != 18446744073709551615], 'o', label=cfg['util'])
+        axs[wk, 2].plot(mintotalbacklog[mintotalbacklog != 18446744073709551615][0:50], 'o', label=cfg['util'])
+        axs[wk, 3].plot(minbacklog[minbacklog != 18446744073709551615][0:50], 'o', label=cfg['util'])
 
         validcycles = slotstats['validcycles']
 
-        axs[wk, 4].plot((validcycles[validcycles != 0]/simstats['cycles'])[0:100], 'o', label=cfg['util'])
+        axs[wk, 4].plot((validcycles[validcycles != 0]/simstats['cycles'])[0:50], 'o', label=cfg['util'])
 
     for i in range(5):
         axs[i,0].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
@@ -103,7 +103,6 @@ if __name__ == '__main__':
         axs[i,3].set_xlabel("Slot Index")
         axs[i,3].set_ylabel("Min. Slot Backlog")
 
-
         axs[i,4].text(.05, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i,4].transAxes)
         axs[i,4].set_xlabel("Slot Index")
         axs[i,4].set_ylabel("Ratio Occupied")
@@ -113,7 +112,7 @@ if __name__ == '__main__':
 
         axs[i,2].set_ylim(ymin=0)
         axs[i,3].set_ylim(ymin=0)
-        axs[i,4].set_ylim(ymin=.001, ymax=1.0)
+        # axs[i,4].set_ylim(ymin=.001, ymax=1.0)
 
         axs[i,1].axhline(y=1000000/64, color='r', linestyle='-', label='1MB')
         axs[i,3].axhline(y=1000000/64, color='r', linestyle='-', label='1MB')

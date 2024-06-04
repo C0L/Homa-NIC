@@ -39,10 +39,13 @@ if __name__ == '__main__':
 
     parser.add_argument('-t', '--traces', type=str, nargs='+', required=True)
     parser.add_argument('-f', '--outfile', type=str, required=True)
+    parser.add_argument('-w', '--workload', type=str, required=True)
+    parser.add_argument('-u', '--util', type=str, required=True)
 
     args = parser.parse_args()
 
-    fig, axs = plt.subplots(5, figsize=(5,20))
+    fig, axs = plt.subplots()
+    # fig, axs = plt.subplots(5, figsize=(5,20))
 
     fig.tight_layout()
 
@@ -54,111 +57,108 @@ if __name__ == '__main__':
                           ('compsum', np.uint64),
                           ('cycles', np.uint64)])
 
-    df = pd.DataFrame({
-        'workload' : [],
-        'util'     : [],
-        'hw'       : [],
-        'lw'       : [],
-        'bs'       : [],
-        'cl'       : [],
-        'sl'       : [],
-        'burst'    : [],
-        'stat'     : []
-        })
-
-    traces = glob.glob(args.traces[0] + 'w3*burst*.slotstats')
-    print(traces)
-
-    for trace in traces:
-        print(trace)
-        df.loc[len(df)] = parsefn(trace)
-
     print("COMPLETED PARSING")
     # doms = {}
 
-    for workload in df['workload'].unique():
-        print(workload)
+    # for workload in ['w3']:
+    # for workload in ['w1', 'w2', 'w3', 'w4']:
+    workload = args.workload
+    print(workload)
 
-        color = iter(cm.rainbow(np.linspace(0, 1, 6)))
+    color = iter(cm.rainbow(np.linspace(0, 1, 6)))
+    c = next(color)
+    # for util in [1.05]:
+    # for util in [1.05, 1.1, 1.2, 1.3]:
+    for util in [float(args.util)]:
+
+        df = pd.DataFrame({
+            'workload' : [],
+            'util'     : [],
+            'hw'       : [],
+            'lw'       : [],
+            'bs'       : [],
+            'cl'       : [],
+            'sl'       : [],
+            'burst'    : [],
+            'stat'     : []
+        })
+
+        traces = glob.glob(args.traces[0] + f'{workload}*{util}*burst*.slotstats')
+
+        print(traces)
+
+        for trace in traces:
+            print(trace)
+            df.loc[len(df)] = parsefn(trace)
+
+        print(df)
+        print(util)
+        samples = df.loc[(df['workload'] == workload)
+                         & (df['hw'] != -1)
+                         & (df['util'] == util)]
+
+        gold = df.loc[(df['workload'] == workload)
+                      & (df['hw'] == -1)
+                      & (df['util'] == util)].iloc[0]
+
+        mctgold  = (gold['stat']['compsum'] / gold['stat']['compcount'])[0]
+
+        origs = pd.DataFrame({
+            'workload' : [],
+            'util'     : [],
+            'hw'       : [],
+            'lw'       : [],
+            'bs'       : [],
+            'cl'       : [],
+            'sl'       : [],
+            'stat'     : []
+        })
+
+        # Remove non-convergent
+        for i, orig in samples.iterrows():
+            mctorig = (orig['stat']['compsum'] / orig['stat']['compcount'])[0]
+
+            if (mctgold/mctorig >= .99):
+                origs.loc[len(origs)] = orig
+            else:
+                if (mctgold/mctorig >= 1.00):
+                    print(mctgold/mctorig)
+
+        stripped = origs.copy()
+
+        for i0, orig in origs.iterrows():
+            # stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
+            stripped = stripped.loc[((stripped['hw'] <= orig['hw']) & (stripped['sl'] == orig['sl'])) |  (stripped['sl'] != orig['sl'])]
+                        # stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
+                        
+        wk = int(re.findall(r'\d+', workload)[0])-1
+        axs.plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util))
+                        
+        maxs = []
+                        
+        for j, o in stripped.iterrows():
+            maxs.append(o['stat']['max'])
+                            
+        axs.plot(maxs, stripped['sl'], '^', color=c, label=str(util))
+            # axs[wk].plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util) + ' , ' + str(burst))
+                            
         c = next(color)
 
-        for burst in df['burst'].unique():
-            print(burst)
+    
+    axs.text(.05, .05, workload, c='r', horizontalalignment='center', verticalalignment='center', transform = axs.transAxes)
+    axs.set_xlabel("Small Queue Size")
+    axs.set_ylabel("Large Queue Sorting Accuracy")
+    axs.set_ylim(axs.get_ylim()[::-1])
 
-            print(df.loc[(df['workload'] == workload) & (df['burst'] == burst) & (df['hw'] == -1)])
-
-            for util in df['util'].unique():
-                print(util)
-                samples = df.loc[(df['workload'] == workload)
-                                 & (df['burst'] == burst)
-                                 & (df['hw'] != -1)
-                                 & (df['util'] == util)]
-
-                gold = df.loc[(df['workload'] == workload)
-                                 & (df['burst'] == burst)
-                                 & (df['hw'] == -1)
-                                 & (df['util'] == util)].iloc[0]
-
-                mctgold  = (gold['stat']['compsum'] / gold['stat']['compcount'])[0]
-
-                origs = pd.DataFrame({
-                    'workload' : [],
-                    'util'     : [],
-                    'hw'       : [],
-                    'lw'       : [],
-                    'bs'       : [],
-                    'cl'       : [],
-                    'sl'       : [],
-                    'burst'    : [],
-                    'stat'     : []
-                })
-
-                # Remove non-convergent
-                for i, orig in samples.iterrows():
-                    mctorig = (orig['stat']['compsum'] / orig['stat']['compcount'])[0]
-
-                    # if (mctgold/mctorig >= .95 and mctgold/mctorig <= 1.05):
-                    # if (mctgold/mctorig >= .99 and mctgold/mctorig <= 1.01 and abs(orig['stat']['lowwater']/orig['stat']['highwater'] - 1.0) < .1):
-                    # if (mctgold/mctorig >= .999999):
-                    # if (mctgold/mctorig >= .9999999 and mctgold/mctorig <= 1.1):
-                    # if (mctgold/mctorig >= .9999):
-                    # if (mctgold/mctorig >= .95):
-                    if (mctgold/mctorig >= .99):
-                        origs.loc[len(origs)] = orig
-                    else:
-                        if (mctgold/mctorig >= 1.00):
-                            print(mctgold/mctorig)
-
-                stripped = origs.copy()
-
-                for i0, orig in origs.iterrows():
-                    # stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] >= orig['sl'])]
-                    stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
-
-                wk = int(re.findall(r'\d+', workload)[0])-1
-                axs[wk].plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util))
-                # axs[wk].plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util) + ' , ' + str(burst))
-
-                c = next(color)
-
-    # for dom in doms:
-    #     for efficient in doms[dom]:
-    #         cfgorig = parsefn(efficient)
-    #         statorig = np.fromfile(efficient, dtype=simstat_t, count=1)
-
-    #         axs[0].plot(int(cfgorig['hw']), float(cfgorig['sl']), 'o', color=c, label=cfgorig['util'] + ' , ' + cfgorig['burst'])
-
-    #     c = next(color)
-
-    for i in range(5):
-        axs[i].text(.05, .05, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
-        # axs[i].set_xlim(xmax=20)
-        axs[i].set_xlabel("Min. Queue Size")
-        axs[i].set_ylabel("Min. Sorting Accuracy")
-        axs[i].set_ylim(axs[i].get_ylim()[::-1])
+    # for i in range(5):
+    #     axs[i].text(.05, .05, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
+    #     # axs[i].set_xlim(xmax=20)
+    #     axs[i].set_xlabel("Queue Size")
+    #     axs[i].set_ylabel("Min. Sorting Accuracy")
+    #     axs[i].set_ylim(axs[i].get_ylim()[::-1])
         # axs[i].set_xlim(axs[i].get_xlim()[::-1])
 
-    handles, labels = axs[0].get_legend_handles_labels()
+    handles, labels = axs.get_legend_handles_labels()
 
     newLabels, newHandles = [], []
     for handle, label in zip(handles, labels):
@@ -166,7 +166,7 @@ if __name__ == '__main__':
             newLabels.append(label)
             newHandles.append(handle)
 
-    axs[4].legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.1),
+    axs.legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.1),
                   fancybox=False, shadow=False, ncol=2, title='Utilization')
 
     plt.savefig(args.outfile, bbox_inches="tight")

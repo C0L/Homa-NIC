@@ -3,8 +3,8 @@
 WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( lomax )
 
-UTILS=( 1.1 )
-BURST=( 999 )
+UTILS=( 1.05 1.1 1.2 1.3 )
+BURST=( 999 999 999 999 )
 #UTILS=( .9 .99 .999 .9999 .99999 )
 #BURST=( 999 999 999  999    999 )
 # UTILS=( 3.0 3.0 3.0 )
@@ -60,7 +60,8 @@ for wk in "${WORKLOADS[@]}"; do
 	# fi
 
 	#for j in $(seq -f "%03g" 0 1 999); do
-	for j in $(seq -f "%02g" 0 .02 1); do
+	# for j in $(seq -f "%02g" 0 .02 1); do
+	for j in $(seq -f "%02g" 0 .05 1); do
 	    sl=$j
 	    bs=16
 	    # bs=4
@@ -92,13 +93,14 @@ for wk in "${WORKLOADS[@]}"; do
 	    		--sort-latency ${sl}
 
 	    # for i in {12..256}; do
-	    for i in {16..512}; do
-		# hw=$(( $i*16))
-		# lw=$(( $i*16- 32 ))
-		hw=$(( $i*4 ))
+	    # for i in {16..512}; do
+	    for i in {10..2048}; do
+		hw=$(( $i*4))
 		lw=$(( $i*4 - 32 ))
-
-
+		# hw=$(( $i*4 ))
+		# lw=$(( $i*4 - 32 ))
+		#hw=$(( $i*256 ))
+		#lw=$(( $i*256 - 32 ))
 
 		# hw=$(( $i*16 ))
 		# lw=$(( $i*16 - 8 ))
@@ -112,7 +114,11 @@ for wk in "${WORKLOADS[@]}"; do
 	    		--low-water  ${lw}                           \
 	    		--chain-latency ${cl}                        \
 	    		--block-size ${bs}                           \
-	    		--sort-latency ${sl}
+	    		--sort-latency ${sl} &
+
+		if (( $i % 64 == 0 )) ; then
+		    wait
+		fi
 	    done
 	done
     done

@@ -3,7 +3,7 @@
 WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( poisson )
 UTILS=( .9 .99 .999 .9999 )
-UTILS=( .1 .5 .9 .99 .999 .9999 )
+# UTILS=( .1 .5 .9 .99 .999 .9999 )
 
 HWS=( -1 )
 LWS=( -1 ) # Based on reasonable PIFO sizes

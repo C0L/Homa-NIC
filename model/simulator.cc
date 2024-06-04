@@ -174,14 +174,13 @@ int main(int argc, char ** argv) {
     uint64_t sort = 0;
 
     // Iterate through events until we reach the requisite number of completitions
-    for (;simstat.compcount < comps;) {
+    for (;simstat.compcount < comps || (simstat.compcount >= comps && (hwqueue.size() != 0 || swqueue.size() != 0));) {
 
 	// Determine if we have reached a new maximum occupancy
 	if (hwqueue.size() + swqueue.size() > simstat.max) {
 	    simstat.max = hwqueue.size() + swqueue.size();
 	}
 
-	/*
 	auto it = hwqueue.begin();
 
 	uint64_t mass = 0;
@@ -215,7 +214,6 @@ int main(int argc, char ** argv) {
 
 	    it++;
 	}
-	*/
 	
 	// If the small queue is not empty, decrement the head or pop it
 	if (!hwqueue.empty()) {
@@ -233,7 +231,7 @@ int main(int argc, char ** argv) {
 	}
 
 	// If the next arrival time is before or during this current timestep then add it to the queue
-	while (arrival <= ts) {
+	while (arrival <= ts && simstat.compcount < comps) {
 	    entry_t ins = entry_t{ts, length, length};
 
 	    auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
@@ -278,11 +276,12 @@ int main(int argc, char ** argv) {
 
 		if (r < sortdelay) {
 		    // Random insertion
-		    double ins = ((double) rand() / (RAND_MAX)) * swqueue.size();
+		    // double ins = ((double) rand() / (RAND_MAX)) * swqueue.size();
 		    // std::cerr << "double vs int" << std::endl;
 		    // std::cerr << ins << std::endl;
 		    // std::cerr << (int) ins << std::endl;
-		    it = std::next(swqueue.begin(), (int) ins);
+		    // it = std::next(swqueue.begin(), (int) ins);
+		    it = std::next(swqueue.end());
 		} 
 
 		swqueue.insert(it, tail);
@@ -309,7 +308,13 @@ int main(int argc, char ** argv) {
 	// }
 
 	// Determine the number of comps till the next event
-	next_event = min((uint64_t) ((!hwqueue.empty()) ? hwqueue.front().remaining : -1), ((uint64_t) arrival + 1) - ts);
+	// Hacky
+	if (simstat.compcount >= comps) {
+	    next_event = hwqueue.front().remaining;
+	} else {
+	    next_event = min((uint64_t) ((!hwqueue.empty()) ? hwqueue.front().remaining : -1), ((uint64_t) arrival + 1) - ts);
+	}
+
 
 	// Move the timestep to the next event
 	ts += next_event;
@@ -327,7 +332,7 @@ int main(int argc, char ** argv) {
     string slotstatroot = tfile;
     int fslotstat = open(slotstatroot.append(".slotstats").c_str(), O_RDWR | O_CREAT, 0644);
     write(fslotstat, &simstat, sizeof(simstat_t));
-    // write(fslotstat, &slotstats, 16384 * sizeof(slotstat_t));
+    write(fslotstat, &slotstats, 16384 * sizeof(slotstat_t));
     close(fslotstat);
 
     close(flength);
