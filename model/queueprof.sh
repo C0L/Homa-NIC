@@ -54,17 +54,6 @@ for wk in "${WORKLOADS[@]}"; do
 			    --chain-latency ${cl}                        \
 			    --block-size ${bs}                           \
 			    --sort-latency ${LATENCY}
-
-		# ./simulator --queue-type FIFO                            \
-		# 	    --length-file dists/${wk}_lengths            \
-		# 	    --arrival-file dists/${wk}_${util}_${arrival}_arrivals  \
-		# 	    --cycles ${CYCLES}                           \
-		# 	    --trace-file traces/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl}_${arrival}_fifo \
-		# 	    --high-water ${hw}                           \
-		# 	    --low-water  ${lw}                           \
-		# 	    --chain-latency ${cl}                        \
-		# 	    --block-size ${bs}                           \
-		# 	    --sort-latency ${LATENCY}
 	    done
 	done
     done

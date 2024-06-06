@@ -34,14 +34,6 @@ struct simstat_t {
     uint64_t cycles;    // Total number of simulation cycles
 };
 
-struct slotstat_t {
-    uint64_t validcycles;  // # of cycles a valid element is in this slot
-    uint64_t totalbacklog; // Sum of mass of this slot and down
-    uint64_t backlog;      // Sum of mass in this slot
-    uint64_t mintotalbacklog = -1; // Minimum total backlog
-    uint64_t minbacklog = -1;      // Minimum backlog
-};
-
 struct entry_t {
     uint64_t ts;        // Start time
     uint32_t length;    // Original Length
@@ -49,22 +41,18 @@ struct entry_t {
 };
 
 static simstat_t simstat; 
-// static slotstat_t slotstats[262144]; // TODO assumes max queue size
 
 const struct option longOpts[] {
     {"queue-type",required_argument,NULL,'q'},
     {"length-file",required_argument,NULL,'d'},
     {"arrival-file",required_argument,NULL,'a'},
     {"comps",required_argument,NULL,'c'},
-    // {"warmup",required_argument,NULL,'w'},
-    // {"drain",no_argument,NULL,'r'},
     {"trace-file",required_argument,NULL,'t'},
     {"high-water",required_argument,NULL,'h'},
     {"low-water",required_argument,NULL,'l'},
     {"chain-latency",required_argument,NULL,'p'},
     {"block-size",required_argument,NULL,'b'},
     {"sort-latency",required_argument,NULL,'s'},
-    {"slot-stats",no_argument,NULL,'f'}
 };
 
 int main(int argc, char ** argv) {
@@ -82,13 +70,9 @@ int main(int argc, char ** argv) {
     uint64_t lowwater;
     uint32_t chainlatency;
     uint32_t blocksize;
-    double sortdelay;
-    // uint32_t sortdelay;
-    // uint64_t warmup;
-    // bool drain = false;
-    bool fullstats = false;
+    uint32_t sortdelay;
 
-    while ((c = getopt_long(argc, argv, "q:d:a:c:t:h:l:p:b:s:f", longOpts, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "q:d:a:c:t:h:l:p:b:s:", longOpts, NULL)) != -1)
 	switch (c) {
 	    case 'q':
 		type = std::string(optarg);
@@ -119,10 +103,6 @@ int main(int argc, char ** argv) {
 		break;
 	    case 's':
 		sortdelay = strtod(optarg, &end);
-		// sortdelay = strtol(optarg, &end, 10);
-		break;
-	    case 'f':
-		fullstats = true;
 		break;
 	    default:
 		abort();
@@ -140,12 +120,6 @@ int main(int argc, char ** argv) {
     std::cerr << "  - Block Size    : " << blocksize << std::endl;
     std::cerr << "  - Sort Latnecy  : " << sortdelay << std::endl;
 
-    // TODO check everything was set
-
-    std::string str("SRPT");
-
-    bool srpt = str.compare(type) == 0;
-
     struct stat lsb;
     struct stat asb;
 
@@ -157,20 +131,10 @@ int main(int argc, char ** argv) {
 
     uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
     float * marrivals    = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
-    slotstat_t * slotstats;
-    if (fullstats) {
-	slotstats = (slotstat_t *) malloc(262144 * sizeof(slotstat_t));
-	for (int i = 0; i < 262144; ++i) {
-	    slotstats[i].mintotalbacklog = -1;
-	    slotstats[i].minbacklog = -1;
-	}
+
+    if (comps >= lsb.st_size/4 || comps >= asb.st_size/4) {
+	perror("insufficient trace data");
     }
-
-// static slotstat_t slotstats[262144]; // TODO assumes max queue size
-
-    // if (comps >= lsb.st_size/4 || comps >= asb.st_size/4) {
-    // 	perror("insufficient trace data");
-    // }
 
     uint64_t next = 0;
     uint64_t ts = 0;
@@ -182,58 +146,19 @@ int main(int argc, char ** argv) {
 
     std::list<entry_t> hwqueue;
     std::list<entry_t> swqueue;
-    // std::queue<entry_t> swsort;
+    std::queue<pair<uint64_t, entry_t>> pending;
 
     uint64_t next_event = 0;
-
     uint64_t sort = 0;
 
     // Iterate through events until we reach the requisite number of completitions
-    // for (;simstat.compcount < comps;) {
-    for (;simstat.compcount < comps || (simstat.compcount >= comps && (hwqueue.size() != 0 || swqueue.size() != 0));) {
+    for (;simstat.compcount < comps || hwqueue.empty() || swqueue.empty();) {
 
 	// Determine if we have reached a new maximum occupancy
 	if (hwqueue.size() + swqueue.size() > simstat.max) {
 	    simstat.max = hwqueue.size() + swqueue.size();
 	}
 
-	if (fullstats) {
-	    
-	auto it = hwqueue.begin();
-
-	uint64_t mass = 0;
-	for (int i = 0; i < hwqueue.size(); ++i) {
-	    if (i == 0) {
-		// TODO check this logic
-		if (next_event % 2 == 1) {
-		    mass = ((*it).remaining - (next_event/2)) * next_event - next_event;
-		} else {
-		    mass = (((*it).remaining - (next_event/2))) * next_event;
-		}
-
-		slotstats[0].validcycles += next_event;
-		slotstats[0].totalbacklog += mass;
-		slotstats[0].backlog += mass;
-	    } else {
-		mass += (*it).remaining * next_event;
-		slotstats[i].validcycles += next_event;
-		slotstats[i].totalbacklog += mass;
-		slotstats[i].backlog += (*it).remaining * next_event;
-	    }
-
-
-	    if (slotstats[i].minbacklog > (*it).remaining) {
-		slotstats[i].minbacklog = (*it).remaining;
-	    }
-
-	    if (slotstats[i].mintotalbacklog > mass) {
-		slotstats[i].mintotalbacklog = mass;
-	    }
-
-	    it++;
-	}
-	}
-	
 	// If the small queue is not empty, decrement the head or pop it
 	if (!hwqueue.empty()) {
 	    entry_t head = hwqueue.front();
@@ -246,18 +171,19 @@ int main(int argc, char ** argv) {
 		simstat.events++;
 		simstat.compsum += (ts - head.ts);
 		simstat.compcount++;
+
+		// If we have reached the required # completitons, disable arrivals
+		if (simstat.compcount == comps) arrival = -1;
 	    }
 	}
 
 	// If the next arrival time is before or during this current timestep then add it to the queue
-	while (arrival <= ts && simstat.compcount < comps) {
-	// while (arrival <= ts) {
+	while (arrival <= ts) {
 	    entry_t ins = entry_t{ts, length, length};
 
 	    auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
 	    hwqueue.insert(it, ins);
 	    simstat.events++;
-
 
 	    // Move to the next arrival and length
 	    arrival += marrivals[next];
@@ -284,57 +210,27 @@ int main(int argc, char ** argv) {
 	    simstat.highwater++;
 	    uint32_t rem = blocksize;
 	    while (!hwqueue.empty() && rem--) {
+		uint64_t ready = ts + sortdelay * log2(pending.size() + swqueue.size());
 		entry_t tail = hwqueue.back();
-		// Vary the accuracy here?
-		// swqueue.push_front(tail);
-
-		auto it = std::find_if(swqueue.begin(), swqueue.end(), [tail](entry_t i) {return i.remaining > tail.remaining;});
-
-		double r = ((double) rand() / (RAND_MAX));
-
-		// std::cerr << r << std::endl;
-
-		if (r < sortdelay) {
-		    // Random insertion
-		    // double ins = ((double) rand() / (RAND_MAX)) * swqueue.size();
-		    // std::cerr << "double vs int" << std::endl;
-		    // std::cerr << ins << std::endl;
-		    // std::cerr << (int) ins << std::endl;
-		    // it = std::next(swqueue.begin(), (int) ins);
-		    it = std::next(swqueue.end());
-		} 
-
-		swqueue.insert(it, tail);
-
 		hwqueue.pop_back();
+		pending.push(pair<uint64_t, entry_t>(ready, tail));
 	    }
-
-	    // uint32_t rem = blocksize;
-	    // while (!hwqueue.empty() && rem--) {
-	    // 	entry_t tail = hwqueue.back();
-	    // 	auto it = std::find_if(swqueue.begin(), swqueue.end(), [tail](entry_t i) {return i.remaining > tail.remaining;});
-	    // 	swqueue.insert(it, tail);
-
-	    // 	hwqueue.pop_back();
-	    // }
 	}
 
-	// if (sort % sortdelay == 0 && !swsort.empty()) {
-	//     entry_t tail = swsort.front();
-	//     auto it = std::find_if(swqueue.begin(), swqueue.end(), [tail](entry_t i) {return i.remaining > tail.remaining;});
-	//     swqueue.insert(it, tail);
-	//     swsort.pop();
-	//     sort = 0;
-	// }
+	// TODO first == ts should be no different?
+	while (!pending.empty() && pending.front().first <= ts) {
+		entry_t tail = pending.front().second;
+		pending.pop();
+		auto it = std::find_if(swqueue.begin(), swqueue.end(), [tail](entry_t i) {return i.remaining > tail.remaining;});
+		swqueue.insert(it, tail);
+	}
 
 	// Determine the number of comps till the next event
-	// Hacky
-	if (simstat.compcount >= comps) {
-	    next_event = hwqueue.front().remaining;
-	} else {
-	    next_event = min((uint64_t) ((!hwqueue.empty()) ? hwqueue.front().remaining : -1), ((uint64_t) arrival + 1) - ts);
-	}
-
+	next_event = min({
+		(uint64_t) (!hwqueue.empty() ? hwqueue.front().remaining : -1),
+		(uint64_t) (arrival + 1 - ts),
+		(uint64_t) ((!pending.empty() ? pending.front().first : -1) - ts)
+	    });
 
 	// Move the timestep to the next event
 	ts += next_event;
@@ -352,7 +248,6 @@ int main(int argc, char ** argv) {
     string slotstatroot = tfile;
     int fslotstat = open(slotstatroot.append(".slotstats").c_str(), O_RDWR | O_CREAT, 0644);
     write(fslotstat, &simstat, sizeof(simstat_t));
-    if (fullstats) write(fslotstat, slotstats, 262144 * sizeof(slotstat_t));
     close(fslotstat);
 
     close(flength);

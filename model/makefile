@@ -16,6 +16,9 @@ distgen:
 simulator:
 	g++ simulator.cc -o simulator
 
+sim_pifo_logn:
+	g++ -std=c++11 sim_pifo_logn.cc -o sim_pifo_logn 
+
 # %.trace: %.arrival simulator
 # 	- mkdir traces
 # 	for util in $(UTILS); do \
@@ -28,14 +31,21 @@ simulator:
 queueprof: clean simulator distgen
 	./queueprof.sh
 
-queuebisect: clean simulator distgen
-	./queuebisect.sh
+# queuebisect: clean simulator distgen
+# 	./queuebisect.sh
 
-queuestress: clean simulator distgen
-	./queuestress.sh
+# queuestress: clean simulator distgen
+# 	./queuestress.sh
+
+lomaxprof: clean simulator distgen
+	./lomaxprof.sh
+
+
+lomaxpareto: clean simulator distgen
+	./lomaxpareto.sh
 
 clean:
 	rm -rf simulator
 	rm -rf distgen
-# rm -rf dists/*
+#  rm -rf dists/*
 	rm -rf traces/*
