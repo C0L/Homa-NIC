@@ -133,7 +133,7 @@ if __name__ == '__main__':
                         # stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
                         
         wk = int(re.findall(r'\d+', workload)[0])-1
-        axs.plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util))
+        axs.plot(stripped['hw'], stripped['sl'], color=c, label=str(util))
                         
         # maxs = []
         #                 
@@ -150,6 +150,9 @@ if __name__ == '__main__':
     axs.set_xlabel("Small Queue Size")
     axs.set_ylabel("Large Queue Sorting Accuracy")
     axs.set_ylim(axs.get_ylim()[::-1])
+    axs.set_yticks([1.0, 0.8, 0.6, 0.4, 0.2, 0.0])
+    axs.set_yticklabels([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+
 
     # for i in range(5):
     #     axs[i].text(.05, .05, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
@@ -168,7 +171,7 @@ if __name__ == '__main__':
             newHandles.append(handle)
 
     axs.legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.1),
-                  fancybox=False, shadow=False, ncol=2, title='Utilization')
+                  fancybox=False, shadow=False, ncol=2, title='Tail Index')
 
     plt.savefig(args.outfile, bbox_inches="tight")
 

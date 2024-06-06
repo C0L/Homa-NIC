@@ -16,6 +16,7 @@ distgen:
 simulator:
 	g++ simulator.cc -o simulator
 
+.PHONY: sim_pifo_logn
 sim_pifo_logn:
 	g++ -std=c++11 sim_pifo_logn.cc -o sim_pifo_logn 
 
@@ -44,6 +45,8 @@ lomaxprof: clean simulator distgen
 lomaxpareto: clean simulator distgen
 	./lomaxpareto.sh
 
+pareto_efficient_lomax_pifo_logn: sim_pifo_logn distgen
+	./pareto_efficient_lomax_pifo_logn.sh
 clean:
 	rm -rf simulator
 	rm -rf distgen

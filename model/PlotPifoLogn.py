@@ -127,7 +127,7 @@ if __name__ == '__main__':
             # print(mctorig)
 
             # origs.loc[len(origs)] = orig
-            if (mctgold/mctorig >= .8):
+            if (mctgold/mctorig >= .99):
                 origs.loc[len(origs)] = orig
                 #else:
                 #    print("toss")

@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <limits>
+
 using namespace std;
 
 struct simstat_t {
@@ -102,7 +104,7 @@ int main(int argc, char ** argv) {
 		blocksize = strtol(optarg, &end, 10);
 		break;
 	    case 's':
-		sortdelay = strtod(optarg, &end);
+		sortdelay = strtol(optarg, &end, 10);
 		break;
 	    default:
 		abort();
@@ -118,7 +120,7 @@ int main(int argc, char ** argv) {
     std::cerr << "  - Low Water     : " << lowwater << std::endl;
     std::cerr << "  - Chain Latency : " << chainlatency << std::endl;
     std::cerr << "  - Block Size    : " << blocksize << std::endl;
-    std::cerr << "  - Sort Latnecy  : " << sortdelay << std::endl;
+    std::cerr << "  - Sort Latenecy  : " << sortdelay << std::endl;
 
     struct stat lsb;
     struct stat asb;
@@ -152,7 +154,7 @@ int main(int argc, char ** argv) {
     uint64_t sort = 0;
 
     // Iterate through events until we reach the requisite number of completitions
-    for (;simstat.compcount < comps || hwqueue.empty() || swqueue.empty();) {
+    for (;simstat.compcount < comps || !hwqueue.empty() || !swqueue.empty() || !pending.empty();) {
 
 	// Determine if we have reached a new maximum occupancy
 	if (hwqueue.size() + swqueue.size() > simstat.max) {
@@ -172,8 +174,10 @@ int main(int argc, char ** argv) {
 		simstat.compsum += (ts - head.ts);
 		simstat.compcount++;
 
-		// If we have reached the required # completitons, disable arrivals
-		if (simstat.compcount == comps) arrival = -1;
+		if (simstat.compcount == comps)  {
+		    std::cerr << "COMPLETE\n";
+		    arrival = std::numeric_limits<double>::max();    // TODO THIS does not disable arrival!!!!!
+		}
 	    }
 	}
 
@@ -198,7 +202,6 @@ int main(int argc, char ** argv) {
 	    uint32_t rem = blocksize;
 	    while (!swqueue.empty() && rem--) {
 		entry_t ins = swqueue.front();
-
 		auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
 		hwqueue.insert(it, ins);
 		swqueue.pop_front();
@@ -210,15 +213,26 @@ int main(int argc, char ** argv) {
 	    simstat.highwater++;
 	    uint32_t rem = blocksize;
 	    while (!hwqueue.empty() && rem--) {
-		uint64_t ready = ts + sortdelay * log2(pending.size() + swqueue.size());
+		uint64_t ready = ts + sortdelay * ((uint64_t) log2(pending.size() + swqueue.size()));
+
+		if (ready != ts) std::cerr << "FAILURE" << std::endl;
+
+		// std::cerr << "check" << std::endl;
+
+	
 		entry_t tail = hwqueue.back();
 		hwqueue.pop_back();
 		pending.push(pair<uint64_t, entry_t>(ready, tail));
+		bool test =  !pending.empty() && pending.front().first <= ts;
+
+		// std::cerr << test << std::endl;
+
 	    }
 	}
 
 	// TODO first == ts should be no different?
 	while (!pending.empty() && pending.front().first <= ts) {
+	    std::cerr << "NOW ACTIVE \n\n\n\n\n\n\n\n\n" << std::endl;
 		entry_t tail = pending.front().second;
 		pending.pop();
 		auto it = std::find_if(swqueue.begin(), swqueue.end(), [tail](entry_t i) {return i.remaining > tail.remaining;});
@@ -229,7 +243,7 @@ int main(int argc, char ** argv) {
 	next_event = min({
 		(uint64_t) (!hwqueue.empty() ? hwqueue.front().remaining : -1),
 		(uint64_t) (arrival + 1 - ts),
-		(uint64_t) ((!pending.empty() ? pending.front().first : -1) - ts)
+		(uint64_t) (!pending.empty() ? pending.front().first - ts : -1)
 	    });
 
 	// Move the timestep to the next event
