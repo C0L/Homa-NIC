@@ -4,9 +4,10 @@ WORKLOADS=( w1 )
 # WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( lomax )
 
-UTILS=( 1.05 1.1 1.2 1.3 )
+UTILS=( 1.05 )
+# UTILS=( 1.05 1.1 1.2 1.3 )
 
-COMPS=100000
+COMPS=1000000
 CYCLES=10000000
 
 DISTDIR=pareto_efficient_lomax_pifo_logn_dists
@@ -35,55 +36,43 @@ for wk in "${WORKLOADS[@]}"; do
 		       -s ${CYCLES}
 	fi
 
-	for j in $(seq 0 500 10000); do
+	for j in $(seq 0 100 10000); do
 	    sl=$j
-	    bs=16
+	    bs=8
 	    cl=0
 
 	    hw=-1
 	    lw=-1
 
-	    # ./sim_pifo_logn --queue-type SRPT                                                    \
-	    # 		--length-file ${DISTDIR}/${wk}_lengths                               \
-	    # 		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals          \
-	    # 		--comps ${COMPS}                                                     \
-	    # 		--trace-file ${TRACEDIR}/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl} \
-	    # 		--high-water ${hw}                                                   \
-	    # 		--low-water  ${lw}                                                   \
-	    # 		--chain-latency ${cl}                                                \
-	    # 		--block-size ${bs}                                                   \
-	    # 		--sort-latency ${sl} &
-
-	    # ./sim_pifo_logn --queue-type SRPT                                                    \
-	    # 		--length-file dists/${wk}_lengths                                    \
-	    # 		--arrival-file dists/${wk}_${util}_${arrival}_arrivals      \
-	    # 		--comps ${COMPS}                                                     \
-	    # 		--trace-file ${TRACEDIR}/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl} \
-	    # 		--high-water ${hw}                                                   \
-	    # 		--low-water  ${lw}                                                   \
-	    # 		--chain-latency ${cl}                                                \
-	    # 		--block-size ${bs}                                                   \
-	    # 		--sort-latency ${sl} &
-
-	    for i in {10..2048}; do
-		hw=$(( $i*4))
-		lw=$(( $i*4 - 32 ))
-	    # for i in {1..256}; do
-	    # 	hw=$(( $i*8 ))
-	    # 	lw=$(( $i*8 - 32 ))
-
-	    	./sim_pifo_logn --queue-type SRPT                                                \
-	    		--length-file dists/${wk}_lengths                                    \
-	    		--arrival-file dists/${wk}_${util}_${arrival}_arrivals      \
+	    ./sim_pifo_logn --queue-type SRPT                                                    \
+	    		--length-file ${DISTDIR}/${wk}_lengths                               \
+	    		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals          \
 	    		--comps ${COMPS}                                                     \
 	    		--trace-file ${TRACEDIR}/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl} \
 	    		--high-water ${hw}                                                   \
 	    		--low-water  ${lw}                                                   \
 	    		--chain-latency ${cl}                                                \
 	    		--block-size ${bs}                                                   \
-	    		--sort-latency ${sl}
+	    		--sort-latency ${sl} &
+	    
 
-		exit
+	    for i in {4..1024}; do
+	    # 	hw=$(( $i*32))
+	    # 	lw=$(( $i*32 - 32 ))
+	    # for i in {..256}; do
+		hw=$(( $i*8 ))
+		lw=$(( $i*8 - 16 ))
+
+	    	./sim_pifo_logn --queue-type SRPT                                                \
+	    		--length-file ${DISTDIR}/${wk}_lengths                                    \
+	    		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals      \
+	    		--comps ${COMPS}                                                     \
+	    		--trace-file ${TRACEDIR}/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl} \
+	    		--high-water ${hw}                                                   \
+	    		--low-water  ${lw}                                                   \
+	    		--chain-latency ${cl}                                                \
+	    		--block-size ${bs}                                                   \
+	    		--sort-latency ${sl} &
 
 		if (( $i % 32 == 0 )) ; then
 		    wait

@@ -127,7 +127,8 @@ if __name__ == '__main__':
             # print(mctorig)
 
             # origs.loc[len(origs)] = orig
-            if (mctgold/mctorig >= .99):
+            # if (mctgold/mctorig >= .99 and mctgold/mctorig <= 1.01):
+            if (mctgold/mctorig >= .999):
                 origs.loc[len(origs)] = orig
                 #else:
                 #    print("toss")
@@ -138,12 +139,12 @@ if __name__ == '__main__':
 
         for i0, orig in origs.iterrows():
             stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
-        #     stripped = stripped.loc[((stripped['hw'] <= orig['hw']) & (stripped['sl'] == orig['sl'])) |  (stripped['sl'] != orig['sl'])]
+        # stripped = stripped.loc[((stripped['hw'] <= orig['hw']) & (stripped['sl'] == orig['sl'])) |  (stripped['sl'] != orig['sl'])]
         # stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
 
         for i, orig in stripped.iterrows():
+            print(orig)
             mctorig = (orig['stat']['compsum'] / orig['stat']['compcount'])[0]
-
             print(mctorig)
 
         wk = int(re.findall(r'\d+', workload)[0])-1
@@ -163,7 +164,7 @@ if __name__ == '__main__':
     
     axs.text(.05, .05, workload, c='r', horizontalalignment='center', verticalalignment='center', transform = axs.transAxes)
     axs.set_xlabel("Small Queue Size")
-    axs.set_ylabel("Large Queue Sorting Accuracy")
+    axs.set_ylabel("Large Queue Sorting Constant")
     # axs.set_ylim(axs.get_ylim()[::-1])
     # axs.set_yticks([1.0, 0.8, 0.6, 0.4, 0.2, 0.0])
     # axs.set_yticklabels([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])

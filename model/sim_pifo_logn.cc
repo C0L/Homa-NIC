@@ -2,6 +2,7 @@
 #include <iostream>
 #include <list>
 #include <queue>
+#include <set>
 #include <fstream>
 
 #include <stdio.h>
@@ -32,7 +33,7 @@ struct simstat_t {
     uint64_t max;       // Maximum occupancy of the queue
     uint64_t events;    // # of events (push/pop)
     uint64_t compcount; // # of completions
-    uint64_t compsum;   // Some of MCTs
+    uint64_t compsum;   // Sum of MCTs
     uint64_t cycles;    // Total number of simulation cycles
 };
 
@@ -40,6 +41,12 @@ struct entry_t {
     uint64_t ts;        // Start time
     uint32_t length;    // Original Length
     uint32_t remaining; // Remaining length
+};
+
+struct Compare {
+    bool operator()(const entry_t & l, const entry_t & r) const {
+        return l.remaining <= r.remaining;
+    }
 };
 
 static simstat_t simstat; 
@@ -120,7 +127,7 @@ int main(int argc, char ** argv) {
     std::cerr << "  - Low Water     : " << lowwater << std::endl;
     std::cerr << "  - Chain Latency : " << chainlatency << std::endl;
     std::cerr << "  - Block Size    : " << blocksize << std::endl;
-    std::cerr << "  - Sort Latenecy  : " << sortdelay << std::endl;
+    std::cerr << "  - Sort Latency  : " << sortdelay << std::endl;
 
     struct stat lsb;
     struct stat asb;
@@ -146,8 +153,8 @@ int main(int argc, char ** argv) {
 
     next++;
 
-    std::list<entry_t> hwqueue;
-    std::list<entry_t> swqueue;
+    std::multiset<entry_t, Compare> hwqueue;
+    std::multiset<entry_t, Compare> swqueue;
     std::queue<pair<uint64_t, entry_t>> pending;
 
     uint64_t next_event = 0;
@@ -157,26 +164,25 @@ int main(int argc, char ** argv) {
     for (;simstat.compcount < comps || !hwqueue.empty() || !swqueue.empty() || !pending.empty();) {
 
 	// Determine if we have reached a new maximum occupancy
-	if (hwqueue.size() + swqueue.size() > simstat.max) {
-	    simstat.max = hwqueue.size() + swqueue.size();
-	}
+	// if (hwqueue.size() + swqueue.size() > simstat.max) {
+	//     simstat.max = hwqueue.size() + swqueue.size();
+	// }
 
 	// If the small queue is not empty, decrement the head or pop it
 	if (!hwqueue.empty()) {
-	    entry_t head = hwqueue.front();
+	    entry_t head = *hwqueue.begin(); 
+	    hwqueue.erase(hwqueue.begin());
 	    head.remaining -= next_event;
-	    hwqueue.pop_front();
-	    
+
 	    if (head.remaining != 0) {
-		hwqueue.push_front(head);
+		hwqueue.insert(head);
 	    } else {
 		simstat.events++;
 		simstat.compsum += (ts - head.ts);
 		simstat.compcount++;
 
 		if (simstat.compcount == comps)  {
-		    std::cerr << "COMPLETE\n";
-		    arrival = std::numeric_limits<double>::max();    // TODO THIS does not disable arrival!!!!!
+		    arrival = std::numeric_limits<double>::max();
 		}
 	    }
 	}
@@ -185,8 +191,8 @@ int main(int argc, char ** argv) {
 	while (arrival <= ts) {
 	    entry_t ins = entry_t{ts, length, length};
 
-	    auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
-	    hwqueue.insert(it, ins);
+	    hwqueue.insert(ins);
+
 	    simstat.events++;
 
 	    // Move to the next arrival and length
@@ -201,10 +207,9 @@ int main(int argc, char ** argv) {
 	    simstat.lowwater++;
 	    uint32_t rem = blocksize;
 	    while (!swqueue.empty() && rem--) {
-		entry_t ins = swqueue.front();
-		auto it = std::find_if(hwqueue.begin(), hwqueue.end(), [ins](entry_t i) {return i.remaining > ins.remaining;});
-		hwqueue.insert(it, ins);
-		swqueue.pop_front();
+		entry_t ins = *swqueue.begin();
+		swqueue.erase(swqueue.begin());
+		hwqueue.insert(ins);
 	    }
 	}
 
@@ -213,37 +218,28 @@ int main(int argc, char ** argv) {
 	    simstat.highwater++;
 	    uint32_t rem = blocksize;
 	    while (!hwqueue.empty() && rem--) {
-		uint64_t ready = ts + sortdelay * ((uint64_t) log2(pending.size() + swqueue.size()));
+		// log2 of 0 not defined
+		uint64_t ready = ts + sortdelay * ((uint64_t) log2(pending.size() + swqueue.size() + 1));
 
-		if (ready != ts) std::cerr << "FAILURE" << std::endl;
-
-		// std::cerr << "check" << std::endl;
-
-	
-		entry_t tail = hwqueue.back();
-		hwqueue.pop_back();
+		entry_t tail = *std::prev(hwqueue.end());
+		hwqueue.erase(std::prev(hwqueue.end()));
 		pending.push(pair<uint64_t, entry_t>(ready, tail));
-		bool test =  !pending.empty() && pending.front().first <= ts;
-
-		// std::cerr << test << std::endl;
-
 	    }
 	}
 
 	// TODO first == ts should be no different?
 	while (!pending.empty() && pending.front().first <= ts) {
-	    std::cerr << "NOW ACTIVE \n\n\n\n\n\n\n\n\n" << std::endl;
-		entry_t tail = pending.front().second;
-		pending.pop();
-		auto it = std::find_if(swqueue.begin(), swqueue.end(), [tail](entry_t i) {return i.remaining > tail.remaining;});
-		swqueue.insert(it, tail);
+	    entry_t tail = pending.front().second;
+	    pending.pop();
+	    swqueue.insert(tail);
 	}
 
+	// entry_t head = *hwqueue.begin();
 	// Determine the number of comps till the next event
 	next_event = min({
-		(uint64_t) (!hwqueue.empty() ? hwqueue.front().remaining : -1),
-		(uint64_t) (arrival + 1 - ts),
-		(uint64_t) (!pending.empty() ? pending.front().first - ts : -1)
+		(!hwqueue.empty() ? (uint64_t) (*(hwqueue.begin())).remaining : (uint64_t) -1),
+		(simstat.compcount < comps ? (uint64_t) (arrival + 1 - ts) : (uint64_t) -1), // TODO check
+		(!pending.empty() ? (uint64_t) (pending.front().first - ts) : (uint64_t) -1)
 	    });
 
 	// Move the timestep to the next event
@@ -253,9 +249,11 @@ int main(int argc, char ** argv) {
     simstat.cycles = ts;
 
     std::cerr << "Total Cmpl: " << simstat.compcount << std::endl;
+    std::cerr << "Comp Sum: " << simstat.compsum << std::endl;
     std::cerr << "Mean Cmpl: " << simstat.compsum / simstat.compcount << std::endl;
     std::cerr << "Highwaters: " << simstat.highwater << std::endl;
     std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
+    std::cerr << "Cycles: " << simstat.cycles << std::endl;
     std::cerr << "Final Size: " << hwqueue.size() << std::endl;
     std::cerr << "Final Size: " << swqueue.size() << std::endl;
 
@@ -263,6 +261,9 @@ int main(int argc, char ** argv) {
     int fslotstat = open(slotstatroot.append(".slotstats").c_str(), O_RDWR | O_CREAT, 0644);
     write(fslotstat, &simstat, sizeof(simstat_t));
     close(fslotstat);
+
+    // munmap(mlengths, lsb.st_size);
+    // munmap(marrivals, asb.st_size);
 
     close(flength);
     close(farrival);
