@@ -8,8 +8,8 @@ UTILS=( 1.05 1.1 1.2 1.3 )
 COMPS=1000000
 CYCLES=10000000
 
-DISTDIR=pareto_efficient_lomax_pifo_logn_dists
-TRACEDIR=pareto_efficient_lomax_pifo_logn_traces
+DISTDIR=pareto_efficient_lomax_pifo_lin_dists
+TRACEDIR=pareto_efficient_lomax_pifo_lin_traces
 
 mkdir $DISTDIR  | :
 mkdir $TRACEDIR | :
@@ -42,7 +42,7 @@ for wk in "${WORKLOADS[@]}"; do
 	    hw=-1
 	    lw=-1
 
-	    ./sim_pifo_logn --queue-type SRPT                                                    \
+	    ./sim_pifo_lin --queue-type SRPT                                                    \
 	    		--length-file ${DISTDIR}/${wk}_lengths                               \
 	    		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals          \
 	    		--comps ${COMPS}                                                     \
@@ -54,10 +54,10 @@ for wk in "${WORKLOADS[@]}"; do
 	    		--sort-latency ${sl} &
 
 	    for i in {0..64}; do
-		hw=$(( $i*128 + 32 ))
-		lw=$(( $i*128 - 16 + 32))
+		hw=$(( $i*1024 + 32 ))
+		lw=$(( $i*1024 - 16 + 32))
 
-	    	./sim_pifo_logn --queue-type SRPT                                                \
+	    	./sim_pifo_lin --queue-type SRPT                                                \
 	    		--length-file ${DISTDIR}/${wk}_lengths                                    \
 	    		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals      \
 	    		--comps ${COMPS}                                                     \
