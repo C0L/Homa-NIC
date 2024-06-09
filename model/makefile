@@ -15,6 +15,10 @@ sim_pifo_logn:
 sim_pifo_lin:
 	g++ -std=c++11 sim_pifo_lin.cc -o sim_pifo_lin
 
+.PHONY: sim_ideal
+sim_ideal:
+	g++ -std=c++11 sim_ideal.cc -o sim_ideal
+
 queueprof: clean simulator distgen
 	./queueprof.sh
 
@@ -24,12 +28,8 @@ queueprof: clean simulator distgen
 # queuestress: clean simulator distgen
 # 	./queuestress.sh
 
-lomaxprof: clean simulator distgen
-	./lomaxprof.sh
-
-
-lomaxpareto: clean simulator distgen
-	./lomaxpareto.sh
+lomax_slot_profile: sim_ideal distgen
+	./lomax_slot_profile.sh
 
 pareto_efficient_lomax_pifo_logn: sim_pifo_logn distgen
 	./pareto_efficient_lomax_pifo_logn.sh

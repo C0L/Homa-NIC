@@ -158,15 +158,14 @@ int main(int argc, char ** argv) {
     std::queue<pair<uint64_t, entry_t>> pending;
 
     uint64_t next_event = 0;
-    uint64_t sort = 0;
 
     // Iterate through events until we reach the requisite number of completitions
     for (;simstat.compcount < comps || !hwqueue.empty() || !swqueue.empty() || !pending.empty();) {
 
 	// Determine if we have reached a new maximum occupancy
-	// if (hwqueue.size() + swqueue.size() > simstat.max) {
-	//     simstat.max = hwqueue.size() + swqueue.size();
-	// }
+	if (hwqueue.size() + swqueue.size() > simstat.max) {
+	    simstat.max = hwqueue.size() + swqueue.size();
+	}
 
 	// If the small queue is not empty, decrement the head or pop it
 	if (!hwqueue.empty()) {
@@ -255,6 +254,7 @@ int main(int argc, char ** argv) {
     std::cerr << "Cycles: " << simstat.cycles << std::endl;
     std::cerr << "Final Size: " << hwqueue.size() << std::endl;
     std::cerr << "Final Size: " << swqueue.size() << std::endl;
+    std::cerr << "Max Size: " << simstat.max << std::endl;
 
     string slotstatroot = tfile;
     int fslotstat = open(slotstatroot.append(".slotstats").c_str(), O_RDWR | O_CREAT, 0644);

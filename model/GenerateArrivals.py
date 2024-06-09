@@ -62,6 +62,9 @@ if __name__ == '__main__':
 
         print("Sampled Arrival: " + str(np.mean(ts)))
 
+    elif args.dist == "normal":
+        random.normal(loc=0.0, scale=1000.0, size=int(args.samples))
+
     print("Sanity Check: Average Message Length/Average Inter Arrival Time = " + str(mst / np.mean(ts)))
 
     ts.tofile(args.arrival)

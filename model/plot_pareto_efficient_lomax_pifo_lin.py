@@ -26,7 +26,6 @@ def parsefn(fn):
         'bs'       : int(fsplit[4]),
         'cl'       : float(fsplit[5]),
         'sl'       : float(fsplit[6]),
-        # 'burst'    : int(fsplit[7]),
         'stat'     : np.fromfile(fn, dtype=simstat_t, count=1)
     }
 
@@ -110,7 +109,7 @@ if __name__ == '__main__':
 
             # print(mctorig)
 
-            if (mctgold/mctorig >= .99):
+            if (mctgold/mctorig >= .8):
                 origs.loc[len(origs)] = orig
 
         stripped = origs.copy()

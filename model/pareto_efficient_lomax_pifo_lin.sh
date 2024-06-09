@@ -3,10 +3,10 @@
 WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( lomax )
 
-UTILS=( 1.05 1.1 1.2 1.3 )
-
-COMPS=1000000
-CYCLES=10000000
+UTILS=( 1.115 )
+      
+COMPS=10000000
+CYCLES=100000000
 
 DISTDIR=pareto_efficient_lomax_pifo_lin_dists
 TRACEDIR=pareto_efficient_lomax_pifo_lin_traces
