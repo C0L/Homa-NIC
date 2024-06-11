@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
     for util in args.util:
         print(util)
-        util = float(util)
+
 
         df = pd.DataFrame({
             'workload' : [],
@@ -79,10 +79,17 @@ if __name__ == '__main__':
             'stat'     : []
         })
 
+        print(args.traces[0])
         traces = glob.glob(args.traces[0] + f'{workload}*{util}*.slotstats')
+
+
+        util = float(util)
+        print(traces)
 
         for trace in traces:
             df.loc[len(df)] = parsefn(trace)
+
+        print(df)
 
         samples = df.loc[(df['workload'] == workload)
                          & (df['hw'] != -1)
@@ -149,6 +156,6 @@ if __name__ == '__main__':
             newHandles.append(handle)
 
     axs.legend(newHandles, newLabels, loc='upper center', bbox_to_anchor=(0.5, -0.1),
-               fancybox=False, shadow=False, ncol=2, title='Tail Index')
+               fancybox=False, shadow=False, ncol=2, title='Utilization')
 
     plt.savefig(args.outfile, bbox_inches="tight")

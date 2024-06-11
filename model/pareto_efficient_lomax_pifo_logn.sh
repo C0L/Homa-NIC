@@ -3,9 +3,9 @@
 WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( lomax )
 
-UTILS=( 1.115 )
-
-COMPS=10000000
+UTILS=( .8 )
+      
+COMPS=1000000
 CYCLES=100000000
 
 DISTDIR=pareto_efficient_lomax_pifo_logn_dists
@@ -34,7 +34,9 @@ for wk in "${WORKLOADS[@]}"; do
 		       -s ${CYCLES}
 	fi
 
-	for j in $(seq 0 500 20000); do
+	# for j in $(seq 0 500 20000); do
+	# for j in $(seq 0 10 2000); do
+	for j in $(seq 0 100 2000); do
 	    sl=$j
 	    bs=8
 	    cl=0
@@ -53,9 +55,14 @@ for wk in "${WORKLOADS[@]}"; do
 	    		--block-size ${bs}                                                   \
 	    		--sort-latency ${sl} &
 
-	    for i in {0..64}; do
-		hw=$(( $i*128 + 32 ))
-		lw=$(( $i*128 - 16 + 32))
+	    # for i in {0..64}; do
+	    for i in {0..1024}; do
+		# hw=$(( $i*128 + 32 ))
+		# lw=$(( $i*128 - 16 + 32))
+
+		hw=$(( $i*64 + 32 ))
+		lw=$(( $i*64 - 16 + 32))
+
 
 	    	./sim_pifo_logn --queue-type SRPT                                                \
 	    		--length-file ${DISTDIR}/${wk}_lengths                                    \

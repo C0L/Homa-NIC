@@ -39,13 +39,18 @@ int main(int argc, char**argv) {
 
     // uint32_t * lens = (uint32_t*) malloc(atol(argv[2]) * sizeof(uint32_t));
     // std::cerr << atol(argv[2]) << std::endl;
-    for (size_t i = 0; i < atol(argv[2]); i++) {
+    uint64_t lim = atol(argv[2]);
+    uint32_t lens[16384];
+    for (uint64_t i = 0; i < lim; i++) {
+	// Flush?
+	if (i != 0 && (i % 16384 == 0 || i == lim-1)) {
+	    write(lfile, lens, 16384 * sizeof(uint32_t));
+	}
+
 	float sample = generator(rand_gen);
 	uint32_t length = ceil(sample / 64.0);
-	// lens[i] = length;
-	write(lfile, &length, sizeof(uint32_t));
+	lens[i % 16384] = length;
     }
-    std::cerr << "writing..." << std::endl;
-    // write(lfile, lens, atol(argv[2]) * sizeof(uint32_t));
+
     close(lfile);
 }

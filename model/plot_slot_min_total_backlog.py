@@ -72,47 +72,18 @@ if __name__ == '__main__':
 
         validcycles = slotstats['validcycles']
 
-        axs[wk].plot((validcycles[validcycles != 0]/simstats['cycles']), label=cfg['util'])
-
-
-
-    # for trace in args.traces:
-    #     cfg = parsefn(trace)
-    #     print(cfg)
-
-    #     wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
-
-    #     simstats  = np.fromfile(trace, dtype=simstat_t, count=1)
-    #     slotstats = np.fromfile(trace, dtype=slotstat_t, count=-1, offset=simstats.nbytes)
-
-    #     mintotalbacklog = slotstats['mintotalbacklog'].astype(np.uint64)
-    #     minbacklog = slotstats['minbacklog'].astype(np.uint64)
-    #     np.set_printoptions(threshold=sys.maxsize)
-
-    #     validcycles = slotstats['validcycles']
-    #     backlog = slotstats['backlog']
-    #     totalbacklog = slotstats['totalbacklog']
-
-    #     axs[wk, 0].plot((totalbacklog[validcycles != 0]/validcycles[validcycles != 0]), label=cfg['util'])
-    #     axs[wk, 1].plot((backlog[validcycles != 0]/validcycles[validcycles != 0]), label=cfg['util'])
-
-    #     axs[wk, 2].plot(mintotalbacklog[mintotalbacklog != 18446744073709551615], label=cfg['util'])
-    #     axs[wk, 3].plot(minbacklog[minbacklog != 18446744073709551615], label=cfg['util'])
-
-    #     validcycles = slotstats['validcycles']
-
-    #     axs[wk, 4].plot((validcycles[validcycles != 0]/simstats['cycles']), label=cfg['util'])
+        axs[wk].plot(mintotalbacklog[mintotalbacklog != 18446744073709551615], label=cfg['util'])
 
     for i in range(5):
         axs[i].text(.05, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
         axs[i].set_xlabel("Slot Index")
-        axs[i].set_ylabel("Ratio Occupied")
+        axs[i].set_ylabel("Min. Total Backlog")
+
 
     handles, labels = axs[0].get_legend_handles_labels()
     axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.5),
                      fancybox=False, shadow=False, ncol=2)
 
-    axs[4].set_title('Ratio Slot Occupied')
 
     # TODO 1MB limit
 

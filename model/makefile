@@ -22,14 +22,11 @@ sim_ideal:
 queueprof: clean simulator distgen
 	./queueprof.sh
 
-# queuebisect: clean simulator distgen
-# 	./queuebisect.sh
-
-# queuestress: clean simulator distgen
-# 	./queuestress.sh
-
 lomax_slot_profile: sim_ideal distgen
 	./lomax_slot_profile.sh
+
+poisson_slot_profile: sim_ideal distgen
+	./poisson_slot_profile.sh
 
 pareto_efficient_lomax_pifo_logn: sim_pifo_logn distgen
 	./pareto_efficient_lomax_pifo_logn.sh

@@ -67,8 +67,8 @@ if __name__ == '__main__':
         # print(slotstats[slotstats['validcycles'] != 0]['validcycles'])
         # print(simstats['cycles'])
 
-        axs[wk, 0].plot((slotstats['totalbacklog']/slotstats['validcycles']), 'o', label=cfg['util'])
-        axs[wk, 1].plot((slotstats['backlog']/slotstats['validcycles']), 'o', label=cfg['util'])
+        axs[wk, 0].plot((slotstats['totalbacklog']/slotstats['cycles']), 'o', label=cfg['util'])
+        axs[wk, 1].plot((slotstats['backlog']/slotstats['cycles']), 'o', label=cfg['util'])
 
         axs[wk, 2].plot(mintotalbacklog[mintotalbacklog != 18446744073709551615], 'o', label=cfg['util'])
         axs[wk, 3].plot(minbacklog[minbacklog != 18446744073709551615], 'o', label=cfg['util'])

@@ -3,9 +3,9 @@
 WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( lomax )
 
-UTILS=( 1.115 )
+UTILS=( .8 )
       
-COMPS=10000000
+COMPS=1000000
 CYCLES=100000000
 
 DISTDIR=pareto_efficient_lomax_pifo_lin_dists
@@ -34,7 +34,8 @@ for wk in "${WORKLOADS[@]}"; do
 		       -s ${CYCLES}
 	fi
 
-	for j in $(seq 0 500 20000); do
+	# for j in $(seq 0 500 20000); do
+	for j in $(seq 0 100 2000); do
 	    sl=$j
 	    bs=8
 	    cl=0
@@ -42,7 +43,7 @@ for wk in "${WORKLOADS[@]}"; do
 	    hw=-1
 	    lw=-1
 
-	    ./sim_pifo_lin --queue-type SRPT                                                    \
+	    ./sim_pifo_lin --queue-type SRPT                                                 \
 	    		--length-file ${DISTDIR}/${wk}_lengths                               \
 	    		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals          \
 	    		--comps ${COMPS}                                                     \
@@ -53,13 +54,13 @@ for wk in "${WORKLOADS[@]}"; do
 	    		--block-size ${bs}                                                   \
 	    		--sort-latency ${sl} &
 
-	    for i in {0..64}; do
-		hw=$(( $i*1024 + 32 ))
-		lw=$(( $i*1024 - 16 + 32))
+	    for i in {0..1024}; do
+		hw=$(( $i*64 + 32 ))
+		lw=$(( $i*64 - 16 + 32))
 
-	    	./sim_pifo_lin --queue-type SRPT                                                \
-	    		--length-file ${DISTDIR}/${wk}_lengths                                    \
-	    		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals      \
+	    	./sim_pifo_lin --queue-type SRPT                                             \
+	    		--length-file ${DISTDIR}/${wk}_lengths                               \
+	    		--arrival-file ${DISTDIR}/${wk}_${util}_${arrival}_arrivals          \
 	    		--comps ${COMPS}                                                     \
 	    		--trace-file ${TRACEDIR}/${wk}_${util}_${hw}_${lw}_${bs}_${cl}_${sl} \
 	    		--high-water ${hw}                                                   \
