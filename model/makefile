@@ -1,3 +1,7 @@
+.PHONY: dist
+dist:
+	g++ -c dist.cc
+
 .PHONY: distgen
 distgen:
 	g++ -c dist.cc
@@ -9,15 +13,23 @@ simulator:
 
 .PHONY: sim_pifo_logn
 sim_pifo_logn:
-	g++ -std=c++11 sim_pifo_logn.cc -o sim_pifo_logn 
+	g++ -std=c++11 sim_pifo_logn.cc dist.o -o sim_pifo_logn 
 
 .PHONY: sim_pifo_lin
 sim_pifo_lin:
-	g++ -std=c++11 sim_pifo_lin.cc -o sim_pifo_lin
+	g++ -std=c++11 sim_pifo_lin.cc dist.o -o sim_pifo_lin
 
 .PHONY: sim_ideal
 sim_ideal:
 	g++ -std=c++11 sim_ideal.cc -o sim_ideal
+
+.PHONY: sim_poisson_ideal
+sim_poisson_ideal:
+	g++ -std=c++11 sim_poisson_ideal.cc dist.o -o sim_poisson_ideal
+
+.PHONY: sim_weibull_ideal
+sim_weibull_ideal:
+	g++ -std=c++11 sim_weibull_ideal.cc dist.o -o sim_weibull_ideal
 
 queueprof: clean simulator distgen
 	./queueprof.sh
@@ -25,14 +37,17 @@ queueprof: clean simulator distgen
 lomax_slot_profile: sim_ideal distgen
 	./lomax_slot_profile.sh
 
-poisson_slot_profile: sim_ideal distgen
+weibull_slot_profile: sim_weibull_ideal distgen
+	./weibull_slot_profile.sh
+
+poisson_slot_profile: dist sim_poisson_ideal 
 	./poisson_slot_profile.sh
 
-pareto_efficient_lomax_pifo_logn: sim_pifo_logn distgen
-	./pareto_efficient_lomax_pifo_logn.sh
+pareto_efficient_weibull_pifo_logn: sim_pifo_logn distgen
+	./pareto_efficient_weibull_logn.sh
 
-pareto_efficient_lomax_pifo_lin: sim_pifo_lin distgen
-	./pareto_efficient_lomax_pifo_lin.sh
+pareto_efficient_weibull_pifo_lin: sim_pifo_lin distgen
+	./pareto_efficient_weibull_pifo_lin.sh
 
 clean:
 	rm -rf simulator

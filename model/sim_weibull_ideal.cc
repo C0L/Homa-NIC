@@ -28,6 +28,8 @@
 #include <random>
 #include <iostream>
 
+#include "dist.h"
+
 using namespace std;
 
 struct simstat_t {
@@ -64,9 +66,9 @@ struct Compare {
 static simstat_t simstat; 
 
 const struct option longOpts[] {
-    {"length-file",required_argument,NULL,'d'},
-    {"arrival-file",required_argument,NULL,'a'},
+    {"workload",required_argument,NULL,'w'},
     {"comps",required_argument,NULL,'c'},
+    {"utilization",required_argument,NULL,'u'},
     {"trace-file",required_argument,NULL,'t'},
 };
 
@@ -76,24 +78,18 @@ int main(int argc, char ** argv) {
     opterr = 0;
 
     uint64_t comps;
+    double utilization;
     char * end;
-    std::string type;
-    std::string lfile;
-    std::string afile;
+    std::string wfile;
     std::string tfile;
-    uint64_t highwater;
-    uint64_t lowwater;
-    uint32_t chainlatency;
-    uint32_t blocksize;
-    double sortdelay;
 
-    while ((c = getopt_long(argc, argv, "d:a:c:t:", longOpts, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "w:u:c:t:", longOpts, NULL)) != -1)
 	switch (c) {
-	    case 'd':
-		lfile = std::string(optarg);
+	    case 'w':
+		wfile = std::string(optarg);
 		break;
-	    case 'a':
-		afile = std::string(optarg);
+	    case 'u':
+		utilization = strtod(optarg, &end);
 		break;
 	    case 'c':
 		comps = strtol(optarg, &end, 10);
@@ -106,28 +102,22 @@ int main(int argc, char ** argv) {
 	}
 
     std::cerr << "Launching Simulator:" << std::endl;
-    std::cerr << "  - Queuing Policy: " << type << std::endl;
-    std::cerr << "  - Length File   : " << lfile << std::endl;
-    std::cerr << "  - Arrival File  : " << afile << std::endl;
+    std::cerr << "  - Workload      : " << wfile << std::endl;
+    std::cerr << "  - Utilization   : " << utilization << std::endl;
     std::cerr << "  - Completions   : " << comps << std::endl;
     std::cerr << "  - Trace File    : " << tfile << std::endl;
 
-    struct stat lsb;
-    struct stat asb;
+    std::random_device seed;
+    std::mt19937 gen{seed()}; // seed the generator
+    dist_point_gen generator(wfile.c_str(), 1000000);
 
-    int flength  = open(lfile.c_str(), O_RDONLY);
-    int farrival = open(afile.c_str(), O_RDONLY);
-
-    fstat(flength, &lsb);
-    fstat(farrival, &asb);
-
-    if (comps >= lsb.st_size/4 || comps >= asb.st_size/4) {
-	perror("insufficient trace data");
-	exit(1);
+    for (size_t i = 0; i < 1000000; i++) {
+	generator(gen);
     }
 
-    uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
-    float * marrivals    = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
+    // Want in units of sim cycles not bytes
+    double desired_arrival = generator.get_mean() * (1.0/utilization) / 64.0;
+
     slotstat_t * slotstats;
 
     slotstats = (slotstat_t *) malloc(262144 * sizeof(slotstat_t));
@@ -137,25 +127,23 @@ int main(int argc, char ** argv) {
 	slotstats[i].minbacklog = -1;
     }
 
-    std::random_device seed;
-    std::mt19937 gen{seed()}; // seed the generator
-    std::uniform_int_distribution<> dist{0, (int) lsb.st_size/4}; // set min and max
-
-    uint64_t next = dist(gen);
     uint64_t ts = 0;
 
-    double arrival  = marrivals[next];
-    uint32_t length = mlengths[next];
+    double B = desired_arrival / std::tgamma((1+1/.1));
+
+    std::weibull_distribution<> arrivals(.1, B);
+
+    uint64_t arrival = std::round(arrivals(gen));
+    uint32_t length = generator(gen) / 64.0;
 
     uint64_t next_event = 0;
-
-    next = dist(gen);
 
     std::multiset<entry_t, Compare> hwqueue;
 
     // Iterate through events until we reach the requisite number of completitions
-    for (;simstat.compcount < 50*comps;) {
-    // for (;simstat.compcount < comps || !hwqueue.empty();) {
+    for (;simstat.compcount < comps;) {
+	// std::cerr << arrival << std::endl;
+	// std::cerr << length << std::endl;
 
 	// Determine if we have reached a new maximum occupancy
 	if (hwqueue.size() > simstat.max) {
@@ -176,10 +164,6 @@ int main(int argc, char ** argv) {
 		simstat.events++;
 		simstat.compsum += (ts - head.ts);
 		simstat.compcount++;
-
-		// if (simstat.compcount == 50*comps)  {
-		// arrival = std::numeric_limits<double>::max();
-		// }
 	    }
 	}
 
@@ -187,53 +171,45 @@ int main(int argc, char ** argv) {
 	while (arrival <= ts) {
 	    entry_t ins = entry_t{ts, length, length};
 
-	    hwqueue.insert(ins);
+	    if (length != 0) {
+		hwqueue.insert(ins);
+	    }
 
 	    simstat.events++;
 
 	    // Move to the next arrival and length
-	    arrival += marrivals[next];
-	    length  =  mlengths[next];
-
-	    next = dist(gen);
-	    // next++;
+	    arrival += std::round(arrivals(gen));
+	    length  = generator(gen) / 64.0;
 	}
 
 	next_event = min({
 		(!hwqueue.empty() ? (uint64_t) (*(hwqueue.begin())).remaining : (uint64_t) -1),
-		(uint64_t) (arrival + 1 - ts),
-		// (((uint64_t) arrival) <= ts) ? 1 : (uint64_t) (arrival + 1 - ts) 
-		// (simstat.compcount < comps ? (uint64_t) (arrival + 1 - ts) : (uint64_t) -1)//,
-		(1000 - (ts % 1000))
+		(uint64_t) (arrival - ts)
 	    });
 
-	if (next_event == -1) {
-	    next_event = 1;
-	}
-
-	if (ts % 1000 == 0) {
 	    auto it = hwqueue.begin();
 
 	    uint64_t mass = 0;
 	    uint32_t i = 0;
 
-	    for(const auto & it : hwqueue) {
-		mass += it.remaining; 
-		slotstats[i].validcycles += 1;
-		slotstats[i].totalbacklog += mass;
-		slotstats[i].backlog += it.remaining;
-
-		if (slotstats[i].minbacklog > it.remaining) {
-		    slotstats[i].minbacklog = it.remaining;
-		}
-
-		if (slotstats[i].mintotalbacklog > mass) {
-		    slotstats[i].mintotalbacklog = mass;
-		}
-
-		i++;
+	for(const auto & it : hwqueue) {
+	    mass += it.remaining; 
+	    slotstats[i].validcycles += next_event;
+	    slotstats[i].totalbacklog += mass * next_event;
+	    slotstats[i].backlog += it.remaining * next_event;
+	    
+	    if (slotstats[i].minbacklog > it.remaining) {
+		slotstats[i].minbacklog = it.remaining;
 	    }
+	    
+	    if (slotstats[i].mintotalbacklog > mass) {
+		slotstats[i].mintotalbacklog = mass;
+	    }
+	    
+	    i++;
 	}
+
+
 
 	// Move the timestep to the next event
 	ts += next_event;
@@ -254,7 +230,4 @@ int main(int argc, char ** argv) {
     write(fslotstat, &simstat, sizeof(simstat_t));
     write(fslotstat, slotstats, 262144 * sizeof(slotstat_t));
     close(fslotstat);
-
-    close(flength);
-    close(farrival);
 }

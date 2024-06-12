@@ -121,8 +121,8 @@ if __name__ == '__main__':
 
         stripped = origs.copy()
 
-        for i0, orig in origs.iterrows():
-            stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
+        # for i0, orig in origs.iterrows():
+        #     stripped = stripped.loc[(stripped['hw'] <= orig['hw']) | (stripped['sl'] > orig['sl'])]
 
         for i, orig in stripped.iterrows():
             print(orig)
@@ -130,8 +130,8 @@ if __name__ == '__main__':
             print(mctorig)
 
         wk = int(re.findall(r'\d+', workload)[0])-1
-        axs.plot(stripped['hw'], stripped['sl'], color=c, label=str(util))
-                           
+        # axs.plot(stripped['hw'], stripped['sl'], color=c, label=str(util))
+        axs.plot(stripped['hw'], stripped['sl'], 'o', color=c, label=str(util))
         c = next(color)
     
     axs.text(.05, .05, workload, c='r', horizontalalignment='center', verticalalignment='center', transform = axs.transAxes)
@@ -139,13 +139,13 @@ if __name__ == '__main__':
     axs.set_ylabel(r"Large Queue Sorting Constant C ($\mu s$)")
     axs.set_title(r"PIFO Instance with $C * log(n)$ Bulk Sort")
 
-    yticks = []
-    for t in (axs.get_yticklabels()):
-        yticks.append((t.get_unitless_position()[1]*5)/1000)
+    # yticks = []
+    # for t in (axs.get_yticklabels()):
+    #     yticks.append((t.get_unitless_position()[1]*5)/1000)
 
-    print(yticks)
+    # print(yticks)
 
-    axs.set_yticklabels(yticks)
+    # axs.set_yticklabels(yticks)
 
     handles, labels = axs.get_legend_handles_labels()
 

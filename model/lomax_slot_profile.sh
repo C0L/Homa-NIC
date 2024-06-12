@@ -5,8 +5,11 @@ ARRIVAL=( lomax )
 
 UTILS=( .7 .8 .9 )
       
-COMPS=100000000
-CYCLES=150000000
+# COMPS=1000000000
+# CYCLES=1100000000
+
+COMPS=1000000
+CYCLES=1100000
 
 DISTDIR=lomax_prof_dists
 TRACEDIR=lomax_prof_traces
@@ -23,7 +26,7 @@ for wk in "${WORKLOADS[@]}"; do
 	for util in "${UTILS[@]}"; do
 	    arrival=lomax
 	    if [ ! -e "${DISTDIR}/${wk}_${util}_${arrival}_arrivals" ]; then
-		python3.10 GenerateArrivals.py                             \
+		python3 GenerateArrivals.py                                \
 	    		   -d ${arrival}                                   \
 	    		   -u $util                                        \
 	    		   -w ${DISTDIR}/${wk}_lengths                     \

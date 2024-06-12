@@ -40,8 +40,10 @@ if __name__ == '__main__':
     print("Desired Arrival: " + str(arrival))
 
     if args.dist == "poisson":
-        print("Statistical Arrival: " + str(scipy.stats.poisson.stats(arrival, moments='mv')))
-        ts = scipy.stats.poisson.rvs(arrival, size = int(args.samples)).astype(np.float32)
+        # print("Statistical Arrival: " + str(scipy.stats.poisson.stats(arrival, moments='mv')))
+        ts = scipy.stats.poisson.rvs(1, size = int(args.samples)).astype(np.float32)
+
+        ts = (ts / np.mean(ts)) * arrival
     elif args.dist == "lomax":
         ts = np.random.weibull(a=.1, size=int(args.samples)).astype(np.float32)
 

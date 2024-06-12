@@ -59,6 +59,9 @@ if __name__ == '__main__':
 
         wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
 
+        # if (wk >= 3):
+        #     continue
+
         simstats  = np.fromfile(trace, dtype=simstat_t, count=1)
         slotstats = np.fromfile(trace, dtype=slotstat_t, count=-1, offset=simstats.nbytes)
 
@@ -72,17 +75,17 @@ if __name__ == '__main__':
 
         validcycles = slotstats['validcycles']
 
-        axs[wk].plot(minbacklog[minbacklog != 18446744073709551615], label=cfg['util'])
+        axs[wk].plot(minbacklog[minbacklog != 0][0:50], label=cfg['util'])
 
     for i in range(5):
-        axs[i].text(.05, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
+        axs[i].text(.85, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
         axs[i].set_xlabel("Slot Index")
-        axs[i].set_ylabel("Min. Slot Backlog")
-
+        axs[i].set_ylabel("Min. Slot Backlog (Bytes)")
+        axs[i].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
 
     handles, labels = axs[0].get_legend_handles_labels()
     axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.5),
-                     fancybox=False, shadow=False, ncol=2)
+                     fancybox=False, shadow=False, ncol=2, title="Utilization")
 
 
     # TODO 1MB limit
@@ -194,5 +197,7 @@ if __name__ == '__main__':
     # axs[0,2].set_title('Min Total Backlog')
     # axs[0,3].set_title('Min Slot Backlog')
     # axs[0,4].set_title('Ratio Slot Occupied')
+
+    axs[0].set_title('Minimum Slot Backlog')
     
     plt.savefig(args.outfile, bbox_inches="tight")
