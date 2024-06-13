@@ -38,8 +38,8 @@ struct simstat_t {
     uint64_t lowwater;  // # of times lowwater mark triggered
     uint64_t max;       // Maximum occupancy of the queue
     uint64_t events;    // # of events (push/pop)
-    uint64_t compcount; // # of completions
-    uint64_t sim_comps;   // Some of MCTs
+    uint64_t comps; // # of completions
+    uint64_t sum_comps;   // Some of MCTs
     uint64_t cycles;    // Total number of simulation cycles
     uint64_t inacc;     // Inaccuracies
     uint64_t sum_slow_down;
@@ -116,7 +116,7 @@ int main(int argc, char ** argv) {
     std::cerr << "Launching Simulator:" << std::endl;
     std::cerr << "  - Workload      : " << wfile << std::endl;
     std::cerr << "  - Utilization   : " << utilization << std::endl;
-    std::cerr << "  - Priorities    : " << comps << std::endl;
+    std::cerr << "  - Priorities    : " << priorities << std::endl;
     std::cerr << "  - Completions   : " << comps << std::endl;
     std::cerr << "  - Trace File    : " << tfile << std::endl;
 
@@ -156,7 +156,7 @@ int main(int argc, char ** argv) {
     std::cerr << bucket_size << std::endl;
 
     // Iterate through events until we reach the requisite number of completitions
-    for (;simstat.compcount < comps;) {
+    for (;simstat.comps < comps;) {
 
 	uint64_t buff = 64;
 	// If the small queue is not empty, decrement the head or pop it
@@ -170,7 +170,6 @@ int main(int argc, char ** argv) {
 	    fifos[fifo].erase(fifos[fifo].begin());
 
 	    if (head.ts != (*gqueue.begin()).ts && head.remaining != (*gqueue.begin()).remaining) {
-	    // if (head.ts != (*gqueue.begin()).ts && head.remaining > (*gqueue.begin()).remaining) {
 		simstat.inacc++;
 	    }
 
@@ -189,8 +188,9 @@ int main(int argc, char ** argv) {
 		buff -= (buff + head.remaining);
 
 		simstat.events++;
-		simstat.compsum += (ts - head.ts);
-		simstat.compcount++;
+		simstat.sum_comps += (ts - head.ts);
+		simstat.sum_slow_down += ((ts - head.ts) * 64)/head.length;
+		simstat.comps++;
 		size--;
 	    }
 	}
@@ -221,10 +221,10 @@ int main(int argc, char ** argv) {
 
     simstat.cycles = ts;
 
-    std::cerr << "Total Completion : " << simstat.compcount << std::endl;
-    std::cerr << "Mean Completion  : " << ((double) simstat.compsum) / simstat.compcount << std::endl;
+    std::cerr << "Total Completion : " << simstat.comps << std::endl;
+    std::cerr << "Mean Completion  : " << ((double) simstat.sum_comps) / simstat.comps << std::endl;
     std::cerr << "Inaccuracies     : " << ((double) simstat.inacc) / simstat.cycles << std::endl;
-    std::cerr << "Mean Slowdown    : " << ((double) simstat.slowdown) / simstat.cycles << std::endl;
+    std::cerr << "Mean Slowdown    : " << ((double) simstat.sum_slow_down) / simstat.comps << std::endl;
 
     string slotstatroot = tfile;
     int fslotstat = open(slotstatroot.append(".slotstats").c_str(), O_RDWR | O_CREAT, 0644);
