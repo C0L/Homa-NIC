@@ -75,7 +75,10 @@ if __name__ == '__main__':
 
         validcycles = slotstats['validcycles']
 
-        axs[wk].plot((totalbacklog[validcycles != 0]/validcycles[validcycles != 0])[0:50], label=cfg['util'])
+        # print(totalbacklog[validcycles != 0])
+        # print(validcycles[validcycles != 0])
+
+        axs[wk].plot((totalbacklog[validcycles != 0]/validcycles[validcycles != 0]), label=cfg['util'])
 
     for i in range(5):
         axs[i].text(.85, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)

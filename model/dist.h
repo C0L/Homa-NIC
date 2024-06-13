@@ -19,7 +19,7 @@
 class dist_point_gen {
 	public:
 	dist_point_gen(const char* workload, size_t max_size,
-		double min_bucket_frac = .0025, double max_size_ratio = 1.2);
+		double min_bucket_frac = 0, double max_size_ratio = 1.2);
 	int operator()(std::mt19937 &rand_gen);
 	double get_mean() const {return dist_mean;}
 	double dist_overhead(int mtu) const;
