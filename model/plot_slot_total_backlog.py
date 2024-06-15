@@ -83,7 +83,7 @@ if __name__ == '__main__':
     for i in range(5):
         axs[i].text(.85, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
         axs[i].set_xlabel("Slot Index")
-        axs[i].set_ylabel("Total Slot Backlog (Bytes)")
+        axs[i].set_ylabel("Total Slot Backlog (Cycles)")
         axs[i].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
 
     handles, labels = axs[0].get_legend_handles_labels()

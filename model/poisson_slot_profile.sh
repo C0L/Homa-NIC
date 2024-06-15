@@ -1,11 +1,12 @@
 #!/bin/bash
 
-WORKLOADS=( w1 w2 w3 w4 w5 )
+WORKLOADS=( w1 w2 w3 )
+# WORKLOADS=( w1 w2 w3 w4 w5 )
 ARRIVAL=( poisson )
-UTILS=( .7 .8 .9 )
+UTILS=( .7 .8 .9 .99 .999 .9999)
 
-# COMPS=10000000
-COMPS=1000000000
+COMPS=100000000
+# COMPS=1000000000
       
 TRACEDIR=poisson_prof_traces
 

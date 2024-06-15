@@ -24,7 +24,7 @@ def parsefn(fn):
 simstat_t = np.dtype([('highwater', np.uint64),
                       ('lowwater', np.uint64),
                       ('max', np.uint64),
-                      ('events', np.uint64),
+                      ('packets', np.uint64),
                       ('comps', np.uint64),
                       ('sum_comps', np.uint64),
                       ('cycles', np.uint64),
@@ -50,39 +50,72 @@ if __name__ == '__main__':
 
     cmap = {}
 
-    xs = []
-    ys = []
+    xs_slowdown = []
+    ys_slowdown = []
+
+    xs_fct = []
+    ys_fct = []
+
+    xs_inacc = []
+    ys_inacc = []
+
     for trace in args.traces:
         cfg = parsefn(trace)
-        print(cfg)
-
-        wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
+        # print(cfg)
 
         simstats = np.fromfile(trace, dtype=simstat_t, count=1)
-        xs.append(int(cfg['priority']))
-        ys.append(simstats['sum_slow_down'][0]/simstats['cycles'][0])
-        # slowdowns.append((int(cfg['priority']), simstats['sum_slow_down'][0]/simstats['cycles'][0]))
-        # axs[wk].plot((validcycles[validcycles != 0]/simstats['cycles'])[0:50], label=cfg['util'])
+        xs_slowdown.append(int(cfg['priority']))
+        ys_slowdown.append(simstats['sum_slow_down'][0]/simstats['comps'][0])
 
+        xs_fct.append(int(cfg['priority']))
+        ys_fct.append(simstats['sum_comps'][0]/simstats['comps'][0])
+
+        xs_inacc.append(int(cfg['priority']))
+        ys_inacc.append(simstats['inacc'][0]/simstats['packets'][0])
+
+    wk = int(re.findall(r'\d+', cfg['workload'])[0])
+
+    axs[0].text(.85, .85, 'w' + str(wk), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[0].transAxes)
+    axs[1].text(.85, .85, 'w' + str(wk), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[1].transAxes)
+    axs[2].text(.85, .85, 'w' + str(wk), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[2].transAxes)
+
+    sort = sorted(zip(xs_slowdown, ys_slowdown))
+    print(sort)
+
+    xs_slowdown, ys_slowdown= zip(*sort)
+
+    axs[0].set_yscale('log')
     # print(sorted(slowdowns))
-    axs[0].plot(xs, ys, 'o', label=cfg['util'])
-    axs[0].set_xlim((0, 10000))
+    axs[0].plot(xs_slowdown[:], ys_slowdown, 'o', label=cfg['util'])
+    #axs[0].set_xlim((0, 50))
+    # axs[0].set_xlim((0, 400))
+    # axs[0].set_ylim((0, 2000))
+    axs[0].set_xlabel("Priorities")
+    axs[0].set_ylabel("Slowdown")
+    #axs[0].loglog()
 
-    # for i in range(5):
-    #     axs[i].text(.85, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
-    #     axs[i].set_xlabel("Slot Index")
-    #     axs[i].set_ylabel("Ratio Occupied")
-    #     # axs[i].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    axs[1].plot(xs_fct, ys_fct, 'o', label=cfg['util'])
+    #axs[1].set_xlim((0, 50))
+    # axs[1].set_ylim((0, 2000))
+    axs[1].set_xlabel("Priorities")
+    axs[1].set_ylabel("FCT")
+    axs[1].set_yscale('log')
 
+    sort = sorted(zip(xs_inacc, ys_inacc))
+    print(sort)
 
-    #     axs[i].set_yscale('log')
-    #     # axs[i].set_ylim(ymax=10**0)
-    #     axs[i].set_yticks([10**0, 10**-1, 10**-2, 10**-3, 10**-4, 10**-5, 10**-6, 10**-7, 10**-8, 10**-9, 10**-10])
-    #     # axs[i].set_ylim(10**-7,10**.5)
-    #     # axs[i].y_loglog()
-    #     # axs[i].set_ylim(ymin=.0001)
+    # sort = sorted(zip(xs_inacc, ys_inacc))
+    # print(sort)
 
-    # # plt.yscale('log')
+    xs_inacc, ys_inacc = zip(*sort)
+
+    axs[2].plot(xs_inacc, ys_inacc, 'o', label=cfg['util'])
+    # axs[2].set_xlim((0, 400))
+    #axs[2].set_xlim((0, 50))
+    #axs[2].set_ylim((0, 100))
+    axs[2].set_xlabel("Priorities")
+    axs[2].set_ylabel("Inaccuracy Rate")
+    axs[2].set_yscale('log')
 
     # handles, labels = axs[0].get_legend_handles_labels()
     # axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.5),

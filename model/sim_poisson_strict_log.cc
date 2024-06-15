@@ -30,8 +30,6 @@
 #include <cassert>
 
 #include "dist.h"
-
-#define MAX_PACKET 1500
                    
 using namespace std;
 
@@ -125,6 +123,7 @@ int main(int argc, char ** argv) {
 
     std::vector<entry_t> * fifos = new std::vector<entry_t>[priorities];
 
+
     std::mt19937 gen{0xdeadbeef}; 
 
     // Message distribution capped at 1MB
@@ -138,7 +137,7 @@ int main(int argc, char ** argv) {
 
     // Initialize arrival and length
     uint64_t arrival = arrivals(gen);
-    int length = std::ceil(generator(gen)/64.0);
+    int length = generator(gen);
 
     // Golden queue 
     std::multiset<entry_t, Compare> gqueue;
@@ -152,22 +151,17 @@ int main(int argc, char ** argv) {
     // Simulation time
     uint64_t ts = 0;
 
-    int bucket_size = (10000000.0/64.0) / priorities;
+    // If priorities = 24, the multi should be 1
+    double bucket_size = ((double) priorities) / std::log2(10000000);
 
     std::cerr << bucket_size << std::endl;
-
-    uint32_t buff = 0;
 
     // Iterate through events until we reach the requisite number of completitions
     for (;simstat.comps < comps;) {
 
-	// Each cycle we send 64 bytes
-	if (buff > 0) {
-	    buff -= 1;
-	}
-
+	uint64_t buff = 64;
 	// If the small queue is not empty, decrement the head or pop it
-	if (size != 0 && buff == 0) {
+	while (size != 0 && buff != 0) {
 	    int fifo = 0;
 	    for (; fifo < priorities; ++fifo) {
 		if (!fifos[fifo].empty()) break;
@@ -182,34 +176,36 @@ int main(int argc, char ** argv) {
 
 	    gqueue.erase(head);
 
-	    head.remaining -= std::ceil(((double) MAX_PACKET)/64.0);
-	    // head.remaining -= buff;
+	    head.remaining -= buff;
 
 	    if (head.remaining > 0) {
-		int bucket = head.remaining / bucket_size;
+		// log2(1MB) = 23.25 by default there are 24 bins
+		// If you input you want 1000 priorities
+
+		int bucket = std::log2(head.remaining) * bucket_size;
 		fifos[bucket].insert(fifos[bucket].begin(), head);
 
 		gqueue.insert(head);
-
-		buff = std::ceil(((double) MAX_PACKET)/64.0);
+		buff = 0;
 	    } else {
-		buff = head.remaining + std::ceil(((double) MAX_PACKET)/64.0);
+			
+		buff -= (buff + head.remaining);
 
 		simstat.events++;
 		simstat.sum_comps += (ts - head.ts);
-		simstat.sum_slow_down += (ts - head.ts)/head.length;
+		simstat.sum_slow_down += ((ts - head.ts) * 64)/head.length;
 		simstat.comps++;
 		size--;
 	    }
 	}
 
 	// If the next arrival time is before or during this current timestep then add it to the queue
-	if (arrival <= ts) {
+	while (std::floor(arrival/64.0) <= ts) {
 	    entry_t ins = entry_t{ts, length, length};
 
 	    assert(length != 0 && "initial length should not be 0");
 
-	    int bucket = length / bucket_size;
+	    int bucket = std::log2(length) * bucket_size;
 
 	    size++;
 	    fifos[bucket].push_back(ins);
@@ -220,7 +216,7 @@ int main(int argc, char ** argv) {
 
 	    // Move to the next arrival and length
 	    arrival += arrivals(gen);
-	    length  = std::ceil(generator(gen)/64.0);
+	    length  = generator(gen);
 	}
 
 	// Move the timestep to the next event

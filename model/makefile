@@ -35,9 +35,13 @@ sim_weibull_ideal:
 sim_poisson_hw_model:
 	g++ -std=c++11 sim_poisson_hw_model.cc dist.o -o sim_poisson_hw_model
 
-.PHONY: sim_poisson_strict
-sim_poisson_strict:
-	g++ -std=c++11 sim_poisson_strict.cc dist.o -o sim_poisson_strict
+.PHONY: sim_strict_priorities
+sim_strict_priorities:
+	g++ -std=c++11 -I./config.hh sim_strict_priorities.cc dist.o -o sim_strict_priorities
+
+.PHONY: sim_poisson_strict_log
+sim_poisson_strict_log:
+	g++ -std=c++11 sim_poisson_strict_log.cc dist.o -Iconfig.hh -o sim_poisson_strict_log
 
 queueprof: clean simulator distgen
 	./queueprof.sh
@@ -54,8 +58,11 @@ poisson_slot_profile: dist sim_poisson_ideal
 poisson_hw_model: dist sim_poisson_hw_model
 	./poisson_hw_model.sh
 
-poisson_strict: dist sim_poisson_strict
-	./poisson_strict.sh
+strict_priorities: dist sim_strict_priorities
+	./strict_priorities.sh
+
+poisson_strict_log: dist sim_poisson_strict_log
+	./poisson_strict_log.sh
 
 pareto_efficient_weibull_pifo_logn: sim_pifo_logn distgen
 	./pareto_efficient_weibull_logn.sh

@@ -106,8 +106,8 @@ dist_point_gen::dist_point_gen(const char* dist, size_t max_length,
 	double prev_fraction = 0.0;
 	dist_mean = 0.0;
 	for (cdf_point &point: dist_points) {
-		dist_mean += point.length * (point.fraction - prev_fraction);
-		prev_fraction = point.fraction;
+	    dist_mean += std::ceil(point.length/64.0) * (point.fraction - prev_fraction);
+	    prev_fraction = point.fraction;
 	}
 	return;
 }

@@ -76,7 +76,7 @@ if __name__ == '__main__':
 
         validcycles = slotstats['validcycles']
 
-        axs[wk].plot((validcycles[validcycles != 0]/simstats['cycles'])[0:50], label=cfg['util'])
+        axs[wk].plot((validcycles[validcycles != 0]/simstats['cycles']), label=cfg['util'])
 
 
     for i in range(5):
@@ -88,7 +88,8 @@ if __name__ == '__main__':
 
         axs[i].set_yscale('log')
         # axs[i].set_ylim(ymax=10**0)
-        axs[i].set_yticks([10**0, 10**-1, 10**-2, 10**-3, 10**-4, 10**-5, 10**-6, 10**-7, 10**-8, 10**-9, 10**-10])
+        axs[i].set_yticks([10**0, 10**-1, 10**-2, 10**-3, 10**-4, 10**-5, 10**-6, 10**-7])
+        # axs[i].set_yticks([10**0, 10**-1, 10**-2, 10**-3, 10**-4, 10**-5, 10**-6, 10**-7, 10**-8, 10**-9, 10**-10])
         # axs[i].set_ylim(10**-7,10**.5)
         # axs[i].y_loglog()
         # axs[i].set_ylim(ymin=.0001)
