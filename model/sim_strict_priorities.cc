@@ -53,52 +53,40 @@ int main(int argc, char ** argv) {
     std::mt19937 gen{0xdeadbeef}; 
 
     // Message distribution capped at 1MB
-    dist_point_gen w1("w1", 1000000);
-    dist_point_gen w2("w2", 1000000);
-    dist_point_gen w3("w3", 1000000);
-    dist_point_gen w4("w4", 1000000);
-    dist_point_gen w5("w5", 1000000);
+    //dist_point_gen w1("w1", 1000000);
+    // dist_point_gen w2("w2", 1000000);
+    // dist_point_gen w3("w3", 1000000);
+    // dist_point_gen w4("w4", 1000000);
+    // dist_point_gen w5("w5", 1000000);
 
     dist_point_gen wk(wfile.c_str(), 1000000);
 
     // Compute the desired arrival cycles 
-    // double desired_arrival = (.1 * w2.get_mean() + .9 * w2.get_mean()) * (1.0/utilization);
-    // double desired_arrival = (.2 * w1.get_mean() + .2 * w2.get_mean() + .2 * w3.get_mean() + .2 * w4.get_mean() + .2 * w5.get_mean()) * (1.0/utilization);
-
     double desired_arrival = wk.get_mean() * (1.0/utilization);
 
     // Interarrival process with desired mean
-    // std::poisson_distribution<int> arrivals(desired_arrival);
+    std::poisson_distribution<int> arrivals(desired_arrival);
 
-    double B = desired_arrival / std::tgamma((1+1/.1));
-    std::weibull_distribution<> arrivals(.1, B);
-
-    // std::cerr << ((double) (rand()%100))/100  << std::endl;
+    // double B = desired_arrival / std::tgamma((1+1/.1));
+    // std::weibull_distribution<> arrivals(.1, B);
 
     // Initialize arrival and length
     uint64_t arrival = std::round(arrivals(gen));
 
-    // int length = std::ceil(((double) (rand()%100))/100 > .1 ? w2(gen)/64.0 : w2(gen)/64.0);
-    // int length = std::ceil(((double) (rand()%100))/100 > .5 ? w4(gen)/64.0 : w5(gen)/64.0);
-    // std::ceil(generator(gen)/64.0);
+    // int fifo_depth = std::ceil((double) TOTAL_SLOTS / priorities);
+    int fifo_depths[priorities];
 
-    int fifo_depth = std::ceil((double) TOTAL_SLOTS / priorities);
+    // Inital resource alloc
+    for (int i = 0; i < priorities; ++i) {
+	fifo_depths[i] = TOTAL_SLOTS / priorities;
+    }
+
+    // Remaining resource alloc
+    for (int i = 0; i < (TOTAL_SLOTS - (priorities * std::floor(TOTAL_SLOTS / priorities))); ++i) {
+	fifo_depths[i%priorities]++;
+    }
 
     int length = std::ceil(wk(gen)/64.0);
-    // double ran = ((double) (rand()%100))/100;
-    // if (ran <= .2) {
-    // 	length = std::ceil(w1(gen)/64.0);
-    // } else if (ran <= .4) {
-    // 	length = std::ceil(w2(gen)/64.0);
-    // } else if (ran <= .6) {
-    // 	length = std::ceil(w3(gen)/64.0);
-    // } else if (ran <= .8) {
-    // 	length = std::ceil(w4(gen)/64.0);
-    // }  else if (ran <= 1) {
-    // 	length = std::ceil(w5(gen)/64.0);
-    // }
-
-    // int length = std::ceil(((double) (rand()%100))/100 > .1 ? w2(gen)/64.0 : w1(gen)/64.0);
 
     // Golden queue 
     std::multiset<entry_t, Compare> gqueue;
@@ -113,13 +101,8 @@ int main(int argc, char ** argv) {
     // Simulation time
     uint64_t ts = 0;
 
-    // int bucket_size = priorities * std::ceil(1000000/64.0);
-
     // If priorities increases, bucket_size should decrease
-    // TODO this is really bucket-mult in the case of log scaled
     double bucket_size = ((double) priorities-1) / std::log2(std::ceil(1000000/64.0));
-
-    // std::cerr << bucket_size << std::endl;
 
     uint32_t buff = 0;
 
@@ -128,7 +111,7 @@ int main(int argc, char ** argv) {
     // Iterate through events until we reach the requisite number of completitions
     for (;simstat.comps < comps || size != 0;) {
 
-	max_size = (size > max_size) ? size : max_size;
+	// simstat.max = (size > simstat.max) ? size : max_size;
 
 	// Each cycle we send 64 bytes
 	if (buff > 0) {
@@ -156,31 +139,7 @@ int main(int argc, char ** argv) {
 	    simstat.packets++;
 
 	    if (head.remaining > 0) {
-		// int bucket = std::floor(std::log2(head.remaining) * bucket_size);
-
-		// assert(bucket >= 0 && bucket < priorities+1);
-
-		// Lots of space to optimize this
-		//  - Rebucket after every dequeue
-		//  - Don't drop messages but move them to the next level
-
-		// TODO check if we can insert, if we can't we failed and we buffer it
-
 		fifos[fifo].insert(fifos[fifo].begin(), head);
-
-		// fifos[bucket].insert(fifos[bucket].begin(), head);
-
-		// while (true) {
-		//     if (fifos[bucket].size() < fifo_depth || bucket == priorities - 1) {
-		// 	fifos[bucket].push_back(head);
-		// 	break;
-		//     } else {
-		// 	bucket++;
-		//     }
-
-		//     assert(bucket >= 0);
-		//     assert(bucket < priorities+1);
-		// }
 
 		gqueue.insert(head);
 
@@ -205,43 +164,28 @@ int main(int argc, char ** argv) {
 		
 		assert(length != 0 && "initial length should not be 0");
 		
-		// int bucket = length * (priorities - 1)/ std::ceil(1000000/64.0);
 		bucket = std::floor(std::log2(length) * bucket_size);
+
+		// Move to the next arrival and length
+		arrival += std::round(arrivals(gen));
+
+		int new_length = std::ceil(wk(gen)/64.0);
+
+		length = new_length;
 	    } else if (!rexmit.empty()) {
 		ins = rexmit.front();
 		rexmit.erase(rexmit.begin());
 
-		// int bucket = length * (priorities - 1)/ std::ceil(1000000/64.0);
 		bucket = std::floor(std::log2(length) * bucket_size);
 	    }
 
-	    // while (true) {
-	    // 	// if (fifos[bucket].size() < fifo_depth) {
-	    // 	if (fifos[bucket].size() < fifo_depth || bucket == priorities - 1) {
-	    // 	    fifos[bucket].push_back(ins);
-	    // 	    break;
-	    // 	} else {
-	    // 	    bucket++;
-	    // 	}
-
-	    // 	assert(bucket >= 0);
-	    // 	assert(bucket < priorities+1);
-	    // }
-
-	    if (fifos[bucket].size() < fifo_depth) {
+	    if (fifos[bucket].size() < fifo_depths[bucket]) {
 		size++;
 		gqueue.insert(ins);
 		fifos[bucket].push_back(ins);
 	    } else {
 		rexmit.push_back(ins);
 	    }
-
-	    // Move to the next arrival and length
-	    arrival += std::round(arrivals(gen));
-
-	    int new_length = std::ceil(wk(gen)/64.0);
-
-	    length  = new_length;
 	}
 
 	// Move the timestep to the next event

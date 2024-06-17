@@ -28,11 +28,12 @@ slotstat_t = np.dtype([('validcycles', np.uint64),
 simstat_t = np.dtype([('highwater', np.uint64),
                       ('lowwater', np.uint64),
                       ('max', np.uint64),
-                      ('events', np.uint64),
-                      ('compcount', np.uint64),
-                      ('compsum', np.uint64),
+                      ('packets', np.uint64),
+                      ('comps', np.uint64),
                       ('cycles', np.uint64),
-                      ('qo', np.uint64)])
+                      ('sum_comps', np.uint64),
+                      ('inacc', np.uint64),
+                      ('sum_slow_down', np.uint64)])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

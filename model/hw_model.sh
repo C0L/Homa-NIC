@@ -6,17 +6,17 @@ UTILS=( .9999 )
 PRIORITIES=( 1 2 4 8 16 32 64 128 256 )
 
 COMPS=1000000
-      
-TRACEDIR=strict_priorities_poisson
+
+TRACEDIR=hw_model_poisson
 
 mkdir $TRACEDIR | :
 
 for wk in "${WORKLOADS[@]}"; do
     for util in "${UTILS[@]}"; do
-	# for i in {0..255}; do
-	for priority in "${PRIORITIES[@]}"; do
-	    # priority=$(( $i*1 + 1))
-    	    ./sim_strict_priorities --workload ${wk} \
+	# for priority in "${PRIORITIES[@]}"; do
+	for i in {0..255}; do
+	    priority=$(( $i*1 + 1))
+    	    ./sim_hw_model --workload ${wk} \
 				    --priorities ${priority} \
 				    --utilization ${util} \
 				    --comps ${COMPS}      \

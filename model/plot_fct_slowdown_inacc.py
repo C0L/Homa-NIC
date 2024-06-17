@@ -117,7 +117,7 @@ if __name__ == '__main__':
     #axs[2].set_ylim((0, 100))
     axs[2].set_xlabel("Priorities")
     axs[2].set_ylabel("Inaccuracy Rate")
-    axs[2].set_yscale('log')
+    # axs[2].set_yscale('log')
 
     # handles, labels = axs[0].get_legend_handles_labels()
     # axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.5),

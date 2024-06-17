@@ -1,9 +1,6 @@
-
 #include "config.hh"
 
 using namespace std;
-
-static simstat_t simstat; 
 
 const struct option longOpts[] {
     {"workload",required_argument,NULL,'w'},
@@ -47,8 +44,12 @@ int main(int argc, char ** argv) {
     std::cerr << "  - Completions   : " << comps << std::endl;
     std::cerr << "  - Trace File    : " << tfile << std::endl;
 
+    std::mt19937 gen{0xdeadbeef}; 
+
+    dist_point_gen wk(wfile.c_str(), 1000000);
+
     // Compute the desired arrival cycles 
-    double desired_arrival = generator.get_mean() * (1.0/utilization);
+    double desired_arrival = wk.get_mean() * (1.0/utilization);
 
     // Allocate space for statistics about slots
     slotstat_t * slotstats = (slotstat_t *) calloc(262144, sizeof(slotstat_t));
@@ -58,7 +59,7 @@ int main(int argc, char ** argv) {
 
     // Initialize arrival and length
     uint64_t arrival = arrivals(gen);
-    int length = std::ceil(generator(gen)/64.0);
+    int length = std::ceil(wk(gen)/64.0);
 
     // Simulation queue
     std::multiset<entry_t, Compare> hwqueue;
@@ -70,7 +71,7 @@ int main(int argc, char ** argv) {
     uint32_t buff = 0;
 
     // Iterate through events until we reach the requisite number of completitions
-    for (;simstat.compcount < comps;) {
+    for (;simstat.comps < comps;) {
 	// Determine if we have reached a new maximum occupancy
 	// if (hwqueue.size() > simstat.max) {
 	//     simstat.max = hwqueue.size();
@@ -104,9 +105,9 @@ int main(int argc, char ** argv) {
 	    } else {
 		// We sent this complete message
 		buff = head.remaining + std::ceil(((double) MAX_PACKET)/64.0);
-		simstat.events++;
-		simstat.compsum += (ts - head.ts);
-		simstat.compcount++;
+		// simstat.events++;
+		simstat.sum_comps += (ts - head.ts);
+		simstat.comps++;
 	    }
 	} 
 
@@ -117,11 +118,11 @@ int main(int argc, char ** argv) {
 	    assert(length != 0 && "initial length should not be 0");
 	    hwqueue.insert(ins);
 
-	    simstat.events++;
+	    // simstat.events++;
 
 	    // Move to the next arrival and length
 	    arrival += arrivals(gen);
-	    length  = std::ceil(generator(gen)/64.0);
+	    length  = std::ceil(wk(gen)/64.0);
 	}
 
 	// next_event = min({
@@ -160,12 +161,12 @@ int main(int argc, char ** argv) {
 
     // std::cerr << "Experimental Load : " << ((double)bytes_out) / ts << std::endl;
 
-    std::cerr << "Total Cmpl: " << simstat.compcount << std::endl;
-    std::cerr << "Mean Cmpl: " << simstat.compsum / simstat.compcount << std::endl;
+    std::cerr << "Total Cmpl: " << simstat.comps << std::endl;
+    std::cerr << "Mean Cmpl: " << simstat.sum_comps / simstat.comps << std::endl;
     std::cerr << "Highwaters: " << simstat.highwater << std::endl;
     std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
     std::cerr << "Final Size: " << hwqueue.size() << std::endl;
-    std::cerr << "Average Size: " << simstat.qo / simstat.cycles << std::endl;
+    // std::cerr << "Average Size: " << simstat.qo / simstat.cycles << std::endl;
     std::cerr << "Max Size: " << simstat.max << std::endl;
 
     // for (int i = 0; i < 64; i++) {

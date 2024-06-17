@@ -26,19 +26,7 @@
 #include "dist.h"
 
 #define MAX_PACKET 1500
-#define TOTAL_SLOTS 2048 
-
-// struct simstat_t {
-//     uint64_t highwater; // # of times highwater mark triggered
-//     uint64_t lowwater;  // # of times lowwater mark triggered
-//     uint64_t max;       // Maximum occupancy of the queue
-//     uint64_t events;    // # of events (push/pop)
-//     uint64_t compcount; // # of completions
-//     uint64_t comps;   // Some of MCTs
-//     uint64_t cycles;    // Total number of simulation cycles
-//     uint64_t qo;        // Sum queue Occupancy
-// };
-
+#define TOTAL_SLOTS 256
 
 struct simstat_t {
     uint64_t highwater; // # of times highwater mark triggered
@@ -51,8 +39,6 @@ struct simstat_t {
     uint64_t inacc;     // Inaccuracies
     uint64_t sum_slow_down;
 };
-
-
 
 struct slotstat_t {
     uint64_t validcycles;  // # of cycles a valid element is in this slot
