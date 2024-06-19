@@ -111,6 +111,8 @@ int main(int argc, char ** argv) {
     // Iterate through events until we reach the requisite number of completitions
     for (;simstat.comps < comps || size != 0;) {
 
+	assert(rexmit.size() == 0);
+
 	// simstat.max = (size > simstat.max) ? size : max_size;
 
 	// Each cycle we send 64 bytes
@@ -139,7 +141,9 @@ int main(int argc, char ** argv) {
 	    simstat.packets++;
 
 	    if (head.remaining > 0) {
-		fifos[fifo].insert(fifos[fifo].begin(), head);
+		int bucket = std::floor(std::log2(head.remaining) * bucket_size);
+		fifos[bucket].insert(fifos[bucket].begin(), head);
+		// fifos[fifo].insert(fifos[fifo].begin(), head);
 
 		gqueue.insert(head);
 

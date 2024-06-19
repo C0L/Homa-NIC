@@ -1,72 +1,11 @@
-#include <algorithm>
-#include <iostream>
-#include <list>
-#include <queue>
-#include <set>
-#include <fstream>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-
-#include <getopt.h>
-
-#include <cstdint>
-#include <cmath>
-
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-#include <limits>
-
-#include <random>
-#include <iostream>
+#include "config.hh"
 
 using namespace std;
 
-struct simstat_t {
-    uint64_t highwater; // # of times highwater mark triggered
-    uint64_t lowwater;  // # of times lowwater mark triggered
-    uint64_t max;       // Maximum occupancy of the queue
-    uint64_t events;    // # of events (push/pop)
-    uint64_t compcount; // # of completions
-    uint64_t compsum;   // Some of MCTs
-    uint64_t cycles;    // Total number of simulation cycles
-    uint64_t qo;        // Sum queue Occupancy
-};
-
-struct slotstat_t {
-    uint64_t validcycles;  // # of cycles a valid element is in this slot
-    uint64_t totalbacklog; // Sum of mass of this slot and down
-    uint64_t backlog;      // Sum of mass in this slot
-    uint64_t mintotalbacklog = -1; // Minimum total backlog
-    uint64_t minbacklog = -1;      // Minimum backlog
-};
-
-struct entry_t {
-    uint64_t ts;        // Start time
-    uint32_t length;    // Original Length
-    uint32_t remaining; // Remaining length
-};
-
-struct Compare {
-    bool operator()(const entry_t & l, const entry_t & r) const {
-        return l.remaining < r.remaining;
-    }
-};
-
-static simstat_t simstat; 
-
 const struct option longOpts[] {
-    {"length-file",required_argument,NULL,'d'},
-    {"arrival-file",required_argument,NULL,'a'},
+    {"workload",required_argument,NULL,'w'},
     {"comps",required_argument,NULL,'c'},
+    {"utilization",required_argument,NULL,'u'},
     {"trace-file",required_argument,NULL,'t'},
 };
 
@@ -76,24 +15,18 @@ int main(int argc, char ** argv) {
     opterr = 0;
 
     uint64_t comps;
+    double utilization;
     char * end;
-    std::string type;
-    std::string lfile;
-    std::string afile;
+    std::string wfile;
     std::string tfile;
-    uint64_t highwater;
-    uint64_t lowwater;
-    uint32_t chainlatency;
-    uint32_t blocksize;
-    double sortdelay;
 
-    while ((c = getopt_long(argc, argv, "d:a:c:t:", longOpts, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "w:u:c:t:", longOpts, NULL)) != -1)
 	switch (c) {
-	    case 'd':
-		lfile = std::string(optarg);
+	    case 'w':
+		wfile = std::string(optarg);
 		break;
-	    case 'a':
-		afile = std::string(optarg);
+	    case 'u':
+		utilization = strtod(optarg, &end);
 		break;
 	    case 'c':
 		comps = strtol(optarg, &end, 10);
@@ -106,155 +39,174 @@ int main(int argc, char ** argv) {
 	}
 
     std::cerr << "Launching Simulator:" << std::endl;
-    std::cerr << "  - Queuing Policy: " << type << std::endl;
-    std::cerr << "  - Length File   : " << lfile << std::endl;
-    std::cerr << "  - Arrival File  : " << afile << std::endl;
+    std::cerr << "  - Workload      : " << wfile << std::endl;
+    std::cerr << "  - Utilization   : " << utilization << std::endl;
     std::cerr << "  - Completions   : " << comps << std::endl;
     std::cerr << "  - Trace File    : " << tfile << std::endl;
 
-    struct stat lsb;
-    struct stat asb;
+    // std::mt19937 gen{rand()};
+    // std::mt19937 gen(std::chrono::high_resolution_clock::now().time_since_epoch().count()); // time seed
+    std::mt19937 gen{0xdeadbeef}; 
 
-    int flength  = open(lfile.c_str(), O_RDONLY);
-    int farrival = open(afile.c_str(), O_RDONLY);
+    dist_point_gen wk(wfile.c_str(), 1000000);
 
-    fstat(flength, &lsb);
-    fstat(farrival, &asb);
+    // Compute the desired arrival cycles 
+    double desired_arrival = wk.get_mean() * (1.0/utilization);
 
-    if (comps >= lsb.st_size/4 || comps >= asb.st_size/4) {
-	perror("insufficient trace data");
-	exit(1);
-    }
+    // Allocate space for statistics about slots
+    slotstat_t * slotstats = (slotstat_t *) calloc(262144, sizeof(slotstat_t));
 
-    uint32_t * mlengths  = (uint32_t *) mmap(0, lsb.st_size, PROT_READ, MAP_PRIVATE, flength, 0);
-    float * marrivals    = (float *) mmap(0, asb.st_size, PROT_READ, MAP_PRIVATE, farrival, 0);
-    slotstat_t * slotstats;
+    // Interarrival process with desired mean
+    std::poisson_distribution<int> arrivals(desired_arrival);
 
-    slotstats = (slotstat_t *) malloc(262144 * sizeof(slotstat_t));
+    // Initialize arrival and length
+    uint64_t arrival = arrivals(gen);
+    int length = std::ceil(wk(gen)/64.0);
 
-    for (int i = 0; i < 262144; ++i) {
-	slotstats[i].mintotalbacklog = -1;
-	slotstats[i].minbacklog = -1;
-    }
-
-    std::random_device seed;
-    std::mt19937 gen{seed()}; // seed the generator
-    std::uniform_int_distribution<> dist{0, (int) lsb.st_size/4}; // set min and max
-
-    uint64_t next = dist(gen);
-    uint64_t ts = 0;
-
-    double arrival  = marrivals[next];
-    uint32_t length = mlengths[next];
-
-    uint64_t next_event = 0;
-
-    next = dist(gen);
-
+    // Simulation queue
     std::multiset<entry_t, Compare> hwqueue;
 
-    // Iterate through events until we reach the requisite number of completitions
-    for (;simstat.compcount < 50*comps;) {
-    // for (;simstat.compcount < comps || !hwqueue.empty();) {
+    // Simulation time
+    uint64_t ts = 0;
 
+    // Time till next event
+    uint32_t buff = 0;
+
+    // Iterate through events until we reach the requisite number of completitions
+    for (;simstat.comps < comps || !hwqueue.empty();) {
 	// Determine if we have reached a new maximum occupancy
+	/*
 	if (hwqueue.size() > simstat.max) {
 	    simstat.max = hwqueue.size();
-	}
-
-	simstat.qo += next_event * hwqueue.size();
-
-	// If the small queue is not empty, decrement the head or pop it
-	if (!hwqueue.empty()) {
-	    entry_t head = *hwqueue.begin(); 
-	    hwqueue.erase(hwqueue.begin());
-	    head.remaining -= next_event;
-
-	    if (head.remaining != 0) {
-		hwqueue.insert(head);
-	    } else {
-		simstat.events++;
-		simstat.compsum += (ts - head.ts);
-		simstat.compcount++;
-
-		// if (simstat.compcount == 50*comps)  {
-		// arrival = std::numeric_limits<double>::max();
-		// }
-	    }
-	}
-
-	// If the next arrival time is before or during this current timestep then add it to the queue
-	while (arrival <= ts) {
-	    entry_t ins = entry_t{ts, length, length};
-
-	    hwqueue.insert(ins);
-
-	    simstat.events++;
-
-	    // Move to the next arrival and length
-	    arrival += marrivals[next];
-	    length  =  mlengths[next];
-
-	    next = dist(gen);
-	    // next++;
-	}
-
-	next_event = min({
-		(!hwqueue.empty() ? (uint64_t) (*(hwqueue.begin())).remaining : (uint64_t) -1),
-		(uint64_t) (arrival + 1 - ts),
-		// (((uint64_t) arrival) <= ts) ? 1 : (uint64_t) (arrival + 1 - ts) 
-		// (simstat.compcount < comps ? (uint64_t) (arrival + 1 - ts) : (uint64_t) -1)//,
-		(1000 - (ts % 1000))
-	    });
-
-	if (next_event == -1) {
-	    next_event = 1;
-	}
-
-	if (ts % 1000 == 0) {
-	    auto it = hwqueue.begin();
+	    std::cerr << "New Max at time: " << ts << " of size " << hwqueue.size() << std::endl;
 
 	    uint64_t mass = 0;
 	    uint32_t i = 0;
 
+	    std::cerr << "Index     |";
 	    for(const auto & it : hwqueue) {
-		mass += it.remaining; 
-		slotstats[i].validcycles += 1;
-		slotstats[i].totalbacklog += mass;
-		slotstats[i].backlog += it.remaining;
-
-		if (slotstats[i].minbacklog > it.remaining) {
-		    slotstats[i].minbacklog = it.remaining;
-		}
-
-		if (slotstats[i].mintotalbacklog > mass) {
-		    slotstats[i].mintotalbacklog = mass;
-		}
-
+		fprintf(stderr, " %8d |", i);
 		i++;
 	    }
+	    std::cerr << std::endl;
+
+	    std::cerr << "Birth     |";
+	    for(const auto & it : hwqueue) {
+		fprintf(stderr, " %8d |", it.ts);
+	    }
+	    std::cerr << std::endl;
+
+	    std::cerr << "Remaining |";
+	    for(const auto & it : hwqueue) {
+		fprintf(stderr, " %8d |", it.remaining);
+	    }
+	    std::cerr << std::endl;
+
+	    std::cerr << "Length    |";
+	    for(const auto & it : hwqueue) {
+		fprintf(stderr, " %8d |", it.length);
+	    }
+	    std::cerr << std::endl;
+	}
+	*/
+
+	// Each cycle we send 64 bytes
+	if (buff > 0) {
+	    buff -= 1;
+	}
+
+	// 16 bytes in head remaining
+	if (!hwqueue.empty() && buff == 0) {
+	    // Update to the current timestep
+	    entry_t head = *hwqueue.begin(); 
+	    hwqueue.erase(hwqueue.begin());
+	    head.remaining -= std::ceil(((double) MAX_PACKET)/64.0);
+
+	    if (head.remaining > 0) {
+		// We still have more bytes to send for this message
+		hwqueue.insert(head);
+
+		buff = std::ceil(((double) MAX_PACKET)/64.0);
+	    } else {
+		// We sent this complete message
+		buff = head.remaining + std::ceil(((double) MAX_PACKET)/64.0);
+		// simstat.events++;
+		simstat.sum_comps += (ts - head.ts);
+		simstat.sum_slow_down += (ts - head.ts)/head.length;
+		simstat.comps++;
+	    }
+	} 
+
+	// If the next arrival time is before or during this current timestep then add it to the queue
+	// if (arrival <= ts) {
+	if (arrival <= ts && simstat.comps < comps) {
+	    entry_t ins = entry_t{ts, length, length};
+
+	    assert(length != 0 && "initial length should not be 0");
+	    hwqueue.insert(ins);
+
+	    // simstat.events++;
+
+	    // Move to the next arrival and length
+	    arrival += arrivals(gen);
+	    length  = std::ceil(wk(gen)/64.0);
+	}
+
+	// next_event = min({
+	// 	(!hwqueue.empty() ? (uint64_t) std::ceil((hwqueue.begin())->remaining / 64.0) : (uint64_t) -1),
+	// 	(uint64_t) (std::floor(arrival / 64.0) - ts)
+	//    });
+
+	// assert(next_event != 0 && "next_event should never be zero");
+
+	uint64_t mass = 0;
+	uint32_t i = 0;
+
+	for(const auto & it : hwqueue) {
+	    mass += it.remaining; 
+	    slotstats[i].validcycles += 1;
+	    slotstats[i].totalbacklog += mass * 1;
+
+	    slotstats[i].backlog += it.remaining * 1;
+	    
+	    if (slotstats[i].minbacklog > it.remaining || slotstats[i].minbacklog == 0) {
+		slotstats[i].minbacklog = it.remaining;
+	    }
+	    
+	    if (slotstats[i].mintotalbacklog > mass || slotstats[i].mintotalbacklog == 0) {
+		slotstats[i].mintotalbacklog = mass;
+	    }
+	    
+	    i++;
 	}
 
 	// Move the timestep to the next event
-	ts += next_event;
+	ts += 1;
     }
 
     simstat.cycles = ts;
 
-    std::cerr << "Total Cmpl: " << simstat.compcount << std::endl;
-    std::cerr << "Mean Cmpl: " << simstat.compsum / simstat.compcount << std::endl;
-    std::cerr << "Highwaters: " << simstat.highwater << std::endl;
-    std::cerr << "Lowwaters: " << simstat.lowwater << std::endl;
-    std::cerr << "Final Size: " << hwqueue.size() << std::endl;
-    std::cerr << "Average Size: " << simstat.qo / simstat.cycles << std::endl;
-    std::cerr << "Max Size: " << simstat.max << std::endl;
+    // std::cerr << "Experimental Load : " << ((double)bytes_out) / ts << std::endl;
+
+    // std::cerr << "Max Size: " << max_size << std::endl;
+    std::cerr << "Total Completion : " << simstat.comps << std::endl;
+    std::cerr << "Mean Completion  : " << ((double) simstat.sum_comps) / simstat.comps << std::endl;
+    std::cerr << "Inaccuracies     : " << ((double) simstat.inacc) / simstat.cycles << std::endl;
+    std::cerr << "Mean Slowdown    : " << ((double) simstat.sum_slow_down) / simstat.comps << std::endl;
+
+    // std::cerr << "Total Cmpl: " << simstat.comps << std::endl;
+    // std::cerr << "Mean Cmpl: " << simstat.sum_comps / simstat.comps << std::endl;
+    // std::cerr << "Final Size: " << hwqueue.size() << std::endl;
+    // std::cerr << "Average Size: " << simstat.qo / simstat.cycles << std::endl;
+    // std::cerr << "Max Size: " << simstat.max << std::endl;
+
+    // for (int i = 0; i < 64; i++) {
+    // 	std::cerr << i << " VALID COMPS " << slotstats[i].validcycles << " " << slotstats[i].backlog <<std::endl;
+    // }
 
     string slotstatroot = tfile;
     int fslotstat = open(slotstatroot.append(".slotstats").c_str(), O_RDWR | O_CREAT, 0644);
     write(fslotstat, &simstat, sizeof(simstat_t));
     write(fslotstat, slotstats, 262144 * sizeof(slotstat_t));
     close(fslotstat);
-
-    close(flength);
-    close(farrival);
 }

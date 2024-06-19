@@ -1,6 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <chrono>
 #include <algorithm>
 #include <iostream>
 #include <list>
@@ -26,7 +27,8 @@
 #include "dist.h"
 
 #define MAX_PACKET 1500
-#define TOTAL_SLOTS 256
+#define TOTAL_SLOTS 10000000000
+// #define TOTAL_SLOTS 256
 
 struct simstat_t {
     uint64_t highwater; // # of times highwater mark triggered

@@ -16,7 +16,8 @@ def parsefn(fn):
     fsplit = Path(fn).stem.split('_')
     return {
         'workload' : fsplit[0], 
-        'util'     : fsplit[1], 
+        'util'     : fsplit[1],
+        'index'    : fsplit[2], 
     }
 
 slotstat_t = np.dtype([('validcycles', np.uint64),
@@ -45,7 +46,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    fig, axs = plt.subplots(5, figsize=(4,10), sharex=False)
+    fig, axs = plt.subplots(1, sharex=False)
 
     fig.tight_layout()
 
@@ -58,17 +59,12 @@ if __name__ == '__main__':
         cfg = parsefn(trace)
         print(cfg)
 
-        wk = int(re.findall(r'\d+', cfg['workload'])[0])-1
-
-        # if (wk >= 3):
-        #     continue
-
         simstats  = np.fromfile(trace, dtype=simstat_t, count=1)
-        print(simstats.nbytes)
         slotstats = np.fromfile(trace, dtype=slotstat_t, count=-1, offset=simstats.nbytes)
 
         mintotalbacklog = slotstats['mintotalbacklog'].astype(np.uint64)
         minbacklog = slotstats['minbacklog'].astype(np.uint64)
+        np.set_printoptions(threshold=sys.maxsize)
 
         validcycles = slotstats['validcycles']
         backlog = slotstats['backlog']
@@ -76,23 +72,17 @@ if __name__ == '__main__':
 
         validcycles = slotstats['validcycles']
 
-        print(backlog[validcycles != 0])
-        print(validcycles[validcycles != 0])
-        print(backlog[validcycles !=0]/validcycles[validcycles != 0])
-        # axs[wk].plot(backlog[validcycles != 0][11:15], label=cfg['util'])
-        axs[wk].plot((backlog[validcycles != 0]/validcycles[validcycles != 0]), label=cfg['util'])
+        axs.plot((totalbacklog[validcycles != 0]/validcycles[validcycles != 0]), label=cfg['util'])
 
-    for i in range(5):
-        axs[i].text(.85, .85, 'w' + str(i+1), c='r', horizontalalignment='center', verticalalignment='center', transform = axs[i].transAxes)
-        axs[i].set_xlabel("Slot Index")
-        axs[i].set_ylabel("Slot Backlog (Cycles)")
-        axs[i].ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-        axs[i].set_ylim(ymin=0)
+    axs.text(.1, .9, 'w1', c='r', horizontalalignment='center', verticalalignment='center', transform = axs.transAxes)
+    axs.set_xlabel("Slot Index")
+    axs.set_ylabel("Total Slot Backlog (Cycles)")
+    axs.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
 
-    handles, labels = axs[0].get_legend_handles_labels()
-    axs[4].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.5),
+    handles, labels = axs.get_legend_handles_labels()
+    axs.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1),
                      fancybox=False, shadow=False, ncol=2, title="Utilization")
 
-    axs[0].set_title('Slot Backlog')
+    axs.set_title('Total Slot Backlog')
    
     plt.savefig(args.outfile, bbox_inches="tight")
