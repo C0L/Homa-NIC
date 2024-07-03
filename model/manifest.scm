@@ -1,6 +1,7 @@
 (specifications->manifest
  '("python@3.10.7"
    "python-pyyaml"
+   "python-statsmodels"
    "python-numpy"
    "python-scipy"
    "python-matplotlib"

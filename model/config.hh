@@ -31,21 +31,22 @@
 // #define TOTAL_SLOTS 256
 
 struct simstat_t {
-    uint64_t highwater; // # of times highwater mark triggered
-    uint64_t lowwater;  // # of times lowwater mark triggered
-    uint64_t max;       // Maximum occupancy of the queue
-    uint64_t packets;    // # of events (push/pop)
-    uint64_t comps; // # of completions
-    uint64_t sum_comps;   // Some of MCTs
-    uint64_t cycles;    // Total number of simulation cycles
-    uint64_t inacc;     // Inaccuracies
-    uint64_t sum_slow_down;
+    uint64_t overflow;     // # of times highwater mark triggered
+    uint64_t underflow;      // # of times lowwater mark triggered
+    uint64_t max;           // Maximum occupancy of the queue
+    uint64_t packets;       // # of packets out 
+    uint64_t comps;         // # of completions
+    uint64_t sum_comps;     // Some of MCTs
+    uint64_t cycles;        // Total number of simulation cycles
+    uint64_t inacc;         // Inaccuracies
+    uint64_t sum_slow_down; 
 };
 
 struct slotstat_t {
-    uint64_t validcycles;  // # of cycles a valid element is in this slot
-    uint64_t totalbacklog; // Sum of mass of this slot and down
-    uint64_t backlog;      // Sum of mass in this slot
+    uint64_t occupied;        // # of cycles a valid element is in this slot
+    uint64_t arrivals;        // # of cycles an arrival is put in this slot 
+    uint64_t totalbacklog;    // Sum of mass of this slot and down
+    uint64_t backlog;         // Sum of mass in this slot
     uint64_t mintotalbacklog; // Minimum total backlog
     uint64_t minbacklog;      // Minimum backlog
 };
@@ -54,6 +55,7 @@ struct entry_t {
     uint64_t ts;   // Start time
     int length;    // Original Length
     int remaining; // Remaining length
+    bool taint;
 };
 
 std::ostream& operator<<(std::ostream& os, const entry_t& entry) {
