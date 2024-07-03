@@ -89,7 +89,7 @@ public:
 	dump();
     }
 
-    virtual void step() = 0;
+    virtual void step(uint64_t ts) = 0;
     virtual bool empty() = 0;
 
     virtual void arrival(uint64_t ts, int length) {
@@ -228,7 +228,7 @@ public:
 	return hwqueue.empty();
     }
 
-    void step() override {
+    void step(uint64_t ts) override {
 	if (queuestats.maxsize == 0 || hwqueue.size() > queuestats.maxsize) {
 	    queuestats.maxsize = hwqueue.size();
 	}
@@ -250,9 +250,44 @@ class PIFO_Naive: public Queue {
     int min_index = 0;
     int search = 0;
     int priorities;
+    bool recsnap = false;
 
 public:
-    PIFO_Naive(int priorities, std::string & tracefile) : priorities(priorities), Queue(tracefile) {}
+    PIFO_Naive(int priorities, std::string & tracefile) : priorities(priorities), Queue(tracefile) {
+	recsnap = true;
+    }
+
+    PIFO_Naive(int priorities, std::string & snapshot, std::string & tracefile) : priorities(priorities), Queue(tracefile) {
+	std::cerr << snapshot << std::endl;
+	int fd = open(snapshot.c_str(), O_RDWR, 0);
+	if (fd == -1) {
+	    perror("Inavlid snapshot file");
+	    exit(EXIT_FAILURE);
+	}
+
+	uint32_t hwqsize;
+	uint32_t bksize;
+	read(fd, &hwqsize, sizeof(uint32_t));
+	std::cerr << "hwqsize " << hwqsize << std::endl;
+	read(fd, &bksize, sizeof(uint32_t));
+	std::cerr << "bksize " << bksize << std::endl;
+	entry_t entry;
+	for (int i = 0; i < hwqsize; ++i) {
+	    read(fd, &entry, sizeof(entry_t));
+	    std::cerr << "REM " << entry.remaining << std::endl;
+	    hwqueue.insert(entry);
+	    size++;
+	}
+
+	while (read(fd, &entry, sizeof(entry_t)) != 0) {
+	    std::cerr << "REM " << entry.remaining << std::endl;
+	    backing.push_back(entry);
+	    size++;
+	}
+
+	close(fd);
+    }
+
     ~PIFO_Naive() {}
 
     void enqueue(entry_t entry) override {
@@ -288,7 +323,7 @@ public:
 	return size == 0;
     }
 
-    void step() override {
+    void step(uint64_t ts) override {
 	if (queuestats.maxsize == 0 || size > queuestats.maxsize) {
 	    queuestats.maxsize = size;
 	}
@@ -331,6 +366,25 @@ public:
 		slotstats[i+1].occupied += 1;
 		slotstats[i+1].arrivals += (i < hwqueue.size()) ? 1 : 0;
 	    }
+	}
+
+	if (ts % 10000 == 0) {
+	    std::string hwsnap = tracefile;
+	    int fd = open((hwsnap + "_" + std::to_string(ts) + ".snap").c_str(), O_RDWR | O_CREAT, 0644);
+	    uint32_t hwqsize = hwqueue.size();
+	    uint32_t bkqsize = backing.size();
+
+	    write(fd, &hwqsize, sizeof(uint32_t));
+	    write(fd, &bkqsize, sizeof(uint32_t));
+
+	    for(const auto & it : hwqueue) {
+		write(fd, &it, sizeof(entry_t));
+	    }
+
+	    for(const auto & it : backing) {
+		write(fd, &it, sizeof(entry_t));
+	    }
+	    close(fd);
 	}
     }
 };

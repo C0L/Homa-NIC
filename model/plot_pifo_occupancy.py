@@ -24,66 +24,21 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    fig, axs = plt.subplots(1, figsize=(4.5,2))
-    # ax2 = axs.twiny()
-
-    # fig.tight_layout()
-
-    # color = iter(cm.rainbow(np.linspace(0, 1, 12)))
-    # c = next(color)
+    fig, axs = plt.subplots(1, figsize=(2, 4.5))
+    fig.tight_layout()
 
     queuestats, simstats, slotstats = cfg.parse_stats(args.traces[0])
 
     active = slotstats['arrivals']
     valid  = slotstats['occupied']
 
-    print(active[0:16])
-
-    active = active[active != 0]
+    active = active[valid != 0]
     valid  = valid[valid != 0]
 
-    # print(validcycles)
-    # print(occupied)
+    axs.plot(active/valid, range(len(active/valid)))
 
-    axs.plot(active/valid)
-    axs.set_yscale('log')
-    # tts = ((totalbacklog[validcycles != 0]/validcycles[validcycles != 0])[0::]*5/1000)
-    # print(occupied.shape)
-
-    # percentiles = [.5, .1, .01]
-    # pp = []
-
-    # for perc in percentiles:
-    #     print(perc)
-
-    #     wq = DescrStatsW(data=occupied, weights=occupied)
-    #     p = wq.quantile(probs=perc, return_pandas=False)
-    #     print("p")
-    #     print(p)
-    #     p = (abs(occupied-p).argmin())
-    #     print(p)
-    #     pp.append(p)
-    #     print(sum(occupied[p::])/sum(occupied))
-    #     axs.axvline(x=p, linestyle='--', c='r')
-
-    #     axs.set_xlim((0, len(tts)))
-    #     ax2.set_xlim(axs.get_xlim())
-    #     ax2.set_xticks(pp)
-    #     ax2.set_xticklabels(['p50', 'p90', 'p99'])
-    #     ax2.set_xlabel('Slot Occupancy')
-
-    #     axs.plot(tts, linewidth=2)
-    #     sub = cfg.add_subplot_axes(axs, [0.1,0.6,0.3,0.3])
-    #     sub.plot(tts[0:33], linewidth=2)
-    #     sub.plot(16, tts[16], 'g*')
-    #     sub.text(18, tts[16], '({}, {})'.format(16, round(tts[16])), c='r', fontsize='x-small')
-    #     # sub.annotate('',xy=(ptr[cfg['workload']],tts[ptr[cfg['workload']]]),xytext=(5,tts[30]), c='r', arrowprops={'width': 2, 'headwidth': 8, 'color':'red'})
-
-    #     lw -= 1
-
-
-    #     # axs.text(.95, .05, cfg['workload'], c='r', horizontalalignment='center', verticalalignment='center', transform = axs.transAxes)
-    #     axs.set_xlabel("Slot Index")
-    #     axs.set_ylabel(r"Average TTS $(\mu s)$")
+    axs.set_title('Underflow Fraction')
+    axs.set_xlabel('Fraction')
+    axs.set_ylabel('Slot')
 
     plt.savefig(args.outfile, bbox_inches="tight", dpi=500)

@@ -4,6 +4,7 @@
 const struct option longOpts[] {
     {"priorities",required_argument,NULL,'p'},
     {"type",required_argument,NULL,'q'},
+    {"snapshot",required_argument,NULL,'s'},
     {"workload",required_argument,NULL,'w'},
     {"comps",required_argument,NULL,'c'},
     {"utilization",required_argument,NULL,'u'},
@@ -19,9 +20,10 @@ int main(int argc, char ** argv) {
     std::string qtype;
     std::string wfile;
     std::string tfile;
+    std::string sfile;
     int priorities = 0;
 
-    while ((c = getopt_long(argc, argv, "p:q:w:u:c:t:", longOpts, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "p:q:w:u:c:t:s:", longOpts, NULL)) != -1)
 	switch (c) {
 	    case 'p':
 		priorities = std::stoi(optarg);
@@ -41,6 +43,9 @@ int main(int argc, char ** argv) {
 	    case 't':
 		tfile = std::string(optarg);
 		break;
+	    case 's':
+		sfile = std::string(optarg);
+		break;
 	    default:
 		abort();
 	}
@@ -59,7 +64,8 @@ int main(int argc, char ** argv) {
 
     std::unordered_map<std::string, int> nmap = {
 	{"ideal", 0},
-	{"pifonaive", 1}
+	{"pifo_naive", 1},
+	{"pifo_naive_snapshot", 2},
     };
 
     switch(nmap[qtype]) {
@@ -69,31 +75,39 @@ int main(int argc, char ** argv) {
     	case 1:
     	    queue = new PIFO_Naive(priorities, tfile);
 	    break;
+	case 2:
+    	    queue = new PIFO_Naive(priorities, sfile, tfile);
+	    break;
     }
-
-    double next_arrival = arrivals(gen);
-    int next_length = std::ceil(wk(gen)/64.0);
 
     // Simulation time
     uint64_t ts = 0;
 
-    for (;queue->simstats.comps < duration;) {
-	queue->departure(ts);
-
-	// Is there a new arrival
-	if (next_arrival <= ts) {
-	    assert(next_length != 0 && "initial length should not be 0");
-
-	    queue->arrival(ts, next_length);
-
-	    // Move to the next arrival and length
-	    next_arrival += arrivals(gen);
-	    next_length  = std::ceil(wk(gen)/64.0);
+    if (nmap[qtype] == 2) {
+	for (;!queue->empty(); ++ts) {
+	    queue->departure(ts);
+	    queue->step(ts);
 	}
+    } else{
+	double next_arrival = arrivals(gen);
+	int next_length = std::ceil(wk(gen)/64.0);
 
-	queue->step();
+	for (;queue->simstats.comps < duration; ++ts) {
+	    queue->departure(ts);
 
-	ts++;
+	    // Is there a new arrival
+	    if (next_arrival <= ts) {
+		assert(next_length != 0 && "initial length should not be 0");
+
+		queue->arrival(ts, next_length);
+
+		// Move to the next arrival and length
+		next_arrival += arrivals(gen);
+		next_length  = std::ceil(wk(gen)/64.0);
+	    }
+
+	    queue->step(ts);
+	}
     }
 
     delete queue;
