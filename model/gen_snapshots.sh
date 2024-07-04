@@ -1,10 +1,10 @@
 #!/bin/bash
 
 WORKLOADS=( w1 w2 w3 )
-UTILS=( .9 .9999 )
-PRIORITIES=( 8 16 )
+UTILS=( .9 )
+PRIORITIES=( 6 8 16 )
 
-COMPS=1000000
+COMPS=10000000
 # COMPS=100000000
 
 TRACEDIR=gen_snapshots
@@ -19,7 +19,7 @@ for wk in "${WORKLOADS[@]}"; do
 		   --workload ${wk}           \
 		   --utilization ${util}      \
 		   --comps ${COMPS} \
-    		   --trace-file ${TRACEDIR}/${wk}_${util}_${priority} 
+    		   --trace-file ${TRACEDIR}/${wk}_${util}_${priority} &
 	done
     done
 done

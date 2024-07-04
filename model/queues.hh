@@ -250,16 +250,16 @@ class PIFO_Naive: public Queue {
     int min_index = 0;
     int search = 0;
     int priorities;
-    bool recsnap = false;
+    bool snapshot = false;
 
 public:
-    PIFO_Naive(int priorities, std::string & tracefile) : priorities(priorities), Queue(tracefile) {
-	recsnap = true;
+    PIFO_Naive(int priorities, std::string & tfile) : priorities(priorities), Queue(tfile) {
+	snapshot = true;
     }
 
-    PIFO_Naive(int priorities, std::string & snapshot, std::string & tracefile) : priorities(priorities), Queue(tracefile) {
-	std::cerr << snapshot << std::endl;
-	int fd = open(snapshot.c_str(), O_RDWR, 0);
+    PIFO_Naive(int priorities, std::string & sfile, std::string & tfile) : priorities(priorities), Queue(tfile) {
+	snapshot = false;
+	int fd = open(sfile.c_str(), O_RDWR, 0);
 	if (fd == -1) {
 	    perror("Inavlid snapshot file");
 	    exit(EXIT_FAILURE);
@@ -274,13 +274,11 @@ public:
 	entry_t entry;
 	for (int i = 0; i < hwqsize; ++i) {
 	    read(fd, &entry, sizeof(entry_t));
-	    std::cerr << "REM " << entry.remaining << std::endl;
 	    hwqueue.insert(entry);
 	    size++;
 	}
 
 	while (read(fd, &entry, sizeof(entry_t)) != 0) {
-	    std::cerr << "REM " << entry.remaining << std::endl;
 	    backing.push_back(entry);
 	    size++;
 	}
@@ -368,7 +366,7 @@ public:
 	    }
 	}
 
-	if (ts % 10000 == 0) {
+	if (ts % 10000 == 0 && snapshot) {
 	    std::string hwsnap = tracefile;
 	    int fd = open((hwsnap + "_" + std::to_string(ts) + ".snap").c_str(), O_RDWR | O_CREAT, 0644);
 	    uint32_t hwqsize = hwqueue.size();

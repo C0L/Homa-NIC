@@ -18,9 +18,9 @@ int main(int argc, char ** argv) {
     double util;
     char * end;
     std::string qtype;
-    std::string wfile;
-    std::string tfile;
-    std::string sfile;
+    std::string wfile = "";
+    std::string tfile = "";
+    std::string sfile = "";
     int priorities = 0;
 
     while ((c = getopt_long(argc, argv, "p:q:w:u:c:t:s:", longOpts, NULL)) != -1)
@@ -112,6 +112,6 @@ int main(int argc, char ** argv) {
 
     delete queue;
 
-    return 1;
+    return EXIT_SUCCESS;
 }
 
