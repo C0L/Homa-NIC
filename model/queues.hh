@@ -24,11 +24,11 @@
 
 #define MAX_PACKET 1500
 
-
 class Queue {
 public:
     // Time till next event
     uint64_t buff = 0;
+    uint64_t id   = 0;
 
     // Statistics of individual slots
     struct slotstat_t {
@@ -52,11 +52,13 @@ public:
 	uint64_t slowdowns = 0; // Sum of slowdowns
 	uint64_t underflow = 0; // Cycles of wasted network bandwidth
 	uint64_t cycles    = 0; // Total number of simulation cycles
-	uint64_t inacc     = 0; // Inaccuracies
+	uint64_t msginacc  = 0; // Message inaccuracies
+	uint64_t pktinacc  = 0; // Packet inaccuracies
     } simstats;
 
     struct entry_t {
 	uint64_t ts;   // Start time
+	uint64_t id;   // Identifier
 	int length;    // Original Length
 	int remaining; // Remaining length
 	bool taint;    // Has this message had inversions
@@ -67,13 +69,27 @@ public:
     struct Compare {
 	// TODO cleanup
 	bool operator()(const entry_t & l, const entry_t & r) const {
+	    // return l.remaining < r.remaining;
+	    // Primarily ordered by remianing bytes 
 	    if (l.remaining < r.remaining) {
-		return true;
-	    } else if (l.remaining == r.remaining && l.ts < r.ts) {
-		return true;
-	    } else if (l.remaining == r.remaining && l.ts == r.ts && l.length < r.length) {
+	    	return true;
+	    } else if (l.remaining == r.remaining && l.id < r.id) {
 		return true;
 	    }
+
+// else if (l.remaining == r.remaining && l.ts > r.ts) {
+	    //	return true; 
+	    //}
+	    //  if (l.remaining < r.remaining) {
+	    //  	return true;
+	    //  } else if (l.remaining == r.remaining && l.ts < r.ts) {
+	    //  	return true;
+	    //  } else if (l.remaining == r.remaining && l.ts == r.ts && l.length < r.length) {
+	    //  	return true;
+	    //  } else if (l.remaining == r.remaining && l.ts == r.ts && l.length == r.length) {
+	    //  	return true;
+	    //  }
+
 	    return false;
 	}
     };
@@ -93,7 +109,8 @@ public:
     virtual bool empty() = 0;
 
     virtual void arrival(uint64_t ts, int length) {
-	entry_t entry{ts, length, length, false};
+	entry_t entry{ts, id++, length, length, false};
+	assert(length != 0);
 	gqueue.insert(entry);
 	enqueue(entry);
     }
@@ -127,7 +144,8 @@ public:
 
 	// If this message is not optimal, then mark it as tainted
 	if (entry.remaining > (*gqueue.begin()).remaining) {
-	    entry.taint = true;
+	    // entry.taint = true;
+	    simstats.pktinacc++;
 	}
 
 	// If we just sent the last packet for this message, record stats
@@ -136,13 +154,15 @@ public:
 	    simstats.slowdowns += (ts - entry.ts)/entry.length;
 	    simstats.comps++;
 
-	    if (entry.taint) {
-		simstats.inacc++;
-	    }
+	    // if (entry.taint) {
+	    // 	simstats.msginacc++;
+	    // }
 
-	    gqueue.erase(entry);
+	    int val = gqueue.erase(entry);
+	    assert(val == 1);
 	} else {
-	    gqueue.erase(entry);
+	    int val = gqueue.erase(entry);
+	    assert(val == 1);
 	    entry.remaining -= std::ceil(((double) MAX_PACKET)/64.0);
 	    gqueue.insert(entry);
 	}
@@ -160,8 +180,8 @@ public:
 	std::cerr << "- Simulation Statistics:" << std::endl;
 	std::cerr << "  Total Completions : " << simstats.comps << std::endl;
 	std::cerr << "  Mean Completion   : " << ((double) simstats.comptimes) / simstats.comps << std::endl;
-	std::cerr << "  Total Inacc       : " << simstats.inacc << std::endl;
-	std::cerr << "  Inaccuracy Ratio  : " << ((double) simstats.inacc) / simstats.comps << std::endl;
+	std::cerr << "  Total Inacc       : " << simstats.pktinacc << std::endl;
+	std::cerr << "  Inaccuracy Ratio  : " << ((double) simstats.pktinacc) / simstats.packets << std::endl;
 	std::cerr << "  Mean Slowdown     : " << ((double) simstats.slowdowns) / simstats.comps << std::endl;
 	std::cerr << "  Underflow         : " << simstats.underflow << std::endl;
 	std::cerr << "  Underflow  Ratio  : " << ((double) simstats.underflow) / simstats.cycles << std::endl;
@@ -203,7 +223,7 @@ public:
     }
 
     entry_t dequeue() override {
-	entry_t ret = entry_t{0,0,0};
+	entry_t ret = entry_t{0,0,0,0,false};
 	if (!hwqueue.empty()) {
 	    // Update to the current timestep
 	    entry_t head = *hwqueue.begin();
@@ -251,6 +271,8 @@ class PIFO_Naive: public Queue {
     int search = 0;
     int priorities;
     bool snapshot = false;
+    uint32_t last_snap = 0;
+    uint32_t snapc = 0;
 
 public:
     PIFO_Naive(int priorities, std::string & tfile) : priorities(priorities), Queue(tfile) {
@@ -275,11 +297,13 @@ public:
 	for (int i = 0; i < hwqsize; ++i) {
 	    read(fd, &entry, sizeof(entry_t));
 	    hwqueue.insert(entry);
+	    gqueue.insert(entry);
 	    size++;
 	}
 
 	while (read(fd, &entry, sizeof(entry_t)) != 0) {
 	    backing.push_back(entry);
+	    gqueue.insert(entry);
 	    size++;
 	}
 
@@ -294,7 +318,7 @@ public:
     }
 
     entry_t dequeue() override {
-	entry_t ret = entry_t{0,0,0};
+	entry_t ret = entry_t{0,0,0,0,false};
 	if (!hwqueue.empty()) {
 	    // Update to the current timestep
 	    entry_t head = *hwqueue.begin();
@@ -326,29 +350,59 @@ public:
 	    queuestats.maxsize = size;
 	}
 
-	if (!backing.empty()) {
-	    if (search == backing.size()) {
-		// We reached the end, return the best we found
-		if (hwqueue.size() <= priorities + 1 - 2) {
-		    entry_t best = backing[min_index];
-		    backing.erase(std::next(backing.begin(), min_index));
-		    hwqueue.insert(best);
-		    search = 0;
-		    min_index = 0;
-		}
-	    } else {
-		// Either iterate search, or reset it
-		entry_t candidate = backing[search];
+	// if (!backing.empty()) {
+	//     if (search == backing.size()) {
+	// 	// We reached the end, return the best we found
+	// 	if (hwqueue.size() <= priorities+1 - 2) {
+	// 	    entry_t best = backing[min_index];
+	// 	    backing.erase(std::next(backing.begin(), min_index));
+	// 	    hwqueue.insert(best);
+	// 	    search = 0;
+	// 	    min_index = 0;
+	// 	}
+	//     } else {
+	// 	// Either iterate search, or reset it
+	// 	entry_t candidate = backing[search];
 
-		if (candidate.remaining <= backing[min_index].remaining) {
-		    min_index = search;
-		}
-		search++;
+	// 	if (candidate.remaining <= backing[min_index].remaining) {
+	// 	    min_index = search;
+	// 	}
+	// 	search++;
+	//     }
+	// }
+
+	if (!backing.empty()) {
+	    // if (search >= backing.size() - 1) {
+	    // 	search = 0;
+	    // }
+	    // 
+	    // entry_t best = backing[search];
+	    // backing.erase(std::next(backing.begin(), search));
+	    // hwqueue.insert(best);
+	    // search++;
+
+	    if (search == backing.size()) {
+	    	// We reached the end, return the best we found
+	    	if (hwqueue.size() <= priorities + 1 - 2) {
+	    	    entry_t best = backing[min_index];
+	    	    backing.erase(std::next(backing.begin(), min_index));
+	    	    hwqueue.insert(best);
+	    	    search = 0;
+	    	    min_index = 0;
+	    	}
+	    } else {
+	    	// Either iterate search, or reset it
+	    	entry_t candidate = backing[search];
+
+	    	if (candidate.remaining <= backing[min_index].remaining) {
+	    	    min_index = search;
+	    	}
+	    	search++;
 	    }
 	}
 
 	// If there are too many entries in small queue, move them up
-	if (hwqueue.size() >= priorities+1) {
+	while (hwqueue.size() >= priorities+1) {
 	    queuestats.highwater++;
 
 	    entry_t tail = *std::prev(hwqueue.end());
@@ -366,9 +420,11 @@ public:
 	    }
 	}
 
-	if (ts % 10000 == 0 && snapshot) {
+	// if (snapshot && (ts - last_snap) > 10000) {
+	if (snapshot && backing.size() < 410 && backing.size() > 400 && (ts - last_snap) > 5000) {
+	    last_snap = ts;
 	    std::string hwsnap = tracefile;
-	    int fd = open((hwsnap + "_" + std::to_string(ts) + ".snap").c_str(), O_RDWR | O_CREAT, 0644);
+	    int fd = open((hwsnap + "_" + std::to_string(snapc++) + ".snap").c_str(), O_RDWR | O_CREAT, 0644);
 	    uint32_t hwqsize = hwqueue.size();
 	    uint32_t bkqsize = backing.size();
 

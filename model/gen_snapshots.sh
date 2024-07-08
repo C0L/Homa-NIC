@@ -1,10 +1,11 @@
 #!/bin/bash
 
-WORKLOADS=( w1 w2 w3 )
-UTILS=( .9 )
-PRIORITIES=( 6 8 16 )
+WORKLOADS=( w4 )
+UTILS=( .9999 )
+PRIORITIES=( 16 )
 
 COMPS=10000000
+# COMPS=100000000
 # COMPS=100000000
 
 TRACEDIR=gen_snapshots
@@ -23,3 +24,5 @@ for wk in "${WORKLOADS[@]}"; do
 	done
     done
 done
+
+wait

@@ -24,7 +24,8 @@ simstats_t = np.dtype(
         ('slowdowns', np.uint64),
         ('underflow', np.uint64),
         ('cycles', np.uint64),
-        ('inacc', np.uint64)
+        ('msginacc', np.uint64),
+        ('pktinacc', np.uint64)
     ]
 )
 

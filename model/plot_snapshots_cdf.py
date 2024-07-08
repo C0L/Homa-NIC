@@ -13,7 +13,7 @@ import scipy.stats
 import sys
 import re
 from pathlib import Path
-from statsmodels.stats.weightstats import DescrStatsW
+from scipy import stats
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -33,11 +33,27 @@ if __name__ == '__main__':
     for trace in args.traces:
         queuestats, simstats, slotstats = cfg.parse_stats(trace)
 
-        underflow = simstats['underflow']
+        underflow = simstats['underflow']/simstats['cycles']
+        # if (simstats['packets'] != 0):
+        #     #underflow = simstats['pktinacc']
+        #     underflow = simstats['pktinacc']/simstats['packets']
+        # else:
+        #     underflow = [0]
+
+        # underflow = simstats['inacc']
         underflows.append(underflow[0])
 
-    print(underflows)
-    # axs.set_xlabel("")
-    # axs.set_ylabel("")
+    print(sorted(underflows))
+    res = stats.ecdf(underflows)
+    print(sorted(res.cdf.quantiles))
 
-    # plt.savefig(args.outfile, bbox_inches="tight", dpi=500)
+    res.cdf.plot(axs)
+
+    # print(sorted(underflows))
+    # print(underflows)
+    axs.set_title("CDF Underflow (Snapshots [50, 60])")
+    axs.set_xlabel("Ratio of Cycles Underflow")
+    axs.set_ylabel("Cumulative Probability")
+    # axs.plot(underflows)
+
+    plt.savefig(args.outfile, bbox_inches="tight", dpi=500)
