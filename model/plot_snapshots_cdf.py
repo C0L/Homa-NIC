@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # print(sorted(underflows))
     # print(underflows)
-    axs.set_title("CDF Underflow (Snapshots [50, 60])")
+    axs.set_title("CDF Underflow (Snapshots [120, 130])")
     axs.set_xlabel("Ratio of Cycles Underflow")
     axs.set_ylabel("Cumulative Probability")
     # axs.plot(underflows)

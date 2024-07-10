@@ -1,6 +1,6 @@
 #!/bin/bash
 
-WORKLOADS=( w4 )
+WORKLOADS=( w1 )
 UTILS=( .9999 )
 PRIORITIES=( 16 )
 

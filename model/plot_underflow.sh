@@ -1,8 +1,8 @@
 #!/bin/bash
 
-WORKLOADS=( w1 w2 w3 )
-UTILS=( .9 .9999 )
-PRIORITIES=( 8 16 )
+WORKLOADS=( w1 w4 )
+UTILS=( .9999 )
+PRIORITIES=( 16 )
 
 TRACEDIR=prof_underflow
 

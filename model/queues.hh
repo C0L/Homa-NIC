@@ -421,7 +421,7 @@ public:
 	}
 
 	// if (snapshot && (ts - last_snap) > 10000) {
-	if (snapshot && backing.size() < 410 && backing.size() > 400 && (ts - last_snap) > 5000) {
+	if (snapshot && backing.size() < 130 && backing.size() > 120 && (ts - last_snap) > 5000) {
 	    last_snap = ts;
 	    std::string hwsnap = tracefile;
 	    int fd = open((hwsnap + "_" + std::to_string(snapc++) + ".snap").c_str(), O_RDWR | O_CREAT, 0644);
