@@ -9,12 +9,14 @@ const struct option longOpts[] {
     {"comps",required_argument,NULL,'c'},
     {"utilization",required_argument,NULL,'u'},
     {"trace-file",required_argument,NULL,'t'},
+    {"max",required_argument,NULL,'m'},
 };
 
 int main(int argc, char ** argv) {
     int c;
 
     uint64_t duration;
+    uint32_t max = -1;
     double util;
     char * end;
     std::string qtype;
@@ -23,7 +25,7 @@ int main(int argc, char ** argv) {
     std::string sfile = "";
     int priorities = 0;
 
-    while ((c = getopt_long(argc, argv, "p:q:w:u:c:t:s:", longOpts, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "p:q:w:u:c:t:s:m:", longOpts, NULL)) != -1)
 	switch (c) {
 	    case 'p':
 		priorities = std::stoi(optarg);
@@ -45,6 +47,9 @@ int main(int argc, char ** argv) {
 		break;
 	    case 's':
 		sfile = std::string(optarg);
+		break;
+	    case 'm':
+		max = std::stoi(optarg);
 		break;
 	    default:
 		abort();
@@ -89,14 +94,28 @@ int main(int argc, char ** argv) {
 	    queue->step(ts);
 	}
     } else{
+	bool drain = false;
 	double next_arrival = arrivals(gen);
 	int next_length = std::ceil(wk(gen)/64.0);
+
+	queue->gstats = false;
 
 	for (;queue->simstats.comps < duration; ++ts) {
 	    queue->departure(ts);
 
+	    if (queue->size() > max) {
+		queue->gstats = true;
+		drain = true;
+	    }
+
+	    if (queue->size() == 0 && drain) {
+		drain = false;
+		queue->gstats = false;
+		next_arrival = ts + arrivals(gen);
+	    }
+
 	    // Is there a new arrival
-	    if (next_arrival <= ts) {
+	    if (next_arrival <= ts && !drain) {
 		assert(next_length != 0 && "initial length should not be 0");
 
 		queue->arrival(ts, next_length);

@@ -30,6 +30,8 @@ public:
     uint64_t buff = 0;
     uint64_t id   = 0;
 
+    bool gstats = true;
+
     // Statistics of individual slots
     struct slotstat_t {
 	uint64_t occupied        = 0;  // # of cycles a valid element is in this slot
@@ -50,6 +52,7 @@ public:
 	uint64_t comps     = 0; // # of completions
 	uint64_t comptimes = 0; // Sum of completition times
 	uint64_t slowdowns = 0; // Sum of slowdowns
+	double   violations = 0; // Sum of violations
 	uint64_t underflow = 0; // Cycles of wasted network bandwidth
 	uint64_t cycles    = 0; // Total number of simulation cycles
 	uint64_t msginacc  = 0; // Message inaccuracies
@@ -69,26 +72,12 @@ public:
     struct Compare {
 	// TODO cleanup
 	bool operator()(const entry_t & l, const entry_t & r) const {
-	    // return l.remaining < r.remaining;
 	    // Primarily ordered by remianing bytes 
 	    if (l.remaining < r.remaining) {
 	    	return true;
 	    } else if (l.remaining == r.remaining && l.id < r.id) {
 		return true;
 	    }
-
-// else if (l.remaining == r.remaining && l.ts > r.ts) {
-	    //	return true; 
-	    //}
-	    //  if (l.remaining < r.remaining) {
-	    //  	return true;
-	    //  } else if (l.remaining == r.remaining && l.ts < r.ts) {
-	    //  	return true;
-	    //  } else if (l.remaining == r.remaining && l.ts == r.ts && l.length < r.length) {
-	    //  	return true;
-	    //  } else if (l.remaining == r.remaining && l.ts == r.ts && l.length == r.length) {
-	    //  	return true;
-	    //  }
 
 	    return false;
 	}
@@ -133,26 +122,28 @@ public:
 
 	entry_t entry = dequeue();
 
+	// if (!gstats) return;
+
 	// If the null entry is returned we have wasted bandwidth
 	if (entry.length == 0) {
-	    simstats.underflow++;
+	    if (gstats) simstats.underflow++;
 	    return;
 	}
 
 	// Otherwise a new packet has gone out 
-	simstats.packets++;
+	if (gstats) simstats.packets++;
 
 	// If this message is not optimal, then mark it as tainted
 	if (entry.remaining > (*gqueue.begin()).remaining) {
-	    // entry.taint = true;
-	    simstats.pktinacc++;
+	    if (gstats) simstats.pktinacc++;
+	    if (gstats) simstats.violations += (((double) entry.remaining)/((double) (*gqueue.begin()).remaining));
 	}
 
 	// If we just sent the last packet for this message, record stats
 	if (entry.remaining - std::ceil(((double) MAX_PACKET)/64.0) <= 0) {
-	    simstats.comptimes += (ts - entry.ts);
-	    simstats.slowdowns += (ts - entry.ts)/entry.length;
-	    simstats.comps++;
+	    if (gstats) simstats.comptimes += (ts - entry.ts);
+	    if (gstats) simstats.slowdowns += (ts - entry.ts)/entry.length;
+	    if (gstats) simstats.comps++;
 
 	    // if (entry.taint) {
 	    // 	simstats.msginacc++;
@@ -170,6 +161,7 @@ public:
 
     virtual void enqueue(entry_t) = 0;
     virtual entry_t dequeue() = 0;
+    virtual int size() = 0;
 
     void stats() {
 	// TODO def these inside structs
@@ -188,7 +180,7 @@ public:
     }
 
     void dump() {
-	int fd = open(tracefile.append(".stats").c_str(), O_RDWR | O_CREAT, 0644);
+	int fd = open(tracefile.c_str(), O_RDWR | O_CREAT, 0644);
 	write(fd, &queuestats, sizeof(queuestats));
 	write(fd, &simstats, sizeof(simstats));
 	write(fd, slotstats, 1024 * sizeof(*slotstats));
@@ -259,28 +251,43 @@ public:
 	    i++;
 	}
     }
+
+    int size() override {
+	return hwqueue.size();
+    }
 };
 
 
 class PIFO_Naive: public Queue {
     std::multiset<entry_t, Compare> hwqueue;
+    std::vector<entry_t> insertion;
     std::vector<entry_t> backing;
 
-    int size = 0;
-    int min_index = 0;
+    std::vector<entry_t> backing0;
+    std::vector<entry_t> backing1;
+
+    std::vector<entry_t> * primary   = &backing0;
+    std::vector<entry_t> * secondary = &backing1;
+
+    entry_t scan;
+
+    int active = 0;
+    // int min_index = 0;
     int search = 0;
     int priorities;
-    bool snapshot = false;
-    uint32_t last_snap = 0;
-    uint32_t snapc = 0;
+    // bool snapshot = false;
+    // uint32_t last_snap = 0;
+    // uint32_t snapc = 0;
+
+    Compare cmp;
 
 public:
     PIFO_Naive(int priorities, std::string & tfile) : priorities(priorities), Queue(tfile) {
-	snapshot = true;
+	// snapshot = true;
     }
 
     PIFO_Naive(int priorities, std::string & sfile, std::string & tfile) : priorities(priorities), Queue(tfile) {
-	snapshot = false;
+	// snapshot = false;
 	int fd = open(sfile.c_str(), O_RDWR, 0);
 	if (fd == -1) {
 	    perror("Inavlid snapshot file");
@@ -298,13 +305,13 @@ public:
 	    read(fd, &entry, sizeof(entry_t));
 	    hwqueue.insert(entry);
 	    gqueue.insert(entry);
-	    size++;
+	    active++;
 	}
 
 	while (read(fd, &entry, sizeof(entry_t)) != 0) {
 	    backing.push_back(entry);
 	    gqueue.insert(entry);
-	    size++;
+	    active++;
 	}
 
 	close(fd);
@@ -314,7 +321,7 @@ public:
 
     void enqueue(entry_t entry) override {
 	auto it = hwqueue.insert(entry);
-	size++;
+	active++;
     }
 
     entry_t dequeue() override {
@@ -334,7 +341,7 @@ public:
 	    	// We sent this complete message
 	    	buff = head.remaining + std::ceil(((double) MAX_PACKET)/64.0); // TODO move this?
 
-		size--;
+		active--;
 	    }
 	}
 
@@ -342,63 +349,60 @@ public:
     }
 
     bool empty() override {
-	return size == 0;
+	return active == 0;
     }
 
     void step(uint64_t ts) override {
-	if (queuestats.maxsize == 0 || size > queuestats.maxsize) {
-	    queuestats.maxsize = size;
+	if (queuestats.maxsize == 0 || active > queuestats.maxsize) {
+	    queuestats.maxsize = active;
 	}
 
-	// if (!backing.empty()) {
-	//     if (search == backing.size()) {
-	// 	// We reached the end, return the best we found
-	// 	if (hwqueue.size() <= priorities+1 - 2) {
-	// 	    entry_t best = backing[min_index];
-	// 	    backing.erase(std::next(backing.begin(), min_index));
-	// 	    hwqueue.insert(best);
-	// 	    search = 0;
-	// 	    min_index = 0;
-	// 	}
-	//     } else {
-	// 	// Either iterate search, or reset it
-	// 	entry_t candidate = backing[search];
+	if (!insertion.empty() && search == 0) {
+	    // Get the top element of insertion queue
+	    scan = *(insertion.begin());
+	    insertion.erase(insertion.begin());
 
-	// 	if (candidate.remaining <= backing[min_index].remaining) {
-	// 	    min_index = search;
-	// 	}
-	// 	search++;
-	//     }
-	// }
+	    std::vector<entry_t> * tmp = secondary;
+	    secondary = primary;
+	    primary = tmp;
 
-	if (!backing.empty()) {
-	    // if (search >= backing.size() - 1) {
-	    // 	search = 0;
-	    // }
-	    // 
-	    // entry_t best = backing[search];
-	    // backing.erase(std::next(backing.begin(), search));
-	    // hwqueue.insert(best);
-	    // search++;
+	    assert(primary->empty());
 
-	    if (search == backing.size()) {
-	    	// We reached the end, return the best we found
-	    	if (hwqueue.size() <= priorities + 1 - 2) {
-	    	    entry_t best = backing[min_index];
-	    	    backing.erase(std::next(backing.begin(), min_index));
-	    	    hwqueue.insert(best);
-	    	    search = 0;
-	    	    min_index = 0;
-	    	}
+	    // First entry to insert into primary queue
+	    entry_t ins;
+	    if (secondary->empty()) {
+		ins = scan;
+		// std::cerr << "emptied" << std::endl;
 	    } else {
-	    	// Either iterate search, or reset it
-	    	entry_t candidate = backing[search];
-
-	    	if (candidate.remaining <= backing[min_index].remaining) {
-	    	    min_index = search;
-	    	}
-	    	search++;
+		entry_t head = *(secondary->begin());
+		secondary->erase(secondary->begin());
+		ins  = cmp(head, scan) ? head : scan;
+		scan = cmp(head, scan) ? scan : head;
+		search++;
 	    }
+
+	    primary->push_back(ins);
+	} else if (search != 0) {
+	    entry_t ins;
+	    if (secondary->empty()) {
+		ins = scan;
+		search = 0;
+	    } else {
+		entry_t head = *(secondary->begin());
+		secondary->erase(secondary->begin());
+		ins  = cmp(head, scan) ? head : scan;
+		scan = cmp(head, scan) ? scan : head;
+		search++;
+		// TODO reset search=0 here?
+	    }
+
+	    primary->push_back(ins);
+	}
+	
+	if (!primary->empty() && (hwqueue.size() <= priorities+1-2 || cmp(primary->front(), *std::next(hwqueue.begin(), priorities-2)))) {
+	    entry_t head = *primary->begin();
+	    primary->erase(primary->begin());
+	    hwqueue.insert(head);
 	}
 
 	// If there are too many entries in small queue, move them up
@@ -408,40 +412,12 @@ public:
 	    entry_t tail = *std::prev(hwqueue.end());
 	    hwqueue.erase(std::prev(hwqueue.end()));
 
-	    backing.push_back(tail);
-	}
-
-	if (!backing.empty()) {
-	    slotstats[0].occupied += 1;
-	    slotstats[0].arrivals += (buff != 0) ? 1 : 0;
-	    for(int i = 0; i < priorities; ++i) {
-		slotstats[i+1].occupied += 1;
-		slotstats[i+1].arrivals += (i < hwqueue.size()) ? 1 : 0;
-	    }
-	}
-
-	// if (snapshot && (ts - last_snap) > 10000) {
-	if (snapshot && backing.size() < 130 && backing.size() > 120 && (ts - last_snap) > 5000) {
-	    last_snap = ts;
-	    std::string hwsnap = tracefile;
-	    int fd = open((hwsnap + "_" + std::to_string(snapc++) + ".snap").c_str(), O_RDWR | O_CREAT, 0644);
-	    uint32_t hwqsize = hwqueue.size();
-	    uint32_t bkqsize = backing.size();
-
-	    write(fd, &hwqsize, sizeof(uint32_t));
-	    write(fd, &bkqsize, sizeof(uint32_t));
-
-	    for(const auto & it : hwqueue) {
-		write(fd, &it, sizeof(entry_t));
-	    }
-
-	    for(const auto & it : backing) {
-		write(fd, &it, sizeof(entry_t));
-	    }
-	    close(fd);
+	    // Move to insertion FIFO
+	    insertion.push_back(tail);
 	}
     }
+
+    int size() override {
+	return active;
+    }
 };
-
-
- 

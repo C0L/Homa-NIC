@@ -22,6 +22,7 @@ simstats_t = np.dtype(
         ('comps', np.uint64),
         ('comptimes', np.uint64),
         ('slowdowns', np.uint64),
+        ('violations', np.double),
         ('underflow', np.uint64),
         ('cycles', np.uint64),
         ('msginacc', np.uint64),
