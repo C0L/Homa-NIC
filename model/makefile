@@ -9,9 +9,9 @@ qsim: dist
 prof_underflow: qsim
 	./prof_underflow.sh
 
-gen_snapshots: qsim
-	./gen_snapshots.sh
-	
+pifo_insertion_pulse: qsim
+	./pifo_insertion_pulse.sh
+
 prof_snapshots: qsim
 	./prof_snapshots.sh
 

@@ -15,7 +15,8 @@ import re
 from pathlib import Path
 from scipy import stats
 import os
-from operator import itemgetter, attrgetter    
+from operator import itemgetter, attrgetter
+from statsmodels.stats.weightstats import DescrStatsW
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -41,7 +42,18 @@ if __name__ == '__main__':
 
         queuestats, simstats, slotstats = cfg.parse_stats(trace)
 
-        inaccs[s[1]].append((int(s[2]), (simstats['pktinacc']/simstats['packets'])[0]))
+        print(slotstats)
+
+        if len(slotstats) != 0:
+            wq = DescrStatsW(data=slotstats, weights=slotstats)
+            p = wq.quantile(probs=.99, return_pandas=False)
+            # print(p)
+            # p = (abs(slotstats-p).argmin())
+            # inaccs[s[1]].append((int(s[2]), np.mean(slotstats)))
+            inaccs[s[1]].append((int(s[2]), p))
+        # print(p)
+        # pp.append(p)
+        # print(sum(occupied[p::])/sum(occupied))
 
     for arr in inaccs:
         # print(arr)
@@ -52,8 +64,8 @@ if __name__ == '__main__':
     # axs.set_xlim(0, 300)
 
     axs.legend(title='Utilization')
-    axs.set_ylabel("# of incorrect packets/# of packets")
+    axs.set_ylabel("p99 Degree of Violation ")
     axs.set_xlabel("Maximum Queue Size")
-    axs.set_title("Inaccuracy Rate by Max Queue Size (" + s[0] + ")")
+    axs.set_title("p99 Degree of Violation by Max Queue Size Size (" + s[0] + ")")
     plt.savefig(args.outfile, bbox_inches="tight")
     # plt.savefig(args.outfile, bbox_inches="tight", dpi=500)

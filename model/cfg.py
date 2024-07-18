@@ -23,6 +23,8 @@ simstats_t = np.dtype(
         ('comptimes', np.uint64),
         ('slowdowns', np.uint64),
         ('violations', np.double),
+        ('presorted', np.uint64),
+        ('pulses', np.uint64),
         ('underflow', np.uint64),
         ('cycles', np.uint64),
         ('msginacc', np.uint64),
@@ -33,7 +35,8 @@ simstats_t = np.dtype(
 def parse_stats(fn):
     queuestats = np.fromfile(fn, dtype=queuestats_t, count=1)
     simstats   = np.fromfile(fn, dtype=simstats_t, count=1, offset=queuestats.nbytes)
-    slotstats  = np.fromfile(fn, dtype=slotstats_t, count=-1, offset=(queuestats.nbytes + simstats.nbytes))
+    slotstats  = np.fromfile(fn, dtype=np.double, count=-1, offset=(queuestats.nbytes + simstats.nbytes))
+    # slotstats  = np.fromfile(fn, dtype=slotstats_t, count=-1, offset=(queuestats.nbytes + simstats.nbytes))
 
     return queuestats, simstats, slotstats
 

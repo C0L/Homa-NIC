@@ -48,15 +48,17 @@ public:
 
     // Statistics of the simulation
     struct simstat_t {
-	uint64_t packets   = 0; // # of frames
-	uint64_t comps     = 0; // # of completions
-	uint64_t comptimes = 0; // Sum of completition times
-	uint64_t slowdowns = 0; // Sum of slowdowns
+	uint64_t packets   = 0;  // # of frames
+	uint64_t comps     = 0;  // # of completions
+	uint64_t comptimes = 0;  // Sum of completition times
+	uint64_t slowdowns = 0;  // Sum of slowdowns
 	double   violations = 0; // Sum of violations
-	uint64_t underflow = 0; // Cycles of wasted network bandwidth
-	uint64_t cycles    = 0; // Total number of simulation cycles
-	uint64_t msginacc  = 0; // Message inaccuracies
-	uint64_t pktinacc  = 0; // Packet inaccuracies
+	uint64_t presorted = 0;  // Sum # sorted entries at drain point
+	uint64_t pulses    = 0;
+	uint64_t underflow = 0;  // Cycles of wasted network bandwidth
+	uint64_t cycles    = 0;  // Total number of simulation cycles
+	uint64_t msginacc  = 0;  // Message inaccuracies
+	uint64_t pktinacc  = 0;  // Packet inaccuracies
     } simstats;
 
     struct entry_t {
@@ -66,6 +68,8 @@ public:
 	int remaining; // Remaining length
 	bool taint;    // Has this message had inversions
     };
+
+    std::vector<double> violations;
 
     // TODO move this inside entry
     // Return false reflexively if they are equal
@@ -87,11 +91,16 @@ public:
 
     std::multiset<entry_t, Compare> gqueue;
 
-    Queue(std::string & tracefile) : tracefile(tracefile) {}
+    int fd;
+
+    Queue(std::string & tracefile) : tracefile(tracefile) {
+	fd = open(tracefile.c_str(), O_RDWR | O_CREAT, 0644);
+    }
 
     ~Queue() {
 	stats();
 	dump();
+	close(fd);
     }
 
     virtual void step(uint64_t ts) = 0;
@@ -136,12 +145,16 @@ public:
 	// If this message is not optimal, then mark it as tainted
 	if (entry.remaining > (*gqueue.begin()).remaining) {
 	    if (gstats) simstats.pktinacc++;
-	    if (gstats) simstats.violations += (((double) entry.remaining)/((double) (*gqueue.begin()).remaining));
+	    double violation = (((double) entry.remaining)/((double) (*gqueue.begin()).remaining));
+	    if (gstats) simstats.violations += violation;
+	    if (gstats) violations.push_back(violation);
+	    // TODO write to output here
 	}
 
 	// If we just sent the last packet for this message, record stats
 	if (entry.remaining - std::ceil(((double) MAX_PACKET)/64.0) <= 0) {
 	    if (gstats) simstats.comptimes += (ts - entry.ts);
+
 	    if (gstats) simstats.slowdowns += (ts - entry.ts)/entry.length;
 	    if (gstats) simstats.comps++;
 
@@ -162,6 +175,7 @@ public:
     virtual void enqueue(entry_t) = 0;
     virtual entry_t dequeue() = 0;
     virtual int size() = 0;
+    virtual int backsize() = 0;
 
     void stats() {
 	// TODO def these inside structs
@@ -180,10 +194,10 @@ public:
     }
 
     void dump() {
-	int fd = open(tracefile.c_str(), O_RDWR | O_CREAT, 0644);
 	write(fd, &queuestats, sizeof(queuestats));
 	write(fd, &simstats, sizeof(simstats));
-	write(fd, slotstats, 1024 * sizeof(*slotstats));
+	// write(fd, slotstats, 1024 * sizeof(*slotstats));
+	write(fd, &(*violations.begin()), violations.size() * sizeof(double));
 	close(fd);
      }
 };
@@ -250,6 +264,10 @@ public:
 	    slotstats[i].occupied += 1;
 	    i++;
 	}
+    }
+
+    int backsize() override {
+	return 0;
     }
 
     int size() override {
@@ -372,7 +390,6 @@ public:
 	    entry_t ins;
 	    if (secondary->empty()) {
 		ins = scan;
-		// std::cerr << "emptied" << std::endl;
 	    } else {
 		entry_t head = *(secondary->begin());
 		secondary->erase(secondary->begin());
@@ -399,7 +416,7 @@ public:
 	    primary->push_back(ins);
 	}
 	
-	if (!primary->empty() && (hwqueue.size() <= priorities+1-2 || cmp(primary->front(), *std::next(hwqueue.begin(), priorities-2)))) {
+	if (!primary->empty() && (hwqueue.size() <= priorities+1-8 || cmp(primary->front(), *std::next(hwqueue.begin(), priorities-8)))) {
 	    entry_t head = *primary->begin();
 	    primary->erase(primary->begin());
 	    hwqueue.insert(head);
@@ -415,6 +432,10 @@ public:
 	    // Move to insertion FIFO
 	    insertion.push_back(tail);
 	}
+    }
+
+    int backsize() override {
+	return primary->size() + secondary->size() + 1;
     }
 
     int size() override {

@@ -71,6 +71,7 @@ int main(int argc, char ** argv) {
 	{"ideal", 0},
 	{"pifo_naive", 1},
 	{"pifo_naive_snapshot", 2},
+	{"pifo_insertion_pulse", 3},
     };
 
     switch(nmap[qtype]) {
@@ -83,6 +84,9 @@ int main(int argc, char ** argv) {
 	case 2:
     	    queue = new PIFO_Naive(priorities, sfile, tfile);
 	    break;
+	case 3:
+    	    queue = new PIFO_Naive(priorities, tfile);
+	    break;
     }
 
     // Simulation time
@@ -93,22 +97,26 @@ int main(int argc, char ** argv) {
 	    queue->departure(ts);
 	    queue->step(ts);
 	}
-    } else{
+    } else if (nmap[qtype] == 3) {
 	bool drain = false;
 	double next_arrival = arrivals(gen);
 	int next_length = std::ceil(wk(gen)/64.0);
+	int pulses = 0;
 
 	queue->gstats = false;
+	queue->simstats.pulses = duration;
 
-	for (;queue->simstats.comps < duration; ++ts) {
+	for (;pulses < duration; ++ts) {
 	    queue->departure(ts);
 
-	    if (queue->size() > max) {
+	    if (queue->size() > max && !drain) {
+		queue->simstats.presorted += queue->backsize();
 		queue->gstats = true;
 		drain = true;
 	    }
 
 	    if (queue->size() == 0 && drain) {
+		pulses++;
 		drain = false;
 		queue->gstats = false;
 		next_arrival = ts + arrivals(gen);
@@ -116,6 +124,28 @@ int main(int argc, char ** argv) {
 
 	    // Is there a new arrival
 	    if (next_arrival <= ts && !drain) {
+		assert(next_length != 0 && "initial length should not be 0");
+
+		queue->arrival(ts, next_length);
+
+		// Move to the next arrival and length
+		next_arrival += arrivals(gen);
+		next_length  = std::ceil(wk(gen)/64.0);
+	    }
+
+	    queue->step(ts);
+	}
+    } else {
+	double next_arrival = arrivals(gen);
+	int next_length = std::ceil(wk(gen)/64.0);
+
+	queue->gstats = true;
+
+	for (;queue->simstats.comps < duration; ++ts) {
+	    queue->departure(ts);
+
+	    // Is there a new arrival
+	    if (next_arrival <= ts) {
 		assert(next_length != 0 && "initial length should not be 0");
 
 		queue->arrival(ts, next_length);

@@ -42,7 +42,12 @@ if __name__ == '__main__':
 
         queuestats, simstats, slotstats = cfg.parse_stats(trace)
 
-        inaccs[s[1]].append((int(s[2]), (simstats['violations']/simstats['pktinacc'])[0]))
+        if (simstats['pktinacc'] == 0):
+            inaccs[s[1]].append((int(s[2]), 1.0))
+        else:
+            print(simstats['pktinacc'])
+            inaccs[s[1]].append((int(s[2]), (simstats['violations']/simstats['pktinacc'])[0]))
+
         # print(simstats['underflow'])
          #inaccs[s[1]].append((int(s[2]), (simstats['pktinacc']/simstats['packets'])[0]))
 
@@ -55,11 +60,12 @@ if __name__ == '__main__':
         x, y = zip(*sorted(inaccs[arr], key=itemgetter(0)))
         axs.plot(x, y, 'o', label=arr)
 
-    # axs.set_ylim(1.0, 1.025)
+    # axs.set_xlim(0, 300 )
 
     axs.legend(title='Utilization')
     axs.set_ylabel("length transmitted message/length optimal message")
 
     axs.set_xlabel("Maximum Queue Size")
-    axs.set_title("Degree of Error by Max Queue Size")
-    plt.savefig(args.outfile, bbox_inches="tight", dpi=500)
+    axs.set_title("Degree of Error by Max Queue Size (" + s[0] + ")")
+    plt.savefig(args.outfile, bbox_inches="tight")
+    # plt.savefig(args.outfile, bbox_inches="tight", dpi=500)

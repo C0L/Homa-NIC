@@ -41,19 +41,17 @@ if __name__ == '__main__':
 
         queuestats, simstats, slotstats = cfg.parse_stats(trace)
 
-        inaccs[s[1]].append((int(s[2]), (simstats['pktinacc']/simstats['packets'])[0]))
+        inaccs[s[1]].append((int(s[2]), (simstats['presorted']/simstats['pulses'])[0]))
 
     for arr in inaccs:
-        # print(arr)
-        # print(sorted(inaccs[arr], key=itemgetter(0)))
         x, y = zip(*sorted(inaccs[arr], key=itemgetter(0)))
         axs.plot(x, y, 'o', label=arr)
 
     # axs.set_xlim(0, 300)
 
     axs.legend(title='Utilization')
-    axs.set_ylabel("# of incorrect packets/# of packets")
+    axs.set_ylabel("Average Presort")
     axs.set_xlabel("Maximum Queue Size")
-    axs.set_title("Inaccuracy Rate by Max Queue Size (" + s[0] + ")")
+    axs.set_title("Average Presort by Max Queue Size (" + s[0] + ")")
     plt.savefig(args.outfile, bbox_inches="tight")
     # plt.savefig(args.outfile, bbox_inches="tight", dpi=500)
