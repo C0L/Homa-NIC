@@ -51,6 +51,8 @@ if __name__ == '__main__':
             # p = (abs(slotstats-p).argmin())
             # inaccs[s[1]].append((int(s[2]), np.mean(slotstats)))
             inaccs[s[1]].append((int(s[2]), p))
+        else:
+            inaccs[s[1]].append((int(s[2]), 0))
         # print(p)
         # pp.append(p)
         # print(sum(occupied[p::])/sum(occupied))

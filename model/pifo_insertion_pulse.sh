@@ -1,13 +1,14 @@
 #!/bin/bash
 
-WORKLOADS=( w1 w2 w4 )
+WORKLOADS=( w3 )
+# WORKLOADS=( w1 w2 w4 )
 # WORKLOADS=( w1 w2 w4 )
 # WORKLOADS=( w1 w2 w3 w4 w5 )
 UTILS=( 1.2 2 5 )
 # MAXS=( 1 2 8 16 32 64 128 256 512 1024 2048 4098 8192 16384 )
 # MAXS=( 1 32 64 96 128 160 192 224 256 512 1024 2048 )
 
-COMPS=1000
+COMPS=100
 # COMPS=10000000
 
 TRACEDIR=pifo_insertion_pulse
@@ -28,7 +29,7 @@ for wk in "${WORKLOADS[@]}"; do
 	           --max ${max} \
     		   --trace-file ${TRACEDIR}/${wk}_${util}_${max} &
 	done
-	wait
+	# wait
     done
 done
 
