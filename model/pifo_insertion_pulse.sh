@@ -1,15 +1,10 @@
 #!/bin/bash
 
-WORKLOADS=( w3 )
-# WORKLOADS=( w1 w2 w4 )
-# WORKLOADS=( w1 w2 w4 )
-# WORKLOADS=( w1 w2 w3 w4 w5 )
+WORKLOADS=( w1 w2 )
+# UTILS=( 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9 )
 UTILS=( 1.2 2 5 )
-# MAXS=( 1 2 8 16 32 64 128 256 512 1024 2048 4098 8192 16384 )
-# MAXS=( 1 32 64 96 128 160 192 224 256 512 1024 2048 )
 
 COMPS=100
-# COMPS=10000000
 
 TRACEDIR=pifo_insertion_pulse
 

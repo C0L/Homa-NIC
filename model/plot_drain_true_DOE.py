@@ -28,6 +28,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     fig, axs = plt.subplots(1)
+    # fig, axs = plt.subplots(1, figsize=(4.5,2))
 
     fig.tight_layout()
 
@@ -41,19 +42,30 @@ if __name__ == '__main__':
 
         queuestats, simstats, slotstats = cfg.parse_stats(trace)
 
-        inaccs[s[1]].append((int(s[2]), (simstats['pktinacc']/simstats['packets'])[0]))
+        if (simstats['packets'] == 0):
+            inaccs[s[1]].append((int(s[2]), 1.0))
+        else:
+            print(simstats['pktinacc'])
+            inaccs[s[1]].append((int(s[2]), (simstats['violations']/simstats['packets'])[0]))
 
+        # print(simstats['underflow'])
+         #inaccs[s[1]].append((int(s[2]), (simstats['pktinacc']/simstats['packets'])[0]))
+
+    # print(inaccs)
     for arr in inaccs:
-        # print(arr)
-        # print(sorted(inaccs[arr], key=itemgetter(0)))
+        # print(inaccs[arr])
+        print(arr)
+        # print(inaccs[arr])
+        print(sorted(inaccs[arr], key=itemgetter(0)))
         x, y = zip(*sorted(inaccs[arr], key=itemgetter(0)))
         axs.plot(x, y, 'o', label=arr)
 
     # axs.set_xlim(0, 256)
 
     axs.legend(title='Utilization')
-    axs.set_ylabel("# of incorrect packets/# of packets")
+    axs.set_ylabel("length transmitted message/length optimal message")
+
     axs.set_xlabel("Maximum Queue Size")
-    axs.set_title("Inaccuracy Rate by Max Queue Size (" + s[0] + ")")
+    axs.set_title("True Degree of Error by Max Queue Size (" + s[0] + ")")
     plt.savefig(args.outfile, bbox_inches="tight")
     # plt.savefig(args.outfile, bbox_inches="tight", dpi=500)

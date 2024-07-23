@@ -34,14 +34,14 @@ if __name__ == '__main__':
     inaccs = {}
     for trace in args.traces:
         s = os.path.basename(trace).split('_')
-        print(s)
+        # print(s)
 
         if s[1] not in inaccs.keys():
             inaccs[s[1]] = []
 
         queuestats, simstats, slotstats = cfg.parse_stats(trace)
 
-        inaccs[s[1]].append((int(s[2]), (simstats['pktinacc']/simstats['packets'])[0]))
+        inaccs[s[1]].append((int(s[2]), (queuestats['lowwater']/simstats['comps'])[0]))
 
     for arr in inaccs:
         # print(arr)
@@ -52,8 +52,8 @@ if __name__ == '__main__':
     # axs.set_xlim(0, 256)
 
     axs.legend(title='Utilization')
-    axs.set_ylabel("# of incorrect packets/# of packets")
+    axs.set_ylabel("# low water events/# of messages")
     axs.set_xlabel("Maximum Queue Size")
-    axs.set_title("Inaccuracy Rate by Max Queue Size (" + s[0] + ")")
+    axs.set_title("Low-Water by Max Queue Size (" + s[0] + ")")
     plt.savefig(args.outfile, bbox_inches="tight")
     # plt.savefig(args.outfile, bbox_inches="tight", dpi=500)

@@ -60,7 +60,7 @@ if __name__ == '__main__':
         x, y = zip(*sorted(inaccs[arr], key=itemgetter(0)))
         axs.plot(x, y, 'o', label=arr)
 
-    # axs.set_xlim(0, 300 )
+    # axs.set_xlim(0, 256)
 
     axs.legend(title='Utilization')
     axs.set_ylabel("length transmitted message/length optimal message")

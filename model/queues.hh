@@ -417,6 +417,7 @@ public:
 	}
 	
 	if (!primary->empty() && (hwqueue.size() <= priorities+1-8 || cmp(primary->front(), *std::next(hwqueue.begin(), priorities-8)))) {
+	    queuestats.lowwater++;
 	    entry_t head = *primary->begin();
 	    primary->erase(primary->begin());
 	    hwqueue.insert(head);
