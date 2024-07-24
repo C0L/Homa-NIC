@@ -436,7 +436,17 @@ public:
     }
 
     int backsize() override {
-	return primary->size() + secondary->size() + 1;
+	int presort = 0;
+	for (auto & ts : *primary) {
+	    presort += ts.remaining;
+	}
+
+	for (auto & ts : *secondary) {
+	    presort += ts.remaining;
+	}
+
+	return presort;
+	// return primary->size() + secondary->size() + 1;
     }
 
     int size() override {
