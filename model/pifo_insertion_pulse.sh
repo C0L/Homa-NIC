@@ -1,8 +1,10 @@
 #!/bin/bash
 
-WORKLOADS=( w1 w2 )
+WORKLOADS=( w1 )
+UTILS=( 5 )
+# WORKLOADS=( w1 w2 )
 # UTILS=( 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9 )
-UTILS=( 1.2 2 5 )
+# UTILS=( 1.2 2 5 )
 
 COMPS=100
 
@@ -23,6 +25,8 @@ for wk in "${WORKLOADS[@]}"; do
 		   --comps ${COMPS} \
 	           --max ${max} \
     		   --trace-file ${TRACEDIR}/${wk}_${util}_${max} &
+	    wait
+	    exit
 	done
 	# wait
     done

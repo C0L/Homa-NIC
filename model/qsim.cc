@@ -113,6 +113,7 @@ int main(int argc, char ** argv) {
 		queue->simstats.presorted += queue->backsize();
 		queue->gstats = true;
 		drain = true;
+		// std::cerr << "max size " << std::endl;
 	    }
 
 	    if (queue->size() == 0 && drain) {

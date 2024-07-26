@@ -21,6 +21,8 @@
 #include <iostream>
 #include <cassert>
 #include <unordered_map>
+#include <time.h>
+#include <iomanip>
 
 #define MAX_PACKET 1500
 
@@ -278,24 +280,18 @@ public:
 
 class PIFO_Naive: public Queue {
     std::multiset<entry_t, Compare> hwqueue;
-    std::vector<entry_t> insertion;
-    std::vector<entry_t> backing;
 
-    std::vector<entry_t> backing0;
-    std::vector<entry_t> backing1;
-
-    std::vector<entry_t> * primary   = &backing0;
-    std::vector<entry_t> * secondary = &backing1;
-
-    entry_t scan;
+    std::vector<std::pair<entry_t, bool>> backing;
+    entry_t insert;
+    int scan = -1;
+    int firstunsort = -1;
 
     int active = 0;
-    // int min_index = 0;
     int search = 0;
     int priorities;
-    // bool snapshot = false;
-    // uint32_t last_snap = 0;
-    // uint32_t snapc = 0;
+
+
+    bool diff = false;
 
     Compare cmp;
 
@@ -306,31 +302,31 @@ public:
 
     PIFO_Naive(int priorities, std::string & sfile, std::string & tfile) : priorities(priorities), Queue(tfile) {
 	// snapshot = false;
-	int fd = open(sfile.c_str(), O_RDWR, 0);
-	if (fd == -1) {
-	    perror("Inavlid snapshot file");
-	    exit(EXIT_FAILURE);
-	}
+	// int fd = open(sfile.c_str(), O_RDWR, 0);
+	// if (fd == -1) {
+	//     perror("Inavlid snapshot file");
+	//     exit(EXIT_FAILURE);
+	// }
 
-	uint32_t hwqsize;
-	uint32_t bksize;
-	read(fd, &hwqsize, sizeof(uint32_t));
-	std::cerr << "hwqsize " << hwqsize << std::endl;
-	read(fd, &bksize, sizeof(uint32_t));
-	std::cerr << "bksize " << bksize << std::endl;
-	entry_t entry;
-	for (int i = 0; i < hwqsize; ++i) {
-	    read(fd, &entry, sizeof(entry_t));
-	    hwqueue.insert(entry);
-	    gqueue.insert(entry);
-	    active++;
-	}
+	// uint32_t hwqsize;
+	// uint32_t bksize;
+	// read(fd, &hwqsize, sizeof(uint32_t));
+	// std::cerr << "hwqsize " << hwqsize << std::endl;
+	// read(fd, &bksize, sizeof(uint32_t));
+	// std::cerr << "bksize " << bksize << std::endl;
+	// entry_t entry;
+	// for (int i = 0; i < hwqsize; ++i) {
+	//     read(fd, &entry, sizeof(entry_t));
+	//     hwqueue.insert(entry);
+	//     gqueue.insert(entry);
+	//     active++;
+	// }
 
-	while (read(fd, &entry, sizeof(entry_t)) != 0) {
-	    backing.push_back(entry);
-	    gqueue.insert(entry);
-	    active++;
-	}
+	// while (read(fd, &entry, sizeof(entry_t)) != 0) {
+	//     backing.push_back(entry);
+	//     gqueue.insert(entry);
+	//     active++;
+	// }
 
 	close(fd);
     }
@@ -375,78 +371,149 @@ public:
 	    queuestats.maxsize = active;
 	}
 
-	if (!insertion.empty() && search == 0) {
-	    // Get the top element of insertion queue
-	    scan = *(insertion.begin());
-	    insertion.erase(insertion.begin());
 
-	    std::vector<entry_t> * tmp = secondary;
-	    secondary = primary;
-	    primary = tmp;
+	// If we are not busy scanning, but there are unsorted entries, jump to that
+	if (scan == -1 && firstunsort != -1) {
+	    std::pair<entry_t, bool> missort = *std::next(backing.begin(), firstunsort);
+	    assert(missort.second == false);
+	    backing.erase(std::next(backing.begin(), firstunsort));
 
-	    assert(primary->empty());
+	    insert = missort.first;
+	    scan = firstunsort;
 
-	    // First entry to insert into primary queue
-	    entry_t ins;
-	    if (secondary->empty()) {
-		ins = scan;
-	    } else {
-		entry_t head = *(secondary->begin());
-		secondary->erase(secondary->begin());
-		ins  = cmp(head, scan) ? head : scan;
-		scan = cmp(head, scan) ? scan : head;
-		search++;
-	    }
-
-	    primary->push_back(ins);
-	} else if (search != 0) {
-	    entry_t ins;
-	    if (secondary->empty()) {
-		ins = scan;
-		search = 0;
-	    } else {
-		entry_t head = *(secondary->begin());
-		secondary->erase(secondary->begin());
-		ins  = cmp(head, scan) ? head : scan;
-		scan = cmp(head, scan) ? scan : head;
-		search++;
-		// TODO reset search=0 here?
-	    }
-
-	    primary->push_back(ins);
+	    firstunsort = -1;
+	    diff = true;
 	}
-	
-	if (!primary->empty() && (hwqueue.size() <= priorities+1-8 || cmp(primary->front(), *std::next(hwqueue.begin(), priorities-8)))) {
+
+	// We are trying to insert an element
+	if (scan != -1) {
+	    if (scan >= backing.size()) {
+	    	backing.insert(std::next(backing.begin(), scan), {insert, true});
+		scan = -1;
+	    } else {
+		auto compare = std::next(backing.begin(), scan);
+		if (cmp(insert, compare->first)) { // We found the correct slot
+		    // Is the comparison entry already ideal?
+		    if (compare->second) {
+			// entry_t tmp = compare->first;
+			backing.insert(std::next(backing.begin(), scan), {insert, true});
+
+			firstunsort = (scan <= firstunsort) ? firstunsort + 1 : firstunsort;
+			
+			scan = -1;
+		    } else { // Leave the best element
+			entry_t tmp = compare->first;
+
+			// This cannot change the firstunsort
+			backing.erase(compare);
+			backing.insert(std::next(backing.begin(), scan), {insert, false});
+
+			insert = tmp;
+
+			firstunsort = ((scan < firstunsort || firstunsort == -1)) ? scan : firstunsort;
+
+			// Continue scanning
+			scan++;
+		    }
+		} else {
+		    scan++;
+		}
+	    }
+	    diff = true;
+	}
+
+	// Are we pushing an element from the bulk sorter to the PIFO
+	if (!backing.empty() && (hwqueue.size() <= priorities+1-8 || cmp(backing.front().first, *std::next(hwqueue.begin(), priorities-8)))) { // TODO ensure we don't bloat the PIFO to much
 	    queuestats.lowwater++;
-	    entry_t head = *primary->begin();
-	    primary->erase(primary->begin());
-	    hwqueue.insert(head);
+	    std::pair<entry_t, bool> head = *backing.begin();
+	    backing.erase(backing.begin());
+	    hwqueue.insert(head.first);
+
+	    // TODO check
+	    firstunsort = (firstunsort < 0) ? firstunsort : firstunsort - 1;
+	    scan = (scan <= 0) ? scan : scan - 1;
+	    diff=true;
 	}
 
-	// If there are too many entries in small queue, move them up
-	while (hwqueue.size() >= priorities+1) {
-	    queuestats.highwater++;
+	if (hwqueue.size() >= priorities+1) {
+	    // Are we currently sorting a value
+	    if (scan != -1) { 
+		// Insert the current value in place
+		auto ins = std::next(backing.begin(), scan);
+		int csize = backing.size();
+		backing.insert(ins, {insert, (scan == csize)});
 
-	    entry_t tail = *std::prev(hwqueue.end());
+		firstunsort = (scan != csize && (scan < firstunsort || firstunsort == -1)) ? scan : firstunsort;
+	    }
+
+	    insert = *std::prev(hwqueue.end());
 	    hwqueue.erase(std::prev(hwqueue.end()));
+	    scan = 0;
+	    diff = true;
+	}
 
-	    // Move to insertion FIFO
-	    insertion.push_back(tail);
+	if (diff) {
+	std::cerr << "Rem ";
+	for (auto & it : backing) {
+	    std::cerr << " | " << std::setfill('0') << std::setw(3) << it.first.remaining;
+	}
+	std::cerr << std::endl;
+
+	std::cerr << "Flag";
+	for (auto & it : backing) {
+	    std::cerr << " | " << std::setfill('0') << std::setw(3) << it.second;
+	}
+	std::cerr << std::endl;
+
+	std::cerr << "Last";
+	int i = 0;
+	for (auto & it : backing) {
+	    std::cerr << " | ";
+	    if (i == firstunsort) {
+		std::cerr << " ^ ";
+	    } else {
+		std::cerr << "   ";
+	    }
+	    i++;
+	}
+	std::cerr << std::endl;
+
+	std::cerr << "Head";
+	i = 0;
+	for (auto & it : backing) {
+	    std::cerr << " | ";
+	    if (i == scan) {
+		std::cerr << std::setfill('0') << std::setw(3) << insert.remaining;
+	    } else {
+		std::cerr << "   ";
+	    }
+
+	    i++;
+	}
+	std::cerr << std::endl;
+
+	// if (firstunsort != -1) {
+
+	//     //std::cerr << firstunsort << std::endl;
+	//     // exit(1);
+	// }
+	diff = false;
+	usleep(500000);
 	}
     }
 
     int backsize() override {
-	int presort = 0;
-	for (auto & ts : *primary) {
-	    presort += ts.remaining;
-	}
+	return 0;
+	// int presort = 0;
+	// for (auto & ts : *primary) {
+	//     presort += ts.remaining;
+	// }
 
-	for (auto & ts : *secondary) {
-	    presort += ts.remaining;
-	}
+	// for (auto & ts : *secondary) {
+	//     presort += ts.remaining;
+	// }
 
-	return presort;
-	// return primary->size() + secondary->size() + 1;
+	// return presort;
     }
 
     int size() override {
